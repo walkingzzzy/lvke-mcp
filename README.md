@@ -9,24 +9,21 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 自有环境变量，缺省落在 `~/.lvke/`。**不读取任何 `HERMES_*` 环境变量。** 本目录内的
 业务实现是 MCP 自有的领域代码，不是 Hermes 的复用层。
 
-## 迁移状态（2026-08-04）
+## 架构状态（2026-08-04）
 
 - **WP-01（独立 pyproject + runtime 骨架）已完成构建**：`mcp_servers/pyproject.toml`、
   `src/lvke_mcp/runtime/`（10 个直接搬移模块 + `config.py` / `jobs.py` 两个新模块）、
   参考 server `src/lvke_mcp/servers/scaffold/`。验收标准（§29.3）：scaffold server 在
   未安装 Hermes 且不依赖当前仓库根目录虚拟环境的干净 venv 中完成 `initialize`、
   `tools/list`、`call_tool`、`resources/list`、`resources/read`。
-- **纵向切片（§29.4）进行中**：既有领域 server 仍以 `mcp_servers/lvke_*/server.py`
-  形式存在，按 §29.4 顺序（source-files → data-acquisition → data-analysis →
-  deep-research → project-planning → finance-model → finance-tables →
-  report-generation → asset-acquisition → deliverable-review → knowledge-governance →
-  support）逐个搬移进 `src/lvke_mcp/` 并为 `_common` 建立兼容垫片。
+- **纵向切片（§29.4）已完成**：全部正式服务和支撑服务均由
+  `src/lvke_mcp/servers/` 提供入口，业务实现位于 `domains/`，基础设施实现位于
+  `adapters/` 和 `runtime/`。仓库根目录下的旧 server 兼容包已删除。
 - **独立性扫描升级为 AST v2（2026-08-04）**：`scripts/independence_scan.py` 改用
   `ast` 解析，只统计真实 import / 动态加载 / `HERMES_*` 环境变量读取，不再把
   docstring、注释、字符串字面量计为依赖。当前结果：
   `forward（MCP → 外部）= 0`，即 `src/lvke_mcp` 不调用任何其他项目代码；
-  `reverse（Hermes → MCP）= 25 处`，均为 Hermes 侧对旧垫片入口的进程内 import，
-  属于 Hermes 侧待迁移项（迁移到标准 MCP transport 后删除垫片）。
+  新发行版只扫描和运行 `src/lvke_mcp` 自有代码，不保留旧顶层导入入口。
 
 ## 正式业务工具面（十一服务）
 
@@ -44,7 +41,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 | `lvke-deliverable-review` | `review_preparation_id` / `review_id` / `finding_id` | 财务表、研报与联合交付包的统一审查、整改复测、签审和正式固化 |
 | `lvke-knowledge-governance` | `candidate_id` / `review_id` / `release_id` | 证据化知识候选、独立复核和 reviewed-first 发布 |
 
-## 支撑与兼容服务（11 个）
+## 支撑服务（11 个）
 
 `finance-calc`、`excel-bridge`、`lvke-archive`、`lvke-templates`、`lvke-clients`、
 `lvke-experts`、`policy-search`、`statistics-cn`、`industry-research`、
@@ -67,23 +64,8 @@ mcp_servers/
 │   ├── domains/              # 领域业务层，随切片迁入
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
-│       └── (纵向切片后各领域 server)
-├── _common/                  # 领域 server 的共享底座（切片期间经垫片维持运行）
-├── lvke_project_planning/    # 既有领域 server（§29.4 迁移进行中）
-├── lvke_source_files/
-├── lvke_data_acquisition/
-├── lvke_data_analysis/
-├── lvke_finance_model/
-├── lvke_deep_research/
-├── lvke_finance_tables/
-├── lvke_report_generation/
-├── lvke_asset_acquisition/
-├── lvke_deliverable_review/
-├── lvke_knowledge_governance/
-├── finance_calc/             # 历史内部计算实现，不作为正式财务旁路
-├── excel_bridge/             # 十三表 MCP 复用的导出实现
-├── lvke_archive/             # 历史可选能力，不默认暴露
-├── lvke_templates/           # 历史模板实现，不默认暴露
+│       └── <domain>/         # 23 个正式及支撑 server
+├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```
 
@@ -106,12 +88,12 @@ cd mcp_servers
 .venv/bin/python -m lvke_mcp.servers.scaffold.server
 ```
 
-既有领域 server（纵向切片完成前）：
+领域 server：
 
 ```bash
-.venv/bin/python -m mcp_servers.lvke_data_acquisition.server
-.venv/bin/python -m mcp_servers.lvke_finance_model.server
-# …其余 lvke_* server 同形
+.venv/bin/python -m lvke_mcp.servers.lvke_data_acquisition.server
+.venv/bin/python -m lvke_mcp.servers.lvke_finance_model.server
+# 其余 server 使用 lvke_mcp.servers.<server>.server
 ```
 
 ## 在客户端中启用
@@ -129,9 +111,8 @@ MCP 发行版自身不依赖任何客户端运行。任何 MCP 客户端（Codex
 3. **日志**：使用 stderr（避免污染 stdio 协议），统一前缀 `[mcp-<server>]`。
 4. **本地对象**：MCP 交换对象存放于工作区 `mcp_objects/`，ID/URI 安全校验、原子写入且
    内容不可变。
-5. **测试**：正式服务协议矩阵在 `tests/mcp_servers/test_protocol_compliance.py`，
-   stdio 连通性由 `_common/smoke_test.py` 覆盖，领域边界在各 `test_lvke_*.py`、
-   资产收购契约和统一审查契约测试。
+5. **测试**：外部行为基线位于 `tests/fixtures/baseline/`，协议测试工具和 stdio smoke
+   驱动位于 `src/lvke_mcp/testing/`。
 6. **Agent 协调契约**：正式 SDK Server 和 stdio fallback 都在响应中附加
    `coordination.contract_version=agent-coordination.v1`。其中包含当前阶段、输入/输出对象
    ID、质量状态、证据资格、结构化 `next_actions`、重试策略、恢复令牌和 lineage。该字段只帮助

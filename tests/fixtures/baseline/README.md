@@ -5,7 +5,7 @@
 
 ## 冻结方式
 
-每个 server 以 `.venv/bin/python -m mcp_servers.{server}.server` 启动，依次发送：
+每个 server 以 `.venv/bin/python -m lvke_mcp.servers.{server}.server` 启动，依次发送：
 
 1. `initialize`（protocolVersion = **2025-11-25**）→ `notifications/initialized`
 2. `tools/list` → `resources/list`

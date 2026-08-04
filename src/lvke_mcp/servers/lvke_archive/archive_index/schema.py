@@ -1,7 +1,7 @@
 """SQLite schema for the archive index.
 
 This is the canonical source of truth for table structure consumed by
-``mcp_servers/lvke_archive/storage.py`` after the v1.1 rewrite.
+``lvke_mcp.servers.lvke_archive.storage`` after the v1.1 rewrite.
 """
 
 from __future__ import annotations

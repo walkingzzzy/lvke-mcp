@@ -1,7 +1,7 @@
 """finance-calc MCP server 入口(stdio)。
 
 启动方式:
-    python -m mcp_servers.finance_calc.server
+    python -m lvke_mcp.servers.finance_calc.server
 
 注册的 7 个工具:
     calc_irr / calc_npv / calc_xirr / calc_xnpv / calc_break_even /

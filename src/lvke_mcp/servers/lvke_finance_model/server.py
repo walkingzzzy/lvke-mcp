@@ -15,7 +15,7 @@
 
 启动方式::
 
-    python -m mcp_servers.lvke_finance_model.server
+    python -m lvke_mcp.servers.lvke_finance_model.server
 
 契约约定（方案 5.4）：每个工具有专属 outputSchema，公共 envelope 至少含
 ``status/resource_uris/warnings/blockers/next_actions``；同时保留

@@ -16,7 +16,7 @@
 
 启动方式::
 
-    python -m mcp_servers.lvke_deep_research.server
+    python -m lvke_mcp.servers.lvke_deep_research.server
 """
 
 from __future__ import annotations

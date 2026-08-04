@@ -13,8 +13,7 @@ docstring / 注释 / 字符串字面量当作依赖点。
       - importlib 动态加载 mcp_servers / lvke_mcp
 
 排除目录：build/（构建产物）、*.egg-info、tests、fixtures、scripts、quality、
-__pycache__。垫片目录（mcp_servers/lvke_*、_common 等）import lvke_mcp 属于
-合法转发，不计违规。
+__pycache__。
 
 文本残留（docstring/注释/字符串中的 ``hermes_cli|HERMES_|keyui_`` 字样）单独
 登记在 ``text_residue_entries``，**不参与 conforming 判定**；用于跟踪文案清理
@@ -22,7 +21,7 @@ __pycache__。垫片目录（mcp_servers/lvke_*、_common 等）import lvke_mcp 
 字面量，既不计入依赖，也在 text_residue 中单独标注 data_identifier=True。
 
 用法：
-    .venv/bin/python mcp_servers/scripts/independence_scan.py [--output quality/independence_dependency_scan.json]
+    .venv/bin/python scripts/independence_scan.py [--output quality/independence_dependency_scan.json]
 """
 
 from __future__ import annotations
@@ -84,10 +83,9 @@ _DOMAIN = {
 
 
 def _domain_key(mcp_file: str) -> str:
-    """从相对仓库根的路径推断领域名（兼容旧目录与 src 布局）。"""
+    """从相对仓库根的 src 路径推断领域名。"""
     parts = mcp_file.split("/")
-    # mcp_servers/lvke_archive/server.py -> lvke_archive
-    # mcp_servers/src/lvke_mcp/servers/lvke_archive/... -> lvke_archive
+    # src/lvke_mcp/servers/lvke_archive/... -> lvke_archive
     for i, p in enumerate(parts):
         if p in ("mcp_servers", "lvke_mcp"):
             rest = parts[i + 1:]
