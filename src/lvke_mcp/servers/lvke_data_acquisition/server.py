@@ -111,7 +111,7 @@ def _read_resource(arguments: dict) -> dict:
             "outcome": "blocked",
             "status": "blocked",
             "code": "resource_not_found",
-            "message": "资源不存在或不属于当前工作区与租户",
+            "message": "资源不存在或不属于当前工作区",
             "resource_uris": [],
             "warnings": [],
             "blockers": ["resource_not_found"],
@@ -435,7 +435,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "data_list_resources",
-        "按显式工作区与宿主租户分页列举采集来源及不可变过程记录。",
+        "按显式工作区分页列举采集来源及不可变过程记录。",
         {
             "type": "object",
             "additionalProperties": False,
@@ -473,7 +473,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "data_read_resource",
-        "在显式工作区与宿主租户作用域内读取不可变采集 Resource。",
+        "在显式工作区作用域内读取不可变采集 Resource。",
         {
             "type": "object",
             "additionalProperties": False,

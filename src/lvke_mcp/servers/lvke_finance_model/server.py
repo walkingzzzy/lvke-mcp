@@ -1135,7 +1135,7 @@ def _tool_run_model(args: dict) -> dict:
                 str(data.get("reason") or "run_not_available")
             ]
             next_actions = (
-                ["检查财务审计存储与租户作用域后重试；不得使用未持久化结果生成十三表"]
+                ["检查财务审计存储后重试；不得使用未持久化结果生成十三表"]
                 if data.get("reason") == "finance_run_persistence_failed"
                 else ["按 blocking_issues 修正输入或 spec 后重试"]
             )
@@ -1868,7 +1868,7 @@ def _tool_get_analysis(args: dict, *, store: JSONArtifactStore, id_field: str, s
     if record is None:
         return _err_env(
             f"{SERVER_NAME}.analysis_not_found",
-            "未找到同工作区和租户下的高级分析对象",
+            "未找到同工作区下的高级分析对象",
             status="blocked",
         )
     payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
@@ -2099,7 +2099,7 @@ def _tool_read_analysis_resource(args: dict) -> dict:
     if record is None or record.get("workspace_id") != wsid:
         return _err_env(
             f"{SERVER_NAME}.resource_not_found",
-            "Resource 不存在或不属于当前工作区/租户",
+            "Resource 不存在或不属于当前工作区",
             status="blocked",
         )
     return _ok_env(
@@ -2523,7 +2523,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         name="finance_list_analyses",
-        description="在显式工作区与宿主租户内分页列出高级财务分析 Resource。",
+        description="在显式工作区内分页列出高级财务分析 Resource。",
         input_schema={
             "type": "object",
             "additionalProperties": False,
@@ -2551,7 +2551,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         name="finance_read_analysis_resource",
-        description="按 URI 读取同工作区与租户下的资产负债或 Monte Carlo 不可变 Resource。",
+        description="按 URI 读取同工作区下的资产负债或 Monte Carlo 不可变 Resource。",
         input_schema={
             "type": "object",
             "additionalProperties": False,

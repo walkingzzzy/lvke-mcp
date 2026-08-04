@@ -5,8 +5,6 @@ workspace 存储（``runtime.workspace.workspace_root``），字段语义与
 历史 audit_db 的 calculation_runs 视图对齐，保证
 ``run_service`` 消费面（spec_json / review_status / results / snapshot 等）
 零改动可读。
-
-单租户：``tenant_scope`` 为 no-op，``current_tenant_id`` 恒为 "default"。
 """
 
 from __future__ import annotations
@@ -14,14 +12,11 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any, Optional
 
 from lvke_mcp.runtime.workspace import workspace_root
-
-DEFAULT_TENANT_ID = "default"
 
 # 元素映射（与 hermes audit_db 的 _INDICATOR_MAP/_INVESTMENT_MAP/_FUNDING_MAP 一致）
 _INDICATOR_MAP: dict[str, tuple[str, str]] = {
@@ -65,17 +60,6 @@ _REPORT_KEY_ELEMENTS: list[tuple[str, str, str]] = [
     ("dynamic_payback", "indicators", "dynamic_payback_years"),
     ("bep", "indicators", "bep_pct"),
 ]
-
-
-def current_tenant_id() -> str:
-    """MCP 单租户恒为 default。"""
-    return DEFAULT_TENANT_ID
-
-
-@contextmanager
-def tenant_scope(tenant_id: str | None = None) -> Iterator[str]:
-    """单租户 no-op 作用域（保持 run_service 装饰器调用面不变）。"""
-    yield current_tenant_id()
 
 
 def _now() -> str:

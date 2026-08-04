@@ -3929,7 +3929,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             if not _retest_target_scope_matches(parent, resolved):
                 return _blocked(
                     "retest_target_scope_mismatch",
-                    "复测目标必须保持原目标类型、逻辑身份、报告业务域及租户范围",
+                    "复测目标必须保持原目标类型、逻辑身份及报告业务域范围",
                 )
             if resolved.get("target_sha256") == (parent.get("target") or {}).get("target_sha256"):
                 return _blocked("retest_target_not_newer", "复测对象内容必须新于原目标，不能复用相同哈希")

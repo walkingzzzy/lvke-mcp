@@ -27,8 +27,8 @@ import sys
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-MCP_ROOT = REPO_ROOT / "mcp_servers"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+MCP_ROOT = REPO_ROOT
 PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 BASELINE = MCP_ROOT / "tests" / "fixtures" / "baseline"
 PROTOCOL_VERSION = "2025-11-25"

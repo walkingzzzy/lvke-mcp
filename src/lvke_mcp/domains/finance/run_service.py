@@ -22,7 +22,6 @@ import hashlib
 import json
 import re
 from datetime import date
-from functools import wraps
 from typing import Any, Optional
 
 from lvke_mcp.domains.finance.industry_registry import select_industry_profile
@@ -33,23 +32,8 @@ from lvke_mcp.domains.finance.model_manifest import (
 )
 from lvke_mcp.domains.finance.policy_registry import select_policy_profile
 
-DEFAULT_TENANT_ID = "default"
-
 MODEL_VERSION = "finance_model.v2.4"
 TEMPLATE_VERSION = "finance_tables.v3"
-
-
-def _audit_tenant_scoped(function):
-    """MCP 单租户：run_store 作用域为 no-op，保留装饰器调用面。"""
-
-    @wraps(function)
-    def wrapped(*args, **kwargs):
-        from lvke_mcp.domains.finance import run_store
-
-        with run_store.tenant_scope(kwargs.get("tenant_id")):
-            return function(*args, **kwargs)
-
-    return wrapped
 
 # 13 张交付附表 key（与 finance_model / 测试对齐，不含控制/展示表）
 DELIVERY_TABLE_KEYS: tuple[str, ...] = (
@@ -299,14 +283,12 @@ def _inject_linked_cost_items(req: dict[str, Any], finance_in: dict[str, Any]) -
     return out
 
 
-@_audit_tenant_scoped
 def prepare_workspace_finance_spec(
     workspace_id: str,
     *,
     strategy: str = "propose_from_project",
     force_refresh: bool = False,
     force_flat: bool = False,
-    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """准备 FinanceSpec（可走 LLM；失败回退 flat 默认 spec）。
 
@@ -531,7 +513,6 @@ def _nonnegative_cost_issues(result: dict[str, Any]) -> list[dict[str, Any]]:
     return issues
 
 
-@_audit_tenant_scoped
 def run_workspace_finance_model(
     workspace_id: str,
     *,
@@ -555,7 +536,6 @@ def run_workspace_finance_model(
     requested_manifest: Optional[dict[str, Any]] = None,
     selected_scenario_id: str = "base",
     project_context: Optional[dict[str, Any]] = None,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """确定性运行财务模型。**内部禁止调用 LLM（默认）。**
 
@@ -1080,14 +1060,12 @@ def run_workspace_finance_model(
     return result
 
 
-@_audit_tenant_scoped
 def render_workspace_finance_tables(
     workspace_id: str,
     run_id: str = "",
     *,
     format: str = "structured",  # noqa: A002 - 与工具契约字段同名
     include_control_tables: bool = True,
-    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """只从指定 run 渲染 13 表；不重算。"""
     _ensure_workspace(workspace_id)
@@ -1158,13 +1136,11 @@ def render_workspace_finance_tables(
     return out
 
 
-@_audit_tenant_scoped
 def get_workspace_finance_run(
     workspace_id: str,
     *,
     run_id: str = "",
     view: str = "summary",
-    tenant_id: str | None = None,
 ) -> dict[str, Any]:
     """纯查询：不重算、默认不写库。
 
@@ -1175,8 +1151,6 @@ def get_workspace_finance_run(
     - checks: 勾稽 / issues
     """
     _ensure_workspace(workspace_id)
-    from lvke_mcp.domains.finance import run_store
-    active_tenant = run_store.current_tenant_id()
 
     if run_id:
         audit_view = run_store.load_run(workspace_id, run_id) or {}
@@ -1185,9 +1159,7 @@ def get_workspace_finance_run(
 
     if not audit_view:
         # 无 run：返回输入与 unavailable 提示（不触发计算）
-        finance_raw: dict[str, Any] = {}
-        if active_tenant == DEFAULT_TENANT_ID:
-            _meta, req, finance_raw = _read_workspace_req(workspace_id)
+        _meta, req, finance_raw = _read_workspace_req(workspace_id)
         return {
             "ok": True,
             "available": False,
@@ -1303,7 +1275,6 @@ def get_workspace_finance_run(
     }
 
 
-@_audit_tenant_scoped
 def generate_workspace_finance_package(
     workspace_id: str,
     *,
@@ -1318,7 +1289,6 @@ def generate_workspace_finance_package(
     valuation_date: str = "",
     requested_manifest: Optional[dict[str, Any]] = None,
     selected_scenario_id: str = "base",
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """一句话组合：prepare → deterministic run → render tables。
 
@@ -1432,7 +1402,6 @@ def generate_workspace_finance_package(
         valuation_date=effective_valuation_date,
         requested_manifest=requested_manifest,
         selected_scenario_id=selected_scenario_id,
-        tenant_id=tenant_id,
     )
     if not run.get("available"):
         return {
@@ -1494,7 +1463,6 @@ def generate_workspace_finance_package(
         art_dir = table_pack.default_artifact_dir(
             workspace_id,
             str(run.get("run_id") or "unknown"),
-            tenant_id=tenant_id,
         )
         artifacts = table_pack.write_readable_artifacts(
             run,

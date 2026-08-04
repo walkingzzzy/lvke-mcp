@@ -924,7 +924,6 @@ def adjudicate_fact_pack(
     *,
     workspace_id: str,
     actor: str = "",
-    tenant_id: str = "local",
     confirm: bool = False,
     evidence_resolver: EvidenceResolver | None = None,
 ) -> dict[str, Any]:
@@ -981,7 +980,6 @@ def adjudicate_fact_pack(
             source_id=source_id,
             evidence_id=evidence_id,
             locator=locator,
-            tenant_id=tenant_id,
         )
         # Client may supply claimed numeric value only as candidate; authoritative
         # reviewed_value from resolver always wins when present.
@@ -993,7 +991,6 @@ def adjudicate_fact_pack(
         row_out = {
             "domain": domain,
             "fact_path": fact_path,
-            "tenant_id": tenant_id,
             **binding,
             "client_reported": {
                 "evidence_grade": str(client_row.get("evidence_grade") or client_row.get("grade") or ""),

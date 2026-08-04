@@ -19,8 +19,6 @@
 - docx_fonts.normalize_docx_fonts → ``lvke_mcp.domains.reports.docx_fonts``
 - 统一审查绑定（``_require_unified_release_review``）剔除：内部发布记录不
   绑定统一审查 review（release 权限门禁由审查域自身承载）
-- 删 tenant 形参（MCP 无租户边界；tenant_scope_hash 固定为 "local"，与
-  hermes 默认租户同值，state 文件兼容）
 """
 
 from __future__ import annotations
@@ -80,9 +78,6 @@ _INTERNAL_ACTOR = {
     "display_name": "Deliverable artifact integrity service",
     "auth_method": "internal",
 }
-# MCP 无租户边界：scope hash 固定为 hermes 默认租户 "local"，
-# 使 state.json 的 tenant_scope_hash 字段与 hermes 默认租户产物同值。
-_LOCAL_TENANT_SCOPE = "sha256:" + hashlib.sha256(b"local").hexdigest()
 
 
 class DeliverableArtifactError(RuntimeError):
@@ -206,7 +201,6 @@ def _empty_state(workspace_id: str) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "workspace_id": workspace_id,
-        "tenant_scope_hash": _LOCAL_TENANT_SCOPE,
         "current": {"draft": "", "formal": ""},
         "created_at": "",
         "updated_at": "",
@@ -248,11 +242,6 @@ def _read_state(workspace_id: str) -> dict[str, Any]:
     if str(value.get("workspace_id") or "") != workspace_id:
         raise DeliverableArtifactError(
             "ARTIFACT_STATE_CORRUPT", "交付工件状态与工作区不匹配",
-        )
-    stored_scope = str(value.get("tenant_scope_hash") or "")
-    if stored_scope and stored_scope != _LOCAL_TENANT_SCOPE:
-        raise DeliverableArtifactError(
-            "ARTIFACT_STATE_CORRUPT", "交付工件状态与租户边界不匹配",
         )
     artifacts = value.get("artifacts")
     history = value.get("history")
@@ -316,8 +305,8 @@ def _write_json_file(path: Path, value: Any) -> None:
     _write_bytes(path, payload)
 
 
-# ── 工作区根键值工件（原 report_artifacts.load/save/bind_finance_run 的无 tenant 版）──
-# MCP 无租户边界：路径恒为 ``workspace_root/{name}.json``（默认租户语义），
+# ── 工作区根键值工件（原 report_artifacts.load/save/bind_finance_run 的 MCP 版）──
+# 路径恒为 ``workspace_root/{name}.json``，
 # 读写在主线程锁下进行（写失败静默降级，与原 save 的 warning 语义一致）。
 
 
@@ -755,7 +744,6 @@ def _capture_basis(
     material = {
         "schema_version": BASIS_SCHEMA_VERSION,
         "workspace_id": workspace_id,
-        "tenant_scope_hash": _LOCAL_TENANT_SCOPE,
         "workspace_version": meta.get("workspace_version"),
         "report_type": str(meta.get("report_type") or ""),
         "doc_kind": meta_doc_kind or doc_service.DEFAULT_DOC_KIND,
@@ -1467,7 +1455,6 @@ def _build_artifact_directory(
             "schema_version": MANIFEST_SCHEMA_VERSION,
             "artifact_id": artifact_id,
             "workspace_id": workspace_id,
-            "tenant_scope_hash": _LOCAL_TENANT_SCOPE,
             "kind": kind,
             "template_version": basis.get("template_version"),
             "basis_fingerprint": basis.get("fingerprint"),
@@ -1510,7 +1497,6 @@ def _build_artifact_directory(
             "schema_version": MANIFEST_SCHEMA_VERSION,
             "artifact_id": artifact_id,
             "workspace_id": workspace_id,
-            "tenant_scope_hash": _LOCAL_TENANT_SCOPE,
             "kind": kind,
             "basis_fingerprint": basis.get("fingerprint"),
             "files": [*copy.deepcopy(payload_files), copy.deepcopy(manifest_entry)],
@@ -1969,7 +1955,6 @@ def _create(
             "schema_version": SCHEMA_VERSION,
             "artifact_id": artifact_id,
             "workspace_id": workspace_id,
-            "tenant_scope_hash": _LOCAL_TENANT_SCOPE,
             "kind": kind,
             "operation_id": operation_id,
             "status": "succeeded",

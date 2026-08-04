@@ -2346,7 +2346,7 @@ def read_resource(
     if record is None:
         return _blocked(
             "resource_not_found",
-            "资源不存在或不属于当前工作区与租户",
+            "资源不存在或不属于当前工作区",
         )
     return _envelope(
         success=True,

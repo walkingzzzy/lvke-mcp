@@ -4,7 +4,6 @@
 存储根，不重写业务逻辑）：
 
 - 存储根：MCP 自有 ``runtime.workspace.workspace_root``
-- 删 tenant 形参（保留 local 分支体），gen-task 读取固定 local
 - 内部依赖改写：``workspace_migration``(WAL 控制面) 删除、审计
   调用删除（MCP 域内无对应设施，best-effort 块直接移除）、``docx_fonts`` /
   ``env_templates`` / ``finance_model`` / ``run_service`` 指向 lvke_mcp 域内实现
@@ -1002,47 +1001,21 @@ def list_revisions(workspace_id: str) -> list[dict[str, Any]]:
 
 
 # ---- 生成任务落盘（重启不丢进度，可恢复状态与续跑）-------------------------
-# 固定 local 租户分支体（hermes 版按 tenant 哈希分目录，MCP 域内无多租户）。
-
-DEFAULT_TENANT_ID = "local"
 
 
-def _gen_task_tenant(task: Any) -> str:
-    """Legacy task snapshots without a tenant are explicitly local."""
-
-    if not isinstance(task, dict):
-        return DEFAULT_TENANT_ID
-    value = str(task.get("tenant_id") or "").strip()
-    return value or DEFAULT_TENANT_ID
-
-
-def _gen_task_tenant_key(tenant_id: str) -> str:
-    return hashlib.sha256(tenant_id.encode("utf-8")).hexdigest()[:20]
-
-
-def _gen_task_path(
-    workspace_id: str,
-    tenant_id: str = DEFAULT_TENANT_ID,
-) -> Path:
-    root = _workspace_root(workspace_id)
-    if tenant_id == DEFAULT_TENANT_ID:
-        return root / "gen_task.json"
-    return root / "gen_task_tenants" / f"{_gen_task_tenant_key(tenant_id)}.json"
+def _gen_task_path(workspace_id: str) -> Path:
+    return _workspace_root(workspace_id) / "gen_task.json"
 
 
 def _gen_task_snapshot_path(
     workspace_id: str,
     task_id: str,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> Path:
     """Return the durable per-task snapshot path for a generated task id."""
     normalized = str(task_id or "").strip()
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", normalized):
         raise ValueError("invalid report generation task id")
-    root = _workspace_root(workspace_id) / "gen_tasks"
-    if tenant_id != DEFAULT_TENANT_ID:
-        root = root / _gen_task_tenant_key(tenant_id)
-    return root / f"{normalized}.json"
+    return _workspace_root(workspace_id) / "gen_tasks" / f"{normalized}.json"
 
 
 def _gen_task_is_latest(candidate: dict[str, Any], current: Any) -> bool:
@@ -1064,14 +1037,13 @@ def _gen_task_is_latest(candidate: dict[str, Any], current: Any) -> bool:
 def save_gen_task(workspace_id: str, task: dict[str, Any]) -> None:
     """持久化生成任务快照：按 task_id 落单文件 + 维护 legacy latest 单例。"""
     try:
-        tenant_id = _gen_task_tenant(task)
         task_id = str(task.get("task_id") or "").strip()
         if task_id:
             _write_json(
-                _gen_task_snapshot_path(workspace_id, task_id, tenant_id),
+                _gen_task_snapshot_path(workspace_id, task_id),
                 task,
             )
-        latest_path = _gen_task_path(workspace_id, tenant_id)
+        latest_path = _gen_task_path(workspace_id)
         if not task_id or _gen_task_is_latest(task, _read_json(latest_path, None)):
             _write_json(latest_path, task)
     except Exception:  # noqa: BLE001
@@ -1096,18 +1068,14 @@ def load_gen_task(
             )
         except ValueError:
             return None
-        if isinstance(data, dict) and _gen_task_tenant(data) == DEFAULT_TENANT_ID:
+        if isinstance(data, dict):
             return data
         legacy = _read_json(_gen_task_path(workspace_id), None)
-        if (
-            isinstance(legacy, dict)
-            and str(legacy.get("task_id") or "") == normalized
-            and _gen_task_tenant(legacy) == DEFAULT_TENANT_ID
-        ):
+        if isinstance(legacy, dict) and str(legacy.get("task_id") or "") == normalized:
             return legacy
         return None
     data = _read_json(_gen_task_path(workspace_id), None)
-    if isinstance(data, dict) and _gen_task_tenant(data) == DEFAULT_TENANT_ID:
+    if isinstance(data, dict):
         return data
     rows = list_gen_tasks(workspace_id, limit=1)
     return rows[0] if rows else None
@@ -1131,24 +1099,15 @@ def list_gen_tasks(
     if base_directory.is_dir():
         for path in base_directory.glob("*.json"):
             data = _read_json(path, None)
-            if (
-                isinstance(data, dict)
-                and data.get("task_id")
-                and _gen_task_tenant(data) == DEFAULT_TENANT_ID
-            ):
+            if isinstance(data, dict) and data.get("task_id"):
                 rows.setdefault(str(data["task_id"]), data)
     legacy = _read_json(_gen_task_path(workspace_id), None)
-    if (
-        isinstance(legacy, dict)
-        and legacy.get("task_id")
-        and _gen_task_tenant(legacy) == DEFAULT_TENANT_ID
-    ):
+    if isinstance(legacy, dict) and legacy.get("task_id"):
         rows.setdefault(str(legacy["task_id"]), legacy)
     owner = str(owner_user_id or "").strip()
     values = [
         row for row in rows.values()
-        if _gen_task_tenant(row) == DEFAULT_TENANT_ID
-        and (not owner or str(row.get("owner_user_id") or "").strip() == owner)
+        if not owner or str(row.get("owner_user_id") or "").strip() == owner
     ]
 
     def sort_key(row: dict[str, Any]) -> tuple[float, str]:

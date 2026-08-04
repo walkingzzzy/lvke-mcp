@@ -445,8 +445,6 @@ def write_readable_artifacts(
 def default_artifact_dir(
     workspace_id: str,
     run_id: str,
-    *,
-    tenant_id: str = "",
 ) -> Path:
     """默认落盘目录：{MCP data_root}/workspaces/{id}/finance_artifacts/{run_id}/"""
     from lvke_mcp.runtime.workspace import workspace_root

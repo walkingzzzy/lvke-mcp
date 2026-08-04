@@ -141,7 +141,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "report_start",
-        "创建绑定上游依据的 Agent 草稿会话；非本地租户必须提交不可变正文快照。",
+        "创建绑定上游依据的 Agent 草稿会话；必须提交不可变正文快照。",
         _input_schema(
             {
                 "workspace_id": _WS,
@@ -421,7 +421,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "report_list_resources",
-        "按显式工作区与宿主租户分页列举准备对象、任务、修订和交付工件。",
+        "按显式工作区分页列举准备对象、任务、修订和交付工件。",
         _input_schema(
             {
                 "workspace_id": _WS,
@@ -456,7 +456,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "report_read_resource",
-        "在显式工作区与宿主租户作用域内读取报告 Resource；二进制内容以 base64 返回。",
+        "在显式工作区作用域内读取报告 Resource；二进制内容以 base64 返回。",
         _input_schema(
             {
                 "workspace_id": _WS,

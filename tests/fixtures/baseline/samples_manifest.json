@@ -160,7 +160,7 @@
       },
       "status": "ok",
       "file": "report/ReportRevision.v1.json",
-      "sha256": "a5fbf5eed4da325b5a67fe6725317e3473b375f951f8d9bd5926dbb1fbe325ae",
+      "sha256": "b1c7f4acef85e64c5a84f5eae1fbc07de4bb1f6dfcd6de4378c884b14afd8cd5",
       "detail": "",
       "note": "既有 revision 经 transport 读取；read 返回 revision 对象"
     },
@@ -187,8 +187,8 @@
       "status": "defect",
       "file": null,
       "sha256": null,
-      "detail": "dr_list_resources 无当前布局包（既有包在 legacy tenants 路径,当前代码不可读）: {\"ok\": true, \"items\": []}",
-      "note": "当前布局(非 tenants)研究包需 agent 生命周期(dr_start→submit→get_bundle)终结；若当前工作区无可读包则登记为缺陷"
+      "detail": "dr_list_resources 无当前布局包（既有包在旧版路径,当前代码不可读）: {\"ok\": true, \"items\": []}",
+      "note": "当前布局(非旧版路径)研究包需 agent 生命周期(dr_start→submit→get_bundle)终结；若当前工作区无可读包则登记为缺陷"
     },
     {
       "id": "research-industry-report",

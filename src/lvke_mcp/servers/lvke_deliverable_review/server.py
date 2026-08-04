@@ -657,7 +657,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "review_list_resources",
-        "按显式工作区和所有者租户分页列举规则包、审查运行、findings、导出和正式审查包。",
+        "按显式工作区分页列举规则包、审查运行、findings、导出和正式审查包。",
         _schema(
             {
                 "workspace_id": _SAFE_ID,
@@ -690,7 +690,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "review_read_resource",
-        "在显式工作区和所有者租户作用域内读取审查 Resource；二进制导出内容以 base64 返回。",
+        "在显式工作区作用域内读取审查 Resource；二进制导出内容以 base64 返回。",
         _schema(
             {
                 "workspace_id": _SAFE_ID,

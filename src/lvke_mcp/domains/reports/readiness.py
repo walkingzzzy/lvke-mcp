@@ -7,7 +7,7 @@
   惰性 import，域内独立可 import，存储不可用时降级为空证据）
 - 财务审计语义改读 MCP 自有 run 存储（``domains.finance.run_store``），
   不再依赖历史 sqlite 审计库
-- 删 tenant 形参；``cross_check`` / ``finance_narrative_verification`` 为
+- ``cross_check`` / ``finance_narrative_verification`` 为
   hermes 侧工件，MCP 域内无对应持久化，直接降级为空
 """
 

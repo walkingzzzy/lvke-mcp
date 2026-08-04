@@ -1533,7 +1533,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "project_context_list",
-        "分页列出当前工作区和宿主租户的 ProjectContext revisions。",
+        "分页列出当前工作区的 ProjectContext revisions。",
         _schema(
             {
                 "cursor": {"type": "string", "default": ""},
@@ -1595,7 +1595,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "project_context_read_resource",
-        "在显式 workspace 与宿主租户作用域内读取不可变 planning Resource。",
+        "在显式 workspace 作用域内读取不可变 planning Resource。",
         _schema({"uri": _STRING}, ["uri"]),
         lambda a: service.read_resource(
             a["workspace_id"],

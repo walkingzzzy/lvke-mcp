@@ -1,8 +1,8 @@
 # tenant 存储维度删除说明（TENANT_DELETION_SPEC）
 
-> 状态：已完成（2026-08-03 交付并验收通过）
+> 状态：已完成（2026-08-03 交付并验收通过；2026-08-14 独立化后复查补删完成）
 > 分支：`codex/mcp-remediation-20260729`
-> 范围：仅 `mcp_servers/` 目录内的代码；**不碰 `hermes_cli/` 的任何代码**。
+> 范围：仅 `mcp_servers/` 目录内的代码；**不碰 `hermes_cli/` 的任何代码**。复查补删覆盖独立化搬移后的 `src/lvke_mcp/domains/`（见 §7）。
 
 ---
 
@@ -137,7 +137,25 @@ Batch 2 已对原清单中全部 31 个文件完成删除，逐文件 `grep -i t
 
 ---
 
-## 7. 与 MCP_INDEPENDENCE_PLAN.md 的关系
+## 7. 独立化后复查补删（2026-08-14）
+
+独立化把 hermes 计算层 lift-and-shift 搬入 `src/lvke_mcp/domains/` 时，**带回了约 30 处 tenant 兼容残留**（惰性形参、`DEFAULT_TENANT_ID` 常量、no-op stub、`tenant_scope_hash` 字段、`gen_task_tenants/{sha256}` 哈希分区）。本次复查按本规格同一口径补删，server 层无任何 `tenant_id` 工具形参暴露，删参无调用点破坏。
+
+### 补删清单
+
+- **finance 域**（7 文件）：`run_store.py`、`run_service.py`、`gate.py`、`vendor_review.py`、`fact_pack.py`、`table_pack.py`、`evidence_binding.py` —— 删常量、装饰器、`tenant_id` 形参与透传、`tenant_scope_hash` 输出字段；`get_workspace_finance_run` 的恒真分支删条件留分支体。
+- **reports/research 域**（5 文件）：`doc_service.py`（删 `_gen_task_tenant*` 与哈希分区分支）、`artifacts.py`（删 `_LOCAL_TENANT_SCOPE`、写入与读取校验、state/basis 的 `tenant_scope_hash` 字段）、`contracts.py`（2 个 dataclass 字段）、`lvke_source_files/backend.py`（1 个形参）、`readiness.py`（docstring）。
+- **基线 fixtures**（2 文件）：`ReportRevision.v1.json` 删除 `structuredContent.content` 与 `content[0].text` 两处 `tenant_scope_hash`（sha256 更新为 `b1c7f4ac…8cd5`）；`samples_manifest.json` 同步 sha256 并清理描述文字。
+
+### 验收口径（更新）
+
+- 全仓 `rg -i tenant src/ tests/` 归零（仅保留业务术语 `minimum_tenant_rent_coverage`）。
+- 受影响 7 个 server（finance_model、finance_tables、deliverable_review、report_generation、asset_acquisition、zero_material_delivery、source_files）import 冒烟通过。
+- 行为副作用说明：`artifacts.py` 的 basis material 去掉 `tenant_scope_hash` 后，**basis fingerprint 变化**；新代码写入与校验自洽，存量 review 数据的一次性指纹差异被读取端容忍（校验点本就缺失放行），不阻塞读取。
+
+---
+
+## 8. 与 MCP_INDEPENDENCE_PLAN.md 的关系
 
 - 本说明只负责「删安全门禁 + 删 tenant 维度」，**不解决** `hermes_cli` 的独立化依赖。
 - 独立化仍按 `MCP_INDEPENDENCE_PLAN.md` 进行（把纯计算层 lift-and-shift 搬移，不重写）。

@@ -91,13 +91,13 @@ def _resolve_source(args: dict) -> tuple[Path | None, dict, dict | None]:
     if record is None or uri != canonical_uri:
         return None, {}, err(
             f"{SERVER_NAME}.resource_not_found",
-            "Resource 不存在或不属于当前工作区与租户",
+            "Resource 不存在或不属于当前工作区",
         )
     path = finance_tables_service.xlsx_path_from_uri(uri)
     if path is None:
         return None, {}, err(
             f"{SERVER_NAME}.resource_not_found",
-            "Resource 不存在或不属于当前工作区与租户",
+            "Resource 不存在或不属于当前工作区",
         )
     payload = record.get("payload") or {}
     return path, {

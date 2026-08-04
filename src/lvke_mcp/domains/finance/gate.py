@@ -8,29 +8,11 @@
 
 from __future__ import annotations
 
-from functools import wraps
 from typing import Any, Optional
-
-DEFAULT_TENANT_ID = "default"
-
-
-def _audit_tenant_scoped(function):
-    """Route nested generic-finance audit reads to the declared tenant."""
-
-    @wraps(function)
-    def wrapped(*args, **kwargs):
-        from lvke_mcp.domains.finance import run_store
-
-        with run_store.tenant_scope(kwargs.get("tenant_id")):
-            return function(*args, **kwargs)
-
-    return wrapped
 
 
 def _load_binding(
     workspace_id: str,
-    *,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """MCP 边界无持久化 finance_binding；绑定由调用方显式传 expected_run_id。"""
     return {}
@@ -42,7 +24,6 @@ def _assert_acquisition_publish_finance_binding(
     binding: dict[str, Any],
     run_id: str,
     strict: bool,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """Validate a FinanceSpec v3 acquisition release without legacy 13-table rules.
 
@@ -391,13 +372,11 @@ def _assert_acquisition_publish_finance_binding(
     }
 
 
-@_audit_tenant_scoped
 def assert_publish_finance_binding(
     workspace_id: str,
     *,
     expected_run_id: str = "",
     strict: bool = True,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """正式发布门禁：正文绑定 run 必须存在且等于最新 approved run。
 
@@ -608,14 +587,12 @@ def assert_publish_finance_binding(
     }
 
 
-@_audit_tenant_scoped
 def verify_narrative_numbers(
     workspace_id: str,
     text: str,
     *,
     run_id: str = "",
     tolerance: float = 0.05,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
     """从正文抽取关键财务数字，与指定/绑定 run 的结果比对（粗粒度）。
 

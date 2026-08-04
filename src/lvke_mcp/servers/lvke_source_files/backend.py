@@ -134,7 +134,7 @@ def resolve_source_workbook_for_review(
     workspace_id: str,
     source_file_id: str,
 ) -> dict[str, Any]:
-    """解析上传的 Excel 工作簿供统一审查（自 hermes source_files_api 裁剪的无 tenant 版）。
+    """解析上传的 Excel 工作簿供统一审查（自 hermes source_files_api 裁剪的 MCP 版）。
 
     读取 MCP 自有 source-files 存储，fail-closed：记录不存在/非电子表格/文件
     丢失或字节与记录摘要不符时返回 ``ok=False`` 及原因码。不暴露工作区外路径。
@@ -181,12 +181,11 @@ def resolve_authoritative_evidence_binding(
     source_id: str,
     evidence_id: str = "",
     locator: str = "",
-    tenant_id: str = "local",
 ) -> dict[str, Any]:
-    """Resolve one finance fact binding from the durable source authority (MCP 无 tenant 版)。
+    """Resolve one finance fact binding from the durable source authority (MCP 版)。
 
     裁剪自 hermes source_files_api：record 存在性/完整性、analysis locator
-    匹配、OCR 与人工复核状态全部 fail-closed；``tenant_id`` 仅保留形参兼容。
+    匹配、OCR 与人工复核状态全部 fail-closed。
     """
     source_id = str(source_id or "").strip()
     evidence_id = str(evidence_id or "").strip()

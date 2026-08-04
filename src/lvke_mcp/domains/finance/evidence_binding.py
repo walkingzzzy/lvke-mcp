@@ -1,9 +1,9 @@
-"""Server-side binding of finance-spec evidence to immutable source facts (MCP 无 tenant 版)。
+"""Server-side binding of finance-spec evidence to immutable source facts (MCP 版)。
 
 裁剪自 hermes ``finance/evidence_binding.py``：引用收集与绑定判定逻辑原样保留，
-仅替换存储根（MCP 自有 source-files 存储与 evidence-pack store）并删除多租户、
+仅替换存储根（MCP 自有 source-files 存储与 evidence-pack store）并删除作用域维度、
 golden 清单与跨工作区探测（MCP 域内不存在这些概念，相关路径 fail-closed 为
-``missing``，与 hermes 在无 manifest / 非默认租户下的公开结果一致）。
+``missing``，与 hermes 在无 manifest 时的公开结果一致）。
 
 finance spec 是断言文档而非证据完整性权威：本模块只接受 spec 中的证据*引用*，
 并从当前工作区 source 索引与解析结果重建全部绑定；客户端自带的哈希、解析任务、
@@ -26,7 +26,6 @@ from lvke_mcp.servers.lvke_source_files.backend import (
 )
 
 BINDING_VERSION = "finance_evidence_binding.v2"
-DEFAULT_TENANT_ID = "local"
 
 _EV_ID = re.compile(r"^ev_[0-9a-f]{24}$")
 _EVP_ID = re.compile(r"^evp_[0-9a-f]{24}$")
@@ -1038,19 +1037,16 @@ def bind_finance_spec_evidence(
     workspace_id: str,
     spec: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Reconstruct formal evidence bindings for one finance spec (MCP 无 tenant 版)。
+    """Reconstruct formal evidence bindings for one finance spec (MCP 版)。
 
     ``ok`` means every reference was structurally and physically resolvable;
     it may still be awaiting review.  ``formal_ok`` additionally requires all
     exact locators to have an authoritative approval revision.
 
-    MCP 域内不存在 golden 清单与多租户：``gold_*`` 引用 fail-closed 为
+    MCP 域内不存在 golden 清单与作用域维度：``gold_*`` 引用 fail-closed 为
     ``EVIDENCE_NOT_FOUND``（与 hermes 在无 manifest 时的公开结果一致）。
     """
 
-    tenant_scope_hash = "sha256:" + hashlib.sha256(
-        DEFAULT_TENANT_ID.encode("utf-8")
-    ).hexdigest()
     bindings: list[dict[str, Any]] = []
     missing: list[dict[str, Any]] = []
     pending: list[dict[str, Any]] = []
@@ -1147,7 +1143,6 @@ def bind_finance_spec_evidence(
         "formal_ok": formal_ok,
         "status": status,
         "binding_version": BINDING_VERSION,
-        "tenant_scope_hash": tenant_scope_hash,
         "bindings": bindings,
         "missing": missing,
         "pending": pending,

@@ -179,7 +179,6 @@ class ResearchBrief(JsonContract):
 class ResearchStartRequest(JsonContract):
     topic: str
     workspace_id: str = ""
-    tenant_id: str = "local"
     owner_actor: str = ""
     industry: str = ""
     region: str = ""
@@ -548,7 +547,6 @@ class ResearchSession(JsonContract):
 
     session_id: str
     workspace_id: str
-    tenant_id: str = "local"
     owner_actor: str = ""
     schema_version: str = SESSION_SCHEMA_VERSION
     template_id: str = ""

@@ -6,8 +6,6 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
-from lvke_mcp.domains.finance.run_store import DEFAULT_TENANT_ID
-
 
 def import_vendor_workbook_review(
     workspace_id: str,
@@ -16,9 +14,8 @@ def import_vendor_workbook_review(
     valuation_date: str = "",
     force_recompute: bool = False,
     cohort_xlsx_paths: Optional[list[str | Path]] = None,
-    tenant_id: str = DEFAULT_TENANT_ID,
 ) -> dict[str, Any]:
-    """Run M1-M6 inside one tenant-scoped finance audit partition."""
+    """Run M1-M6 inside one finance audit partition."""
 
     return _import_vendor_workbook_review(
         workspace_id,
@@ -26,7 +23,6 @@ def import_vendor_workbook_review(
         valuation_date=valuation_date,
         force_recompute=force_recompute,
         cohort_xlsx_paths=cohort_xlsx_paths,
-        tenant_id=tenant_id,
     )
 
 
@@ -37,9 +33,8 @@ def _import_vendor_workbook_review(
     valuation_date: str,
     force_recompute: bool,
     cohort_xlsx_paths: Optional[list[str | Path]],
-    tenant_id: str,
 ) -> dict[str, Any]:
-    """MCP 单租户版：run_store.tenant_scope 为 no-op，直接执行。"""
+    """Execute the vendor import review pipeline."""
 
     from lvke_mcp.domains.finance import (
         dual_track,
@@ -85,7 +80,6 @@ def _import_vendor_workbook_review(
         allow_prepare_llm=False,
         valuation_date=effective_valuation_date,
         project_context=project_context,
-        tenant_id=tenant_id,
     )
     comparison = (
         dual_track.compare_engine_to_reference(run, reference_pack)
