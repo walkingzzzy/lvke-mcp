@@ -1,0 +1,10 @@
+version: tourism_catering.v1
+industry: tourism_catering
+aliases: [文旅, 旅游, 景区, 酒店, 餐饮, 文化演艺, 主题乐园]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  tourism: [annual_visitors, spend_per_visitor, visitor_ramp]
+  product_sales: [products]
+allowed_revenue_models: [tourism, product_sales, flat]
+sensitivity_variables: [visitor_volume, ticket_or_room_rate, occupancy, operating_cost]
+quality_expectations: [淡旺季与爬坡, 客流容量, 二次消费, 更新改造支出]

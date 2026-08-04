@@ -1,0 +1,81 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\": true, \"business_success\": true, \"system_success\": true, \"transport_success\": true, \"status\": \"ok\", \"data\": {\"report_id\": \"IEA-2024-WEO\", \"title\": \"World Energy Outlook 2024\", \"publisher\": \"International Energy Agency\", \"industry\": \"能源\", \"year\": 2024, \"language\": \"英文 / 中文摘译\", \"summary\": \"全球能源系统正在经历快速变革。可再生能源装机继续高增长,中国 / 印度 引领装机扩张;化石能源需求峰值临近。\", \"key_observations\": [\"全球光伏新增装机连续 3 年突破 4 GW/天\", \"电动车 / 热泵 / 电解槽 三大电气化引擎扩张\", \"电力系统对储能 / 灵活性需求年增 30%+\", \"煤电使用 2025-2027 年达峰后下行\"], \"key_data_points\": [{\"name\": \"全球光伏新增装机 2024\", \"value\": 510, \"unit\": \"GW\"}, {\"name\": \"电动车全球渗透率 2024\", \"value\": 22, \"unit\": \"%\"}, {\"name\": \"中国可再生发电量占比 2024\", \"value\": 35, \"unit\": \"%\"}]}, \"source\": \"industry-research.get_report_summary\", \"resource_uris\": [], \"warnings\": [], \"blockers\": [], \"next_actions\": [], \"trace_id\": \"mcp_5ccd398b4cdb40158720a15b4342b176\", \"started_at\": \"2026-08-03T14:04:47.016325+00:00\", \"finished_at\": \"2026-08-03T14:04:47.016325+00:00\", \"duration_ms\": 0, \"input_hash\": null, \"basis_hash\": null, \"lineage\": {}, \"content_hash\": null, \"coordination\": {\"contract_version\": \"agent-coordination.v1\", \"project_context\": {}, \"stage\": \"unspecified\", \"input_object_ids\": [], \"output_object_ids\": [], \"expected_output_types\": [], \"quality_state\": \"ok\", \"evidence_eligibility\": \"none\", \"next_actions\": [], \"retry_policy\": {\"retryable\": false, \"retry_after_seconds\": null, \"max_attempts\": null}, \"resume_token\": null, \"lineage\": {}}, \"completed\": true, \"outcome\": \"ok\"}"
+    }
+  ],
+  "structuredContent": {
+    "success": true,
+    "business_success": true,
+    "system_success": true,
+    "transport_success": true,
+    "status": "ok",
+    "data": {
+      "report_id": "IEA-2024-WEO",
+      "title": "World Energy Outlook 2024",
+      "publisher": "International Energy Agency",
+      "industry": "能源",
+      "year": 2024,
+      "language": "英文 / 中文摘译",
+      "summary": "全球能源系统正在经历快速变革。可再生能源装机继续高增长,中国 / 印度 引领装机扩张;化石能源需求峰值临近。",
+      "key_observations": [
+        "全球光伏新增装机连续 3 年突破 4 GW/天",
+        "电动车 / 热泵 / 电解槽 三大电气化引擎扩张",
+        "电力系统对储能 / 灵活性需求年增 30%+",
+        "煤电使用 2025-2027 年达峰后下行"
+      ],
+      "key_data_points": [
+        {
+          "name": "全球光伏新增装机 2024",
+          "value": 510,
+          "unit": "GW"
+        },
+        {
+          "name": "电动车全球渗透率 2024",
+          "value": 22,
+          "unit": "%"
+        },
+        {
+          "name": "中国可再生发电量占比 2024",
+          "value": 35,
+          "unit": "%"
+        }
+      ]
+    },
+    "source": "industry-research.get_report_summary",
+    "resource_uris": [],
+    "warnings": [],
+    "blockers": [],
+    "next_actions": [],
+    "trace_id": "mcp_5ccd398b4cdb40158720a15b4342b176",
+    "started_at": "2026-08-03T14:04:47.016325+00:00",
+    "finished_at": "2026-08-03T14:04:47.016325+00:00",
+    "duration_ms": 0,
+    "input_hash": null,
+    "basis_hash": null,
+    "lineage": {},
+    "content_hash": null,
+    "coordination": {
+      "contract_version": "agent-coordination.v1",
+      "project_context": {},
+      "stage": "unspecified",
+      "input_object_ids": [],
+      "output_object_ids": [],
+      "expected_output_types": [],
+      "quality_state": "ok",
+      "evidence_eligibility": "none",
+      "next_actions": [],
+      "retry_policy": {
+        "retryable": false,
+        "retry_after_seconds": null,
+        "max_attempts": null
+      },
+      "resume_token": null,
+      "lineage": {}
+    },
+    "completed": true,
+    "outcome": "ok"
+  },
+  "isError": false
+}

@@ -1,0 +1,46 @@
+[
+  {
+    "name": "query_air_quality",
+    "description": "按城市 + 年份查大气质量(AQI / PM2.5 等)。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "city"
+      ]
+    }
+  },
+  {
+    "name": "query_water_quality",
+    "description": "按断面名或流域名查水环境质量(类别 + 主要污染物)。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "section_or_basin": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "section_or_basin"
+      ]
+    }
+  },
+  {
+    "name": "list_monitored_locations",
+    "description": "列出可查询的城市 / 断面 / 流域。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

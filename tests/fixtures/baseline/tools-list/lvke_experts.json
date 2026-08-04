@@ -1,0 +1,50 @@
+[
+  {
+    "name": "find_experts",
+    "description": "按行业 / 专长 / 角色 / 地区找匹配专家。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "industry": {
+          "type": "string"
+        },
+        "specialty": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      }
+    }
+  },
+  {
+    "name": "get_expert",
+    "description": "按 expert_id 取单专家档案。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "expert_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "expert_id"
+      ]
+    }
+  },
+  {
+    "name": "list_specialties",
+    "description": "返回专家库中可用的行业 / 专长 / 角色 / 地区字典。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  }
+]

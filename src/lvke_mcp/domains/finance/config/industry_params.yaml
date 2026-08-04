@@ -1,0 +1,47 @@
+# 行业建设参数（M5 T5.1/T5.5）：用地合规约束下由"用地+产能"推导建设内容 + 定员。
+# 说明：容积率/绿化率等为工业用地常见量级参考，须按地方规划与项目实际复核。
+
+default:
+  plot_ratio: 1.0            # 容积率
+  green_ratio: 0.15          # 绿化率
+  building_coverage: 0.40    # 建筑密度
+  workshop_share: 0.70       # 厂房占总建筑面积比
+  office_share: 0.15         # 办公及配套占比
+  floor_height_m: 6.0        # 主厂房层高(米)
+  headcount_per_10k_m2: 60   # 每万㎡建筑面积定员(人)
+  avg_wage_wan: 9.0          # 人均年工资及福利(万元/人·年)，用于定员→工资成本汇入财务
+
+industry:
+  电子:
+    plot_ratio: 1.2
+    floor_height_m: 6.0
+    headcount_per_10k_m2: 80
+    avg_wage_wan: 10.0
+  制造:
+    plot_ratio: 1.0
+    floor_height_m: 7.5
+    headcount_per_10k_m2: 55
+    avg_wage_wan: 9.5
+  机械:
+    plot_ratio: 0.9
+    floor_height_m: 9.0      # 含航吊等大型设备,需 >8m
+    headcount_per_10k_m2: 50
+    avg_wage_wan: 10.0
+  化工:
+    plot_ratio: 0.8
+    green_ratio: 0.20
+    floor_height_m: 9.0
+    headcount_per_10k_m2: 40
+    avg_wage_wan: 11.0
+  仓储物流:
+    plot_ratio: 1.0
+    workshop_share: 0.85
+    floor_height_m: 9.0
+    headcount_per_10k_m2: 20
+    avg_wage_wan: 8.5
+  农业:
+    plot_ratio: 0.6
+    green_ratio: 0.10
+    floor_height_m: 6.0
+    headcount_per_10k_m2: 30
+    avg_wage_wan: 7.0

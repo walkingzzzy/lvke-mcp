@@ -1,0 +1,10 @@
+version: energy_utilities.v1
+industry: energy_utilities
+aliases: [能源, 电力, 光伏, 风电, 储能, 供水, 污水, 燃气]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [product_sales, gov_payment, flat]
+sensitivity_variables: [tariff, utilization_hours, fuel_or_purchase_cost, construction_investment]
+quality_expectations: [利用小时或处理量, 政府定价或协议价来源, 大修与更新支出, 长周期偿债]

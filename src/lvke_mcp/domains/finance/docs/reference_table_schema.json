@@ -1,0 +1,755 @@
+{
+  "version": "reference_table_schema.v3",
+  "date": "2026-07-19",
+  "program_package": "S2-续代/L-opt",
+  "source": {
+    "verification_scope": "reviewed_extraction_bundle",
+    "workbook_provenance": {
+      "original_filename": "投资类项目经济计算表.xlsx",
+      "original_sha256": "2d15352ab77f29939cea38884107f7ac22e142480234158a2ee0c6f2f21202e3",
+      "original_binary_status": "not_in_repository",
+      "sheet_count": 16,
+      "analysis_manifest": "review_outputs_20260708/json/excel_workbook_analysis.json",
+      "analysis_manifest_sha256": "964344f642c636d8e4fb3ca39031b8457065b5f93efeaa29cf60a680121b9819",
+      "formula_inventory": "review_outputs_20260708/csv/excel_formula_inventory.csv",
+      "formula_inventory_sha256": "fcc185fd75b25e98de71697b964d2f0cac936954277758ddf26eaa28c2a31cda",
+      "cross_sheet_references": "review_outputs_20260708/csv/excel_cross_sheet_references.csv",
+      "cross_sheet_references_sha256": "b02c107731343c32dcf5b3ac3b162489dff14b06c818886a5b523d45b4bc0815",
+      "note": "仓库内可重验的是审查提取包，不是原始 XLSX 字节；不得声称 original_workbook_binary_verified。"
+    },
+    "canonical_markdown_dir": "review_outputs_20260708/excel_sheets_markdown",
+    "canonical_tables": [
+      "附表1.md", "附表2.md", "附表3.md", "附表4.md", "附表5.md",
+      "附表6.md", "附表6-1.md", "附表6-2.md", "附表6-3.md", "附表6-5.md",
+      "附表6-6.md", "附表7.md", "附表8.md", "附表9.md", "附表10.md"
+    ],
+    "supporting_tables": ["投资复核.md"],
+    "artifacts": {
+      "附表1": {"path": "review_outputs_20260708/excel_sheets_markdown/附表1.md", "sha256": "0fdbb0c0ff286e84489f099a142f7ce1d88e9df5699452f06663d52167e320e6", "stats": {"data_rows": 50, "formula_cells": 0, "cross_sheet_ref_occurrences": 0}},
+      "附表2": {"path": "review_outputs_20260708/excel_sheets_markdown/附表2.md", "sha256": "824538ca56604c65dfbaaecb3d85af0b530bd172f44378573aa8215f2c13aed6", "stats": {"data_rows": 13, "formula_cells": 8, "cross_sheet_ref_occurrences": 0}},
+      "附表3": {"path": "review_outputs_20260708/excel_sheets_markdown/附表3.md", "sha256": "95cec22e1b5f3f8dce3fa2232e4378a9aa26e63b115fe14c669d3b7b5b0f44e0", "stats": {"data_rows": 21, "formula_cells": 142, "cross_sheet_ref_occurrences": 140}},
+      "附表4": {"path": "review_outputs_20260708/excel_sheets_markdown/附表4.md", "sha256": "e59bb356ad69a4836bef8d345af747bead9859e96b24c170041c21f573793cd6", "stats": {"data_rows": 20, "formula_cells": 48, "cross_sheet_ref_occurrences": 14}},
+      "附表5": {"path": "review_outputs_20260708/excel_sheets_markdown/附表5.md", "sha256": "9ff3f487272d7e9f27ef7208ee0ed9da2edd957aebdd98cfe1a1d4c942abb872", "stats": {"data_rows": 31, "formula_cells": 114, "cross_sheet_ref_occurrences": 20}},
+      "附表6": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6.md", "sha256": "1f069d4e97955d36169d061dd6f2dd31f1152d97894470aa8172f75031c22019", "stats": {"data_rows": 21, "formula_cells": 150, "cross_sheet_ref_occurrences": 76}},
+      "附表6-1": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6-1.md", "sha256": "96987101f8605998b0cf523aa9d8a14e0591f98e463e212b428c01e835305894", "stats": {"data_rows": 41, "formula_cells": 130, "cross_sheet_ref_occurrences": 0}},
+      "附表6-2": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6-2.md", "sha256": "dca5b828494de11361a0490d42d0ecb6a05f9961d4a33c5b8f7a2990ba04f179", "stats": {"data_rows": 24, "formula_cells": 100, "cross_sheet_ref_occurrences": 0}},
+      "附表6-3": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6-3.md", "sha256": "e8d3b898ca544e2184b00bac9dd1f8a8b705096648e843549e9921a59889c653", "stats": {"data_rows": 15, "formula_cells": 34, "cross_sheet_ref_occurrences": 0}},
+      "附表6-5": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6-5.md", "sha256": "7ee946e6339ba85210c5a64fd7a201c5e7597b18d762104dc0349050e6becd4a", "stats": {"data_rows": 22, "formula_cells": 63, "cross_sheet_ref_occurrences": 4}},
+      "附表6-6": {"path": "review_outputs_20260708/excel_sheets_markdown/附表6-6.md", "sha256": "2ccf533c4cb4c061364e24fe00c45afbb2fd33c29b23a6f235de15456fc5ff34", "stats": {"data_rows": 25, "formula_cells": 62, "cross_sheet_ref_occurrences": 3}},
+      "附表7": {"path": "review_outputs_20260708/excel_sheets_markdown/附表7.md", "sha256": "71ce8bacabb7cae1e660c3e8892d22400373af1c20074db9ecea50473c301155", "stats": {"data_rows": 23, "formula_cells": 149, "cross_sheet_ref_occurrences": 61}},
+      "附表8": {"path": "review_outputs_20260708/excel_sheets_markdown/附表8.md", "sha256": "cc872853b1b3d702aadd0ffbec95b1d79a1ebf5cefdf87b53046fdd98d25d209", "stats": {"data_rows": 19, "formula_cells": 49, "cross_sheet_ref_occurrences": 21}},
+      "附表9": {"path": "review_outputs_20260708/excel_sheets_markdown/附表9.md", "sha256": "7d529c2e2ed18898cbd5fd611e117e42b57b0142a91ebc35497cd1362674e4b6", "stats": {"data_rows": 21, "formula_cells": 112, "cross_sheet_ref_occurrences": 44}},
+      "附表10": {"path": "review_outputs_20260708/excel_sheets_markdown/附表10.md", "sha256": "e6776b6554b586b3d69e70f2fe6f68c3a5b1938bdb68255a06b8de46986aff53", "stats": {"data_rows": 19, "formula_cells": 115, "cross_sheet_ref_occurrences": 58}},
+      "投资复核": {"path": "review_outputs_20260708/excel_sheets_markdown/投资复核.md", "sha256": "76a7e24d6f398d488e9efa0a26d3b98464175a4106d13eb5286ff2d28cd9aa1f", "stats": {"data_rows": 45, "formula_cells": 213, "cross_sheet_ref_occurrences": 54}}
+    },
+    "deprecated_as_standard": {
+      "xlsx": "_qa_uploads/财务附表.xlsx",
+      "reason": "仅 1 个工作表、7 行指标摘要，不是十三表模板；不得再作为 reference 真源"
+    },
+    "note": [
+      "冻结真实甲方工作簿的审查提取结构为参考标准；机器裁决见 hermes_cli/finance/reference_schema.py。",
+      "每张参考 Markdown 以 sha256 + 行数/公式数/跨表引用数冻结；原位替换也会 fail-closed。",
+      "缺料不逼补：结构不足 → grade=summary，不得静默造工程量/单价/人员。",
+      "工程 formal_delivery_ready ≠ 与甲方业务闭合（后者走双轨裁决）。"
+    ]
+  },
+  "industry_variants": {
+    "manufacturing_product_sales": {
+      "status": "frozen",
+      "formal_reference_allowed": true,
+      "revenue_models": ["product_sales"],
+      "reference_scope": "本契约冻结的饮料制造业工作簿；其他制造业仍须人工确认同一行树适用"
+    },
+    "flat_estimate": {
+      "status": "summary_only",
+      "formal_reference_allowed": false,
+      "revenue_models": ["flat"],
+      "reason": "单点收入与默认成本率没有参考表明细深度"
+    },
+    "property_sales": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": ["property_sales"],
+      "reason": "开发产品/去化/土地增值税行树未由真实模板冻结"
+    },
+    "lease_portfolio": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": ["lease_portfolio"],
+      "reason": "租赁单元、空置与租约现金流变体未由真实模板冻结"
+    },
+    "inventory_sales": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": ["inventory_sales"],
+      "reason": "存货销售/去化行树未由真实模板冻结"
+    },
+    "tourism": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": ["tourism"],
+      "reason": "客流、客单价和多业态变体未由真实模板冻结"
+    },
+    "gov_payment": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": ["gov_payment"],
+      "reason": "政府付费/补贴/可用性付费变体未由真实模板冻结"
+    },
+    "non_operating": {
+      "status": "not_frozen",
+      "formal_reference_allowed": false,
+      "revenue_models": [],
+      "reason": "非经营性项目应使用生命周期资金平衡表，当前十三表变体未冻结"
+    }
+  },
+  "machine_contract": {
+    "unknown_variant_policy": "fail_closed",
+    "engine_table_order": [
+      "investment", "interest-during-construction", "working-capital", "funding",
+      "income-statement", "total-cost", "wage", "depreciation", "amortization",
+      "profit-distribution", "debt-service", "cashflow", "capital-cashflow"
+    ],
+    "reference_delivery_sheet_count": 15,
+    "workbook_sheet_count": 16,
+    "engine_reference_mapping": {
+      "investment": {"engine_delivery_no": "附表1", "reference_sheet": "附表1", "reference_title": "固定资产投资估算表（根据建设内容进行调整）", "reference_source_sheets": ["附表1"], "formula_dependency_sources": []},
+      "interest-during-construction": {"engine_delivery_no": "附表2", "reference_sheet": "附表2", "reference_title": "建设期利息估算表", "reference_source_sheets": ["附表2"], "formula_dependency_sources": []},
+      "working-capital": {"engine_delivery_no": "附表3", "reference_sheet": "附表3", "reference_title": "流动资金测算表", "reference_source_sheets": ["附表3", "附表6", "附表6-1", "附表6-2"], "formula_dependency_sources": ["附表6", "附表6-1", "附表6-2"]},
+      "funding": {"engine_delivery_no": "附表4", "reference_sheet": "附表4", "reference_title": "项目总投资使用计划与资金筹措表", "reference_source_sheets": ["附表4", "附表1", "附表3"], "formula_dependency_sources": ["附表1", "附表3"]},
+      "income-statement": {"engine_delivery_no": "附表5", "reference_sheet": "附表5", "reference_title": "营业收入、税金测算表", "reference_source_sheets": ["附表5", "附表6-1", "附表6-2"], "formula_dependency_sources": ["附表6-1", "附表6-2"]},
+      "total-cost": {"engine_delivery_no": "附表6", "reference_sheet": "附表6", "reference_title": "总成本费用测算表", "reference_source_sheets": ["附表6", "附表4", "附表5", "附表6-1", "附表6-2", "附表6-3", "附表6-5", "附表6-6", "附表8"], "formula_dependency_sources": ["附表4", "附表5", "附表6-1", "附表6-2", "附表6-3", "附表6-5", "附表6-6", "附表8"]},
+      "wage": {"engine_delivery_no": "附表6-1", "reference_sheet": "附表6-3", "reference_title": "工资及福利费估算表", "reference_source_sheets": ["附表6-3"], "formula_dependency_sources": []},
+      "depreciation": {"engine_delivery_no": "附表6-2", "reference_sheet": "附表6-5", "reference_internal_no": "附表6-4", "reference_title": "固定资产折旧费估算表", "reference_source_sheets": ["附表6-5", "附表1"], "formula_dependency_sources": ["附表1"]},
+      "amortization": {"engine_delivery_no": "附表6-3", "reference_sheet": "附表6-6", "reference_internal_no": "附表6-5", "reference_title": "无形及其他资产摊销估算表", "reference_source_sheets": ["附表6-6", "附表1"], "formula_dependency_sources": ["附表1"]},
+      "profit-distribution": {"engine_delivery_no": "附表7", "reference_sheet": "附表7", "reference_title": "利润与利润分配表", "reference_source_sheets": ["附表7", "附表5", "附表6", "附表6-5", "附表6-6"], "formula_dependency_sources": ["附表5", "附表6", "附表6-5", "附表6-6"]},
+      "debt-service": {"engine_delivery_no": "附表8", "reference_sheet": "附表8", "reference_title": "还本付息测算表", "reference_source_sheets": ["附表8", "附表2", "附表6", "附表7"], "formula_dependency_sources": ["附表2", "附表6", "附表7"]},
+      "cashflow": {"engine_delivery_no": "附表9", "reference_sheet": "附表9", "reference_title": "项目投资现金流量表", "reference_source_sheets": ["附表9", "附表1", "附表3", "附表5", "附表6", "附表6-5", "附表7"], "formula_dependency_sources": ["附表1", "附表3", "附表5", "附表6", "附表6-5", "附表7"]},
+      "capital-cashflow": {"engine_delivery_no": "附表10", "reference_sheet": "附表10", "reference_title": "项目资本金现金流量表", "reference_source_sheets": ["附表10", "附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"], "formula_dependency_sources": ["附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"]}
+    },
+    "minimum_detail_requirements": {
+      "investment": {"construction_items": 3, "quantity_indicator_pairs": 3},
+      "interest-during-construction": {"schedule_periods": 1, "funding_tranches": 1},
+      "working-capital": {"turnover_components": 7, "inventory_components": 4},
+      "funding": {"use_rows": 3, "source_rows": 2, "schedule_periods": 1},
+      "income-statement": {"products": 1, "quantity_price_pairs": 1, "ramp_points": 2, "tax_components": 3},
+      "total-cost": {"cost_items": 3, "fixed_variable_rows": 2},
+      "wage": {"staff_categories": 1, "headcount_wage_pairs": 1},
+      "depreciation": {"asset_classes": 2},
+      "amortization": {"amortization_classes": 2},
+      "profit-distribution": {"required_rows": 18},
+      "debt-service": {"repayment_source_rows": 3, "coverage_ratios": 2},
+      "cashflow": {"cashflow_component_rows": 10},
+      "capital-cashflow": {"cashflow_component_rows": 10}
+    },
+    "applicability": {
+      "investment": {"always": true, "not_applicable_when": []},
+      "interest-during-construction": {"all_of": ["investment.interest>0"], "not_applicable_when": ["investment.interest<=0"]},
+      "working-capital": {"all_of": ["params.is_operating=true", "investment.working_capital>0.01"], "not_applicable_when": ["params.is_operating=false", "investment.working_capital<=0.01"]},
+      "funding": {"always": true, "not_applicable_when": []},
+      "income-statement": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "total-cost": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "wage": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "depreciation": {"all_of": ["params.is_operating=true", "raw.property_inventory=false"], "not_applicable_when": ["params.is_operating=false", "raw.property_inventory=true"]},
+      "amortization": {"all_of": ["params.is_operating=true", "investment.asset_map.intangible_original>0"], "not_applicable_when": ["params.is_operating=false", "investment.asset_map.intangible_original<=0"]},
+      "profit-distribution": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "debt-service": {"all_of": ["params.is_operating=true", "funding.loan>0"], "not_applicable_when": ["params.is_operating=false", "funding.loan<=0"]},
+      "cashflow": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "capital-cashflow": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]}
+    },
+    "required_row_groups": {
+      "investment": [
+        {"id": "engineering", "any_of": ["工程费用"]}, {"id": "other", "any_of": ["工程建设其它费用", "工程建设其他费用"]},
+        {"id": "contingency", "any_of": ["基本预备费", "预备费"]}, {"id": "idc", "any_of": ["建设期贷款利息", "建设期利息"]},
+        {"id": "fixed_investment_total", "any_of": ["固定资产投资合计"]}
+      ],
+      "interest-during-construction": [
+        {"id": "begin", "any_of": ["期初借款余额"]}, {"id": "draw", "any_of": ["当期借款", "当期提款"]},
+        {"id": "interest", "any_of": ["当期应付利息", "当期利息"]}, {"id": "end", "any_of": ["期末借款余额"]}
+      ],
+      "working-capital": [
+        {"id": "receivable", "any_of": ["应收账款"]}, {"id": "raw", "any_of": ["原材料"]},
+        {"id": "fuel", "any_of": ["燃料及动力", "燃料和动力"]}, {"id": "wip", "any_of": ["在产品"]},
+        {"id": "finished", "any_of": ["产成品"]}, {"id": "cash", "any_of": ["现金"]},
+        {"id": "payable", "any_of": ["应付账款"]}, {"id": "working_capital", "any_of": ["流动资金"]},
+        {"id": "funding_source", "any_of": ["流动资金来源"]}, {"id": "short_loan", "any_of": ["短期借款"]},
+        {"id": "self_funding", "any_of": ["企业自筹流动资金", "自筹流动资金"]}
+      ],
+      "funding": [
+        {"id": "total_investment", "any_of": ["总投资"]}, {"id": "construction", "any_of": ["建设投资"]},
+        {"id": "idc", "any_of": ["建设期贷款利息", "建设期利息"]}, {"id": "working_capital", "any_of": ["铺底流动资金", "流动资金"]},
+        {"id": "funding", "any_of": ["资金筹措"]}, {"id": "capital", "any_of": ["项目资本金", "资本金"]},
+        {"id": "debt", "any_of": ["债务资金", "银行贷款"]}
+      ],
+      "income-statement": [
+        {"id": "price", "any_of": ["单价"]}, {"id": "quantity", "any_of": ["数量"]},
+        {"id": "revenue", "any_of": ["营业收入合计"]}, {"id": "output_vat", "any_of": ["销项税金合计", "销项税额"]},
+        {"id": "city_tax", "any_of": ["城市维护建设税"]}, {"id": "education", "any_of": ["教育费附加"]},
+        {"id": "local_education", "any_of": ["地方教育附加"]}, {"id": "input_vat", "any_of": ["进项税额", "进项税"]},
+        {"id": "vat", "any_of": ["增值税"]}
+      ],
+      "total-cost": [
+        {"id": "raw", "any_of": ["外购原材料费"]}, {"id": "fuel", "any_of": ["外购燃料及动力费", "外购燃料和动力费"]},
+        {"id": "wage", "any_of": ["工资及福利费"]}, {"id": "repair", "any_of": ["修理费"]},
+        {"id": "operating", "any_of": ["经营成本"]}, {"id": "depreciation", "any_of": ["折旧费"]},
+        {"id": "amortization", "any_of": ["摊销费"]}, {"id": "finance", "any_of": ["财务费用"]},
+        {"id": "total", "any_of": ["总成本费用"]}, {"id": "fixed", "any_of": ["固定成本"]},
+        {"id": "variable", "any_of": ["变动成本"]}
+      ],
+      "wage": [
+        {"id": "labor", "any_of": ["劳动定员"]}, {"id": "headcount", "any_of": ["人数"]},
+        {"id": "average_wage", "any_of": ["人均年工资"]}, {"id": "wage", "any_of": ["工资额"]},
+        {"id": "welfare", "any_of": ["福利费"]}
+      ],
+      "depreciation": [
+        {"id": "building", "any_of": ["房屋、建筑物", "房屋建筑物", "房屋建筑及构筑物"]}, {"id": "equipment", "any_of": ["机器设备", "游乐设备"]},
+        {"id": "original", "any_of": ["原值"]}, {"id": "depreciation", "any_of": ["当期折旧费"]},
+        {"id": "net", "any_of": ["净值"]}, {"id": "total", "any_of": ["合计"]}
+      ],
+      "amortization": [
+        {"id": "land", "any_of": ["土地使用权无形资产", "土地使用权"]}, {"id": "other", "any_of": ["其他资产"]},
+        {"id": "original", "any_of": ["原值"]}, {"id": "amortization", "any_of": ["当期摊销费"]},
+        {"id": "net", "any_of": ["净值"]}, {"id": "total", "any_of": ["合计"]}
+      ],
+      "profit-distribution": [
+        {"id": "revenue", "any_of": ["营业收入"]}, {"id": "total_cost", "any_of": ["总成本费用"]},
+        {"id": "profit", "any_of": ["利润总额"]}, {"id": "loss_offset", "any_of": ["弥补以前年度亏损"]},
+        {"id": "taxable", "any_of": ["应纳税所得额"]}, {"id": "net_profit", "any_of": ["净利润"]},
+        {"id": "distributable", "any_of": ["可供分配的利润"]}, {"id": "legal_reserve", "any_of": ["提取法定盈余公积金"]},
+        {"id": "investor_profit", "any_of": ["可供投资者分配的利润"]}, {"id": "optional_reserve", "any_of": ["提取任意盈余公积金"]},
+        {"id": "undistributed", "any_of": ["未分配利润"]}, {"id": "ebit", "any_of": ["息税前利润", "EBIT"]},
+        {"id": "ebitda", "any_of": ["息税折旧摊销前利润", "EBITDA"]}
+      ],
+      "debt-service": [
+        {"id": "begin", "any_of": ["期初借款余额"]}, {"id": "draw", "any_of": ["本年借款"]},
+        {"id": "service", "any_of": ["当期还本付息"]}, {"id": "principal", "any_of": ["还本"]},
+        {"id": "interest", "any_of": ["付息"]}, {"id": "end", "any_of": ["期末借款余额"]},
+        {"id": "source", "any_of": ["偿还借款本金的资金来源", "偿债资金来源"]},
+        {"id": "profit_source", "any_of": ["可供投资者分配的利润"]}, {"id": "dep_source", "any_of": ["折旧费"]},
+        {"id": "amort_source", "any_of": ["摊销费"]}, {"id": "icr", "any_of": ["利息备付率", "ICR"]},
+        {"id": "dscr", "any_of": ["偿债备付率", "DSCR"]}
+      ],
+      "cashflow": [
+        {"id": "inflow", "any_of": ["现金流入"]}, {"id": "revenue", "any_of": ["营业收入"]},
+        {"id": "salvage", "any_of": ["回收固定资产余值"]}, {"id": "wc_recovery", "any_of": ["回收新增流动资金", "回收流动资金"]},
+        {"id": "outflow", "any_of": ["现金流出"]}, {"id": "investment", "any_of": ["固定资产投资", "建设投资"]},
+        {"id": "working_capital", "any_of": ["新增铺底流动资金", "流动资金增加"]}, {"id": "operating_cost", "any_of": ["经营成本"]},
+        {"id": "pre_tax", "any_of": ["所得税前净现金流量"]}, {"id": "post_tax", "any_of": ["所得税后净现金流量"]},
+        {"id": "cumulative", "any_of": ["累计所得税后净现金流量", "累计净现金流量"]}
+      ],
+      "capital-cashflow": [
+        {"id": "inflow", "any_of": ["现金流入"]}, {"id": "revenue", "any_of": ["营业收入"]},
+        {"id": "salvage", "any_of": ["回收固定资产余值"]}, {"id": "wc_recovery", "any_of": ["回收流动资金"]},
+        {"id": "outflow", "any_of": ["现金流出"]}, {"id": "capital", "any_of": ["项目资本金", "资本金投入"]},
+        {"id": "principal", "any_of": ["借款本金偿还", "还本"]}, {"id": "interest", "any_of": ["借款利息支付", "付息"]},
+        {"id": "operating_cost", "any_of": ["经营成本"]}, {"id": "tax", "any_of": ["所得税"]},
+        {"id": "net", "any_of": ["所得税后净现金流量", "资本金净现金流"]}, {"id": "cumulative", "any_of": ["累计净现金流量"]}
+      ]
+    }
+  },
+  "grade_rules": {
+    "summary": "当前默认开发/一句话估算路径；允许缺明细与默认参数；不得宣称正式参考表深度",
+    "reference": "逐表 structure_coverage=1 且 missing_fields 无 blocking，且 effective；见 structure_requirements",
+    "not_applicable": "路径不适用（如无贷款/无流资/非经营性），不计入 formal 分母",
+    "reference_structure_ready": "全部 applicable 表均为 reference 且真实参考源指纹完整；这是预导出结构状态",
+    "formal_delivery_ready": "reference_structure_ready 且 source/formula/independent_recalc coverage 均为 1，export semantic_checks 全 ok；仍不等于五簿 review_passed"
+  },
+  "ai_role": {
+    "allowed": [
+      "从资料抽取候选事实并绑定证据",
+      "提出缺料清单与限级建议",
+      "在用户确认后写入 finance_spec / fact_pack"
+    ],
+    "forbidden": [
+      "默认路径静默调用 LLM 生成正式工程量/价格/人员并标 reference",
+      "缺料时凭空补齐 formal 输入",
+      "把 estimate_preview 的默认参数结果标为 formal"
+    ],
+    "defaults": {
+      "prefer_llm_spec": false,
+      "lifecycle_prefer_llm_spec": false,
+      "allow_prepare_llm_on_formal_run": false,
+      "comment": "默认不走 AI prepare；需显式 prefer_llm_spec=True 或 confirmed_spec"
+    }
+  },
+  "default_parameters_disclosure": {
+    "note": "以下默认值仅用于 estimate_preview 数学闭合，产生「精确但未必准确」的数字；不得单独支撑 reference/formal",
+    "values": {
+      "total_cost_rate": 0.75,
+      "wage_rate_of_opex": 0.15,
+      "welfare_rate": 0.14,
+      "income_tax_rate": 0.25,
+      "vat_rate": 0.13,
+      "vat_input_rate": 0.10
+    },
+    "config_paths": [
+      "hermes_cli/finance_model.py",
+      "config/finance_params.yaml"
+    ]
+  },
+  "input_fact_pack": {
+    "version": "finance_fact_pack.v1",
+    "schema_doc": "docs/十三表输入事实包_v0_20260719.md",
+    "required_domains_for_reference": [
+      "construction_items",
+      "products",
+      "cost_items",
+      "staff_detail",
+      "asset_classes",
+      "wc_turnover",
+      "funding_plan",
+      "debt_schedule",
+      "amort_bases",
+      "distribution_policy",
+      "cost_behavior",
+      "tax_component_policy"
+    ],
+    "evidence_binding": "formal 候选的每个适用事实域必须绑定 source_id + locator/page_or_cell + A/B 级人工复核证据；无证据不得升 formal"
+  },
+  "tables": {
+    "investment": {
+      "required_formula_families": ["quantity_indicator"],
+      "critical_formula_signatures": {"detail_amount": "quantity*indicator/10000"},
+      "delivery_no": "附表1",
+      "title": "固定资产投资估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表1.md",
+      "reference_source_sha256": "0fdbb0c0ff286e84489f099a142f7ce1d88e9df5699452f06663d52167e320e6",
+      "reference_source_stats": {"data_rows": 50, "formula_cells": 0, "cross_sheet_refs": 0},
+      "reference_layout": "item_rows_component_columns",
+      "reference_columns": [
+        "序号", "工程或费用名称", "计量单位", "工程量", "估算指标（元）",
+        "建筑工程", "设备原价", "运杂安装工程费", "其它费用", "合计", "比例(%)"
+      ],
+      "reference_row_tree": [
+        "一 工程费用 / 主要生产设备 / 厂房建筑 / 辅助工程 / 室外工程",
+        "二 工程建设其它费用",
+        "三 基本预备费",
+        "四 一至三项合计",
+        "五 建设期贷款利息",
+        "六 固定资产投资合计"
+      ],
+      "min_detail_items": {
+        "construction_items": 3,
+        "quantity_indicator_pairs": 3
+      },
+      "required_input_fields": [
+        "invest_breakdown.construction_items[].name",
+        "invest_breakdown.construction_items[].quantity",
+        "invest_breakdown.construction_items[].indicator_yuan",
+        "invest_breakdown.construction_detail.{civil,equipment,installation}_wan"
+      ],
+      "blocking_if_missing_for_reference": [
+        "construction_items_with_qty_indicator"
+      ],
+      "formula_dependencies": [],
+      "summary_columns": ["序号", "项目", "金额（万元）"],
+      "notes": [
+        "无 construction_items 时仅 3 行摘要；禁止静默拆伪工程明细",
+        "仅有 construction_detail 分类金额 → 仍非 reference（缺工程量×指标）"
+      ]
+    },
+    "interest-during-construction": {
+      "required_formula_families": ["interest_rollforward"],
+      "critical_formula_signatures": {"interest": "(begin_balance+draw/2)*rate", "end_balance": "begin_balance+draw"},
+      "delivery_no": "附表2",
+      "title": "建设期利息估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表2.md",
+      "reference_source_sha256": "824538ca56604c65dfbaaecb3d85af0b530bd172f44378573aa8215f2c13aed6",
+      "reference_source_stats": {"data_rows": 13, "formula_cells": 8, "cross_sheet_refs": 0},
+      "reference_layout": "item_rows_period_columns",
+      "reference_row_tree": [
+        "建设期利息",
+        "期初借款余额",
+        "当期借款",
+        "当期应付利息",
+        "期末借款余额",
+        "其他融资费用",
+        "小计"
+      ],
+      "reference_columns": ["序号", "项目", "合计", "分年"],
+      "required_input_fields": ["loan_wan", "loan_rate", "build_period_months"],
+      "blocking_if_missing_for_reference": [],
+      "structure_requirements": ["idc_rollforward_columns"],
+      "notes": ["当期借款按半年计息；利率展示为百分数"]
+    },
+    "working-capital": {
+      "required_formula_families": ["inventory_component_amount", "inventory_component_sum", "working_capital_total"],
+      "critical_formula_signatures": {"inventory_component": "base_wan*days/360", "inventory": "sum(raw,fuel,wip,finished)", "net_working_capital": "current_assets-current_liabilities"},
+      "delivery_no": "附表3",
+      "title": "流动资金测算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表3.md",
+      "reference_source_sha256": "95cec22e1b5f3f8dce3fa2232e4378a9aa26e63b115fe14c669d3b7b5b0f44e0",
+      "reference_source_stats": {"data_rows": 21, "formula_cells": 142, "cross_sheet_refs": 140},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "最低周转天数", "周转次数", "分年"],
+      "reference_row_tree": [
+        "流动资产",
+        "应收账款",
+        "存货/原材料/燃料及动力/在产品/产成品",
+        "现金",
+        "流动负债/应付账款",
+        "流动资金",
+        "铺底流动资金",
+        "当期增加额",
+        "流动资金来源/短贷/自筹"
+      ],
+      "required_input_fields": [
+        "wc_turnover.receivable",
+        "wc_turnover.inventory_detail.{raw,fuel,wip,finished}",
+        "wc_turnover.cash",
+        "wc_turnover.payable",
+        "wc_turnover.short_term_loan_wan",
+        "wc_turnover.self_funded_wan"
+      ],
+      "blocking_if_missing_for_reference": [
+        "wc_turnover_inventory_tree",
+        "working_capital_funding_sources"
+      ],
+      "formula_dependencies": [
+        "存货分项 ← 附表6/6-1/6-2 成本基数 / 周转次数"
+      ],
+      "summary_columns": ["构成项", "金额（万元）"],
+      "notes": [
+        "ratio_backsolve 总额反解不得标 reference",
+        "仅有应收/存货/现金三行合计亦非完整参考树",
+        "短期借款与企业自筹必须显式闭合流动资金来源"
+      ]
+    },
+    "funding": {
+      "required_formula_families": ["funding_uses_sources"],
+      "critical_formula_signatures": {"uses": "construction_investment+construction_interest+working_capital", "sources": "capital_own+loan+gov_subsidy"},
+      "delivery_no": "附表4",
+      "title": "项目总投资使用计划与资金筹措表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表4.md",
+      "reference_source_sha256": "e59bb356ad69a4836bef8d345af747bead9859e96b24c170041c21f573793cd6",
+      "reference_source_stats": {"data_rows": 20, "formula_cells": 48, "cross_sheet_refs": 14},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "分年", "合计"],
+      "reference_row_tree": [
+        "总投资/建设投资/建设期利息/铺底流资",
+        "资金筹措/资本金/借款/其他"
+      ],
+      "required_input_fields": ["capital_own_wan 或 capital_own_ratio", "loan_wan 或 loan_ratio"],
+      "structure_requirements": ["year_plan_when_build_years_gt_1", "uses_sources_tree"],
+      "blocking_if_missing_for_reference": []
+    },
+    "income-statement": {
+      "required_formula_families": ["product_revenue", "vat_breakdown"],
+      "critical_formula_signatures": {"revenue": "price*capacity*ramp", "vat_payable": "max(vat_output-vat_input,0)"},
+      "delivery_no": "附表5",
+      "title": "营业收入、税金及附加和增值税估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表5.md",
+      "reference_source_sha256": "9ff3f487272d7e9f27ef7208ee0ed9da2edd957aebdd98cfe1a1d4c942abb872",
+      "reference_source_stats": {"data_rows": 31, "formula_cells": 114, "cross_sheet_refs": 20},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "单位", "合计", "分年"],
+      "reference_row_tree": [
+        "分产品：单价 × 数量 × 达产爬坡",
+        "营业收入合计",
+        "销项税金合计",
+        "营业税金与附加（城建/教育/地方教育）",
+        "增值税（销项-进项）"
+      ],
+      "min_detail_items": {
+        "products": 1,
+        "ramp_points": 2
+      },
+      "required_input_fields": [
+        "spec.revenue.products[] 或非 flat 收入模型序列",
+        "vat_rate"
+      ],
+      "blocking_if_missing_for_reference": ["products_or_non_flat_schedule"],
+      "summary_columns": [
+        "运营年", "营业收入", "经营成本", "折旧", "销售税金及附加",
+        "销项税", "进项税", "应纳增值税", "调整所得税(融资前)", "融资前净利"
+      ],
+      "notes": ["flat 单点年收入仅可 summary"]
+    },
+    "total-cost": {
+      "required_formula_families": ["cost_item_sum", "total_cost_sum"],
+      "critical_formula_signatures": {"total_cost": "operating_cost+depreciation+amortization+interest"},
+      "delivery_no": "附表6",
+      "title": "总成本费用估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表6.md",
+      "reference_source_sha256": "1f069d4e97955d36169d061dd6f2dd31f1152d97894470aa8172f75031c22019",
+      "reference_source_stats": {"data_rows": 21, "formula_cells": 150, "cross_sheet_refs": 76},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "计算期", "合计"],
+      "reference_row_tree": [
+        "外购原材料费",
+        "外购燃料及动力费",
+        "工资及福利费",
+        "修理费",
+        "营业费用/其他费用",
+        "经营成本",
+        "折旧费/摊销费",
+        "财务费用（短贷利息/长贷利息）",
+        "总成本费用（固定/变动）"
+      ],
+      "required_input_fields": ["cost_items（≥3 项）或分项驱动"],
+      "blocking_if_missing_for_reference": ["cost_items_tree"],
+      "formula_dependencies": [
+        "原材料 ← 附表6-1(甲方) 量价",
+        "燃料动力 ← 附表6-2(甲方) 量价",
+        "工资 ← 附表6-3(甲方) 定员",
+        "折旧 ← 附表6-5(甲方)/引擎 附表6-2",
+        "摊销 ← 附表6-6(甲方)/引擎 附表6-3"
+      ],
+      "engine_vs_reference_note": "引擎子表编号与甲方样本不同：引擎 6-1=工资、6-2=折旧、6-3=摊销；甲方样本 6-1=原材料、6-2=燃料、6-3=工资、6-5=折旧、6-6=摊销。reference 看行树语义，不强制 sheet 号一致。",
+      "summary_columns": ["运营年", "现金经营成本", "折旧", "摊销", "利息", "总成本费用"]
+    },
+    "wage": {
+      "required_formula_families": ["staff_wage", "wage_total"],
+      "critical_formula_signatures": {"wage": "headcount*avg_wage_yuan/10000", "total": "wage+welfare"},
+      "delivery_no": "附表6-1",
+      "title": "工资及附加估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表6-3.md",
+      "reference_source_sha256": "e8d3b898ca544e2184b00bac9dd1f8a8b705096648e843549e9921a59889c653",
+      "reference_source_stats": {"data_rows": 15, "formula_cells": 34, "cross_sheet_refs": 0},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "单位", "合计", "分年"],
+      "engine_sheet_mapping_note": "引擎 delivery_no=附表6-1 对应甲方样本「附表6-3 工资及福利费估算表」",
+      "reference_row_tree": [
+        "劳动定员/人数",
+        "人均年工资",
+        "工资额",
+        "福利费",
+        "合计"
+      ],
+      "min_detail_items": {
+        "staff_categories": 1
+      },
+      "required_input_fields": [
+        "staff_detail[] 或 headcount+avg_wage_yuan"
+      ],
+      "blocking_if_missing_for_reference": ["staff_detail"],
+      "summary_columns": ["运营年", "工资", "职工福利及附加", "工资及附加合计"],
+      "notes": ["仅有工资/福利合计行 → summary，不是 reference"]
+    },
+    "depreciation": {
+      "required_formula_families": ["asset_class_depreciation", "rollforward"],
+      "critical_formula_signatures": {"depreciation": "original*(1-salvage_rate)/years", "net_value": "original-cumulative_depreciation"},
+      "delivery_no": "附表6-2",
+      "title": "固定资产折旧估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表6-5.md",
+      "reference_source_sha256": "7ee946e6339ba85210c5a64fd7a201c5e7597b18d762104dc0349050e6becd4a",
+      "reference_source_stats": {"data_rows": 22, "formula_cells": 63, "cross_sheet_refs": 4},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "合计", "折旧年限", "分年"],
+      "engine_sheet_mapping_note": "引擎 delivery_no=附表6-2 对应甲方样本「附表6-5/6-4 固定资产折旧费估算表」",
+      "reference_row_tree": [
+        "房屋建筑物：原值/折旧年限/当期折旧/净值",
+        "机器设备：原值/折旧年限/当期折旧/净值",
+        "运输车辆等其他类别（如有）",
+        "合计"
+      ],
+      "min_detail_items": {
+        "asset_classes": 2
+      },
+      "required_input_fields": ["asset_classes[] 或 classified depreciation"],
+      "blocking_if_missing_for_reference": ["asset_classes"],
+      "summary_columns": ["运营年", "原值", "残值率", "年折旧", "累计折旧", "净值"],
+      "notes": ["单一综合资产原值 → summary"]
+    },
+    "amortization": {
+      "required_formula_families": ["amortization"],
+      "critical_formula_signatures": {"amortization": "if(year<=years,base/years,0)"},
+      "delivery_no": "附表6-3",
+      "title": "无形资产及其他资产摊销估算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表6-6.md",
+      "reference_source_sha256": "2ccf533c4cb4c061364e24fe00c45afbb2fd33c29b23a6f235de15456fc5ff34",
+      "reference_source_stats": {"data_rows": 25, "formula_cells": 62, "cross_sheet_refs": 3},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "合计", "摊销年限", "分年"],
+      "engine_sheet_mapping_note": "引擎 delivery_no=附表6-3 对应甲方样本「附表6-6/6-5 无形及其他资产摊销」",
+      "reference_row_tree": [
+        "土地使用权等无形资产：原值/摊销年限/当期/净值",
+        "其他资产：原值/摊销年限/当期/净值"
+      ],
+      "required_input_fields": ["intangible_assets_wan 或 multi-class amort bases"],
+      "blocking_if_missing_for_reference": [],
+      "summary_columns": ["运营年", "摊销基数", "摊销年限", "当期摊销费"]
+    },
+    "profit-distribution": {
+      "required_formula_families": ["profit_distribution"],
+      "critical_formula_signatures": {"total_profit": "revenue-total_cost-tax_surtax", "undistributed": "distributable-arbitrary_reserve-investor_distribution"},
+      "delivery_no": "附表7",
+      "title": "利润与利润分配表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表7.md",
+      "reference_source_sha256": "71ce8bacabb7cae1e660c3e8892d22400373af1c20074db9ecea50473c301155",
+      "reference_source_stats": {"data_rows": 23, "formula_cells": 149, "cross_sheet_refs": 61},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "计算期", "合计"],
+      "reference_row_tree": [
+        "营业收入",
+        "营业税金及附加",
+        "总成本费用",
+        "补贴收入",
+        "利润总额",
+        "弥补以前年度亏损",
+        "应纳税所得额",
+        "所得税",
+        "净利润",
+        "期初未分配利润",
+        "可供分配的利润",
+        "提取法定盈余公积金",
+        "可供投资者分配的利润",
+        "提取任意盈余公积金",
+        "投资各方利润分配",
+        "未分配利润",
+        "息税前利润（EBIT）",
+        "息税折旧摊销前利润（EBITDA）"
+      ],
+      "structure_requirements": [
+        "loss_offset_or_explicit_zero",
+        "legal_surplus_reserve",
+        "distributable_profit",
+        "undistributed_profit"
+      ],
+      "required_input_fields": [],
+      "blocking_if_missing_for_reference": ["profit_distribution_row_tree"],
+      "summary_columns": [
+        "运营年", "营业收入", "总成本费用", "税金及附加",
+        "利润总额", "所得税", "净利润"
+      ],
+      "notes": ["缺弥补亏损/公积金/分配行 → 不得 reference"]
+    },
+    "debt-service": {
+      "required_formula_families": ["debt_rollforward", "repayment_coverage"],
+      "critical_formula_signatures": {"interest": "begin*rate", "end": "max(begin-principal,0)", "dscr": "repay_available/debt_service"},
+      "delivery_no": "附表8",
+      "title": "借款还本付息测算表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表8.md",
+      "reference_source_sha256": "cc872853b1b3d702aadd0ffbec95b1d79a1ebf5cefdf87b53046fdd98d25d209",
+      "reference_source_stats": {"data_rows": 19, "formula_cells": 49, "cross_sheet_refs": 21},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "分年", "合计"],
+      "reference_row_tree": [
+        "期初借款余额",
+        "本年借款",
+        "当期还本付息",
+        "还本",
+        "付息",
+        "期末借款余额",
+        "偿还借款本金的资金来源（利润/折旧/摊销）",
+        "利息备付率/偿债备付率"
+      ],
+      "required_input_fields": ["loan_wan", "loan_years", "loan_rate"],
+      "structure_requirements": ["repay_sources", "dscr_icr"],
+      "blocking_if_missing_for_reference": ["repay_sources"],
+      "summary_columns": [
+        "运营年", "期初借款余额", "当期还本", "当期付息",
+        "期末借款余额", "DSCR", "ICR"
+      ],
+      "notes": ["仅有还本付息余额、无资金来源分项 → summary"]
+    },
+    "cashflow": {
+      "required_formula_families": ["net_cashflow"],
+      "critical_formula_signatures": {"net_cashflow": "revenue+recover-construction-wc_change-op_cash_cost-tax_surtax-income_tax"},
+      "delivery_no": "附表9",
+      "title": "项目投资现金流量表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表9.md",
+      "reference_source_sha256": "7d529c2e2ed18898cbd5fd611e117e42b57b0142a91ebc35497cd1362674e4b6",
+      "reference_source_stats": {"data_rows": 21, "formula_cells": 112, "cross_sheet_refs": 44},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "合计", "计算期"],
+      "reference_row_tree": [
+        "现金流入/营业收入/补贴/回收余值/回收流资",
+        "现金流出/建设投资/流资/经营成本/税金/所得税",
+        "税前净现金流/累计",
+        "税后净现金流/累计"
+      ],
+      "formula_dependencies": [
+        "营业收入 ← 附表5",
+        "经营成本 ← 附表6",
+        "固定资产投资 ← 附表1",
+        "流资 ← 附表3",
+        "所得税 ← 附表7（展示）/融资前调整税（引擎）"
+      ],
+      "required_input_fields": [],
+      "blocking_if_missing_for_reference": [],
+      "summary_columns": [
+        "计算期(年)", "阶段", "营业收入", "经营成本", "税金及附加",
+        "调整所得税", "建设投资(含建设期利息)", "流动资金增加", "回收", "净现金流", "累计净现金流"
+      ]
+    },
+    "capital-cashflow": {
+      "required_formula_families": ["capital_cashflow_atomic", "net_cashflow"],
+      "critical_formula_signatures": {"cash_inflow": "revenue+recover_fixed+recover_wc", "cash_outflow": "capital_invest+op_cash_cost+tax_surtax+income_tax+principal+interest", "net_cashflow": "cash_inflow-cash_outflow"},
+      "delivery_no": "附表10",
+      "title": "项目资本金现金流量表",
+      "reference_source": "review_outputs_20260708/excel_sheets_markdown/附表10.md",
+      "reference_source_sha256": "e6776b6554b586b3d69e70f2fe6f68c3a5b1938bdb68255a06b8de46986aff53",
+      "reference_source_stats": {"data_rows": 19, "formula_cells": 115, "cross_sheet_refs": 58},
+      "reference_layout": "item_rows_period_columns",
+      "reference_columns": ["序号", "项目", "合计", "计算期"],
+      "reference_row_tree": [
+        "现金流入/营业收入/回收",
+        "现金流出/资本金投入/还本/付息/经营成本/税金/所得税",
+        "净现金流/累计",
+        "资本金 IRR"
+      ],
+      "formula_dependencies": [
+        "资本金 ← 附表4",
+        "还本付息 ← 附表8",
+        "经营成本 ← 附表6"
+      ],
+      "required_input_fields": ["capital_own_wan 或 capital_own_ratio"],
+      "blocking_if_missing_for_reference": [],
+      "summary_columns": [
+        "计算期(年)", "阶段", "资本金投入", "经营现金流入", "还本", "付息", "资本金净现金流"
+      ]
+    }
+  },
+  "input_to_fields": {
+    "construction_items": {
+      "paths": [
+        "finance.invest_breakdown.construction_items",
+        "finance.construction_items"
+      ],
+      "affects": ["investment", "cashflow"]
+    },
+    "construction_detail": {
+      "paths": ["finance.invest_breakdown.construction_detail", "finance.construction_detail"],
+      "affects": ["investment"]
+    },
+    "wc_turnover": {
+      "paths": ["finance.wc_turnover", "finance.wc_turnover_days"],
+      "affects": ["working-capital", "cashflow"]
+    },
+    "products": {
+      "paths": ["spec.revenue.products", "finance.products"],
+      "affects": ["income-statement", "profit-distribution", "cashflow", "capital-cashflow"]
+    },
+    "cost_items": {
+      "paths": ["finance.cost_items"],
+      "affects": ["total-cost", "profit-distribution", "cashflow", "capital-cashflow"]
+    },
+    "staff_detail": {
+      "paths": ["finance.staff_detail", "finance.wage_detail", "finance.labor_plan"],
+      "affects": ["wage"]
+    },
+    "asset_classes": {
+      "paths": ["finance.asset_classes", "finance.depreciation_classes"],
+      "affects": ["depreciation"]
+    },
+    "amort_bases": {
+      "paths": ["finance.amort_bases", "finance.intangible_assets", "finance.other_assets"],
+      "affects": ["amortization"]
+    },
+    "funding_plan": {
+      "paths": ["finance.funding_plan", "finance.investment_schedule", "finance.capital_schedule"],
+      "affects": ["interest-during-construction", "funding", "capital-cashflow"]
+    },
+    "debt_schedule": {
+      "paths": ["finance.debt_schedule", "finance.loan_wan", "finance.loan_rate", "finance.loan_years", "finance.debt_repay_sources"],
+      "affects": ["interest-during-construction", "debt-service", "capital-cashflow"]
+    }
+  },
+  "regression": {
+    "structure_diff": "scripts/finance_reference_structure_gate.py",
+    "real_template_note": "五簿 Day-0 dual_track review_passed 与 formal_delivery_ready 必须分列报告，禁止混谈",
+    "capability_formal_tests": "tests/test_finance_formal_fivebook_capability.py（能力路径，≠业务闭合）",
+    "business_alignment_evidence": "tmp/finance_dual_track_*/summary.json"
+  }
+}

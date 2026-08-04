@@ -1,0 +1,17 @@
+version: general.v1
+industry: general
+aliases: []
+required_inputs:
+  - total_investment_wan
+  - annual_revenue_wan
+allowed_revenue_models:
+  - flat
+  - product_sales
+  - property_sales
+  - tourism
+  - gov_payment
+sensitivity_variables:
+  - revenue
+  - op_cost
+  - construction
+

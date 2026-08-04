@@ -1,0 +1,10 @@
+version: education_hr.v1
+industry: education_hr
+aliases: [教育, 培训, 人力资源, 职业学校, 托育, 在线教育]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [product_sales, gov_payment, flat]
+sensitivity_variables: [student_or_client_count, tuition_or_service_fee, renewal, staffing_cost]
+quality_expectations: [招生爬坡, 学费或服务费依据, 师资成本, 公益与经营边界]

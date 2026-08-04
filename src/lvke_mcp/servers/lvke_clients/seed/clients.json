@@ -1,0 +1,129 @@
+[
+  {
+    "client_id": "C-001",
+    "name": "湖北能投新能源开发有限公司",
+    "uniscid": "9142010012345670XW",
+    "industry": "能源",
+    "region": "武汉",
+    "client_type": "国企",
+    "contact": "刘工",
+    "cooperation_since": 2019,
+    "projects": [
+      {"report_id": "LVKE-2023-LIGHT-001", "project_name": "孝感市开发区 50MW 集中式光伏电站", "year": 2023, "amount_yuan": 230000000},
+      {"report_id": "LVKE-2026-STORAGE-009", "project_name": "随州市曾都区 100MW/200MWh 独立储能电站", "year": 2026, "amount_yuan": 380000000}
+    ],
+    "notes": "重点客户;湖北省属新能源平台;优先推送储能 / 整县光伏类项目机会。"
+  },
+  {
+    "client_id": "C-002",
+    "name": "宜昌姚家港化工科技股份有限公司",
+    "uniscid": "9142050098765432XK",
+    "industry": "化工新材料",
+    "region": "宜昌",
+    "client_type": "民企",
+    "contact": "周总",
+    "cooperation_since": 2021,
+    "projects": [
+      {"report_id": "LVKE-2023-CHEM-002", "project_name": "宜昌姚家港化工园区年产 12 万吨电池级磷酸铁锂", "year": 2023, "amount_yuan": 1800000000}
+    ],
+    "notes": "锂电池正极材料一体化布局;后续可对接磷酸盐前驱体项目。"
+  },
+  {
+    "client_id": "C-003",
+    "name": "东风新能源汽车襄阳基地",
+    "uniscid": "91420600AB12345670",
+    "industry": "汽车零部件",
+    "region": "襄阳",
+    "client_type": "国企/合资",
+    "contact": "王部长",
+    "cooperation_since": 2018,
+    "projects": [
+      {"report_id": "LVKE-2024-AUTO-003", "project_name": "襄阳东风高新区年产 30 万套新能源汽车驱动电机", "year": 2024, "amount_yuan": 950000000}
+    ],
+    "notes": "东风集团生态链客户;新能源汽车三电产线类项目持续合作。"
+  },
+  {
+    "client_id": "C-004",
+    "name": "麻城市水务集团有限公司",
+    "uniscid": "91421181XX12345670",
+    "industry": "水利",
+    "region": "黄冈",
+    "client_type": "国企(城投)",
+    "contact": "李科长",
+    "cooperation_since": 2020,
+    "projects": [
+      {"report_id": "LVKE-2024-WATER-004", "project_name": "黄冈市麻城市农村供水提升工程", "year": 2024, "amount_yuan": 380000000}
+    ],
+    "notes": "县级城投平台;PPP / 专项债项目较多。"
+  },
+  {
+    "client_id": "C-005",
+    "name": "潜江市虾稻产业发展集团",
+    "uniscid": "91429005XX12345670",
+    "industry": "农产品加工",
+    "region": "潜江",
+    "client_type": "国企(农业产业化)",
+    "contact": "陈总",
+    "cooperation_since": 2022,
+    "projects": [
+      {"report_id": "LVKE-2024-AGRI-005", "project_name": "潜江市小龙虾全产业链精深加工产业园", "year": 2024, "amount_yuan": 520000000}
+    ],
+    "notes": "省级农业产业化重点企业;湖北 51020 现代农产品加工产业链节点。"
+  },
+  {
+    "client_id": "C-006",
+    "name": "武汉光谷建设投资集团",
+    "uniscid": "91420100XX12345670",
+    "industry": "市政基础设施",
+    "region": "武汉",
+    "client_type": "国企(开发区平台)",
+    "contact": "范总",
+    "cooperation_since": 2017,
+    "projects": [
+      {"report_id": "LVKE-2025-INFRA-006", "project_name": "武汉光谷东综合管廊一期工程", "year": 2025, "amount_yuan": 1150000000}
+    ],
+    "notes": "光谷开发区主要市政平台;后续可承接生态环境治理 / 智慧管廊运营类项目。"
+  },
+  {
+    "client_id": "C-007",
+    "name": "鄂州花湖国际航空物流枢纽建设指挥部",
+    "uniscid": "PROJECT-OFFICE",
+    "industry": "物流",
+    "region": "鄂州",
+    "client_type": "政府指挥部",
+    "contact": "周总",
+    "cooperation_since": 2023,
+    "projects": [
+      {"report_id": "LVKE-2025-LOGI-007", "project_name": "鄂州花湖机场航空冷链物流园", "year": 2025, "amount_yuan": 1750000000}
+    ],
+    "notes": "中部地区首个货运枢纽机场配套;未来 3 年仍有多个配套项目机会。"
+  },
+  {
+    "client_id": "C-008",
+    "name": "武汉光谷生物医药产业园管委会",
+    "uniscid": "GOV-OFFICE",
+    "industry": "生物医药",
+    "region": "武汉",
+    "client_type": "政府管委会",
+    "contact": "管委会项目处",
+    "cooperation_since": 2020,
+    "projects": [
+      {"report_id": "LVKE-2025-MED-008", "project_name": "武汉光谷生物城年产 5 亿支生物制药制剂车间", "year": 2025, "amount_yuan": 670000000}
+    ],
+    "notes": "光谷生物城核心客户;关注 GMP / GLP 标准建设。"
+  },
+  {
+    "client_id": "C-009",
+    "name": "湖北文旅项目运营测试客户",
+    "uniscid": "LOCAL-SEED-FIXTURE",
+    "industry": "文化旅游与儿童游乐",
+    "region": "武汉",
+    "client_type": "本地检索样例",
+    "contact": "不适用",
+    "cooperation_since": 2026,
+    "projects": [
+      {"report_id": "LVKE-2026-AMUSE-011", "project_name": "武汉市儿童主题乐园可行性研究测试样例", "year": 2026, "amount_yuan": 80000000}
+    ],
+    "notes": "仅用于本地 MCP 召回测试，不代表真实客户、合同或外部证据。"
+  }
+]

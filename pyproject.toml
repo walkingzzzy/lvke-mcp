@@ -1,0 +1,59 @@
+# PEP 639 SPDX license expression (`license = "MIT"` below) requires
+# setuptools>=77. Keep this floor in lockstep with the `license` form in
+# [project]; an older build backend rejects the string form. The floor also
+# matches the root `hermes-agent` pyproject so the two can share one build
+# toolchain in the repo venv.
+#
+# MCP 发行版是独立包:name = "lvke-mcp"(≠ hermes-agent)。MCP 服务不读取
+# Hermes 配置/代码/环境变量(MCP_INDEPENDENCE_PLAN §6.1)。此处只声明 MCP
+# 运行自身直接依赖的库;领域服务在纵向切片阶段各自追加自己的直接依赖。
+[build-system]
+requires = ["setuptools>=77.0,<83"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lvke-mcp"
+version = "0.1.0"
+description = "绿科 MCP 服务发行版 —— 23 个领域工具 server 的独立运行时(runtime)与领域包"
+readme = "README.md"
+# 与根 pyproject 对齐:上界 <3.14 阻止 uv 在 Rust 后端传递依赖(pydantic-core
+# 等)尚无 cp314 wheel 的 3.14 解释器上做源码构建。
+requires-python = ">=3.11,<3.14"
+authors = [{ name = "湖北绿科" }]
+license = "MIT"
+dependencies = [
+  # 与根 pyproject 相同的 exact-pin 策略:每个直接依赖 ==X.Y.Z,不写区间。
+  # 版本与本仓库 venv 内已装版本一致(见 MCP_INDEPENDENCE_PLAN 基线记录)。
+  "mcp==2.0.0",
+  "mcp-types==2.0.0",        # mcp 2.x 的硬传递依赖,显式钉住保证干净 venv 可复现
+  "pydantic==2.13.4",
+  "jsonschema==4.26.0",
+  "anyio==4.12.1",
+  "filelock==3.24.3",
+  # 领域搬移直接依赖（与根 pyproject/uv.lock 版本一致）：
+  # python-docx: DOCX 导出/读取（报告域 artifacts/doc_service）
+  # openpyxl: Excel 桥（finance_export/reader）
+  # lxml: docx_fonts 与 XML 解析
+  "python-docx==1.1.2",
+  "openpyxl==3.1.5",
+  "lxml==6.1.1",
+  # 财务域 registry / spec_builder（与根 pyproject/uv.lock 版本一致）：
+  # pyyaml: industry/policy profile 与 scale/env 参数读取
+  # openai: spec_builder 可选 LLM 定规范（无网关时静默回退 flat）
+  "pyyaml==6.0.3",
+  "openai==2.24.0",
+]
+
+[project.scripts]
+lvke-mcp-scaffold = "lvke_mcp.servers.scaffold.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lvke_mcp = [
+  # 领域数据文件(yaml/json)与 server seed 数据随 wheel 打包,保证干净环境可运行
+  "domains/**/config/**/*",
+  "domains/**/docs/**/*",
+  "servers/*/seed/**/*",
+]

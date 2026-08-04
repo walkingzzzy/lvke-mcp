@@ -1,0 +1,24 @@
+version: cn_tax_policy.2026-01
+jurisdiction: CN
+effective_from: 2026-01-01
+effective_to: null
+status: active
+tax:
+  income_tax_rate:
+    value: 0.25
+    source_ref: "企业所得税法常规税率；具体优惠须项目确认"
+    override_policy: user_confirmed_only
+  manufacturing_vat_rate:
+    value: 0.13
+    source_ref: "制造业一般纳税人常用税率；须按项目纳税身份复核"
+    override_policy: user_confirmed_only
+  vat_input_rate:
+    value: 0.10
+    source_ref: "综合进项抵扣估算参数，不是法定税率"
+    override_policy: user_confirmed_only
+  surtax:
+    value: 0.12
+    base_mode: vat_base
+    source_ref: "城建税及教育附加综合估算口径；须按所在地复核"
+    override_policy: user_confirmed_only
+

@@ -1,0 +1,58 @@
+{
+  "content": [
+    {
+      "text": "{\"success\": false, \"transport_success\": true, \"business_success\": false, \"completed\": false, \"outcome\": \"blocked\", \"status\": \"blocked\", \"code\": \"finance_run_consistency_failed\", \"message\": \"指定 run 的不可变质量审计未通过，禁止生成十三表 package\", \"formal_delivery_ready\": false, \"resource_uris\": [], \"warnings\": [], \"blockers\": [\"finance_run_consistency_failed\"], \"next_actions\": [], \"system_success\": true, \"service_version\": \"0.1.0\", \"build_commit\": \"71af10a074f4be5685494fbba666ae08785b37e0\", \"build_time\": \"source-checkout\", \"schema_version\": \"mcp-envelope.v2\", \"runtime_instance\": \"d033832ea611\", \"coordination\": {\"contract_version\": \"agent-coordination.v1\", \"project_context\": {}, \"stage\": \"finance_tables\", \"input_object_ids\": [], \"output_object_ids\": [], \"expected_output_types\": [], \"quality_state\": \"blocked\", \"evidence_eligibility\": \"none\", \"next_actions\": [], \"retry_policy\": {\"retryable\": false, \"retry_after_seconds\": null, \"max_attempts\": null}, \"resume_token\": null, \"lineage\": {}}, \"started_at\": \"2026-08-03T22:04:43.565370+08:00\", \"finished_at\": \"2026-08-03T22:04:44.946472+08:00\", \"duration_ms\": 1381.102, \"input_hash\": \"sha256:5b4198b76b6ea9646ba9c1c2fd8d27d78f4ac5670d1d14f62874148fdfd4c1e3\", \"trace_id\": \"mcp_14d15a795efe405dbc349a4f40e60351\", \"basis_hash\": null, \"lineage\": {}, \"content_hash\": null}",
+      "type": "text"
+    }
+  ],
+  "isError": false,
+  "structuredContent": {
+    "success": false,
+    "transport_success": true,
+    "business_success": false,
+    "completed": false,
+    "outcome": "blocked",
+    "status": "blocked",
+    "code": "finance_run_consistency_failed",
+    "message": "指定 run 的不可变质量审计未通过，禁止生成十三表 package",
+    "formal_delivery_ready": false,
+    "resource_uris": [],
+    "warnings": [],
+    "blockers": [
+      "finance_run_consistency_failed"
+    ],
+    "next_actions": [],
+    "system_success": true,
+    "service_version": "0.1.0",
+    "build_commit": "71af10a074f4be5685494fbba666ae08785b37e0",
+    "build_time": "source-checkout",
+    "schema_version": "mcp-envelope.v2",
+    "runtime_instance": "d033832ea611",
+    "coordination": {
+      "contract_version": "agent-coordination.v1",
+      "project_context": {},
+      "stage": "finance_tables",
+      "input_object_ids": [],
+      "output_object_ids": [],
+      "expected_output_types": [],
+      "quality_state": "blocked",
+      "evidence_eligibility": "none",
+      "next_actions": [],
+      "retry_policy": {
+        "retryable": false,
+        "retry_after_seconds": null,
+        "max_attempts": null
+      },
+      "resume_token": null,
+      "lineage": {}
+    },
+    "started_at": "2026-08-03T22:04:43.565370+08:00",
+    "finished_at": "2026-08-03T22:04:44.946472+08:00",
+    "duration_ms": 1381.102,
+    "input_hash": "sha256:5b4198b76b6ea9646ba9c1c2fd8d27d78f4ac5670d1d14f62874148fdfd4c1e3",
+    "trace_id": "mcp_14d15a795efe405dbc349a4f40e60351",
+    "basis_hash": null,
+    "lineage": {},
+    "content_hash": null
+  }
+}

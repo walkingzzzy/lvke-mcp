@@ -1,0 +1,4309 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "按用户指令中的项目名称校验外部资料清单、marker 和路径边界，返回确定性财务路线与可导入资料根；不导入文件、不执行 OCR。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "workspace_id",
+        "project_name"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_external_corpus_resolve",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "导入不超过 8 MiB 的 Base64 原始文件，并复用统一安全扫描、不可变版本与解析链。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "original_filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "declared_mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "声明 MIME；仍须通过文件 magic-byte 与逻辑格式检查"
+        },
+        "content_base64": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 11184812,
+          "contentEncoding": "base64"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$",
+          "default": ""
+        },
+        "parse_immediately": {
+          "type": "boolean",
+          "default": true
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "original_filename",
+        "declared_mime",
+        "content_base64",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_import_content",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "仅在 stdio/local transport 下从 LVKE_SOURCE_IMPORT_ROOTS，或 LVKE_EXTERNAL_CORPUS_ROOT 受控清单解析的允许目录导入普通单链接文件。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "local_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "original_filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "declared_mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "声明 MIME；仍须通过文件 magic-byte 与逻辑格式检查"
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$",
+          "default": ""
+        },
+        "parse_immediately": {
+          "type": "boolean",
+          "default": true
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "local_path",
+        "original_filename",
+        "declared_mime",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_import_local_path",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "创建 24 小时有效、工作区内可恢复的分块上传会话。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "original_filename": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 220
+        },
+        "declared_mime": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "声明 MIME；仍须通过文件 magic-byte 与逻辑格式检查"
+        },
+        "total_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 134217728
+        },
+        "expected_sha256": {
+          "type": "string",
+          "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "original_filename",
+        "declared_mime",
+        "total_size",
+        "expected_sha256",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_upload_begin",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "按字节偏移上传不超过 4 MiB 的 Base64 分块；重叠范围和幂等冲突会被拒绝。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        },
+        "offset_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_base64": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5592408,
+          "contentEncoding": "base64"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "upload_id",
+        "offset_bytes",
+        "content_base64",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_upload_chunk",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "校验分块连续性、总大小和完整 SHA-256 后提交统一安全扫描与解析链。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        },
+        "parse_immediately": {
+          "type": "boolean",
+          "default": true
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "upload_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_upload_commit",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "中止未提交的分块上传并清除暂存分块。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "upload_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_upload_abort",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "读取工作区内分块上传进度、过期状态和提交结果。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "upload_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_upload_status",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "分页列出当前工作区的不可变原始资料记录。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "cursor": {
+          "type": "string",
+          "default": ""
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "required": [
+        "workspace_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_file_list",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "读取原始资料元数据、安全扫描和当前解析投影，不暴露服务器绝对路径。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "file_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "file_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_file_get",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "读取解析任务状态；partial、failed 与正式证据资格分开表达。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "job_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_parse_status",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "为 failed/partial/cancelled 解析创建新的不可变尝试，旧尝试保持可读。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        },
+        "parse_immediately": {
+          "type": "boolean",
+          "default": true
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "job_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_parse_retry",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "取消 queued/running 解析；不删除已固化原件或历史解析尝试。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "job_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "job_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_parse_cancel",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "分页列出 SourceFile、SourceAnalysis 与 ParseJob JSON Resource。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "cursor": {
+          "type": "string",
+          "default": ""
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "required": [
+        "workspace_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_list_resources",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "在显式 workspace 作用域内读取 source-files Resource。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "workspace_id",
+        "uri"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "source_read_resource",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "business_success": {
+          "type": "boolean"
+        },
+        "system_success": {
+          "type": "boolean"
+        },
+        "transport_success": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "partial",
+            "missing_inputs",
+            "blocked",
+            "failed",
+            "upstream_failure"
+          ]
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "coordination": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "contract_version": {
+              "type": "string",
+              "const": "agent-coordination.v1"
+            },
+            "project_context": {
+              "type": "object"
+            },
+            "stage": {
+              "type": "string",
+              "minLength": 1
+            },
+            "input_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "output_object_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "expected_output_types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "quality_state": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "partial",
+                "empty",
+                "missing_inputs",
+                "blocked",
+                "incomplete",
+                "failed",
+                "upstream_failure"
+              ]
+            },
+            "evidence_eligibility": {
+              "type": "string",
+              "enum": [
+                "none",
+                "formal_evidence",
+                "technical_fixture",
+                "controlled_assumption",
+                "estimate_preview",
+                "candidate",
+                "selected_fact"
+              ]
+            },
+            "next_actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "target_tool": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "required_inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "safe_to_retry": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "action",
+                  "reason",
+                  "required_inputs",
+                  "safe_to_retry"
+                ]
+              }
+            },
+            "retry_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retry_after_seconds": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0
+                },
+                "max_attempts": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1
+                }
+              },
+              "required": [
+                "retryable"
+              ]
+            },
+            "resume_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lineage": {
+              "type": "object"
+            }
+          },
+          "required": [
+            "contract_version",
+            "project_context",
+            "stage",
+            "input_object_ids",
+            "output_object_ids",
+            "expected_output_types",
+            "quality_state",
+            "evidence_eligibility",
+            "next_actions",
+            "retry_policy",
+            "resume_token",
+            "lineage"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "success",
+        "business_success",
+        "system_success",
+        "transport_success",
+        "status",
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions"
+      ],
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+]

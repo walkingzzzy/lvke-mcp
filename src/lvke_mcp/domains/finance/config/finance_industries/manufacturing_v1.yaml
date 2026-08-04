@@ -1,0 +1,33 @@
+version: manufacturing.v1
+industry: manufacturing
+aliases:
+  - 制造
+  - 工业
+  - 装备
+  - 电子
+  - 化工
+  - 汽车零部件
+  - 纺织
+required_inputs:
+  - construction_items
+  - cost_items
+  - wc_turnover
+required_by_revenue_model:
+  product_sales:
+    - products
+allowed_revenue_models:
+  - product_sales
+cost_classes:
+  fixed:
+    - wage
+    - maintenance_base
+    - management
+  variable:
+    - material
+    - fuel_power
+    - packaging
+sensitivity_variables:
+  - product_price
+  - capacity_utilization
+  - material_cost
+  - construction_investment

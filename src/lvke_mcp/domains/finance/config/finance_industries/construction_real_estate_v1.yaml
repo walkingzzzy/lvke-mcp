@@ -1,0 +1,10 @@
+version: construction_real_estate.v1
+industry: construction_real_estate
+aliases: [建筑, 房地产, 地产, 工程建设, 城市更新, 产业园开发]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  property_sales: [saleable_area, price_per_sqm, absorption]
+  product_sales: [products]
+allowed_revenue_models: [property_sales, product_sales, flat, gov_payment]
+sensitivity_variables: [sale_price, absorption, construction_cost, financing_rate]
+quality_expectations: [开发产品按存货, 去化率合计不超过100%, 土地与建安分列, 销售回款与偿债联动]

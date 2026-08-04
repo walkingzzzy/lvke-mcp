@@ -1,0 +1,10 @@
+version: transport_logistics.v1
+industry: transport_logistics
+aliases: [交通, 物流, 公路, 港口, 机场, 仓储, 停车, 充电网络]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [product_sales, gov_payment, flat]
+sensitivity_variables: [throughput, tariff, fuel_and_power_cost, construction_investment]
+quality_expectations: [吞吐量或车流量, 收费标准, 运营维护强度, 特许经营期限]

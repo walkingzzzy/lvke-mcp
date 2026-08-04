@@ -1,0 +1,9 @@
+version: software_internet.v1
+industry: software_internet
+aliases: [软件, 互联网, 工业互联网, 云计算, 数据中心, 人工智能, 网络安全, 数字平台]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+allowed_revenue_models: [product_sales, flat, gov_payment]
+sensitivity_variables: [customer_count, arpu, churn_or_renewal, cloud_and_sales_cost]
+quality_expectations: [订阅与项目收入分列, 续费爬坡, 研发费用, 无形资产摊销]

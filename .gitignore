@@ -1,0 +1,26 @@
+# Local and generated files
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+build/
+dist/
+
+# Local runtime state and generated artifacts
+mcp_objects/
+*/data/
+*/data/**
+**/review_outputs*/
+lvke产出/
+quality/
+
+# Client-specific and local assistant configuration
+.claude/
+
+# Original client materials and generated research corpus
+/docs/

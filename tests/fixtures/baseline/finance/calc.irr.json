@@ -1,0 +1,64 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"success\": true, \"business_success\": true, \"system_success\": true, \"transport_success\": true, \"status\": \"ok\", \"data\": {\"irr\": 0.24888335658556976, \"irr_percent\": 24.888335658556976, \"irr_roots\": [0.24888335658556976], \"irr_roots_percent\": [24.888335658556976], \"multiple_irr\": false, \"cashflow_sign_changes\": 1, \"warnings\": [], \"decision_basis\": \"irr\", \"n_periods\": 5}, \"source\": \"finance-calc.calc_irr\", \"resource_uris\": [], \"warnings\": [], \"blockers\": [], \"next_actions\": [], \"trace_id\": \"mcp_af6b5f67f85443f794f8dff0d0c9cd71\", \"started_at\": \"2026-08-03T14:04:41.189430+00:00\", \"finished_at\": \"2026-08-03T14:04:41.189430+00:00\", \"duration_ms\": 0, \"input_hash\": null, \"basis_hash\": null, \"lineage\": {}, \"content_hash\": null, \"coordination\": {\"contract_version\": \"agent-coordination.v1\", \"project_context\": {}, \"stage\": \"finance_calculation\", \"input_object_ids\": [], \"output_object_ids\": [], \"expected_output_types\": [], \"quality_state\": \"ok\", \"evidence_eligibility\": \"none\", \"next_actions\": [], \"retry_policy\": {\"retryable\": false, \"retry_after_seconds\": null, \"max_attempts\": null}, \"resume_token\": null, \"lineage\": {}}, \"completed\": true, \"outcome\": \"ok\"}"
+    }
+  ],
+  "structuredContent": {
+    "success": true,
+    "business_success": true,
+    "system_success": true,
+    "transport_success": true,
+    "status": "ok",
+    "data": {
+      "irr": 0.24888335658556976,
+      "irr_percent": 24.888335658556976,
+      "irr_roots": [
+        0.24888335658556976
+      ],
+      "irr_roots_percent": [
+        24.888335658556976
+      ],
+      "multiple_irr": false,
+      "cashflow_sign_changes": 1,
+      "warnings": [],
+      "decision_basis": "irr",
+      "n_periods": 5
+    },
+    "source": "finance-calc.calc_irr",
+    "resource_uris": [],
+    "warnings": [],
+    "blockers": [],
+    "next_actions": [],
+    "trace_id": "mcp_af6b5f67f85443f794f8dff0d0c9cd71",
+    "started_at": "2026-08-03T14:04:41.189430+00:00",
+    "finished_at": "2026-08-03T14:04:41.189430+00:00",
+    "duration_ms": 0,
+    "input_hash": null,
+    "basis_hash": null,
+    "lineage": {},
+    "content_hash": null,
+    "coordination": {
+      "contract_version": "agent-coordination.v1",
+      "project_context": {},
+      "stage": "finance_calculation",
+      "input_object_ids": [],
+      "output_object_ids": [],
+      "expected_output_types": [],
+      "quality_state": "ok",
+      "evidence_eligibility": "none",
+      "next_actions": [],
+      "retry_policy": {
+        "retryable": false,
+        "retry_after_seconds": null,
+        "max_attempts": null
+      },
+      "resume_token": null,
+      "lineage": {}
+    },
+    "completed": true,
+    "outcome": "ok"
+  },
+  "isError": false
+}

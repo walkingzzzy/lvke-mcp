@@ -1,0 +1,10 @@
+version: professional_research_media.v1
+industry: professional_research_media
+aliases: [专业服务, 科研, 研究, 媒体, 咨询, 检测, 广告, 法律, 会计]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [product_sales, gov_payment, flat]
+sensitivity_variables: [project_count, average_fee, utilization, personnel_cost]
+quality_expectations: [项目数量与客单价, 人员利用率, 回款周期, 知识产权与设备投入]

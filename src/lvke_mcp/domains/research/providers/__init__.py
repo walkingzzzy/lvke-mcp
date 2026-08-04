@@ -1,0 +1,1 @@
+"""研究域检索 provider 包（计划 §23.3：Tavily 经 stdio 调 tavily-hikari 服务）。"""

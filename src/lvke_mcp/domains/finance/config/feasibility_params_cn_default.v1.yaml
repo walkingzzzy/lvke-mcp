@@ -1,0 +1,42 @@
+# 可研默认参数候选库（证据等级 C，直至内部专业裁定升格）
+# 来源：三次沟通录音/晏批注 + 五表行业习惯；非官方强制性国标数值
+
+version: feasibility_params_cn_default.v1
+evidence_grade: C  # 习惯默认，非不可改国标
+status: active_defaults_overridable
+# 缺省即用；项目 fin/spec 可覆盖。无需会签才能计算。
+
+income_tax:
+  default_rate: 0.25
+  high_tech_rate: 0.15
+  source: "沟通录音：通常25%；高新可能15%"
+  locator: "docs/archive/.../录音需求与晏批注文档差异分析_20260708.md"
+
+working_capital:
+  initial_working_capital_ratio_of_total_wc: 0.30
+  source: "沟通：铺底流动资金通常取流动资金的30%"
+  note: "须先有流动资金估算总额"
+
+contingency:
+  basic_reserve_rate_default: 0.05
+  basic_reserve_rate_range: [0.03, 0.10]
+  source: "沟通：可研阶段基本预备费通常3%-10%，常用5%"
+
+construction_interest:
+  method: "drawdown_mid_year"
+  source: "引擎既有 + 甲方筹措表；禁止采纳口述算术错误"
+
+revenue:
+  require_ramp_or_schedule: true
+  source: "五表达产/去化/租赁序列；晏批注强调达产爬坡"
+
+data_source_priority:
+  order:
+    - owner_document
+    - competent_authority_or_association_public
+    - template_default
+  source: "沟通：原材料/造价来源优先级"
+
+non_operating:
+  require_funding_balance: true
+  source: "晏批注：非经营性应做建设期与运营期资金平衡"

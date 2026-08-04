@@ -1,0 +1,9 @@
+version: agriculture_food.v1
+industry: agriculture_food
+aliases: [农业, 农林牧渔, 食品, 种植, 养殖, 水产, 农产品]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+allowed_revenue_models: [product_sales, flat]
+sensitivity_variables: [product_price, yield, feed_or_raw_material_cost, construction_investment]
+quality_expectations: [季节性与产能爬坡, 生物资产或原料成本说明, 冷链损耗, 政策补贴单列]

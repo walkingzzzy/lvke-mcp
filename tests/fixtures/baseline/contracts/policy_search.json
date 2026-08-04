@@ -1,0 +1,71 @@
+[
+  {
+    "name": "search_policy",
+    "description": "检索政策文件。支持关键词 / 年份 / 地区 / 层级 / 主题过滤。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer"
+        },
+        "region": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string",
+          "description": "国家级 / 省级 / 市级"
+        },
+        "topic": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      }
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "get_policy_full",
+    "description": "按 policy_id 拿政策全文摘要、生效日期、关键条款。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_id"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "verify_policy_active",
+    "description": "按文号或标题校验报告引用的政策是否仍生效。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "citation": {
+          "type": "string",
+          "description": "政策文号(如 国发〔2021〕23 号)或标题"
+        }
+      },
+      "required": [
+        "citation"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  }
+]

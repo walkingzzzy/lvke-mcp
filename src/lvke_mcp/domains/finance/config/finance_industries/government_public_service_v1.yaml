@@ -1,0 +1,9 @@
+version: government_public_service.v1
+industry: government_public_service
+aliases: [政府, 公共服务, 市政, 公益, 政务, 环境治理]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [gov_payment, flat]
+sensitivity_variables: [government_payment, operating_subsidy, lifecycle_cost, construction_investment]
+quality_expectations: [财政承受与付费来源, 全生命周期资金平衡, 非经营性项目不强算IRR, 绩效付费边界]

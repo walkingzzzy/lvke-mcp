@@ -1,0 +1,85 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+    "content": [
+      {
+        "text": "{\"success\": false, \"business_success\": false, \"system_success\": true, \"transport_success\": true, \"status\": \"blocked\", \"data\": {\"ok\": true, \"available\": false, \"workspace_id\": \"ws-not-exist-000\", \"run_id\": null, \"reason\": \"no_finance_run\", \"message\": \"尚无财务模型运行记录；请 POST /finance-runs 或调用 finance_run_model\", \"finance_inputs\": {}, \"calculation_status\": \"none\", \"assurance_level\": \"none\"}, \"source\": \"lvke-finance-model.finance_get_run\", \"resource_uris\": [], \"warnings\": [], \"blockers\": [\"尚无财务模型运行记录\"], \"next_actions\": [\"先调用 finance_run_model 生成 run\"], \"trace_id\": \"mcp_a7efa5fdca1e455ba890036bda9a9077\", \"started_at\": \"2026-08-03T14:04:42.698605+00:00\", \"finished_at\": \"2026-08-03T14:04:42.698605+00:00\", \"duration_ms\": 0, \"input_hash\": null, \"basis_hash\": null, \"lineage\": {}, \"content_hash\": null, \"coordination\": {\"contract_version\": \"agent-coordination.v1\", \"project_context\": {}, \"stage\": \"finance_model\", \"input_object_ids\": [], \"output_object_ids\": [], \"expected_output_types\": [], \"quality_state\": \"blocked\", \"evidence_eligibility\": \"none\", \"next_actions\": [{\"action\": \"先调用 finance_run_model 生成 run\", \"target_tool\": \"\", \"reason\": \"由当前业务状态决定下一步\", \"required_inputs\": [], \"safe_to_retry\": false}], \"retry_policy\": {\"retryable\": false, \"retry_after_seconds\": null, \"max_attempts\": null}, \"resume_token\": null, \"lineage\": {}}, \"run_id\": null, \"view\": \"summary\", \"completed\": false, \"outcome\": \"blocked\", \"code\": \"lvke-finance-model.no_finance_run\", \"message\": \"尚无财务模型运行记录；请 POST /finance-runs 或调用 finance_run_model\", \"service_version\": \"0.3.0\", \"build_commit\": \"71af10a074f4be5685494fbba666ae08785b37e0\", \"build_time\": \"source-checkout\", \"schema_version\": \"mcp-envelope.v2\", \"runtime_instance\": \"a40783a94cfd\"}",
+        "type": "text"
+      }
+    ],
+    "isError": false,
+    "structuredContent": {
+      "success": false,
+      "business_success": false,
+      "system_success": true,
+      "transport_success": true,
+      "status": "blocked",
+      "data": {
+        "ok": true,
+        "available": false,
+        "workspace_id": "ws-not-exist-000",
+        "run_id": null,
+        "reason": "no_finance_run",
+        "message": "尚无财务模型运行记录；请 POST /finance-runs 或调用 finance_run_model",
+        "finance_inputs": {},
+        "calculation_status": "none",
+        "assurance_level": "none"
+      },
+      "source": "lvke-finance-model.finance_get_run",
+      "resource_uris": [],
+      "warnings": [],
+      "blockers": [
+        "尚无财务模型运行记录"
+      ],
+      "next_actions": [
+        "先调用 finance_run_model 生成 run"
+      ],
+      "trace_id": "mcp_a7efa5fdca1e455ba890036bda9a9077",
+      "started_at": "2026-08-03T14:04:42.698605+00:00",
+      "finished_at": "2026-08-03T14:04:42.698605+00:00",
+      "duration_ms": 0,
+      "input_hash": null,
+      "basis_hash": null,
+      "lineage": {},
+      "content_hash": null,
+      "coordination": {
+        "contract_version": "agent-coordination.v1",
+        "project_context": {},
+        "stage": "finance_model",
+        "input_object_ids": [],
+        "output_object_ids": [],
+        "expected_output_types": [],
+        "quality_state": "blocked",
+        "evidence_eligibility": "none",
+        "next_actions": [
+          {
+            "action": "先调用 finance_run_model 生成 run",
+            "target_tool": "",
+            "reason": "由当前业务状态决定下一步",
+            "required_inputs": [],
+            "safe_to_retry": false
+          }
+        ],
+        "retry_policy": {
+          "retryable": false,
+          "retry_after_seconds": null,
+          "max_attempts": null
+        },
+        "resume_token": null,
+        "lineage": {}
+      },
+      "run_id": null,
+      "view": "summary",
+      "completed": false,
+      "outcome": "blocked",
+      "code": "lvke-finance-model.no_finance_run",
+      "message": "尚无财务模型运行记录；请 POST /finance-runs 或调用 finance_run_model",
+      "service_version": "0.3.0",
+      "build_commit": "71af10a074f4be5685494fbba666ae08785b37e0",
+      "build_time": "source-checkout",
+      "schema_version": "mcp-envelope.v2",
+      "runtime_instance": "a40783a94cfd"
+    }
+  }
+}

@@ -1,0 +1,262 @@
+[
+  {
+    "name": "calc_irr",
+    "description": "计算项目内部收益率 IRR。输入逐年现金流(第 0 年起,投资为负)。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "第 0 年起的逐年净现金流(万元等单位自定,但全表统一)"
+        },
+        "guess": {
+          "type": "number",
+          "description": "迭代初值,默认 0.1",
+          "default": 0.1
+        }
+      },
+      "required": [
+        "cashflows"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "calc_npv",
+    "description": "计算项目净现值 NPV。需要折现率与逐年现金流。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rate": {
+          "type": "number",
+          "description": "折现率(小数,如 0.08 表示 8%)"
+        }
+      },
+      "required": [
+        "cashflows",
+        "rate"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "calc_xirr",
+    "description": "按显式 ISO 日期和 Actual/365 口径计算 XIRR；多次变号时返回决策预警。",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 1000,
+          "items": {
+            "type": "number"
+          }
+        },
+        "dates": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": "与 cashflows 等长的 ISO 8601 日期，首项必须是最早日期"
+        },
+        "guess": {
+          "type": "number",
+          "exclusiveMinimum": -1,
+          "default": 0.1
+        }
+      },
+      "required": [
+        "cashflows",
+        "dates"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "calc_xnpv",
+    "description": "按显式 ISO 日期和 Actual/365 口径计算 XNPV。",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "type": "number"
+          }
+        },
+        "dates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": {
+            "type": "string",
+            "format": "date"
+          },
+          "description": "与 cashflows 等长的 ISO 8601 日期，首项必须是最早日期"
+        },
+        "rate": {
+          "type": "number",
+          "exclusiveMinimum": -1
+        }
+      },
+      "required": [
+        "cashflows",
+        "dates",
+        "rate"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "calc_break_even",
+    "description": "按固定成本、单位售价、单位变动成本和预计销量计算量价盈亏平衡点与安全裕度。",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fixed_cost_wan": {
+          "type": "number",
+          "minimum": 0,
+          "description": "达产年固定成本，单位万元"
+        },
+        "unit_price_yuan": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "单位售价，单位元/业务量单位"
+        },
+        "unit_variable_cost_yuan": {
+          "type": "number",
+          "minimum": 0,
+          "description": "单位变动成本，单位元/业务量单位"
+        },
+        "expected_volume": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "达产年预计业务量"
+        }
+      },
+      "required": [
+        "fixed_cost_wan",
+        "unit_price_yuan",
+        "unit_variable_cost_yuan",
+        "expected_volume"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "payback_period",
+    "description": "计算静态/动态投资回收期。rate=0 时动态回收期 = 静态。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "rate": {
+          "type": "number",
+          "default": 0.0
+        }
+      },
+      "required": [
+        "cashflows"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  },
+  {
+    "name": "sensitivity_analysis",
+    "description": "对 IRR 做单因素敏感性扫描。factors 描述哪些年份的现金流受哪个因子线性影响。返回每因子的 IRR 序列 + 弹性系数。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "cashflows": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "factors": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "years": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "value_per_year": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "years",
+              "value_per_year"
+            ]
+          },
+          "description": "形如 {<factor_name>: {years: [int], value_per_year: number}}。years 必须落在 cashflows 下标范围内且不得重复。浮动 +δ 时,years 指定的年份现金流 += δ * value_per_year"
+        },
+        "deltas": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number"
+          },
+          "default": [
+            -0.2,
+            -0.1,
+            0,
+            0.1,
+            0.2
+          ]
+        }
+      },
+      "required": [
+        "cashflows",
+        "factors"
+      ]
+    },
+    "outputSchema": null,
+    "annotations": null,
+    "taskSupport": null
+  }
+]

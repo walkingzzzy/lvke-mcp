@@ -1,0 +1,9 @@
+version: finance.v1
+industry: finance
+aliases: [金融, 银行, 保险, 融资租赁, 保理, 基金, 证券]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+allowed_revenue_models: [product_sales, flat]
+sensitivity_variables: [earning_asset_scale, spread_or_fee_rate, credit_cost, funding_cost]
+quality_expectations: [利差与手续费分列, 信用损失, 监管资本边界, 不把金融机构模型冒充一般工商模型]

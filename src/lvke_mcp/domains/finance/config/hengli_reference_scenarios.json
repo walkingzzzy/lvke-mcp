@@ -1,0 +1,78 @@
+{
+  "version": "hengli_reference.v1",
+  "source": {
+    "relative_path": "恒立酒店资产收购/恒立酒店资产收购可行性研究报告2024.11.20.doc",
+    "table": "六档收购价格方案财务指标对比表",
+    "sha256": "a22b94da8de7c19a650a09286958b823fb1cf275f648b38ff0e451324d7d843d",
+    "size_bytes": 10038729,
+    "evidence_status": "original_doc_frozen_manual_table_reconstruction",
+    "manual_review_status": "pending"
+  },
+  "track_type": "vendor_reference_read_only",
+  "benchmark_rate": 0.06,
+  "financing_ratio": 0.8,
+  "loan_rate": 0.05,
+  "preparation_period_years": 0.5,
+  "calculation_period_years": 15,
+  "fixed_rents_wan": {
+    "supermarket": 53.51,
+    "bar": 4.8,
+    "gym": 22.0
+  },
+  "scenarios": [
+    {
+      "scenario_id": "price_2000", "purchase_price_wan": 2000, "total_investment_wan": 2045.63, "loan_wan": 1600, "equity_wan": 445.63,
+      "room_rent_wan": 202.98, "annual_income_wan": 283.29, "roi_pct": 9.43, "roe_pct": 22.11,
+      "pre_tax_payback_years": 10.97, "after_tax_payback_years": 12.12, "pre_tax_irr_pct": 7.59, "after_tax_irr_pct": 6.26,
+      "pre_tax_npv_wan": 228.0, "after_tax_npv_wan": 36.0, "bep_pct": 61.80, "average_profit_wan": 175.07, "loan_repayment_years": 14.61,
+      "project_pre_tax_cashflows_wan": [-2005.63, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 201.22, 1054.30],
+      "project_after_tax_cashflows_wan": [-2005.63, 187.38, 186.16, 184.89, 183.58, 182.24, 180.85, 179.41, 177.93, 176.40, 174.82, 171.06, 169.51, 167.92, 1019.36],
+      "cashflow_source_locator": "附表1-5", "equity_cashflow_status": "not_present_in_source_report"
+    },
+    {
+      "scenario_id": "price_2200", "purchase_price_wan": 2200, "total_investment_wan": 2246.76, "loan_wan": 1760, "equity_wan": 486.76,
+      "room_rent_wan": 221.0, "annual_income_wan": 301.31, "roi_pct": 9.12, "roe_pct": 20.89,
+      "pre_tax_payback_years": 11.19, "after_tax_payback_years": 12.33, "pre_tax_irr_pct": 7.39, "after_tax_irr_pct": 6.14,
+      "pre_tax_npv_wan": 220.0, "after_tax_npv_wan": 22.0, "bep_pct": 62.95, "average_profit_wan": 189.67, "loan_repayment_years": 14.97,
+      "project_pre_tax_cashflows_wan": [-2202.76, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 216.20, 1181.37],
+      "project_after_tax_cashflows_wan": [-2202.76, 202.21, 200.90, 199.55, 198.16, 196.73, 195.24, 193.71, 192.14, 190.51, 188.82, 184.95, 183.30, 181.59, 1145.00],
+      "cashflow_source_locator": "附表2-5", "equity_cashflow_status": "not_present_in_source_report"
+    },
+    {
+      "scenario_id": "price_2400", "purchase_price_wan": 2400, "total_investment_wan": 2451.08, "loan_wan": 1920, "equity_wan": 531.08,
+      "room_rent_wan": 244.8, "annual_income_wan": 325.11, "roi_pct": 9.14, "roe_pct": 20.95,
+      "pre_tax_payback_years": 11.17, "after_tax_payback_years": 12.31, "pre_tax_irr_pct": 7.46, "after_tax_irr_pct": 6.22,
+      "pre_tax_npv_wan": 254.0, "after_tax_npv_wan": 37.0, "bep_pct": 62.45, "average_profit_wan": 203.03, "loan_repayment_years": 14.92,
+      "project_pre_tax_cashflows_wan": [-2403.08, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 236.18, 1314.86],
+      "project_after_tax_cashflows_wan": [-2403.08, 220.82, 219.39, 217.92, 216.40, 214.83, 213.21, 211.54, 209.81, 208.03, 206.19, 202.16, 200.34, 198.46, 1275.20],
+      "cashflow_source_locator": "附表3-5", "equity_cashflow_status": "not_present_in_source_report"
+    },
+    {
+      "scenario_id": "price_2600", "purchase_price_wan": 2600, "total_investment_wan": 2661.75, "loan_wan": 2080, "equity_wan": 581.75,
+      "room_rent_wan": 268.6, "annual_income_wan": 348.91, "roi_pct": 9.09, "roe_pct": 20.72,
+      "pre_tax_payback_years": 11.19, "after_tax_payback_years": 12.33, "pre_tax_irr_pct": 7.49, "after_tax_irr_pct": 6.26,
+      "pre_tax_npv_wan": 283.0, "after_tax_npv_wan": 48.0, "bep_pct": 62.08, "average_profit_wan": 216.60, "loan_repayment_years": 14.88,
+      "project_pre_tax_cashflows_wan": [-2609.75, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 256.13, 1452.02],
+      "project_after_tax_cashflows_wan": [-2609.75, 239.45, 237.90, 236.30, 234.65, 232.95, 231.19, 229.38, 227.50, 225.57, 223.58, 219.38, 217.40, 215.35, 1409.12],
+      "cashflow_source_locator": "附表4-5", "equity_cashflow_status": "not_present_in_source_report"
+    },
+    {
+      "scenario_id": "price_2800", "purchase_price_wan": 2800, "total_investment_wan": 2862.88, "loan_wan": 2240, "equity_wan": 622.88,
+      "room_rent_wan": 292.4, "annual_income_wan": 372.71, "roi_pct": 9.12, "roe_pct": 20.90,
+      "pre_tax_payback_years": 11.17, "after_tax_payback_years": 12.31, "pre_tax_irr_pct": 7.56, "after_tax_irr_pct": 6.32,
+      "pre_tax_npv_wan": 319.0, "after_tax_npv_wan": 65.0, "bep_pct": 61.67, "average_profit_wan": 229.85, "loan_repayment_years": 14.85,
+      "project_pre_tax_cashflows_wan": [-2806.88, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 276.11, 1583.98],
+      "project_after_tax_cashflows_wan": [-2806.88, 258.03, 256.36, 254.63, 252.86, 251.02, 249.13, 247.17, 245.15, 243.07, 240.92, 236.57, 234.41, 232.19, 1537.77],
+      "cashflow_source_locator": "附表5-5", "equity_cashflow_status": "not_present_in_source_report"
+    },
+    {
+      "scenario_id": "price_3000", "purchase_price_wan": 3000, "total_investment_wan": 3067.19, "loan_wan": 2400, "equity_wan": 667.19,
+      "room_rent_wan": 312.8, "annual_income_wan": 393.11, "roi_pct": 9.0, "roe_pct": 20.39,
+      "pre_tax_payback_years": 11.26, "after_tax_payback_years": 12.39, "pre_tax_irr_pct": 7.49, "after_tax_irr_pct": 6.29,
+      "pre_tax_npv_wan": 326.88, "after_tax_npv_wan": 61.78, "bep_pct": 62.06, "average_profit_wan": 243.96, "loan_repayment_years": 14.98,
+      "project_pre_tax_cashflows_wan": [-3007.19, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 293.15, 1714.93],
+      "project_after_tax_cashflows_wan": [-3007.19, 274.42, 272.65, 270.83, 268.95, 267.01, 265.00, 262.93, 260.80, 258.59, 256.32, 251.83, 249.55, 247.19, 1666.54],
+      "cashflow_source_locator": "附表6-5", "equity_cashflow_status": "not_present_in_source_report"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "error": {
+    "code": -32602,
+    "message": "Schema validation failed at 'workspace_id': 'workspace_id' is a required property. Remediation: 补充该字段并按工具 schema 提交. Example: {}."
+  }
+}

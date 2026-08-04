@@ -1,0 +1,470 @@
+{
+  "frozen_at": "2026-08-03T20:41:25+0800",
+  "protocol_version": "2025-11-25",
+  "python": "/Users/mac/Desktop/工程/hubei-lvke/.venv/bin/python",
+  "servers": [
+    {
+      "server": "environmental_data",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "query_air_quality",
+        "query_water_quality",
+        "list_monitored_locations"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "excel_bridge",
+      "ok": true,
+      "tools": 5,
+      "tool_names": [
+        "list_sheets",
+        "read_xlsx",
+        "read_formulas",
+        "cross_sheet_refs",
+        "dependency_tree"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "finance_calc",
+      "ok": true,
+      "tools": 7,
+      "tool_names": [
+        "calc_irr",
+        "calc_npv",
+        "calc_xirr",
+        "calc_xnpv",
+        "calc_break_even",
+        "payback_period",
+        "sensitivity_analysis"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "industry_research",
+      "ok": true,
+      "tools": 2,
+      "tool_names": [
+        "search_report",
+        "get_report_summary"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_archive",
+      "ok": true,
+      "tools": 6,
+      "tool_names": [
+        "search_archive",
+        "get_chapter",
+        "find_similar_projects",
+        "extract_structure",
+        "compare_cases",
+        "get_template_paragraph"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_asset_acquisition",
+      "ok": true,
+      "tools": 16,
+      "tool_names": [
+        "acquisition_validate_spec",
+        "acquisition_save_spec",
+        "acquisition_confirm_spec",
+        "acquisition_run_model",
+        "acquisition_get_run",
+        "acquisition_create_scenario_matrix",
+        "acquisition_review_reference",
+        "acquisition_solve_max_price",
+        "acquisition_review_business",
+        "acquisition_approve_run",
+        "acquisition_generate_artifact",
+        "acquisition_get_artifact",
+        "acquisition_render_tables",
+        "acquisition_export_tables_xlsx",
+        "acquisition_export_tables_csv",
+        "acquisition_release_artifact"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_clients",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "search_clients",
+        "get_client",
+        "list_history_projects"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_data_acquisition",
+      "ok": true,
+      "tools": 12,
+      "tool_names": [
+        "data_discover",
+        "data_search",
+        "data_fetch",
+        "data_import_external_snapshot",
+        "data_collect",
+        "data_audit_urls",
+        "data_get_url_audit",
+        "data_capture_source_view",
+        "data_get_visual_capture",
+        "data_provider_status",
+        "data_list_resources",
+        "data_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_data_analysis",
+      "ok": true,
+      "tools": 13,
+      "tool_names": [
+        "analysis_ingest",
+        "analysis_status",
+        "analysis_query",
+        "analysis_extract_candidates",
+        "analysis_profile_tabular",
+        "analysis_compare",
+        "analysis_normalize_compare",
+        "analysis_compare_benchmark",
+        "analysis_financial_trends",
+        "analysis_list_unit_rules",
+        "analysis_build_evidence_pack",
+        "analysis_list_resources",
+        "analysis_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_deep_research",
+      "ok": true,
+      "tools": 19,
+      "tool_names": [
+        "dr_prepare",
+        "dr_start",
+        "dr_get_plan",
+        "dr_propose_plan_revision",
+        "dr_apply_plan_revision",
+        "dr_add_sources",
+        "dr_remove_sources",
+        "dr_list_events",
+        "dr_create_checkpoint",
+        "dr_resume",
+        "dr_submit",
+        "dr_continue",
+        "dr_status",
+        "dr_cancel",
+        "dr_get_report",
+        "dr_get_evidence",
+        "dr_get_bundle",
+        "dr_list_resources",
+        "dr_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_deliverable_review",
+      "ok": true,
+      "tools": 19,
+      "tool_names": [
+        "review_list_rubrics",
+        "review_score_section",
+        "review_compare_assessments",
+        "review_prepare",
+        "review_start",
+        "review_get",
+        "review_list_findings",
+        "review_get_finding",
+        "review_disposition_finding",
+        "review_retest",
+        "review_attest",
+        "review_export",
+        "review_release",
+        "review_resolve_standards",
+        "review_list_requirements",
+        "review_attach_requirement_evidence",
+        "review_validate_standards",
+        "review_list_resources",
+        "review_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_experts",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "find_experts",
+        "get_expert",
+        "list_specialties"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_finance_model",
+      "ok": true,
+      "tools": 16,
+      "tool_names": [
+        "finance_prepare_spec",
+        "finance_confirm_spec",
+        "finance_validate_spec",
+        "finance_run_model",
+        "finance_render_tables",
+        "finance_get_run",
+        "finance_build_basis_of_estimate",
+        "finance_get_basis_of_estimate",
+        "finance_build_balance_sheet",
+        "finance_get_balance_sheet",
+        "finance_run_monte_carlo",
+        "finance_get_monte_carlo",
+        "finance_list_analyses",
+        "finance_read_analysis_resource",
+        "finance_generate_package",
+        "finance_import_vendor_review"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_finance_tables",
+      "ok": true,
+      "tools": 23,
+      "tool_names": [
+        "tables_render",
+        "tables_validate",
+        "tables_export_xlsx",
+        "tables_export_csv",
+        "tables_get_package",
+        "tables_list_tables",
+        "tables_get_table",
+        "tables_validate_table",
+        "tables_get_investment",
+        "tables_get_construction_interest",
+        "tables_get_working_capital",
+        "tables_get_funding",
+        "tables_get_income_statement",
+        "tables_get_total_cost",
+        "tables_get_wage",
+        "tables_get_depreciation",
+        "tables_get_amortization",
+        "tables_get_profit_distribution",
+        "tables_get_debt_service",
+        "tables_get_cashflow",
+        "tables_get_capital_cashflow",
+        "tables_list_resources",
+        "tables_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_knowledge_governance",
+      "ok": true,
+      "tools": 7,
+      "tool_names": [
+        "knowledge_submit_candidate",
+        "knowledge_list_candidates",
+        "knowledge_get_candidate",
+        "knowledge_review_candidate",
+        "knowledge_publish_release",
+        "knowledge_list_resources",
+        "knowledge_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_project_planning",
+      "ok": true,
+      "tools": 47,
+      "tool_names": [
+        "project_context_create",
+        "project_context_validate",
+        "project_context_revise",
+        "planning_prepare_market_case",
+        "planning_compare_market_cases",
+        "planning_validate_market_case",
+        "planning_confirm_market_case",
+        "planning_get_market_case",
+        "planning_prepare_revenue_drivers",
+        "planning_compare_revenue_candidates",
+        "planning_validate_revenue_drivers",
+        "planning_confirm_revenue_drivers",
+        "planning_get_revenue_drivers",
+        "planning_get_industry_constraints",
+        "planning_solve_build_scale",
+        "planning_validate_build_scale",
+        "planning_confirm_build_scale",
+        "planning_get_build_scale",
+        "planning_create_revenue_drivers",
+        "planning_create_build_scale",
+        "planning_create_cost_drivers",
+        "planning_create_labor_plan",
+        "planning_prepare_cost_drivers",
+        "planning_calculate_cost_drivers",
+        "planning_validate_cost_drivers",
+        "planning_confirm_cost_drivers",
+        "planning_get_cost_drivers",
+        "planning_get_env_templates",
+        "planning_infer_labor_plan",
+        "planning_validate_labor_plan",
+        "planning_confirm_labor_plan",
+        "planning_get_labor_plan",
+        "planning_prepare_policy_basis",
+        "planning_confirm_policy_basis",
+        "planning_prepare_option_comparison",
+        "planning_confirm_option_selection",
+        "planning_validate_option_comparison",
+        "planning_score_option_comparison",
+        "planning_confirm_option_comparison",
+        "planning_get_option_comparison",
+        "planning_get_policy_basis",
+        "planning_resolve_industry_skill",
+        "planning_get_object",
+        "project_context_get",
+        "project_context_list",
+        "project_context_list_resources",
+        "project_context_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_report_generation",
+      "ok": true,
+      "tools": 16,
+      "tool_names": [
+        "report_prepare",
+        "report_start",
+        "report_status",
+        "report_validate",
+        "report_list_sections",
+        "report_get_section",
+        "report_propose_section",
+        "report_validate_section",
+        "report_export_docx",
+        "report_propose",
+        "report_diff",
+        "report_apply",
+        "report_get_readiness",
+        "report_release",
+        "report_list_resources",
+        "report_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_source_files",
+      "ok": true,
+      "tools": 15,
+      "tool_names": [
+        "source_external_corpus_resolve",
+        "source_import_content",
+        "source_import_local_path",
+        "source_upload_begin",
+        "source_upload_chunk",
+        "source_upload_commit",
+        "source_upload_abort",
+        "source_upload_status",
+        "source_file_list",
+        "source_file_get",
+        "source_parse_status",
+        "source_parse_retry",
+        "source_parse_cancel",
+        "source_list_resources",
+        "source_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_templates",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "list_templates",
+        "get_template",
+        "fill_template"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "lvke_zero_material_delivery",
+      "ok": true,
+      "tools": 11,
+      "tool_names": [
+        "delivery_create_from_sentence",
+        "delivery_start",
+        "delivery_status",
+        "delivery_get",
+        "delivery_list_assumptions",
+        "delivery_confirm_assumptions",
+        "delivery_get_artifacts",
+        "delivery_cancel",
+        "delivery_resume",
+        "delivery_list_resources",
+        "delivery_read_resource"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "map_geo",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "geocode",
+        "distance_matrix",
+        "nearby_pois"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "policy_search",
+      "ok": true,
+      "tools": 3,
+      "tool_names": [
+        "search_policy",
+        "get_policy_full",
+        "verify_policy_active"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    },
+    {
+      "server": "statistics_cn",
+      "ok": true,
+      "tools": 2,
+      "tool_names": [
+        "query_indicator",
+        "list_dictionaries"
+      ],
+      "resources": 0,
+      "protocol_version": "2025-11-25"
+    }
+  ],
+  "ok_count": 23,
+  "total": 23
+}

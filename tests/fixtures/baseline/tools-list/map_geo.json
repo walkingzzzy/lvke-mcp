@@ -1,0 +1,72 @@
+[
+  {
+    "name": "geocode",
+    "description": "把地名 / POI 名 / 地址映射到经纬度。仅匹配本地 POI 库。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "address": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ]
+    }
+  },
+  {
+    "name": "distance_matrix",
+    "description": "批量计算两点间距离矩阵。endpoint 可以是字符串(地名)或 {lat, lng, label}。返回 great-circle 距离 + 公路里程估计(系数 1.25)。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "origins": {
+          "type": "array",
+          "description": "起点数组,每项可以是字符串或 {lat,lng,label}"
+        },
+        "destinations": {
+          "type": "array",
+          "description": "终点数组"
+        }
+      },
+      "required": [
+        "origins",
+        "destinations"
+      ]
+    }
+  },
+  {
+    "name": "nearby_pois",
+    "description": "在给定坐标半径范围内查找 POI(可按 type 过滤)。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "type": {
+          "type": "string",
+          "description": "可选 POI 类型(如 学校 / 医院 / 工业园 / 机场 / 火车站 / 湿地 / 干流)"
+        },
+        "radius_km": {
+          "type": "number",
+          "default": 5.0,
+          "minimum": 0,
+          "exclusiveMinimum": 0,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "lat",
+        "lng"
+      ]
+    }
+  }
+]

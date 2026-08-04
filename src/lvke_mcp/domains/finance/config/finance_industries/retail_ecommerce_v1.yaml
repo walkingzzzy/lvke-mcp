@@ -1,0 +1,9 @@
+version: retail_ecommerce.v1
+industry: retail_ecommerce
+aliases: [零售, 电商, 商贸, 批发, 超市, 商业流通]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+allowed_revenue_models: [product_sales, flat]
+sensitivity_variables: [gmv_or_sales, gross_margin, fulfillment_cost, working_capital_days]
+quality_expectations: [商品销售与平台佣金分列, 履约成本, 库存周转, 获客费用]

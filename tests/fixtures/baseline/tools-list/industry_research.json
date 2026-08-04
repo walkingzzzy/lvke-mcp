@@ -1,0 +1,42 @@
+[
+  {
+    "name": "search_report",
+    "description": "按关键词 / 行业 / 年份 / 发布机构检索行业研究报告。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string"
+        },
+        "industry": {
+          "type": "string"
+        },
+        "year": {
+          "type": "integer"
+        },
+        "publisher": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "default": 20
+        }
+      }
+    }
+  },
+  {
+    "name": "get_report_summary",
+    "description": "按 report_id 拿研报摘要、关键观点、关键数据点。",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "report_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id"
+      ]
+    }
+  }
+]

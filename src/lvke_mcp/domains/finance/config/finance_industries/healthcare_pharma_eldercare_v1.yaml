@@ -1,0 +1,10 @@
+version: healthcare_pharma_eldercare.v1
+industry: healthcare_pharma_eldercare
+aliases: [医疗, 医药, 医院, 养老, 健康, 医疗器械, 生物医药]
+required_inputs: [construction_items, cost_items, wc_turnover]
+required_by_revenue_model:
+  product_sales: [products]
+  gov_payment: [annual_gov_payment_wan, payment_ramp]
+allowed_revenue_models: [product_sales, gov_payment, flat]
+sensitivity_variables: [visits_or_bed_occupancy, price, drug_or_consumable_cost, staffing_cost]
+quality_expectations: [门诊住院或床日分列, 医保与自费边界, 药耗成本, 人员配置]

@@ -1,0 +1,307 @@
+#!/usr/bin/env python3
+"""阶段0 独立性依赖扫描：生成 quality/independence_dependency_scan.json。
+
+v2（AST 精确版）：改用 ``ast`` 解析，只统计**真实代码依赖**，不再把
+docstring / 注释 / 字符串字面量当作依赖点。
+
+  正向 MCP -> 外部（MCP 不得调用其他项目代码）：
+      - import 语句根模块 ∈ {hermes_cli, tools, agent}
+      - importlib.import_module / __import__ 动态加载上述模块
+      - 读取 ``HERMES_*`` 环境变量（os.environ.get / os.getenv / environ[...]）
+  反向 Hermes -> MCP（Hermes 不得进程内 import MCP 包，只能经 stdio transport）：
+      - hermes_cli/ 下 import 根模块 ∈ {mcp_servers, lvke_mcp}
+      - importlib 动态加载 mcp_servers / lvke_mcp
+
+排除目录：build/（构建产物）、*.egg-info、tests、fixtures、scripts、quality、
+__pycache__。垫片目录（mcp_servers/lvke_*、_common 等）import lvke_mcp 属于
+合法转发，不计违规。
+
+文本残留（docstring/注释/字符串中的 ``hermes_cli|HERMES_|keyui_`` 字样）单独
+登记在 ``text_residue_entries``，**不参与 conforming 判定**；用于跟踪文案清理
+进度。数据兼容标识（如 ``schema_version: "keyui_workspace.v1"``）属于字符串
+字面量，既不计入依赖，也在 text_residue 中单独标注 data_identifier=True。
+
+用法：
+    .venv/bin/python mcp_servers/scripts/independence_scan.py [--output quality/independence_dependency_scan.json]
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MCP_ROOT = REPO_ROOT / "mcp_servers"
+HERMES_ROOT = REPO_ROOT / "hermes_cli"
+DEFAULT_OUT = MCP_ROOT / "quality" / "independence_dependency_scan.json"
+
+# 外部项目模块（MCP 侧禁止 import）。keyui_ 前缀模块在 hermes 命名空间内。
+_FORBIDDEN_ROOTS = frozenset({"hermes_cli", "tools", "agent"})
+_MCP_ROOTS = frozenset({"mcp_servers", "lvke_mcp"})
+
+# 扫描时排除的目录名（相对各自扫描根）。
+_EXCLUDED_DIRS = frozenset({
+    "build", "__pycache__", "tests", "fixtures", "scripts", "quality",
+    "node_modules", ".git", ".venv", "venv", "dist",
+})
+_EXCLUDED_SUFFIXES = (".egg-info",)
+
+# 文本残留模式（仅跟踪，不判定）。
+_TEXT_RESIDUE_RE = re.compile(r"hermes_cli|HERMES_|keyui_|from tools|from agent|import tools|import agent")
+
+# 每个 MCP 领域 -> (capability, owner_module, contract, golden_fixture, verification_test)。
+_DOMAIN = {
+    "lvke_archive": ("archive", "lvke_mcp.domains.archive", "ArchiveCase.v1",
+                      "tests/fixtures/baseline/research/archive.case.json",
+                      "tests/quality/test_archive_independent.py::test_storage_golden"),
+    "lvke_templates": ("templates", "lvke_mcp.domains.templates", "TemplateCatalog.v1",
+                       "tests/fixtures/baseline/finance-tables/template.catalog.json",
+                       "tests/quality/test_templates_independent.py::test_catalog_golden"),
+    "lvke_deliverable_review": ("deliverable_review", "lvke_mcp.domains.deliverable_review", "ReviewFinding.v1",
+                                "tests/fixtures/baseline/research/review.finding.json",
+                                "tests/quality/test_deliverable_review_independent.py::test_finding_golden"),
+    "lvke_data_analysis": ("data_analysis", "lvke_mcp.domains.data_analysis", "EvidencePack.v1",
+                           "tests/fixtures/baseline/research/EvidencePack.v1.json",
+                           "tests/quality/test_data_analysis_independent.py::test_evidence_golden"),
+    "lvke_asset_acquisition": ("acquisition", "lvke_mcp.domains.asset_acquisition", "AcquisitionPackage.v1",
+                               "tests/fixtures/baseline/finance/acquisition.package.json",
+                               "tests/quality/test_acquisition_independent.py::test_package_golden"),
+    "policy_search": ("policy_search", "lvke_mcp.domains.policy_search", "PolicyRecord.v1",
+                      "tests/fixtures/baseline/research/policy.record.json",
+                      "tests/quality/test_policy_independent.py::test_record_golden"),
+    "map_geo": ("map_geo", "lvke_mcp.domains.map_geo", "GeoPoint.v1",
+                "tests/fixtures/baseline/research/geo.point.json",
+                "tests/quality/test_map_geo_independent.py::test_poi_golden"),
+    "industry_research": ("industry_research", "lvke_mcp.domains.industry_research", "ResearchReport.v1",
+                          "tests/fixtures/baseline/research/industry.report.json",
+                          "tests/quality/test_industry_independent.py::test_report_golden"),
+}
+
+
+def _domain_key(mcp_file: str) -> str:
+    """从相对仓库根的路径推断领域名（兼容旧目录与 src 布局）。"""
+    parts = mcp_file.split("/")
+    # mcp_servers/lvke_archive/server.py -> lvke_archive
+    # mcp_servers/src/lvke_mcp/servers/lvke_archive/... -> lvke_archive
+    for i, p in enumerate(parts):
+        if p in ("mcp_servers", "lvke_mcp"):
+            rest = parts[i + 1:]
+            for cand in rest:
+                if cand in _DOMAIN or cand.startswith("lvke_") or cand in (
+                        "policy_search", "map_geo", "industry_research", "_common",
+                        "finance_calc", "excel_bridge"):
+                    return cand
+    return "unknown"
+
+
+def _root_module(dotted: str) -> str:
+    return dotted.split(".")[0]
+
+
+def _iter_py_files(root: Path):
+    for path in sorted(root.rglob("*.py")):
+        if _EXCLUDED_DIRS & set(path.parts):
+            continue
+        if any(part.endswith(_EXCLUDED_SUFFIXES) for part in path.parts):
+            continue
+        yield path
+
+
+def _env_key_from_call(node: ast.Call) -> str | None:
+    """识别 os.environ.get('HERMES_X') / os.getenv('HERMES_X') / environ['HERMES_X'] 的 key。"""
+    func = node.func
+    name_chain: list[str] = []
+    cur: ast.AST | None = func
+    while isinstance(cur, ast.Attribute):
+        name_chain.append(cur.attr)
+        cur = cur.value
+    if isinstance(cur, ast.Name):
+        name_chain.append(cur.id)
+    # 形如 os.environ.get / environ.get / os.getenv
+    if name_chain and name_chain[0] == "os":
+        name_chain = name_chain[1:]
+    if name_chain and name_chain[-1] in ("get", "getenv", "__getitem__") and (
+            "environ" in name_chain or name_chain[0] == "getenv"):
+        if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+            return node.args[0].value
+    return None
+
+
+def _scan_file_ast(path: Path, rel: str, direction: str) -> tuple[list[dict], list[dict]]:
+    """返回 (依赖点列表, 文本残留列表)。"""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (SyntaxError, UnicodeDecodeError):
+        return [], []
+
+    entries: list[dict] = []
+    text_lines: list[dict] = []
+    raw_lines = path.read_text(encoding="utf-8").splitlines()
+
+    for node in ast.walk(tree):
+        hit: tuple[str, str] | None = None  # (root_module, forbidden_reference)
+
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = _root_module(alias.name)
+                if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
+                    hit = (root, alias.name)
+                    break
+                if direction == "hermes_to_mcp" and root in _MCP_ROOTS:
+                    hit = (root, alias.name)
+                    break
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            root = _root_module(node.module)
+            if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
+                hit = (root, node.module)
+            elif direction == "hermes_to_mcp" and root in _MCP_ROOTS:
+                hit = (root, node.module)
+        elif isinstance(node, ast.Call):
+            # importlib.import_module("hermes_cli...") / __import__("...")
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr in ("import_module", "__import__") or (
+                    isinstance(func, ast.Name) and func.id == "__import__"):
+                if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+                    root = _root_module(node.args[0].value)
+                    if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
+                        hit = (root, node.args[0].value)
+                    elif direction == "hermes_to_mcp" and root in _MCP_ROOTS:
+                        hit = (root, node.args[0].value)
+            elif direction == "mcp_to_external":
+                key = _env_key_from_call(node)
+                if key and key.startswith("HERMES_"):
+                    hit = ("HERMES_*", f"os.environ[{key!r}]")
+
+        if hit:
+            root, forbidden = hit
+            lineno = getattr(node, "lineno", 0)
+            entries.append({
+                "mcp_file": rel,
+                "line": lineno,
+                "direction": direction,
+                "forbidden_reference": forbidden,
+                "raw_line": (raw_lines[lineno - 1].strip() if 0 < lineno <= len(raw_lines) else ""),
+                "capability": "unknown",
+                "owner_module": "unknown",
+                "contract": "Unknown.v1",
+                "golden_fixture": "",
+                "status": "non_conforming",
+                "verification_test": "",
+            })
+
+    # 文本残留（仅跟踪）：docstring/注释/字符串中的字样，非 import 语句。
+    for i, line in enumerate(raw_lines, 1):
+        if _TEXT_RESIDUE_RE.search(line):
+            is_data_identifier = "schema_version" in line and ("keyui_" in line)
+            text_lines.append({
+                "file": rel,
+                "line": i,
+                "raw_line": line.strip(),
+                "data_identifier": is_data_identifier,
+            })
+    return entries, text_lines
+
+
+def _annotate(entry: dict, hermes_file: str | None = None) -> dict:
+    key = _domain_key(entry["mcp_file"])
+    capability, owner, contract, golden, test = _DOMAIN.get(
+        key, ("unknown", "lvke_mcp.domains.unknown", "Unknown.v1", "", "")
+    )
+    entry["capability"] = capability
+    entry["owner_module"] = owner
+    entry["contract"] = contract
+    entry["golden_fixture"] = golden
+    entry["verification_test"] = test
+    if hermes_file:
+        entry["hermes_file"] = hermes_file
+    return entry
+
+
+def scan_forward() -> tuple[list[dict], list[dict]]:
+    """MCP -> 外部：扫描 mcp_servers/ 全部源码（含 src/lvke_mcp 与垫片目录）。"""
+    entries: list[dict] = []
+    text_residue: list[dict] = []
+    for path in _iter_py_files(MCP_ROOT):
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        hits, texts = _scan_file_ast(path, rel, "mcp_to_external")
+        entries.extend(_annotate(h) for h in hits)
+        text_residue.extend(texts)
+    return entries, text_residue
+
+
+def scan_reverse() -> list[dict]:
+    """Hermes -> MCP：扫描 hermes_cli/ 下 import mcp_servers/lvke_mcp 的真实语句。"""
+    entries: list[dict] = []
+    if not HERMES_ROOT.is_dir():
+        return entries
+    for path in _iter_py_files(HERMES_ROOT):
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        hits, _ = _scan_file_ast(path, rel, "hermes_to_mcp")
+        for h in hits:
+            h["forbidden_reference"] = f"{path.as_posix()}:{h['line']}"
+            entries.append(_annotate(h, hermes_file=rel))
+    return entries
+
+
+def main() -> int:
+    out = Path(sys.argv[sys.argv.index("--output") + 1] if "--output" in sys.argv else DEFAULT_OUT)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    forward, text_residue = scan_forward()
+    reverse = scan_reverse()
+    conforming = not forward and not reverse
+    scan_status = "conforming" if conforming else "non_conforming"
+
+    doc = {
+        "schema": "independence_dependency_scan.v2",
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §26.2/§26.4 (AST v2)",
+        "scan_commands": {
+            "forward": "AST scan of mcp_servers/**/*.py (import roots in {hermes_cli, tools, agent}; importlib dynamic load; HERMES_* env reads)",
+            "reverse": "AST scan of hermes_cli/**/*.py (import roots in {mcp_servers, lvke_mcp}; importlib dynamic load)",
+        },
+        "status_summary": {
+            "overall": scan_status,
+            "forward": {
+                "matches": len(forward),
+                "files": len({e["mcp_file"] for e in forward}),
+                "status": "conforming" if not forward else "non_conforming",
+            },
+            "reverse": {
+                "matches": len(reverse),
+                "files": len({e["hermes_file"] for e in reverse if e.get("hermes_file")}),
+                "status": "conforming" if not reverse else "non_conforming",
+            },
+            "text_residue": {
+                "matches": len(text_residue),
+                "files": len({e["file"] for e in text_residue}),
+                "note": "docstring/注释/字符串字样，仅跟踪文案清理进度，不参与 conforming 判定；"
+                        "data_identifier=True 的是存量数据 schema 标识，必须保留",
+            },
+            "note": (
+                "v2 以 AST 为准，只统计真实 import / 动态加载 / HERMES_* 环境变量读取；"
+                "注释与字符串字面量不再计为依赖。独立化完成要求 forward 与 reverse 均为零；"
+                "Hermes 侧对 mcp_servers 的 config-block 字符串引用是宿主启动配置（stdio 拉起 MCP），"
+                "非 Python 依赖，不计入 reverse 依赖点。"
+            ),
+        },
+        "dependencies": forward + reverse,
+        "text_residue_entries": text_residue,
+    }
+
+    out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"forward: {len(forward)} matches / {len({e['mcp_file'] for e in forward})} files")
+    print(f"reverse: {len(reverse)} matches / {len({e['hermes_file'] for e in reverse if e.get('hermes_file')})} files")
+    print(f"text_residue: {len(text_residue)} matches / {len({e['file'] for e in text_residue})} files")
+    print(f"overall status: {scan_status}")
+    print(f"written -> {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
