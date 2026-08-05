@@ -21,6 +21,7 @@ from typing import Any
 
 from filelock import FileLock
 from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 
 from lvke_mcp.adapters.research_repository import (
     AGENT_SESSION_STORE,
@@ -31,6 +32,7 @@ from lvke_mcp.adapters.research_repository import (
     PACKAGE_STORE,
     PLAN_PROPOSAL_STORE,
     PLAN_STORE,
+    QUALITY_REVIEW_STORE,
 )
 from lvke_mcp.runtime.storage import canonical_json, sha256_json
 
@@ -348,6 +350,10 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         blockers.append("citations_required")
     if not evidence_pack_ids and not source_snapshot_ids:
         blockers.append("source_basis_required")
+    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
+    for evidence_id, evidence_record in zip(evidence_pack_ids, evidence_records):
+        if evidence_record is None:
+            blockers.append(f"evidence_pack_not_found:{evidence_id}")
     if blockers:
         return {
             "success": False, "status": "blocked", "code": "agent_submission_incomplete",
@@ -377,6 +383,10 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         artifacts.pop("quality_summary", None)
     if not market_field_bindings:
         artifacts.pop("market_field_bindings", None)
+    evidence_payloads = [(item.get("payload") or {}) for item in evidence_records if isinstance(item, dict)]
+    evidence_policies = {str(item.get("evidence_policy") or "") for item in evidence_payloads if item.get("evidence_policy")}
+    evidence_policy = "source_reconstructed" if "source_reconstructed" in evidence_policies else (sorted(evidence_policies)[0] if evidence_policies else "formal_evidence")
+    reconstruction_records = [row for item in evidence_payloads for row in (item.get("reconstruction_records") or []) if isinstance(row, dict)]
     payload = {
         "task_id": task_id,
         "status": "partial",
@@ -384,6 +394,12 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "artifact_names": list(artifacts),
         "agent_artifacts": artifacts,
         "limitations": ["正文由调用 Agent 撰写，尚无独立 DR 质量审计；下游必须披露 partial 限制"],
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": False if evidence_policy == "source_reconstructed" else True,
+        "reconstruction_records": reconstruction_records,
+        "reconstructed_source_ids": [str(row.get("reconstruction_id") or "") for row in reconstruction_records if row.get("reconstruction_id")],
+        "unresolved_inputs": list(args.get("unresolved_inputs") or []),
+        "release_limitations": list(args.get("release_limitations") or []),
     }
     record = PACKAGE_STORE.put(
         workspace_id,
@@ -428,6 +444,103 @@ def submit_agent(args: dict[str, Any]) -> dict[str, Any]:
         ):
             return _failure("task_already_terminal", "研究会话已经提交")
         return _submit_agent_unlocked(args)
+
+
+def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
+    """Record an independent quality decision for an Agent-authored package.
+
+    ``dr_submit`` remains intentionally partial.  This operation creates a
+    separate immutable review and a new package projection only after the
+    caller supplies quality metrics; source-reconstructed material may pass
+    with explicitly accepted limitations without becoming certified project
+    facts.
+    """
+    workspace_id = str(args.get("workspace_id") or "").strip()
+    package_id = str(args.get("research_package_id") or "").strip()
+    if not workspace_id or not package_id:
+        return _failure("research_package_required", "workspace_id 与 research_package_id 必填")
+    source = PACKAGE_STORE.get(workspace_id, package_id)
+    if source is None:
+        return _failure("research_package_not_found", "研究包不存在")
+    payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
+    if str(payload.get("status") or source.get("status") or "") not in {"partial", "completed", "done"}:
+        return _failure("research_package_not_usable", "研究包当前状态不能进行质量确认")
+    artifacts = payload.get("agent_artifacts") if isinstance(payload.get("agent_artifacts"), dict) else {}
+    summary = artifacts.get("quality_summary") if isinstance(artifacts.get("quality_summary"), dict) else {}
+    citations = artifacts.get("sources") if isinstance(artifacts.get("sources"), list) else []
+    metrics = {
+        "query_rounds": int(args.get("query_rounds", summary.get("query_rounds") or 0)),
+        "source_count": len(citations),
+        "usable_source_count": int(args.get("usable_source_count", summary.get("usable_source_count") or 0)),
+        "citation_coverage": args.get("citation_coverage", summary.get("citation_coverage")),
+        "missing_fields": [str(item) for item in (args.get("missing_fields", summary.get("missing_fields") or []) or [])],
+        "conflicts": [dict(item) for item in (args.get("conflicts", summary.get("conflicts") or []) or []) if isinstance(item, dict)],
+    }
+    evidence_policy = str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
+    accepted_limitations = bool(args.get("accept_material_limitations", False))
+    limitations = list(payload.get("limitations") or [])
+    missing = list(metrics["missing_fields"])
+    conflicts = list(metrics["conflicts"])
+    coverage = metrics["citation_coverage"]
+    quality_passed = bool(
+        metrics["source_count"] > 0
+        and metrics["usable_source_count"] >= 1
+        and not conflicts
+        and not missing
+        and (coverage is None or float(coverage) >= 0.8)
+    )
+    accepted = quality_passed or (accepted_limitations and bool(limitations or evidence_policy == "source_reconstructed"))
+    if not accepted:
+        return {
+            "success": False, "status": "blocked", "code": "research_quality_failed",
+            "message": "研究质量尚未通过，或未明确接受资料限制", "resource_uris": [source["resource_uri"]],
+            "warnings": [], "blockers": ["research_quality_failed"],
+            "next_actions": ["补齐来源、引用覆盖和缺失字段，或显式 accept_material_limitations=true"],
+            "quality": metrics,
+        }
+    review_status = "passed" if quality_passed else "accepted_with_limitations"
+    review_payload = {
+        "research_package_id": package_id,
+        "task_id": payload.get("task_id"),
+        "status": review_status,
+        "quality": metrics,
+        "accepted_limitations": accepted_limitations and not quality_passed,
+        "limitations": limitations,
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": False if evidence_policy == "source_reconstructed" else bool(payload.get("project_fact_certified", False)),
+    }
+    review = QUALITY_REVIEW_STORE.put(
+        workspace_id, review_payload,
+        producer="lvke-deep-research.dr_confirm_quality",
+        source_ids=[package_id], basis=review_payload,
+    )
+    confirmed_payload = {
+        **payload,
+        "status": "completed",
+        "quality_review_id": review["object_id"],
+        "quality_review_status": review_status,
+        "quality": metrics,
+        "project_fact_certified": review_payload["project_fact_certified"],
+        "release_limitations": sorted(set([*(payload.get("release_limitations") or []), *limitations])),
+    }
+    confirmed = PACKAGE_STORE.put(
+        workspace_id, confirmed_payload,
+        producer="lvke-deep-research.dr_confirm_quality",
+        status="completed", source_ids=[package_id, str(payload.get("task_id") or ""), review["object_id"]],
+        basis={"parent_package_id": package_id, "quality_review_id": review["object_id"]},
+    )
+    _append_event(workspace_id, str(payload.get("task_id") or ""), "research_quality_confirmed", {
+        "research_package_id": confirmed["object_id"], "quality_review_id": review["object_id"], "status": review_status,
+    })
+    return {
+        "success": True, "status": "completed", "research_package_id": confirmed["object_id"],
+        "parent_research_package_id": package_id, "quality_review_id": review["object_id"],
+        "quality_review_status": review_status, "quality": metrics,
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": review_payload["project_fact_certified"],
+        "resource_uris": [review["resource_uri"], confirmed["resource_uri"]],
+        "warnings": limitations, "blockers": [], "next_actions": [],
+    }
 
 
 def prepare(args: dict[str, Any]) -> dict[str, Any]:
@@ -1158,12 +1271,13 @@ def bundle(workspace_id: str, task_id: str) -> dict[str, Any]:
         payload = record.get("payload") or {}
         base = record["resource_uri"]
         resources = {name: f"{base}/{name}" for name in payload.get("artifact_names") or []}
+        package_status = str(record.get("status") or payload.get("status") or "partial")
         return {
-            "success": True, "status": "partial", "research_package_id": record["object_id"],
+            "success": True, "status": package_status, "research_package_id": record["object_id"],
             "task_id": task_id, "basis_hash": record["basis_hash"], "resources": resources,
             "resource_uris": [base, *resources.values()],
             "warnings": list(payload.get("limitations") or []), "blockers": [],
-            "next_actions": ["下游必须保留 partial 研究限制；财务数字仍只来自 run_id"],
+            "next_actions": ([] if package_status in {"completed", "done"} else ["调用 dr_confirm_quality；下游不得将 partial 研究用于正式市场案例"]),
         }
     return _failure("task_not_found", "未找到 MCP 自有研究任务")
 
@@ -1209,6 +1323,7 @@ def list_resources(workspace_id: str) -> list[dict[str, Any]]:
                 }
             )
     object_stores = (
+        (QUALITY_REVIEW_STORE, "研究质量确认"),
         (AGENT_SESSION_STORE, "Agent 研究会话"),
         (PLAN_STORE, "研究计划不可变 revision"),
         (PLAN_PROPOSAL_STORE, "研究计划提案"),
@@ -1251,6 +1366,7 @@ def resolve_resource(
         return None
     stores = {
         "packages": PACKAGE_STORE,
+        "quality-reviews": QUALITY_REVIEW_STORE,
         "sessions": AGENT_SESSION_STORE,
         "plan-revisions": PLAN_STORE,
         "plan-proposals": PLAN_PROPOSAL_STORE,

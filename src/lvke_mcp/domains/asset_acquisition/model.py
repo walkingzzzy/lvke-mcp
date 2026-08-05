@@ -623,6 +623,8 @@ def _run_monthly_acquisition_model(
     equity_annual = [-equity, *[row["equity_cf_wan"] for row in annual]]
     monthly_irr = _safe_irr(project_monthly)
     monthly_equity_irr = _safe_irr(equity_monthly)
+    annual_irr = _safe_irr(project_annual) if monthly_irr is None else None
+    annual_equity_irr = _safe_irr(equity_annual) if monthly_equity_irr is None else None
     monthly_rate = (1 + discount_rate) ** (1 / 12) - 1
     annual_dscr = [
         (row["project_cf_wan"] + row["debt_service_wan"]) / row["debt_service_wan"]
@@ -647,8 +649,16 @@ def _run_monthly_acquisition_model(
         "project_cfads_wan": [row["project_cf_wan"] + row["debt_service_wan"] for row in annual],
         "net_exit_value_wan": net_exit,
         "indicators": {
-            "project_irr_pct": ((1 + monthly_irr) ** 12 - 1) * 100 if monthly_irr is not None else None,
-            "equity_irr_pct": ((1 + monthly_equity_irr) ** 12 - 1) * 100 if monthly_equity_irr is not None else None,
+            "project_irr_pct": (
+                ((1 + monthly_irr) ** 12 - 1) * 100
+                if monthly_irr is not None
+                else annual_irr * 100 if annual_irr is not None else None
+            ),
+            "equity_irr_pct": (
+                ((1 + monthly_equity_irr) ** 12 - 1) * 100
+                if monthly_equity_irr is not None
+                else annual_equity_irr * 100 if annual_equity_irr is not None else None
+            ),
             "npv_wan": sum(value / ((1 + monthly_rate) ** index) for index, value in enumerate(project_monthly)),
             "static_payback_years": payback_period(project_annual, rate=discount_rate).static_years,
             "dynamic_payback_years": payback_period(project_annual, rate=discount_rate).dynamic_years,

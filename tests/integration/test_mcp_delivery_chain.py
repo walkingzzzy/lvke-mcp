@@ -7,6 +7,7 @@ import unittest
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_PACKAGE_STORE
 from lvke_mcp.adapters.report_repository import REVISION_STORE
+from lvke_mcp.adapters.project_planning_repository import PROJECT_CONTEXT_STORE
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.model_application import run_model
 from lvke_mcp.domains.finance import tables_service
@@ -88,46 +89,30 @@ class McpDeliveryChainTest(unittest.TestCase):
         self.assertEqual(upstream["run_id"], run_id)
         self.assertEqual(upstream["finance_tables_package_id"], package_id)
 
+        project = PROJECT_CONTEXT_STORE.put(
+            self.workspace,
+            {"object_type": "ProjectContext", "status": "confirmed", "project_name": "chain"},
+            producer="test.project", status="confirmed",
+        )
         delivery = delivery_service.start({
             "workspace_id": self.workspace,
-            "project_context_id": "pc-chain",
+            "project_context_id": project["object_id"],
             "delivery_mode": "review_candidate",
             "idempotency_key": "chain-delivery-start",
         })
         self.assertTrue(delivery["success"], delivery)
-        delivery_run_id = delivery["delivery_run_id"]
-        stage_outputs = {
-            "research": [research["object_id"], evidence["object_id"]],
-            "market": ["market_case_id:market-chain"],
-            "option": ["option_comparison_id:option-chain"],
-            "scale": ["build_scale_case_id:scale-chain"],
-            "drivers": ["cost_driver_set_id:cost-chain", "labor_plan_id:labor-chain", "revenue_driver_set_id:revenue-chain"],
-            "finance_spec": ["finance_spec_id:spec-chain"],
-            "finance_run": ["finance_run_id:" + run_id],
-            "finance_tables": ["finance_tables_package_id:" + package_id],
-            "report": ["report_revision_id:" + started["report_revision_id"]],
-            "review": ["review_run_id:review-chain"],
-        }
-        for stage, outputs in stage_outputs.items():
-            stage_result = delivery_service.stage({
-                "workspace_id": self.workspace,
-                "delivery_run_id": delivery_run_id,
-                "stage": stage,
-                "status": "completed",
-                "input_refs": [delivery_run_id],
-                "output_refs": outputs,
-                "basis_hash": sha256_json({"stage": stage, "outputs": outputs}),
-                "idempotency_key": f"chain-stage-{stage}",
-            })
-            self.assertTrue(stage_result["success"], stage_result)
-            delivery_run_id = stage_result["delivery_run_id"]
-        status = delivery_service.status({
+        rejected = delivery_service.stage({
             "workspace_id": self.workspace,
-            "delivery_run_id": delivery_run_id,
+            "delivery_run_id": delivery["delivery_run_id"],
+            "stage": "research",
+            "status": "completed",
+            "input_refs": [project["object_id"]],
+            "output_refs": ["research-does-not-exist"],
+            "basis_hash": sha256_json({"stage": "research"}),
+            "idempotency_key": "chain-fake-research",
         })
-        self.assertEqual(status["current_stage"], "released")
-        self.assertEqual(status["delivery_run"]["lineage"]["finance_run_id"], run_id)
-        self.assertEqual(status["delivery_run"]["lineage"]["finance_tables_package_id"], package_id)
+        self.assertFalse(rejected["success"], rejected)
+        self.assertEqual(rejected["code"], "stage_reference_invalid")
 
 
 if __name__ == "__main__":

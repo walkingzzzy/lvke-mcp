@@ -87,6 +87,65 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertNotIn("quality_summary", artifacts)
         self.assertNotIn("market_field_bindings", artifacts)
 
+    def test_partial_package_requires_independent_quality_confirmation(self) -> None:
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "市场容量",
+            "idempotency_key": "dr-start-confirm",
+        })
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": started["task_id"],
+            "report_md": "市场容量结论。[1]",
+            "citations": [{"locator": "page:1"}],
+            "source_snapshot_ids": ["source-1"],
+            "quality_summary": {
+                "query_rounds": 2,
+                "usable_source_count": 1,
+                "citation_coverage": 1.0,
+                "missing_fields": [],
+                "conflicts": [],
+            },
+        })
+        self.assertEqual(submitted["status"], "partial")
+        confirmed = application.confirm_quality({
+            "workspace_id": self.workspace,
+            "research_package_id": submitted["research_package_id"],
+        })
+        self.assertTrue(confirmed["success"], confirmed)
+        self.assertEqual(confirmed["status"], "completed")
+        self.assertEqual(confirmed["quality_review_status"], "passed")
+        record = PACKAGE_STORE.get(self.workspace, confirmed["research_package_id"])
+        self.assertEqual((record or {}).get("status"), "completed")
+        self.assertTrue((record or {}).get("payload", {}).get("quality_review_id"))
+
+    def test_quality_confirmation_blocks_unaccepted_gaps(self) -> None:
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "供需缺口",
+            "idempotency_key": "dr-start-gap",
+        })
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": started["task_id"],
+            "report_md": "资料不完整。[1]",
+            "citations": [{"locator": "page:1"}],
+            "source_snapshot_ids": ["source-1"],
+            "quality_summary": {
+                "query_rounds": 1,
+                "usable_source_count": 1,
+                "citation_coverage": 0.5,
+                "missing_fields": ["target_share"],
+                "conflicts": [],
+            },
+        })
+        blocked = application.confirm_quality({
+            "workspace_id": self.workspace,
+            "research_package_id": submitted["research_package_id"],
+        })
+        self.assertFalse(blocked["success"], blocked)
+        self.assertEqual(blocked["code"], "research_quality_failed")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -274,28 +274,36 @@ def save_spec(
 
 def confirm_spec(
     workspace_id: str, spec_id: str, note: str, idempotency_key: str,
+    confirmation_scope: str = "project_candidate",
 ) -> dict[str, Any]:
     row = acquisition_service.confirm_saved_spec(
         workspace_id,
         spec_id,
         note=note,
+        confirmation_scope=confirmation_scope,
         idempotency_key=idempotency_key,
     )
     if not row.get("ok"):
         return _failed(row, "SPEC_CONFIRM_FAILED")
     confirmed_id = str(row["spec_id"])
     estimate_preview = row.get("confirmation_scope") == "estimate_preview"
+    process_acceptance = row.get("confirmation_scope") == "process_acceptance"
     return _ok(
         {"spec_id": confirmed_id, "parent_spec_id": row.get("parent_spec_id"),
          "spec_hash": row.get("spec_hash"), "snapshot_hash": row.get("snapshot_hash"),
          "evidence_binding_hash": row.get("evidence_binding_hash"),
          "confirmation_status": "confirmed",
          "confirmation_scope": row.get("confirmation_scope") or "formal_input",
+         "project_fact_certified": False if process_acceptance else None,
+         "business_decision_status": "not_selected" if process_acceptance else None,
          "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=confirmed_id, uris=[_uri(workspace_id, "specs", confirmed_id)],
         warnings=(
             ["该 Spec 使用 estimate_preview 受控假设，输出会保留完整度限制"]
-            if estimate_preview else []
+            if estimate_preview else (
+                ["该 Spec 仅用于 source_reconstructed 流程验收，不认证项目事实"]
+                if process_acceptance else []
+            )
         ),
         next_actions=["调用 acquisition_run_model"],
     )
@@ -338,6 +346,8 @@ def run_model(
          "input_hash": run.get("input_hash"), "model_version": run.get("model_version"),
          "delivery_mode": run.get("delivery_mode"),
          "formal_spec_valid": bool(run.get("formal_spec_valid")),
+         "process_acceptance_valid": bool(run.get("process_acceptance_valid")),
+         "business_decision_status": run.get("business_decision_status"),
          "evidence_binding_hash": run.get("evidence_binding_hash"),
          "validation_status": {
              "consistency_ok": bool(run.get("consistency_ok")),

@@ -1,6 +1,6 @@
 {
   "schema": "baseline_samples.v1",
-  "captured_at": "2026-08-04T23:45:11+0800",
+  "captured_at": "2026-08-05T20:29:48+0800",
   "protocol_version": "2025-11-25",
   "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §29.2",
   "domains": [
@@ -45,7 +45,7 @@
       "tool": "tables_render→tables_export_csv→tables_export_xlsx→tables_read_resource",
       "params": {
         "workspace_id": "baseline-core-v2",
-        "run_id": "run_0cd056150739"
+        "run_id": "run_2313334f40c9"
       },
       "status": "ok",
       "file": "finance-tables/FinanceTables.roundtrip.v1.json",
@@ -91,7 +91,7 @@
       },
       "status": "ok",
       "file": "report/ReportRevision.roundtrip.v1.json",
-      "sha256": "ee7b0395211c546be4a06f71a299149092f0bd53051846d326faf242725177be",
+      "sha256": "a02dede43a5d46b567b10fe12713c63e83d337b344f576fa48642aa05eeebe13",
       "detail": "",
       "note": "绑定本次 Finance、十三表、Evidence 与 Research 对象的 partial 报告工件"
     }

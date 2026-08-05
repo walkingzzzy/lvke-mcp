@@ -4,8 +4,8 @@
   "revision_status": "ok",
   "validation_valid": false,
   "validation_blockers": [
-    "finance_formal_delivery_incomplete",
-    "finance_xlsx_missing"
+    "finance_reference_structure_incomplete",
+    "finance_tables_package_invalid"
   ],
   "lineage_bound": true,
   "upstream_hash_contract": true,

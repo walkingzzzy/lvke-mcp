@@ -19,7 +19,8 @@ from typing import Any
 from lvke_mcp.runtime.config import Config
 
 CONFIG_DIR = Config.from_env().config_dir
-DEFAULT_MANIFEST = CONFIG_DIR / "external_corpora.v1.json"
+PACKAGED_CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
+DEFAULT_MANIFEST = PACKAGED_CONFIG_DIR / "external_corpora.v1.json"
 _ROUTE_VALUES = {"generic_feasibility", "asset_acquisition"}
 _REPORT_VALUES = {"feasibility_study", "investment_decision"}
 

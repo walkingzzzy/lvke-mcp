@@ -365,7 +365,7 @@ def compose(
 def standards_snapshot(repo_root: Path, package_ids: Iterable[str]) -> dict[str, Any]:
     path = repo_root / "config" / "review_standards.lock.json"
     if not path.is_file():
-        return {"available": False, "content_hash": None, "packages": [], "incomplete": list(package_ids)}
+        return _standards_snapshot_from_materials(package_ids)
     try:
         lock = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -399,6 +399,77 @@ def standards_snapshot(repo_root: Path, package_ids: Iterable[str]) -> dict[str,
     return {
         "available": True, "schema_version": lock.get("schema_version"),
         "content_hash": sha256_json(selected), "packages": packages, "incomplete": incomplete,
+    }
+
+
+def _standards_snapshot_from_materials(package_ids: Iterable[str]) -> dict[str, Any]:
+    """Build the immutable review basis from the checked-in standard packages."""
+
+    import os
+
+    wanted = sorted(set(str(item) for item in package_ids if str(item)))
+    configured = str(os.environ.get("LVKE_GOLDEN_DATA_ROOT") or "").strip()
+    docs_root = (
+        Path(configured)
+        if configured
+        else Path(__file__).resolve().parents[4] / "docs"
+    )
+    package_root = docs_root / "研报资料库" / "交付型资料源" / "06_标准方法包"
+    packages: list[dict[str, Any]] = []
+    incomplete: list[str] = []
+    for package_id in wanted:
+        root = package_root / package_id
+        manifest_path = root / "source_manifest.json"
+        conclusion_path = root / "review" / "review_conclusion.json"
+        try:
+            manifest_bytes = manifest_path.read_bytes()
+            manifest = json.loads(manifest_bytes.decode("utf-8"))
+            conclusion = json.loads(conclusion_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            incomplete.append(package_id)
+            continue
+        manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
+        gate_passed = (
+            str(manifest.get("package_id") or "") == package_id
+            and str(conclusion.get("package_id") or "") == package_id
+            and str(manifest.get("gate_status") or "") == "passed"
+            and str(conclusion.get("gate_status") or "") == "passed"
+            and str(conclusion.get("source_manifest_sha256") or "") == manifest_hash
+        )
+        if not gate_passed:
+            incomplete.append(package_id)
+        packages.append({
+            "package_id": package_id,
+            "title": manifest.get("title"),
+            "gate_status": "passed" if gate_passed else "incomplete",
+            "source_manifest_sha256": manifest_hash,
+            "review_findings_required": list(conclusion.get("review_findings_required") or []),
+            "scope_limitations": [str(manifest.get("reuse_boundary") or "")],
+            "artifacts": [
+                {
+                    "artifact_id": artifact.get("artifact_id"),
+                    "publisher": artifact.get("publisher"),
+                    "document_number": artifact.get("document_number"),
+                    "publication_date": artifact.get("publication_date"),
+                    "source_url": artifact.get("source_url"),
+                    "official_page_url": artifact.get("official_page_url"),
+                    "sha256": artifact.get("sha256"),
+                    "page_count": artifact.get("page_count"),
+                }
+                for artifact in manifest.get("artifacts") or []
+                if isinstance(artifact, dict)
+            ],
+        })
+    selected = {
+        "schema_version": "review_standards.material_snapshot.v1",
+        "packages": packages,
+    }
+    return {
+        "available": bool(packages),
+        "schema_version": selected["schema_version"],
+        "content_hash": sha256_json(selected) if packages else None,
+        "packages": packages,
+        "incomplete": sorted(set(incomplete) | (set(wanted) - {str(row.get("package_id")) for row in packages})),
     }
 
 

@@ -159,6 +159,7 @@ def _identifier_reference(
     *,
     locator: str = "",
     file_id: str = "",
+    reconstructed_ids: set[str] | None = None,
 ) -> tuple[_Reference | None, dict[str, Any] | None]:
     raw = str(value or "").strip()
     if not raw or len(raw) > _MAX_REFERENCE_LENGTH:
@@ -168,6 +169,11 @@ def _identifier_reference(
             "证据引用为空或长度非法",
         )
     evidence_id, fragment = _split_evidence_reference(raw)
+    if evidence_id in (reconstructed_ids or set()):
+        # The reconstruction record already binds URI, hash, locator and
+        # method. Domain objects may reference that record without presenting
+        # it as a reviewed ev_* fact.
+        return None, None
     if "#" in raw and not fragment:
         return None, _issue(
             source_path,
@@ -234,6 +240,7 @@ def _collect_identifier_sequence(
     source_path: str,
     references: list[_Reference],
     invalid: list[dict[str, Any]],
+    reconstructed_ids: set[str] | None = None,
 ) -> None:
     if not isinstance(value, (list, tuple)):
         invalid.append(_issue(
@@ -245,9 +252,19 @@ def _collect_identifier_sequence(
     for index, item in enumerate(value):
         item_path = f"{source_path}[{index}]"
         if isinstance(item, Mapping):
-            _collect_source_locator(item, item_path, references, invalid)
+            _collect_source_locator(
+                item,
+                item_path,
+                references,
+                invalid,
+                reconstructed_ids=reconstructed_ids,
+            )
             continue
-        reference, error = _identifier_reference(item, item_path)
+        reference, error = _identifier_reference(
+            item,
+            item_path,
+            reconstructed_ids=reconstructed_ids,
+        )
         if error:
             invalid.append(error)
         elif reference:
@@ -327,6 +344,7 @@ def _collect_source_locator(
     source_path: str,
     references: list[_Reference],
     invalid: list[dict[str, Any]],
+    reconstructed_ids: set[str] | None = None,
 ) -> None:
     if not isinstance(value, Mapping):
         invalid.append(_issue(
@@ -385,6 +403,7 @@ def _collect_source_locator(
                     locator_path if hints else identifier_path,
                     locator=locator,
                     file_id=file_id,
+                    reconstructed_ids=reconstructed_ids,
                 )
                 if error:
                     invalid.append(error)
@@ -417,7 +436,11 @@ def _collect_source_locator(
     ))
 
 
-def _collect_references(spec: Mapping[str, Any]) -> tuple[list[_Reference], list[dict[str, Any]]]:
+def _collect_references(
+    spec: Mapping[str, Any],
+    *,
+    reconstructed_ids: set[str] | None = None,
+) -> tuple[list[_Reference], list[dict[str, Any]]]:
     references: list[_Reference] = []
     invalid: list[dict[str, Any]] = []
 
@@ -431,12 +454,17 @@ def _collect_references(spec: Mapping[str, Any]) -> tuple[list[_Reference], list
                 f"{base}[{locator_index}]",
                 references,
                 invalid,
+                reconstructed_ids=reconstructed_ids,
             )
 
     def collect_row_evidence(row: Mapping[str, Any], row_path: str) -> None:
         if "evidence_ids" in row:
             _collect_identifier_sequence(
-                row.get("evidence_ids"), f"{row_path}.evidence_ids", references, invalid,
+                row.get("evidence_ids"),
+                f"{row_path}.evidence_ids",
+                references,
+                invalid,
+                reconstructed_ids,
             )
         if "source_locators" in row:
             collect_source_locators(row.get("source_locators"), f"{row_path}.source_locators")
@@ -490,14 +518,30 @@ def _collect_references(spec: Mapping[str, Any]) -> tuple[list[_Reference], list
             for field, values in links.items():
                 path = _json_key_path("evidence_links", field)
                 if isinstance(values, (list, tuple)):
-                    _collect_identifier_sequence(values, path, references, invalid)
+                    _collect_identifier_sequence(
+                        values,
+                        path,
+                        references,
+                        invalid,
+                        reconstructed_ids,
+                    )
                 elif isinstance(values, (str, Mapping)):
                     # Be liberal when reading a single reference, but still
                     # record its exact source path.
                     if isinstance(values, Mapping):
-                        _collect_source_locator(values, path, references, invalid)
+                        _collect_source_locator(
+                            values,
+                            path,
+                            references,
+                            invalid,
+                            reconstructed_ids=reconstructed_ids,
+                        )
                     else:
-                        reference, error = _identifier_reference(values, path)
+                        reference, error = _identifier_reference(
+                            values,
+                            path,
+                            reconstructed_ids=reconstructed_ids,
+                        )
                         if error:
                             invalid.append(error)
                         elif reference:
@@ -1027,7 +1071,14 @@ def bind_finance_spec_evidence(
         invalid.append(_issue("$", "INVALID_FINANCE_SPEC", "finance spec 必须是对象"))
         references: list[_Reference] = []
     else:
-        references, collection_invalid = _collect_references(spec)
+        references, collection_invalid = _collect_references(
+            spec,
+            reconstructed_ids={
+                str(item.get("reconstruction_id") or "")
+                for item in reconstructed
+                if item.get("reconstruction_id")
+            },
+        )
         invalid.extend(collection_invalid)
     if not references and not invalid and not reconstructed:
         missing.append(_issue(

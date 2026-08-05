@@ -1685,7 +1685,12 @@ def list_resources(args: dict[str, Any]) -> dict[str, Any]:
         )
     except ValueError as exc:
         return _blocked(str(exc), "Resource cursor 无效或资源集合已变化")
-    return _envelope(True, "ok", resource_uris=[], **page)
+    return _envelope(
+        True,
+        "ok",
+        resource_uris=[str(item["uri"]) for item in page.get("resources") or []],
+        **page,
+    )
 
 
 def read_resource(args: dict[str, Any]) -> dict[str, Any]:

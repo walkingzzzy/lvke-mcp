@@ -298,13 +298,29 @@ def _inventory_complete(value: Any) -> bool:
     )
     def complete_component(raw: Any) -> bool:
         if isinstance(raw, dict):
-            return _positive(raw.get("days")) and _positive(raw.get("base_wan"))
+            base = raw.get("annual_base_wan")
+            if base is None:
+                base = raw.get("base_wan")
+            return _positive(raw.get("days")) and _positive(base)
         return False
 
     return all(
         any(complete_component(row.get(key)) for key in group)
         for group in aliases
     )
+
+
+def _turnover_component_complete(value: Any) -> bool:
+    if isinstance(value, dict):
+        base = value.get("annual_base_wan")
+        if base is None:
+            base = value.get("base_wan")
+        return (
+            _positive(value.get("days"))
+            and _positive(base)
+            and bool(str(value.get("base_source") or "").strip())
+        )
+    return _positive(value)
 
 
 def _year_sequence_issues(
@@ -411,9 +427,9 @@ def assess_domain_depth(domains: dict[str, Any]) -> dict[str, Any]:
     self_funded = wc.get("self_funded_wan")
     checks["wc_turnover"] = {
         "ok": (
-            _positive(wc.get("receivable"))
-            and _positive(wc.get("cash"))
-            and _positive(wc.get("payable"))
+            _turnover_component_complete(wc.get("receivable"))
+            and _turnover_component_complete(wc.get("cash"))
+            and _turnover_component_complete(wc.get("payable"))
             and _inventory_complete(wc.get("inventory_detail"))
             and _nonnegative_present(short_term_loan)
             and _nonnegative_present(self_funded)
@@ -475,7 +491,11 @@ def assess_domain_depth(domains: dict[str, Any]) -> dict[str, Any]:
     valid_sources = [
         row for row in repay_sources
         if str(row.get("name") or "").strip()
-        and (_positive(row.get("share")) or _positive(row.get("annual_wan")))
+        and (
+            _positive(row.get("share"))
+            or _positive(row.get("annual_wan"))
+            or any(_positive(value) for value in (row.get("annual_schedule_wan") or row.get("schedule_wan") or []))
+        )
     ]
     checks["debt_schedule"] = {
         "ok": (
@@ -635,16 +655,34 @@ def _domain_fact_leaves(domain: str, value: Any) -> list[dict[str, Any]]:
             "receivable", "cash", "payable", "inventory",
             "short_term_loan_wan", "self_funded_wan",
         ):
-            if row.get(key) not in (None, ""):
-                _add(f"wc_turnover.{key}", row.get(key))
+            component = row.get(key)
+            if isinstance(component, dict) and key in {"receivable", "cash", "payable"}:
+                base = component.get("annual_base_wan")
+                if base is None:
+                    base = component.get("base_wan")
+                for field, raw, unit in (
+                    ("days", component.get("days"), "天"),
+                    ("base_wan", base, "万元"),
+                    ("base_source", component.get("base_source"), None),
+                ):
+                    if raw not in (None, ""):
+                        _add(f"wc_turnover.{key}.{field}", raw, unit=unit)
+            elif component not in (None, ""):
+                _add(f"wc_turnover.{key}", component)
         inv = _record(row.get("inventory_detail"))
         for key in ("raw", "fuel", "wip", "finished"):
             component = _record(inv.get(key))
-            for field, unit in (("base_wan", "万元"), ("days", "天")):
-                if component.get(field) not in (None, ""):
+            component_base = component.get("annual_base_wan")
+            if component_base is None:
+                component_base = component.get("base_wan")
+            for field, raw, unit in (
+                ("base_wan", component_base, "万元"),
+                ("days", component.get("days"), "天"),
+            ):
+                if raw not in (None, ""):
                     _add(
                         f"wc_turnover.inventory_detail.{key}.{field}",
-                        component.get(field),
+                        raw,
                         unit=unit,
                     )
             if component.get("base_source") not in (None, ""):
@@ -692,6 +730,15 @@ def _domain_fact_leaves(domain: str, value: Any) -> list[dict[str, Any]]:
             for key in ("share", "annual_wan"):
                 if row.get(key) not in (None, ""):
                     _add(f"debt_schedule.repay_sources[item_id={ident}].{key}", row.get(key))
+            schedule = row.get("annual_schedule_wan") or row.get("schedule_wan")
+            if isinstance(schedule, list):
+                for period, amount in enumerate(schedule, start=1):
+                    _add(
+                        f"debt_schedule.repay_sources[item_id={ident}].annual_schedule_wan[year={period}]",
+                        amount,
+                        unit="万元",
+                        period=period,
+                    )
         if debt.get("repayment_allocation_method") not in (None, ""):
             _add("debt_schedule.repayment_allocation_method", debt.get("repayment_allocation_method"))
         return leaves
@@ -925,6 +972,11 @@ def build_fact_pack_snapshot(
     evidence_resolver: EvidenceResolver | None = None,
 ) -> dict[str, Any]:
     raw = _record(raw_pack)
+    evidence_policy = str(raw.get("evidence_policy") or "formal_evidence")
+    reconstruction_records = [
+        dict(row) for row in raw.get("reconstruction_records") or []
+        if isinstance(row, dict)
+    ]
     legacy_migration = str(raw.get("version") or "") == LEGACY_VERSION
     if legacy_migration:
         # v0 may be read and normalized for editing, but it can never be
@@ -1061,6 +1113,18 @@ def build_fact_pack_snapshot(
         "missing": missing,
         "delivery_grade_ceiling": ceiling,
         "ai_role": "candidate_extraction_only",
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": bool(
+            raw.get("project_fact_certified", evidence_policy != "source_reconstructed")
+        ),
+        "reconstruction_records": reconstruction_records,
+        "reconstructed_source_ids": [
+            str(row.get("reconstruction_id") or "")
+            for row in reconstruction_records
+            if str(row.get("reconstruction_id") or "")
+        ],
+        "unresolved_inputs": [str(item) for item in raw.get("unresolved_inputs") or []],
+        "release_limitations": [str(item) for item in raw.get("release_limitations") or []],
     }
     if legacy_migration:
         result["migration_required"] = True
@@ -1305,19 +1369,12 @@ def project_confirmed_fact_pack(
             row for row in principal_rows
             if not build_years or int(row.get("year") or 0) > build_years
         ]
-        interest_source_rows = [
-            row for row in interest_rows
-            if not build_years or int(row.get("year") or 0) > build_years
-        ]
         principal_plan = [round(float(row.get("principal_wan") or 0), 6) for row in principal_source_rows]
-        interest_plan = [round(float(row.get("interest_wan") or 0), 6) for row in interest_source_rows]
         if principal_plan:
             out["loan_principal_by_year"] = principal_plan
-            out["principal_schedule_by_year"] = principal_plan
-            out["principal_schedule_source"] = "fact_pack.debt_schedule.principal_schedule"
-        if interest_plan:
-            out["interest_schedule_by_year_reference"] = interest_plan
-            out["interest_schedule_reference_only"] = True
+        # Reference interest remains in the sealed Fact Pack.  It must not be
+        # promoted to an engine input because model interest is recalculated
+        # from the confirmed draw/principal schedule and rate.
     for source_key, target_key in (
         ("loan_rate", "loan_rate"),
         ("loan_years", "loan_years"),
@@ -1376,10 +1433,6 @@ def project_confirmed_fact_pack(
         out["distribution_policy"] = dist
         if dist.get("statutory_reserve_rate") is not None:
             out["statutory_reserve_rate"] = dist.get("statutory_reserve_rate")
-        if dist.get("arbitrary_reserve_rate") is not None:
-            out["arbitrary_reserve_rate"] = dist.get("arbitrary_reserve_rate")
-        if dist.get("investor_distribution_rate") is not None:
-            out["investor_distribution_rate"] = dist.get("investor_distribution_rate")
         if dist.get("arbitrary_reserve_confirmed_zero") is True:
             out["arbitrary_reserve_confirmed_zero"] = True
         if dist.get("investor_distribution_confirmed_zero") is True:

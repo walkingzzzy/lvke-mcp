@@ -45,6 +45,7 @@ from lvke_mcp.runtime.storage import (
 from lvke_mcp.adapters.finance_model_repository import (
     BALANCE_SHEET_STORE,
     BASIS_OF_ESTIMATE_STORE,
+    FACT_PACK_STORE,
     IDEMPOTENCY_STORE,
     MONTE_CARLO_STORE,
     SPEC_STORE,
@@ -498,6 +499,24 @@ def _tool_prepare_spec(args: dict) -> dict:
     from lvke_mcp.domains.finance.model_application import prepare_spec
 
     return prepare_spec(args)
+
+
+def _tool_prepare_fact_pack(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import prepare_fact_pack
+
+    return prepare_fact_pack(args)
+
+
+def _tool_confirm_fact_pack(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import confirm_fact_pack
+
+    return confirm_fact_pack(args)
+
+
+def _tool_get_fact_pack(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import get_fact_pack
+
+    return get_fact_pack(args)
 
 
 def _legacy_tool_prepare_spec(args: dict) -> dict:
@@ -1620,6 +1639,8 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
     content_fingerprint = sha256_json({
         "spec_id": spec_id,
         "spec_basis_hash": spec_record["basis_hash"],
+        "fact_pack_id": spec_payload.get("fact_pack_id"),
+        "fact_pack_basis_hash": spec_payload.get("fact_pack_basis_hash"),
         "planning_object_ids": planning_ids,
         "evidence_pack_ids": evidence_ids,
         "entries": entries,
@@ -1658,6 +1679,12 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         for entry in entries
     )
     reconstructed = any(entry.get("evidence_eligibility") == "source_reconstructed" for entry in entries)
+    reconstruction_records = [
+        record
+        for entry in entries
+        for record in [entry.get("reconstruction") or entry.get("reconstruction_record")]
+        if isinstance(record, dict)
+    ]
     payload = {
         "object_type": "BasisOfEstimate",
         "spec_id": spec_id,
@@ -1670,6 +1697,10 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "formal_ready": formal_ready,
         "evidence_policy": "source_reconstructed" if reconstructed else "formal_evidence",
         "project_fact_certified": not reconstructed,
+        "reconstruction_records": reconstruction_records,
+        "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in reconstruction_records if item.get("reconstruction_id")],
+        "unresolved_inputs": list(args.get("unresolved_inputs") or spec_payload.get("unresolved_inputs") or []),
+        "release_limitations": list(args.get("release_limitations") or spec_payload.get("release_limitations") or []),
         "evidence_eligibility": (
             "source_reconstructed"
             if reconstructed
@@ -1681,7 +1712,15 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         ),
         "idempotency_key_hash": key_hash,
         "content_fingerprint": content_fingerprint,
-        "parent_object_ids": [spec_id, *planning_ids, *evidence_ids],
+        "fact_pack_id": spec_payload.get("fact_pack_id"),
+        "fact_pack_hash": spec_payload.get("fact_pack_hash"),
+        "fact_pack_basis_hash": spec_payload.get("fact_pack_basis_hash"),
+        "parent_object_ids": [
+            spec_id,
+            *planning_ids,
+            *evidence_ids,
+            *([str(spec_payload.get("fact_pack_id"))] if spec_payload.get("fact_pack_id") else []),
+        ],
     }
     record = BASIS_OF_ESTIMATE_STORE.put(
         wsid,
@@ -1693,6 +1732,8 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             "spec_basis_hash": spec_record["basis_hash"],
             "planning_basis_hashes": [record["basis_hash"] for record in planning_records],
             "evidence_basis_hashes": [record["basis_hash"] for record in evidence_records],
+            "fact_pack_basis_hash": spec_payload.get("fact_pack_basis_hash"),
+            "fact_pack_hash": spec_payload.get("fact_pack_hash"),
             "content_fingerprint": content_fingerprint,
         },
     )
@@ -1995,6 +2036,8 @@ def _tool_list_analyses(args: dict) -> dict:
         stores.append(("monte_carlo", MONTE_CARLO_STORE))
     if resource_type in {"all", "basis_of_estimate"}:
         stores.append(("basis_of_estimate", BASIS_OF_ESTIMATE_STORE))
+    if resource_type in {"all", "fact_pack"}:
+        stores.append(("fact_pack", FACT_PACK_STORE))
     entries = [
         {
             "uri": record["resource_uri"],
@@ -2030,6 +2073,7 @@ def _resolve_analysis_resource(uri: str) -> dict | None:
         BALANCE_SHEET_STORE.resolve_uri(uri)
         or MONTE_CARLO_STORE.resolve_uri(uri)
         or BASIS_OF_ESTIMATE_STORE.resolve_uri(uri)
+        or FACT_PACK_STORE.resolve_uri(uri)
     )
 
 
@@ -2072,6 +2116,115 @@ def build_server() -> OfficialStdioServer:
     write_nonidempotent = types.ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
     )
+    fact_pack_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            "version": {"type": "string"},
+            "project_id": {"type": "string"},
+            "valuation_date": {"type": "string"},
+            "evidence_policy": {
+                "type": "string",
+                "enum": ["formal_evidence", "source_reconstructed"],
+            },
+            "project_fact_certified": {"type": "boolean"},
+            "domains": {"type": "object"},
+            "evidence": {"type": "array", "items": {"type": "object"}},
+            "reconstruction_records": {"type": "array", "items": {"type": "object"}},
+            "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
+            "release_limitations": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["version", "evidence_policy", "domains", "evidence"],
+    }
+    server.register_tool(
+        name="finance_prepare_fact_pack",
+        description=(
+            "规范化并固化 finance_fact_pack.v1 候选；来源重建模式必须绑定已导入的 "
+            "Source Snapshot、hash、locator 和 method，不认证项目原始事实。"
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": {"type": "string", "minLength": 1},
+                "fact_pack": fact_pack_schema,
+                "idempotency_key": {"type": "string", "minLength": 1},
+            },
+            "required": ["workspace_id", "fact_pack", "idempotency_key"],
+        },
+        handler=_tool_prepare_fact_pack,
+        output_schema=_output_schema(
+            {
+                "fact_pack_id": {"type": ["string", "null"]},
+                "confirmation_status": {"type": "string"},
+                "delivery_grade_ceiling": {"type": "string"},
+                "fact_pack_hash": {"type": ["string", "null"]},
+                "depth_assessment": {"type": "object"},
+                "binding_assessment": {"type": "object"},
+                "replayed": {"type": "boolean"},
+            },
+            success_required=["fact_pack_id", "confirmation_status", "delivery_grade_ceiling"],
+        ),
+        annotations=write_deterministic,
+    )
+    server.register_tool(
+        name="finance_confirm_fact_pack",
+        description=(
+            "复核 Fact Pack 深度和逐事实来源绑定，生成服务端确认的 formal_candidate "
+            "不可变修订；source_reconstructed 始终保持 project_fact_certified=false。"
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": {"type": "string", "minLength": 1},
+                "fact_pack_id": {"type": "string", "minLength": 1},
+                "idempotency_key": {"type": "string", "minLength": 1},
+            },
+            "required": ["workspace_id", "fact_pack_id", "idempotency_key"],
+        },
+        handler=_tool_confirm_fact_pack,
+        output_schema=_output_schema(
+            {
+                "fact_pack_id": {"type": ["string", "null"]},
+                "confirmation_status": {"type": "string"},
+                "delivery_grade_ceiling": {"type": "string"},
+                "fact_pack_hash": {"type": ["string", "null"]},
+                "depth_assessment": {"type": "object"},
+                "binding_assessment": {"type": "object"},
+                "replayed": {"type": "boolean"},
+            },
+            success_required=["fact_pack_id", "confirmation_status", "delivery_grade_ceiling"],
+        ),
+        annotations=write_deterministic,
+    )
+    server.register_tool(
+        name="finance_get_fact_pack",
+        description="读取不可变 Finance Fact Pack、深度评估、证据覆盖和 hash，不重算。",
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": {"type": "string", "minLength": 1},
+                "fact_pack_id": {"type": "string", "minLength": 1},
+            },
+            "required": ["workspace_id", "fact_pack_id"],
+        },
+        handler=_tool_get_fact_pack,
+        output_schema=_output_schema(
+            {
+                "fact_pack_id": {"type": ["string", "null"]},
+                "confirmation_status": {"type": "string"},
+                "delivery_grade_ceiling": {"type": "string"},
+                "fact_pack_hash": {"type": ["string", "null"]},
+                "depth_assessment": {"type": "object"},
+                "binding_assessment": {"type": "object"},
+                "replayed": {"type": "boolean"},
+            },
+            success_required=["fact_pack_id", "confirmation_status", "delivery_grade_ceiling"],
+        ),
+        annotations=read_closed,
+    )
     server.register_tool(
         name="finance_prepare_spec",
         description=(
@@ -2096,6 +2249,13 @@ def build_server() -> OfficialStdioServer:
                     "type": "array", "items": {"type": "string", "minLength": 1},
                     "uniqueItems": True,
                 },
+                "fact_pack_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "同工作区已 confirmed 且达到 formal_candidate 的 Finance Fact Pack ID。",
+                },
+                "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
+                "release_limitations": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["workspace_id"],
         },
@@ -2105,6 +2265,9 @@ def build_server() -> OfficialStdioServer:
                 "spec_hash": {"type": ["string", "null"]},
                 "spec_id": {"type": ["string", "null"]},
                 "evidence_binding_hash": {"type": "string"},
+                "fact_pack_id": {"type": ["string", "null"]},
+                "fact_pack_hash": {"type": ["string", "null"]},
+                "fact_pack_errors": {"type": "array", "items": {"type": "string"}},
                 "missing_inputs": {"type": "array", "items": {"type": "string"}},
                 "assumptions_to_confirm": {"type": "array", "items": {"type": "string"}},
                 "field_errors": {"type": "array", "items": {"type": "object"}},
@@ -2296,6 +2459,8 @@ def build_server() -> OfficialStdioServer:
                     "type": "array", "minItems": 1, "maxItems": 500,
                     "items": _BOE_ENTRY_SCHEMA,
                 },
+                "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
+                "release_limitations": {"type": "array", "items": {"type": "string"}},
                 "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 200},
             },
             "required": [
@@ -2464,7 +2629,7 @@ def build_server() -> OfficialStdioServer:
                 "workspace_id": {"type": "string", "minLength": 1},
                 "resource_type": {
                     "type": "string",
-                    "enum": ["all", "balance_sheet", "monte_carlo", "basis_of_estimate"],
+                    "enum": ["all", "balance_sheet", "monte_carlo", "basis_of_estimate", "fact_pack"],
                     "default": "all",
                 },
                 "cursor": {"type": "string", "maxLength": 8192},
@@ -2607,6 +2772,12 @@ def build_server() -> OfficialStdioServer:
         if spec_record is not None:
             return ReadResourceContents(
                 json.dumps(spec_record, ensure_ascii=False, indent=2, default=str),
+                "application/json",
+            )
+        fact_pack_record = FACT_PACK_STORE.resolve_uri(uri)
+        if fact_pack_record is not None:
+            return ReadResourceContents(
+                json.dumps(fact_pack_record, ensure_ascii=False, indent=2, default=str),
                 "application/json",
             )
         prefix = "lvke://finance-model/workspaces/"

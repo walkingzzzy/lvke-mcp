@@ -535,6 +535,7 @@ def run_workspace_finance_model(
     requested_manifest: Optional[dict[str, Any]] = None,
     selected_scenario_id: str = "base",
     project_context: Optional[dict[str, Any]] = None,
+    evidence_metadata: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """确定性运行财务模型。**内部禁止调用 LLM（默认）。**
 
@@ -648,7 +649,17 @@ def run_workspace_finance_model(
             dict(input_revision or {}),
             resolved_spec,
             expected_workspace_id=workspace_id,
-            expected_build_years=max(1, -(-int(build_period_months or 12) // 12)),
+            expected_build_years=max(
+                1,
+                -(
+                    -int(
+                        (input_revision or {}).get("build_period_months")
+                        or build_period_months
+                        or 12
+                    )
+                    // 12
+                ),
+            ),
             expected_calc_years=int((input_revision or {}).get("calc_period_years") or 12),
         )
         # A sealed fact pack is the stronger confirmed authority.  Its product
@@ -656,6 +667,12 @@ def run_workspace_finance_model(
         # caller's pre-projection spec hash cannot be reused.
         if fact_pack_projection.get("applied"):
             spec_hash = ""
+
+    confirmed_fact_pack = (
+        copy.deepcopy((input_revision or {}).get("finance_fact_pack"))
+        if isinstance((input_revision or {}).get("finance_fact_pack"), dict)
+        else None
+    )
 
     from lvke_mcp.domains.finance.parameter_resolver import resolve_run_inputs
 
@@ -677,6 +694,11 @@ def run_workspace_finance_model(
         policy_profile=policy_profile,
         industry_profile=industry_profile,
     )
+    if confirmed_fact_pack is not None and fact_pack_projection.get("applied"):
+        # The Fact Pack is non-compute metadata, but it is part of the formal
+        # input hash and downstream source-grade verification.  Preserve the
+        # exact sealed snapshot after canonical compute fields are resolved.
+        input_revision["finance_fact_pack"] = confirmed_fact_pack
     # These canonical fields are model-call context rather than entries read
     # from ``finance_model.fin``.  Apply them before hashing and computing so
     # accepting them can never produce a hash-only, behavior-free change.
@@ -794,6 +816,7 @@ def run_workspace_finance_model(
                     fin["industry_required_missing"] = industry_required_missing
                     fin["assurance_level"] = fin.get("assurance_level") or mode
                     fin["calculation_status"] = "computed"
+                    fin.update(dict(evidence_metadata or {}))
                     fin.pop("review_status", None)
                     # Replays must preserve the original business validity.
                     # An immutable run with failed consistency checks cannot
@@ -860,6 +883,7 @@ def run_workspace_finance_model(
     result["spec_id"] = spec_id
     result["basis_of_estimate_id"] = basis_of_estimate_id
     result["basis_of_estimate_hash"] = basis_of_estimate_hash
+    result.update(dict(evidence_metadata or {}))
     result["model_version"] = MODEL_VERSION
     result["template_version"] = TEMPLATE_VERSION
     result["fact_pack_projection"] = fact_pack_projection

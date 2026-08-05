@@ -299,6 +299,15 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "finance_spec": run.get("spec_hash"),
             "finance_tables": table_record.get("basis_hash") if table_record else None,
         },
+        "evidence_policy": str(args.get("evidence_policy") or next((str((record.get("payload") or {}).get("evidence_policy") or "") for record in evidence if (record.get("payload") or {}).get("evidence_policy")), "formal_evidence")),
+        "project_fact_certified": bool(args.get("project_fact_certified", all(bool((record.get("payload") or {}).get("project_fact_certified", False)) for record in evidence))),
+        "reconstruction_records": list(args.get("reconstruction_records") or [item for record in evidence for item in ((record.get("payload") or {}).get("reconstruction_records") or []) if isinstance(item, dict)]),
+        "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
+        "unresolved_inputs": list(args.get("unresolved_inputs") or []),
+        "release_limitations": list(args.get("release_limitations") or []),
+        "project_context_id": str(args.get("project_context_id") or ""),
+        "project_metadata": dict(args.get("project_metadata") or {}),
+        "upstream_refs": list(args.get("upstream_refs") or [*evidence_ids, *research_ids, run_id, tables_id]),
     }
     status = "blocked" if blockers else ("partial" if warnings else "ok")
     record = PREPARATION_STORE.put(
@@ -553,6 +562,9 @@ def propose_section(args: dict[str, Any]) -> dict[str, Any]:
         "merged_document_hash": "sha256:" + hashlib.sha256(
             merged_document.encode("utf-8")
         ).hexdigest(),
+        "upstream_refs": list(basis.get("upstream_refs") or []),
+        "citation_locators": list(basis.get("citation_locators") or []),
+        "upstream_basis_hashes": dict(basis.get("upstream_basis_hashes") or {}),
     })
     return propose(
         {
@@ -730,9 +742,15 @@ def propose(args: dict[str, Any]) -> dict[str, Any]:
     if basis.get("patch_scope") == "section":
         for key in (
             "patch_scope", "section_id", "base_section_content_hash",
-            "merged_document_hash",
+            "merged_document_hash", "upstream_refs", "citation_locators",
+            "upstream_basis_hashes",
         ):
-            verified_basis[key] = str(basis.get(key) or "")
+            value = basis.get(key)
+            verified_basis[key] = (
+                list(value or []) if key in {"upstream_refs", "citation_locators"}
+                else dict(value or {}) if key == "upstream_basis_hashes"
+                else str(value or "")
+            )
         if not all(verified_basis[key] for key in (
             "section_id", "base_section_content_hash", "merged_document_hash",
         )):
@@ -875,6 +893,16 @@ def apply(
             "proposal_id": proposal_id,
             "task_status": "agent_drafted",
             "document_snapshot": document_snapshot,
+            "section_lineage": {
+                **dict(revision_payload.get("section_lineage") or {}),
+                **({
+                    str(basis.get("section_id") or ""): {
+                        "upstream_refs": list(basis.get("upstream_refs") or []),
+                        "citation_locators": list(basis.get("citation_locators") or []),
+                        "upstream_basis_hashes": dict(basis.get("upstream_basis_hashes") or {}),
+                    }
+                } if basis.get("patch_scope") == "section" else {}),
+            },
         },
         producer="lvke-report-generation.report_apply",
         status="partial",

@@ -147,7 +147,7 @@ def search(
         from lvke_mcp.domains.research.providers import tavily as tavily_provider
 
         provider_requested = (
-            "tavily-hikari" if tavily_provider.server_command() else "none"
+            "tavily-hikari" if tavily_provider.configured_transport() else "none"
         )
     except Exception:  # noqa: BLE001
         provider_requested = "auto"
@@ -959,7 +959,7 @@ async def _trusted_tavily_extract(
     try:
         from lvke_mcp.domains.research.providers import tavily as tavily_provider
 
-        if not tavily_provider.server_command():
+        if not tavily_provider.configured_transport():
             return []
         extracted = await tavily_provider.tavily_extract(urls, output_format)
         if not extracted:

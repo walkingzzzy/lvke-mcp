@@ -53,7 +53,10 @@ def estimate_from_turnover(
         value = t.get(name)
         if isinstance(value, dict):
             days = _f(value.get("days"))
-            base = _f(value.get("annual_base_wan"))
+            raw_base = value.get("annual_base_wan")
+            if raw_base is None:
+                raw_base = value.get("base_wan")
+            base = _f(raw_base)
             return days, default_base if base is None else base
         days = _f(t.get(f"{name}_days"))
         if days is None:

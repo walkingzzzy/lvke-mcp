@@ -6,6 +6,8 @@ import unittest
 import hashlib
 
 from lvke_mcp.servers.lvke_feasibility_delivery import service
+from lvke_mcp.adapters.project_planning_repository import PROJECT_CONTEXT_STORE, MARKET_CASE_STORE
+from lvke_mcp.adapters.research_repository import PACKAGE_STORE
 
 
 class FeasibilityDeliveryTest(unittest.TestCase):
@@ -22,50 +24,50 @@ class FeasibilityDeliveryTest(unittest.TestCase):
             os.environ["LVKE_MCP_DATA_DIR"] = self.previous
         self.tempdir.cleanup()
 
-    def test_full_stage_lifecycle_and_release(self) -> None:
+    def test_fake_stage_references_cannot_formal_release(self) -> None:
         started = service.start({
             "workspace_id": self.workspace,
             "project_context_id": "pc-1",
             "delivery_mode": "review_candidate",
             "idempotency_key": "start-1",
         })
-        self.assertTrue(started["success"])
-        self.assertEqual(started["current_stage"], "research")
-        run_id = started["delivery_run_id"]
+        self.assertFalse(started["success"], started)
+        self.assertEqual(started["code"], "project_context_not_found")
 
-        for stage in (
-            "research", "market", "option", "scale", "drivers", "finance_spec",
-            "finance_run", "finance_tables", "report", "review",
-        ):
-            result = service.stage({
-                "workspace_id": self.workspace,
-                "delivery_run_id": run_id,
-                "stage": stage,
-                "status": "completed",
-                "input_refs": [f"input-{stage}"],
-                "output_refs": [f"output-{stage}"],
-                "basis_hash": "sha256:" + hashlib.sha256(stage.encode()).hexdigest(),
-                "idempotency_key": f"stage-{stage}",
-            })
-            self.assertTrue(result["success"], result)
-            run_id = result["delivery_run_id"]
+        empty = service.start({
+            "workspace_id": self.workspace,
+            "delivery_mode": "review_candidate",
+            "idempotency_key": "start-fake-stage",
+        })
+        rejected = service.stage({
+            "workspace_id": self.workspace,
+            "delivery_run_id": empty["delivery_run_id"],
+            "stage": "project",
+            "status": "completed",
+            "output_refs": ["pc-does-not-exist"],
+            "basis_hash": "sha256:" + "1" * 64,
+            "idempotency_key": "fake-project-stage",
+        })
+        self.assertFalse(rejected["success"], rejected)
+        self.assertEqual(rejected["code"], "stage_reference_invalid")
 
-        self.assertEqual(service.status({"workspace_id": self.workspace, "delivery_run_id": run_id})["current_stage"], "released")
-        validation = service.validate({
+    def test_next_actions_are_executable_descriptors(self) -> None:
+        started = service.start({
             "workspace_id": self.workspace,
-            "delivery_run_id": run_id,
-            "scope": "formal",
+            "delivery_mode": "review_candidate",
+            "idempotency_key": "next-actions-start",
         })
-        self.assertTrue(validation["success"], validation)
-        released = service.release({
+        result = service.next_actions({
             "workspace_id": self.workspace,
-            "delivery_run_id": run_id,
-            "release_note": "integration test",
-            "idempotency_key": "release-1",
+            "delivery_run_id": started["delivery_run_id"],
         })
-        self.assertTrue(released["success"], released)
-        self.assertEqual(released["status"], "released")
-        self.assertTrue(released["release_id"])
+        self.assertTrue(result["success"], result)
+        self.assertTrue(result["next_actions"])
+        action = result["next_actions"][0]
+        self.assertIn("tool", action)
+        self.assertIn("arguments", action)
+        self.assertIn("reason", action)
+        self.assertEqual(action["arguments"]["workspace_id"], self.workspace)
 
     def test_partial_checkpoint_resume_and_stale_reopen(self) -> None:
         started = service.start({
@@ -74,13 +76,18 @@ class FeasibilityDeliveryTest(unittest.TestCase):
             "idempotency_key": "start-2",
         })
         run_id = started["delivery_run_id"]
+        project_record = PROJECT_CONTEXT_STORE.put(
+            self.workspace,
+            {"object_type": "ProjectContext", "status": "confirmed", "project_name": "test"},
+            producer="test", status="confirmed",
+        )
         project = service.stage({
             "workspace_id": self.workspace,
             "delivery_run_id": run_id,
             "stage": "project",
             "status": "completed",
-            "output_refs": ["pc-2"],
-            "basis_hash": "sha256:" + "2" * 64,
+            "output_refs": [project_record["object_id"]],
+            "basis_hash": project_record["basis_hash"],
             "idempotency_key": "project-2",
         })
         partial = service.stage({
@@ -107,24 +114,34 @@ class FeasibilityDeliveryTest(unittest.TestCase):
         self.assertTrue(resumed["success"])
         self.assertEqual(resumed["current_stage"], "research")
 
+        research_record = PACKAGE_STORE.put(
+            self.workspace,
+            {"status": "completed", "quality_review_id": "qr-test", "quality_review_status": "passed"},
+            producer="test", status="completed", source_ids=[project_record["object_id"]],
+        )
         completed = service.stage({
             "workspace_id": self.workspace,
             "delivery_run_id": resumed["delivery_run_id"],
             "stage": "research",
             "status": "completed",
-            "input_refs": ["research-input-2"],
-            "output_refs": ["research-complete"],
-            "basis_hash": "sha256:" + "3" * 64,
+            "input_refs": [project_record["object_id"]],
+            "output_refs": [research_record["object_id"]],
+            "basis_hash": research_record["basis_hash"],
             "idempotency_key": "research-complete-2",
         })
+        market_record = MARKET_CASE_STORE.put(
+            self.workspace,
+            {"object_type": "MarketSizingCase", "status": "confirmed", "parent_object_ids": [research_record["object_id"]]},
+            producer="test", status="confirmed", source_ids=[research_record["object_id"]],
+        )
         market = service.stage({
             "workspace_id": self.workspace,
             "delivery_run_id": completed["delivery_run_id"],
             "stage": "market",
             "status": "completed",
-            "input_refs": ["market-input-2"],
-            "output_refs": ["market-2"],
-            "basis_hash": "sha256:" + "4" * 64,
+            "input_refs": [research_record["object_id"]],
+            "output_refs": [market_record["object_id"]],
+            "basis_hash": market_record["basis_hash"],
             "idempotency_key": "market-2",
         })
         reopened = service.stage({

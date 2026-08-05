@@ -12,6 +12,7 @@ from filelock import FileLock
 from lvke_mcp.runtime.workspace import workspace_root
 
 from lvke_mcp.runtime.storage import (
+    canonical_json,
     paginate_resource_entries,
     require_safe_id,
     sha256_json,
@@ -637,6 +638,18 @@ def _resolve_market_evidence_track(
         for item in evidence_payload.get("sources") or []
         if isinstance(item, dict) and item.get("source_id")
     }
+    def normalized_locator(value: Any) -> str:
+        if isinstance(value, (dict, list)):
+            return canonical_json(value)
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return text
+        return canonical_json(parsed) if isinstance(parsed, (dict, list)) else text
+
     candidate_locators: dict[str, set[str]] = {}
     for item in evidence_payload.get("fact_candidates") or []:
         if not isinstance(item, dict):
@@ -644,11 +657,7 @@ def _resolve_market_evidence_track(
         source_id = str(item.get("source_id") or "")
         locator = item.get("locator")
         if source_id and locator:
-            candidate_locators.setdefault(source_id, set()).add(
-                json.dumps(locator, ensure_ascii=False, sort_keys=True)
-                if isinstance(locator, (dict, list))
-                else str(locator)
-            )
+            candidate_locators.setdefault(source_id, set()).add(normalized_locator(locator))
 
     errors: list[dict[str, Any]] = []
     resolved_tracks: list[str] = []
@@ -678,11 +687,9 @@ def _resolve_market_evidence_track(
                     "code": "evidence_binding_hash_mismatch",
                     "message": "证据绑定 hash 与 EvidencePack 固化来源不一致",
                 })
-            locator = str(binding.get("locator") or "")
+            locator = normalized_locator(binding.get("locator"))
             source_locators = {
-                json.dumps(item, ensure_ascii=False, sort_keys=True)
-                if isinstance(item, (dict, list))
-                else str(item)
+                normalized_locator(item)
                 for item in (source.get("locators") or [])
             }
             known_locators = source_locators | candidate_locators.get(source_id, set())
@@ -1165,6 +1172,18 @@ def create_revenue_driver_set(
                     "flat_revenue_formal_evidence_required",
                     "flat 在 review_candidate 模式必须绑定正式原始资料 locator 与 hash",
                 )
+            if str(binding.get("evidence_track") or "") == "source_reconstructed":
+                required_reconstruction = (
+                    "reconstruction_id", "source_uri", "source_kind", "method", "limitations",
+                )
+                if any(
+                    field not in binding or binding.get(field) in (None, "")
+                    for field in required_reconstruction
+                ):
+                    return _blocked(
+                        "flat_revenue_reconstruction_binding_incomplete",
+                        "source_reconstructed flat 收入必须绑定重建 ID、URI、来源类型、方法和限制",
+                    )
         from lvke_mcp.domains.finance.revenue_models import expand
 
         expanded = expand({"revenue": normalized_spec}, op_years)
@@ -1179,6 +1198,7 @@ def create_revenue_driver_set(
             "market_case_id": market_case_id,
             "mode": mode,
             "evidence_track": evidence_track,
+            "project_fact_certified": False if evidence_track == "source_reconstructed" else True,
             "revenue_spec": normalized_spec,
             "op_years": op_years,
             "expanded": expanded,

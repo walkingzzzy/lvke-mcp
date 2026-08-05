@@ -14,6 +14,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
 from lvke_mcp.runtime.workspace import workspace_root
 from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
+from lvke_mcp.domains.reports import artifacts as report_artifacts
 from lvke_mcp.runtime.storage import (
     JSONArtifactStore,
     require_safe_id,
@@ -759,6 +760,12 @@ def render(
         "formula_lineage": _lineage(run, tables, asset_type=asset_type),
         "tables": tables,
         "integrity": integrity,
+        "evidence_policy": str(run.get("evidence_policy") or "formal_evidence"),
+        "project_fact_certified": bool(run.get("project_fact_certified", False)),
+        "reconstruction_records": list(run.get("reconstruction_records") or []),
+        "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),
+        "unresolved_inputs": list(run.get("unresolved_inputs") or []),
+        "release_limitations": list(run.get("release_limitations") or []),
     }
     record = PACKAGE_STORE.put(
         workspace_id, payload,

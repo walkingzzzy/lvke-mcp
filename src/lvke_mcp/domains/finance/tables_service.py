@@ -64,6 +64,7 @@ def render(
         data,
     )
     validated_data = {**data, "tables": structured_tables}
+    source_run = _load_run(workspace_id, run_id)
     validation = _delivery_assessment(
         workspace_id,
         run_id,
@@ -85,6 +86,12 @@ def render(
         "delivery_mode": "formal" if validation["validation_complete"] else "draft",
         "draft_only": not bool(validation["validation_complete"]),
         "xlsx_available": False,
+        "evidence_policy": str(source_run.get("evidence_policy") or "formal_evidence"),
+        "project_fact_certified": bool(source_run.get("project_fact_certified", False)),
+        "reconstruction_records": list(source_run.get("reconstruction_records") or []),
+        "reconstructed_source_ids": list(source_run.get("reconstructed_source_ids") or []),
+        "unresolved_inputs": list(source_run.get("unresolved_inputs") or []),
+        "release_limitations": list(source_run.get("release_limitations") or []),
     }
     status = "ok" if validation["valid"] else "partial"
     record = PACKAGE_STORE.put(

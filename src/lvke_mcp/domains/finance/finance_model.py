@@ -2705,7 +2705,11 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             if j == 0:
                 _net_op = round(_net_op + _wc, 2)  # 还原投产年流资投入
             if j == op_years - 1:
-                _net_op = round(_net_op - _wc - float(_salv or 0.0), 2)
+                # The terminal cash flow only includes the explicitly resolved
+                # recovery amount.  A vendor workbook may intentionally set
+                # working-capital recovery to zero, so subtracting the full
+                # working-capital balance here breaks the table-9 composition.
+                _net_op = round(_net_op - float(_wc_end) - float(_salv or 0.0), 2)
             if ir.get("income_tax") is not None:
                 _adj_tax = round(float(ir.get("income_tax") or 0.0), 2)
                 # 若用表内所得税，组成可能与 cf 有 1 元级差——以 net 为准微调附加税列不改；

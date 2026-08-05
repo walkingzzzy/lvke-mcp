@@ -229,6 +229,11 @@ def validate_revenue_drivers(
             binding = item.get("flat_evidence_binding") or {}
             if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
                 blockers.append("flat_revenue_formal_evidence_required")
+            if str(binding.get("evidence_track") or "") == "source_reconstructed" and any(
+                field not in binding or binding.get(field) in (None, "")
+                for field in ("reconstruction_id", "source_uri", "source_kind", "method", "limitations")
+            ):
+                blockers.append("flat_revenue_reconstruction_binding_incomplete")
     if blockers:
         return service._envelope(
             success=False,
@@ -541,8 +546,6 @@ def _calculated_cost_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         if amount is None:
             quantity = service._decimal(row.get("annual_quantity"))
             consumption = service._decimal(row.get("unit_consumption"))
-            if consumption is None:
-                consumption = Decimal("1")
             price = service._decimal(row.get("unit_price_yuan"))
             conversion = service._decimal(row.get("conversion_to_wan"))
             if conversion is None:
@@ -552,6 +555,7 @@ def _calculated_cost_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
                 loss = Decimal("0")
             if (
                 quantity is None
+                or consumption is None
                 or price is None
                 or quantity < 0
                 or consumption < 0
@@ -569,6 +573,8 @@ def _calculated_cost_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         row["calculation_trace"] = {
             "method": "explicit_amount" if item.get("annual_amount_wan") is not None else "quantity_consumption_price",
             "formula": "quantity * unit_consumption * unit_price_yuan * conversion_to_wan * (1 + loss_rate)",
+            "annual_quantity_semantics": "cost_calculation_quantity",
+            "design_capacity_semantics": "engineering_capacity_only_not_used_in_amount",
         }
         calculated.append(row)
     return calculated, errors

@@ -1,0 +1,70 @@
+{
+  "schema_version": "external-corpora.v1",
+  "corpora": [
+    {
+      "corpus_id": "client_reports",
+      "relative_path": "client-materials",
+      "marker_files": [
+        "崇阳香苑小区一期贷款可研（盖章版）5.26.md",
+        "(盖章）湖北潜山国家森林公园文旅综合开发示范项目.md"
+      ],
+      "allowed_evidence_roles": ["client_report", "source_reconstructed"],
+      "preferred_extensions": [".md", ".jpg"]
+    },
+    {
+      "corpus_id": "finance_templates",
+      "relative_path": "财务测算表格及文字说明（带公式）(3)",
+      "marker_files": [
+        "财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售一）.xlsx",
+        "财务测算表格及文字说明（带公式）/工程投资与资金筹措分析表(房地产房屋售卖）.xlsx"
+      ],
+      "allowed_evidence_roles": ["finance_template", "source_reconstructed"],
+      "preferred_extensions": [".xlsx", ".doc", ".docx", ".md"]
+    },
+    {
+      "corpus_id": "hengli_acquisition",
+      "relative_path": "恒立酒店资产收购",
+      "marker_files": [
+        "恒立酒店十三表底稿包/00_底稿包说明.md",
+        "前期资料/恒立体育酒店清单/财务状况/资产负债表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls"
+      ],
+      "allowed_evidence_roles": ["historical_statement", "scenario_note", "source_reconstructed"],
+      "preferred_extensions": [".xls", ".doc", ".docx", ".md"]
+    },
+    {
+      "corpus_id": "research_standards",
+      "relative_path": "研报资料库",
+      "marker_files": [
+        "交付型资料源/06_标准方法包/PKG-STD-001/extracted/S001.md"
+      ],
+      "allowed_evidence_roles": ["research_standard", "industry_parameter"],
+      "preferred_extensions": [".md"]
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "chongyang-xiangyuan",
+      "aliases": ["崇阳香苑", "香苑小区一期"],
+      "finance_route": "generic_feasibility",
+      "report_type": "feasibility_study",
+      "route_markers": ["real_estate", "source_reconstructed"],
+      "corpus_ids": ["client_reports", "finance_templates", "research_standards"]
+    },
+    {
+      "project_id": "qianshan-forest-park",
+      "aliases": ["潜山国家森林公园", "潜山森林公园"],
+      "finance_route": "generic_feasibility",
+      "report_type": "feasibility_study",
+      "route_markers": ["cultural_tourism", "source_reconstructed"],
+      "corpus_ids": ["client_reports", "finance_templates", "research_standards"]
+    },
+    {
+      "project_id": "hengli-hotel-acquisition",
+      "aliases": ["恒立酒店", "恒立体育酒店"],
+      "finance_route": "asset_acquisition",
+      "report_type": "investment_decision",
+      "route_markers": ["hotel_lease", "source_reconstructed"],
+      "corpus_ids": ["hengli_acquisition", "finance_templates", "research_standards"]
+    }
+  ]
+}

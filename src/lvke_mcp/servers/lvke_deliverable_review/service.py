@@ -35,6 +35,7 @@ from lvke_mcp.servers.lvke_deliverable_review.contracts import (
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PACKAGE_CONFIG_DIR = REPO_ROOT / "config"
 PREPARATION_STORE = JSONArtifactStore(
     "deliverable-review", "preparations", "rvprep", "preparations"
 )
@@ -1022,12 +1023,25 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             workspace_id,
             resolved,
         )
+        target_snapshot = resolved.get("snapshot") if isinstance(resolved.get("snapshot"), dict) else {}
+        revision_record = target_snapshot.get("revision_record") if isinstance(target_snapshot.get("revision_record"), dict) else {}
+        revision_payload = revision_record.get("payload") if isinstance(revision_record.get("payload"), dict) else {}
+        upstream = revision_payload.get("upstream") if isinstance(revision_payload.get("upstream"), dict) else {}
+        evidence_metadata = {
+            "evidence_policy": str(upstream.get("evidence_policy") or "formal_evidence"),
+            "project_fact_certified": bool(upstream.get("project_fact_certified", False)),
+            "reconstruction_records": list(upstream.get("reconstruction_records") or []),
+            "reconstructed_source_ids": list(upstream.get("reconstructed_source_ids") or []),
+            "unresolved_inputs": list(upstream.get("unresolved_inputs") or []),
+            "release_limitations": list(upstream.get("release_limitations") or []),
+        }
         mandatory_findings = _mandatory_findings(standards)
         basis = _preparation_basis({
             "target": {key: resolved[key] for key in ("target_type", "target_id", "target_sha256")},
             "bindings": resolved["bindings"], "upstream_snapshot": upstream_snapshot,
             "rule_pack": pack, "standards": standards,
             "legacy_gate_snapshot": legacy_gate_snapshot,
+            "evidence_metadata": evidence_metadata,
             "project_context": project_context,
             "engine_version": rules.ENGINE_VERSION, "recalculation_environment_version": rules.RECALC_ENV_VERSION,
         })
@@ -1094,6 +1108,7 @@ _PREPARATION_BASIS_FIELDS = (
     "standards",
     "project_context",
     "legacy_gate_snapshot",
+    "evidence_metadata",
     "engine_version",
     "recalculation_environment_version",
 )
@@ -1429,6 +1444,7 @@ def _project_metadata_findings(
     else:
         revision_payload = ((snapshot.get("revision_record") or {}).get("payload") or {}) if isinstance(snapshot, dict) else {}
         source = {
+            **dict((revision_payload.get("upstream") or {}).get("project_metadata") or {}),
             **dict(revision_payload.get("project_metadata") or {}),
             **dict((preparation_payload.get("target_spec") or {}).get("project_metadata") or {}),
         }
@@ -2535,6 +2551,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 "project_context": payload.get("project_context"),
                 "standards": payload.get("standards"),
                 "legacy_gate_snapshot": payload.get("legacy_gate_snapshot"),
+                "evidence_metadata": payload.get("evidence_metadata"),
                 "mode": mode,
                 "execution": execution,
                 "deployment_mode": deployment_mode,
@@ -2837,6 +2854,7 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
                 "bindings", "upstream_snapshot", "rule_pack", "standards", "mode", "execution",
                 "project_context",
                 "deployment_mode", "legacy_gate_snapshot",
+                "evidence_metadata",
                 "engine_version", "recalculation_environment_version", "created_at",
             )})
             state["deployment_mode"] = str(payload.get("deployment_mode") or "enforced")
@@ -3845,6 +3863,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                 "target": deepcopy(target),
                 "rule_pack_ids": requested_packs,
                 "industry_overlays": list(args.get("industry_overlays") or []),
+                "project_context": deepcopy(parent.get("project_context") or {}),
             }
             parent_basis = {
                 "target": deepcopy(parent.get("target") or {}),
@@ -4605,7 +4624,7 @@ def latest_review_for_target(
 
 
 def _standard_catalog() -> dict[str, Any]:
-    path = REPO_ROOT / "config" / "review_standard_requirements.json"
+    path = PACKAGE_CONFIG_DIR / "review_standard_requirements.json"
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):

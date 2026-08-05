@@ -1963,6 +1963,43 @@ def build_evidence_pack(
             limits.extend(fixture_errors)
     elif evidence_track == "controlled_assumption":
         limits.append("controlled_assumption: 受控假设只能用于 estimate_preview")
+    reconstruction_by_source = {
+        str(item.get("source_uri") or "").rsplit("/", 1)[-1]: item
+        for item in normalized_reconstructions
+    }
+    candidate_locators_by_source: dict[str, list[Any]] = {}
+    for candidate in fact_candidates:
+        if not isinstance(candidate, dict) or not candidate.get("locator"):
+            continue
+        candidate_locators_by_source.setdefault(
+            str(candidate.get("source_id") or ""),
+            [],
+        ).append(candidate["locator"])
+    source_rows = []
+    for doc in selected:
+        row = {
+            key: doc.get(key)
+            for key in (
+                "source_id", "source_type", "title", "url", "content_hash",
+                "fetched_at", "status", "formal_use_allowed",
+                "formal_use_decision", "ocr_formal_use_decision",
+                "unresolved_low_confidence_locator_count", "locators",
+            )
+        }
+        reconstruction = reconstruction_by_source.get(str(doc.get("source_id") or ""))
+        if (
+            evidence_track == SOURCE_RECONSTRUCTED
+            and not row.get("locators")
+        ):
+            candidate_locators = candidate_locators_by_source.get(
+                str(doc.get("source_id") or ""),
+                [],
+            )
+            if candidate_locators:
+                row["locators"] = candidate_locators
+            elif reconstruction is not None and reconstruction.get("locator"):
+                row["locators"] = [str(reconstruction["locator"])]
+        source_rows.append(row)
     payload = {
         "analysis_task_id": task_id,
         "evidence_track": evidence_track,
@@ -1974,18 +2011,11 @@ def build_evidence_pack(
         "source_reconstructed_candidate": source_reconstructed_candidate,
         "reconstruction_records": normalized_reconstructions,
         "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
-        "sources": [
-            {
-                key: doc.get(key)
-                for key in (
-                    "source_id", "source_type", "title", "url", "content_hash",
-                    "fetched_at", "status", "formal_use_allowed",
-                    "formal_use_decision", "ocr_formal_use_decision",
-                    "unresolved_low_confidence_locator_count", "locators",
-                )
-            }
-            for doc in selected
-        ],
+        "project_fact_certified": False if evidence_track == SOURCE_RECONSTRUCTED else bool(formal_evidence_candidate),
+        "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
+        "unresolved_inputs": list(missing_fields),
+        "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),
+        "sources": source_rows,
         "fact_candidates": fact_candidates,
         "auto_accepted_estimate_fields": auto_accepted,
         "missing_fields": missing_fields,
@@ -2028,6 +2058,10 @@ def build_evidence_pack(
         "source_reconstructed_candidate": source_reconstructed_candidate,
         "reconstruction_records": normalized_reconstructions,
         "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
+        "project_fact_certified": False if evidence_track == SOURCE_RECONSTRUCTED else bool(formal_evidence_candidate),
+        "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
+        "unresolved_inputs": list(missing_fields),
+        "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),
         "technical_fixture_candidate": technical_fixture_candidate,
         "evidence_track": evidence_track,
         "fixture_manifest_hash": (

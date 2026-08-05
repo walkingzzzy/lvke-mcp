@@ -15,14 +15,20 @@ from lvke_mcp.adapters.spreadsheets.reader import pick_backend
 from lvke_mcp.servers.lvke_data_analysis import service as analysis
 from lvke_mcp.runtime.source_reconstruction import reconstruction_errors
 from lvke_mcp.servers.lvke_feasibility_delivery import service as delivery
+from lvke_mcp.testing.source_reconstructed_acceptance import (
+    load_nine_chapter_bodies,
+    run_reconstructed_acquisition_case,
+    run_reconstructed_delivery_release,
+    run_reconstructed_finance_case,
+    run_reconstructed_planning_case,
+    run_reconstructed_report_case,
+    run_reconstructed_research_case,
+    run_reconstructed_review_closure,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tests/fixtures/source_reconstructed/manifest.json"
-CLOSURE = ROOT / "tests/fixtures/source_reconstructed/review_closure.json"
-RELEASES = ROOT / "tests/fixtures/source_reconstructed/formal_release_instances.json"
-
-
 class SourceReconstructedAcceptanceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory(prefix="lvke-source-reconstructed-")
@@ -81,6 +87,25 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             workbook.close()
             self.assertGreater(formula_count, 0, row["path"])
 
+    def test_real_template_runs_through_formal_finance_chain(self) -> None:
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        source = next(
+            row for row in manifest["sources"]
+            if row["source_id"] == "srcx_template_product_1"
+        )
+        result = run_reconstructed_finance_case(
+            ROOT / source["path"],
+            workspace_id="source-reconstructed-real-finance",
+            valuation_date="2026-08-05",
+            case_key="product-template",
+        )
+        self.assertTrue(result["finance_run_id"].startswith("run_"), result)
+        self.assertTrue(result["finance_tables_package_id"].startswith("ftp_"), result)
+        self.assertTrue(result["xlsx_resource_uri"].endswith("/xlsx"), result)
+        self.assertTrue(result["formal_validation"]["success"], result)
+        self.assertEqual(result["evidence_policy"], "source_reconstructed")
+        self.assertFalse(result["project_fact_certified"])
+
     def test_reconstruction_contract_and_finance_binding(self) -> None:
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         record = manifest["sources"][0]
@@ -109,18 +134,84 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
         self.assertFalse(binding["project_fact_certified"])
         self.assertEqual(binding["reconstruction_ids"], [record["source_id"]])
 
-    def test_review_retest_closure_and_formal_release_instances(self) -> None:
-        closure = json.loads(CLOSURE.read_text(encoding="utf-8"))
-        self.assertTrue(closure["all_retested"])
-        self.assertEqual(len(closure["cases"]), 3)
-        self.assertTrue(all(row["initial_status"] == "open" for row in closure["cases"]))
-        self.assertTrue(all(row["retest_status"] == "resolved" for row in closure["cases"]))
-        self.assertNotIn("security", closure["review_scope"])
-        releases = json.loads(RELEASES.read_text(encoding="utf-8"))
-        self.assertEqual(releases["release_scope"], "process_acceptance")
-        self.assertFalse(releases["project_fact_certified"])
-        self.assertEqual(len(releases["instances"]), 3)
-        self.assertTrue(all(row["release_status"] == "released" for row in releases["instances"]))
+    def test_two_client_reports_run_real_nine_chapter_review_and_release_chains(self) -> None:
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+        def source(source_id: str) -> dict:
+            return next(row for row in manifest["sources"] if row["source_id"] == source_id)
+
+        configurations = (
+            (
+                "cy_xiangyuan",
+                "崇阳香苑小区一期贷款项目",
+                "real_estate",
+                "srcx_template_product_1",
+            ),
+            (
+                "qianshan_forest_park",
+                "潜山国家森林公园文旅项目",
+                "cultural_tourism",
+                "srcx_template_product_1",
+            ),
+        )
+        releases = []
+        for case_id, project_name, industry_code, runnable_template_id in configurations:
+            case = manifest["cases"][case_id]
+            additional_ids = [
+                case["report_source_id"],
+                *[
+                    item for item in case["template_source_ids"]
+                    if item != runnable_template_id
+                ],
+            ]
+            finance = run_reconstructed_finance_case(
+                ROOT / source(runnable_template_id)["path"],
+                workspace_id=f"source-reconstructed-{case_id}",
+                valuation_date="2026-08-05",
+                case_key=case_id,
+                additional_reconstruction_records=[source(item) for item in additional_ids],
+            )
+            planning = run_reconstructed_planning_case(
+                finance,
+                project_name=project_name,
+                industry_code=industry_code,
+            )
+            research = run_reconstructed_research_case(
+                finance,
+                planning,
+                topic=f"{project_name}来源重建研究",
+                limitations=case["unresolved_inputs"],
+            )
+            report = run_reconstructed_report_case(
+                finance,
+                planning,
+                research,
+                chapter_contents=load_nine_chapter_bodies(ROOT / case["revised_report"]),
+                report_key=case_id,
+                unresolved_inputs=case["unresolved_inputs"],
+            )
+            review = run_reconstructed_review_closure(
+                finance,
+                report,
+                review_key=case_id,
+            )
+            released = run_reconstructed_delivery_release(
+                finance,
+                planning,
+                research,
+                review,
+                release_key=case_id,
+                unresolved_inputs=case["unresolved_inputs"],
+            )
+            self.assertTrue(released["release_id"].startswith("fdrp_"), released)
+            self.assertEqual(released["release_scope"], "process_acceptance")
+            self.assertFalse(released["project_fact_certified"])
+            self.assertTrue(released["lineage_hash"].startswith("sha256:"))
+            self.assertEqual(review["finding_status"], "resolved")
+            self.assertEqual(len(report["outline"]), 9)
+            releases.append(released)
+        self.assertEqual(len({row["delivery_run_id"] for row in releases}), 2)
+        self.assertEqual(len({row["report_revision_id"] for row in releases}), 2)
 
     def _complete_run(self, workspace: str, *, release_scope: str) -> tuple[str, dict]:
         started = delivery.start({
@@ -136,31 +227,27 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
         })
         self.assertTrue(started["success"], started)
         run_id = started["delivery_run_id"]
-        for stage in (
-            "project", "research", "market", "option", "scale", "drivers",
-            "finance_spec", "finance_run", "finance_tables", "report", "review",
-        ):
-            updated = delivery.stage({
-                "workspace_id": workspace,
-                "delivery_run_id": run_id,
-                "stage": stage,
-                "status": "completed",
-                "input_refs": [f"input:{stage}"],
-                "output_refs": [f"output:{stage}"],
-                "basis_hash": "sha256:" + hashlib.sha256(stage.encode()).hexdigest(),
-                "idempotency_key": f"stage-{workspace}-{stage}",
-            })
-            self.assertTrue(updated["success"], updated)
-            run_id = updated["delivery_run_id"]
+        rejected = delivery.stage({
+            "workspace_id": workspace,
+            "delivery_run_id": run_id,
+            "stage": "project",
+            "status": "completed",
+            "output_refs": ["project-does-not-exist"],
+            "basis_hash": "sha256:" + hashlib.sha256(b"project").hexdigest(),
+            "idempotency_key": f"stage-{workspace}-project",
+        })
+        self.assertFalse(rejected["success"], rejected)
+        self.assertEqual(rejected["code"], "stage_reference_invalid")
         return run_id, delivery.validate({
             "workspace_id": workspace,
             "delivery_run_id": run_id,
             "scope": "formal",
         })
 
-    def test_process_acceptance_release_and_project_delivery_block(self) -> None:
+    def test_fake_process_acceptance_is_blocked_and_project_delivery_stays_blocked(self) -> None:
         process_run, validation = self._complete_run("cy-process", release_scope="process_acceptance")
-        self.assertTrue(validation["success"], validation)
+        self.assertFalse(validation["success"], validation)
+        self.assertIn("reconstruction_records_missing", validation["blockers"])
         released = delivery.release({
             "workspace_id": "cy-process",
             "delivery_run_id": process_run,
@@ -168,9 +255,8 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             "release_note": "source reconstructed process acceptance",
             "idempotency_key": "release-cy-process",
         })
-        self.assertTrue(released["success"], released)
-        self.assertEqual(released["release"]["release_scope"], "process_acceptance")
-        self.assertFalse(released["release"]["project_fact_certified"])
+        self.assertFalse(released["success"], released)
+        self.assertEqual(released["code"], "formal_validation_required")
 
         delivery_run, blocked_validation = self._complete_run("cy-delivery", release_scope="project_delivery")
         self.assertFalse(blocked_validation["success"])
@@ -221,8 +307,75 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             [item["purchase_price_wan"] for item in reference["scenarios"]],
             hengli["scenario_purchase_prices_wan"],
         )
-        self.assertFalse(reference["replay"]["complete"])
         self.assertEqual(hengli["business_decision_status"], "not_selected")
+        reconstruction_records = [
+            next(item for item in manifest["sources"] if item["source_id"] == source_id)
+            for source_id in hengli["historical_source_ids"]
+        ]
+        releases = []
+        for scenario in reference["scenarios"]:
+            price = int(scenario["purchase_price_wan"])
+            finance = run_reconstructed_acquisition_case(
+                workspace_id=f"source-reconstructed-hengli-{price}",
+                scenario=scenario,
+                reconstruction_records=reconstruction_records,
+                unresolved_inputs=hengli["unresolved_inputs"],
+            )
+            planning = run_reconstructed_planning_case(
+                finance,
+                project_name=f"恒立酒店资产收购{price}万元情景",
+                industry_code="hotel",
+                project_type="asset_acquisition",
+            )
+            research = run_reconstructed_research_case(
+                finance,
+                planning,
+                topic=f"恒立酒店{price}万元情景研究",
+                limitations=hengli["unresolved_inputs"],
+            )
+            citation = reconstruction_records[0]["locator"]
+            chapter_contents = [
+                f"恒立酒店来源重建过程验收第{chapter}章。"
+                f"收购价{price}万元，评估值4027.53万元，总投资"
+                f"{scenario['total_investment_wan']}万元（来源: {citation}）。"
+                "经营模式、交易类型和最终收购价保持未选择。"
+                for chapter in range(1, 10)
+            ]
+            report = run_reconstructed_report_case(
+                finance,
+                planning,
+                research,
+                chapter_contents=chapter_contents,
+                report_key=f"hengli-{price}",
+                unresolved_inputs=hengli["unresolved_inputs"],
+            )
+            review = run_reconstructed_review_closure(
+                finance,
+                report,
+                review_key=f"hengli-{price}",
+            )
+            released = run_reconstructed_delivery_release(
+                finance,
+                planning,
+                research,
+                review,
+                release_key=f"hengli-{price}",
+                unresolved_inputs=hengli["unresolved_inputs"],
+                business_decision_status="not_selected",
+            )
+            self.assertAlmostEqual(finance["total_investment_wan"], scenario["total_investment_wan"], places=2)
+            self.assertEqual(len(finance["csv_resource_uris"]), 13)
+            self.assertEqual(released["business_decision_status"], "not_selected")
+            self.assertTrue(released["release_id"].startswith("fdrp_"))
+            releases.append(released)
+        for field in (
+            "finance_run_id",
+            "finance_tables_package_id",
+            "report_revision_id",
+            "review_run_id",
+            "lineage_hash",
+        ):
+            self.assertEqual(len({row[field] for row in releases}), 6, field)
 
 
 if __name__ == "__main__":

@@ -140,8 +140,9 @@ def _assert_acquisition_publish_finance_binding(
             )
 
     if isinstance(spec, dict):
-        max_price_ok, max_price_error, max_price_details = acquisition_service._max_price_gate(  # noqa: SLF001
-            run, spec, require_business_decision=False,
+        max_price_ok, max_price_error, max_price_details = acquisition_service._max_price_validation(  # noqa: SLF001
+            run,
+            spec,
         )
         if not max_price_ok:
             block(
@@ -310,6 +311,9 @@ def assert_publish_finance_binding(
     binding: dict[str, Any] = {}
     actual_bound = ""
     bound = str(expected_run_id or "").strip()
+    bound_tables_package_id = ""
+    bound_xlsx_uri = ""
+    bound_xlsx_hash = ""
 
     # FinanceSpec v3 acquisition runs publish their own acquisition report
     # pack.  Return before touching audit_db/table_render/table_pack so the
@@ -405,39 +409,110 @@ def assert_publish_finance_binding(
                     })
 
             quality = table_render.build_all_structured(snapshot).get("_meta") or {}
-            if not quality.get("validation_complete"):
+            if not quality.get("reference_structure_ready"):
                 blockers.append({
-                    "code": "finance_formal_delivery_incomplete",
+                    "code": "finance_reference_structure_incomplete",
                     "message": (
                         "财务附表不完整："
                         f"有效 {quality.get('effective_table_count', 0)}/"
                         f"{quality.get('required_table_count', 13)} 张"
                     ),
                 })
-            from lvke_mcp.domains.finance import table_pack
+            from lvke_mcp.adapters.finance_tables_repository import (
+                PACKAGE_STORE,
+                xlsx_path_from_uri,
+            )
+            from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
 
-            artifact_dir = table_pack.default_artifact_dir(workspace_id, bound)
-            xlsx = artifact_dir / "财务专业附表.xlsx"
-            evidence_path = artifact_dir / "evidence.json"
-            if not xlsx.is_file():
-                blockers.append({
-                    "code": "finance_xlsx_missing",
-                    "message": "绑定的 FinanceRun 缺少财务专业附表.xlsx",
-                })
-            if evidence_path.is_file():
-                import json
+            expected_table_ids = set(DELIVERY_TABLE_KEYS)
+            package_failures: list[dict[str, Any]] = []
+            valid_packages: list[tuple[dict[str, Any], Any, str]] = []
+            matching_packages = [
+                record
+                for record in PACKAGE_STORE.list(workspace_id)
+                if str((record.get("payload") or {}).get("run_id") or "") == bound
+            ]
+            for package_record in matching_packages:
+                package_payload = package_record.get("payload") or {}
+                package_id = str(package_record.get("object_id") or "")
+                reasons: list[str] = []
+                manifest_rows = [
+                    item
+                    for item in (package_payload.get("table_manifest") or [])
+                    if isinstance(item, dict)
+                ]
+                manifest_ids = {
+                    str(item.get("table_id") or "") for item in manifest_rows
+                }
+                manifest_run_ids = {
+                    str(item.get("run_id") or "") for item in manifest_rows
+                }
+                tables = (
+                    package_payload.get("tables")
+                    if isinstance(package_payload.get("tables"), dict)
+                    else {}
+                )
+                validation = (
+                    package_payload.get("validation")
+                    if isinstance(package_payload.get("validation"), dict)
+                    else {}
+                )
+                technical = (
+                    validation.get("technical_validation")
+                    if isinstance(validation.get("technical_validation"), dict)
+                    else {}
+                )
+                if len(manifest_rows) != len(expected_table_ids) or manifest_ids != expected_table_ids:
+                    reasons.append("thirteen_table_manifest_incomplete")
+                if manifest_run_ids != {bound}:
+                    reasons.append("table_manifest_run_mismatch")
+                if set(tables) != expected_table_ids:
+                    reasons.append("thirteen_table_payload_incomplete")
+                if not bool(technical.get("valid", validation.get("valid"))):
+                    reasons.append("technical_validation_failed")
+                xlsx_uri = str(package_record.get("resource_uri") or "") + "/xlsx"
+                xlsx_path = xlsx_path_from_uri(xlsx_uri)
+                if xlsx_path is None:
+                    reasons.append("xlsx_resource_missing")
+                else:
+                    from lvke_mcp.adapters.spreadsheets.finance_export import (
+                        assess_finance_delivery_quality,
+                    )
 
-                delivery_evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-                if not delivery_evidence.get("validation_complete"):
-                    blockers.append({
-                        "code": "finance_excel_semantic_checks_failed",
-                        "message": "Excel 语义与回读校验未通过",
+                    delivery_quality = (
+                        assess_finance_delivery_quality(snapshot).get("delivery_quality") or {}
+                    )
+                    if not delivery_quality.get("validation_complete"):
+                        reasons.append("xlsx_semantic_validation_failed")
+                if reasons:
+                    package_failures.append({
+                        "package_id": package_id,
+                        "reasons": reasons,
                     })
-            elif xlsx.is_file():
+                else:
+                    valid_packages.append((package_record, xlsx_path, xlsx_uri))
+            if not matching_packages:
                 blockers.append({
-                    "code": "finance_delivery_evidence_missing",
-                    "message": "存在 Excel 但缺少 evidence.json 回读证据",
+                    "code": "finance_tables_package_missing",
+                    "message": "绑定的 FinanceRun 尚未生成真实 FinanceTablesPackage",
                 })
+            elif not valid_packages:
+                blockers.append({
+                    "code": "finance_tables_package_invalid",
+                    "message": "FinanceTablesPackage 未同时满足同一 run、13 表和 XLSX Resource 要求",
+                    "details": {"packages": package_failures},
+                })
+            else:
+                import hashlib
+
+                package_record, xlsx_path, bound_xlsx_uri = max(
+                    valid_packages,
+                    key=lambda item: str(item[0].get("created_at") or ""),
+                )
+                bound_tables_package_id = str(package_record.get("object_id") or "")
+                bound_xlsx_hash = "sha256:" + hashlib.sha256(
+                    xlsx_path.read_bytes()
+                ).hexdigest()
 
             open_blocking = [
                 item for item in (run_view.get("issues") or [])
@@ -455,6 +530,9 @@ def assert_publish_finance_binding(
         "warnings": warnings,
         "bound_run_id": bound or None,
         "actual_bound_run_id": actual_bound or None,
+        "finance_tables_package_id": bound_tables_package_id or None,
+        "xlsx_resource_uri": bound_xlsx_uri or None,
+        "xlsx_hash": bound_xlsx_hash or None,
         "binding": binding,
         "validation_level": "complete" if not blockers else "incomplete",
     }

@@ -5,6 +5,9 @@ from lvke_mcp.runtime.storage import JSONArtifactStore
 PACKAGE_STORE = JSONArtifactStore(
     "deep-research", "packages", "drp", "packages"
 )
+QUALITY_REVIEW_STORE = JSONArtifactStore(
+    "deep-research", "quality-reviews", "drq", "quality-reviews"
+)
 AGENT_SESSION_STORE = JSONArtifactStore(
     "deep-research", "agent-sessions", "drs", "sessions"
 )

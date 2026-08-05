@@ -1,0 +1,47 @@
+{
+  "schema_version": "review-standard-requirements.v1",
+  "catalog_version": "2026-08-05",
+  "requirements": [
+    {
+      "requirement_id": "REQ-MARKET-LINEAGE",
+      "title": "市场结论证据链",
+      "description": "市场容量、供需缺口和目标份额必须绑定来源 locator、hash 与 EvidencePack。",
+      "applicable_project_types": ["generic_feasibility"],
+      "required_evidence": ["EvidencePack", "MarketSizingCase"]
+    },
+    {
+      "requirement_id": "REQ-OPTION-BEFORE-SCALE",
+      "title": "方案比选与建设规模",
+      "description": "方案比选结果必须先于建设规模、投资和财务输入固化。",
+      "applicable_project_types": ["generic_feasibility"],
+      "required_evidence": ["OptionComparison", "BuildScaleCase"]
+    },
+    {
+      "requirement_id": "REQ-FINANCE-13-TABLES",
+      "title": "十三张财务附表",
+      "description": "十三表必须来自同一 FinanceRun 并通过 technical 与 formal 校验。",
+      "required_evidence": ["FinanceRun", "FinanceTablesPackage"]
+    },
+    {
+      "requirement_id": "REQ-REPORT-9-CHAPTERS",
+      "title": "九章报告一致性",
+      "description": "九章报告必须绑定同一项目、证据、财务运行和表包。",
+      "required_evidence": ["ReportRevision", "FinanceRun", "FinanceTablesPackage"]
+    },
+    {
+      "requirement_id": "REQ-NONOPERATING-BALANCE",
+      "title": "非经营性项目资金平衡",
+      "description": "无经营收益项目应披露资金平衡，不得构造无意义的收益率。",
+      "applicable_project_types": ["generic_feasibility"],
+      "required_evidence": ["FinanceSpec", "FinanceRun"]
+    },
+    {
+      "requirement_id": "REQ-ACQUISITION-SCENARIOS",
+      "title": "资产收购独立情景",
+      "description": "候选收购价应独立运行，并保留历史报表、资产边界和未决事项。",
+      "applicable_project_types": ["asset_acquisition"],
+      "applicable_asset_types": ["hotel_lease"],
+      "required_evidence": ["AcquisitionSpec", "AcquisitionRun", "FinanceTablesPackage"]
+    }
+  ]
+}

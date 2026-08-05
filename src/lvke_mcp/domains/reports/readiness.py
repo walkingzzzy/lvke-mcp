@@ -222,10 +222,19 @@ def build_readiness(
                 recon = []
             failed = [c for c in recon if not c.get("ok")]
             for chk in failed:
-                blockers.append({
-                    "code": "finance_reconciliation_failed",
-                    "message": f"财务勾稽不一致：{chk.get('rule')}（{chk.get('detail')}）",
-                })
+                item = {
+                    "code": (
+                        "finance_reconciliation_failed"
+                        if chk.get("blocking", True)
+                        else "finance_business_risk"
+                    ),
+                    "message": (
+                        f"财务勾稽不一致：{chk.get('rule')}（{chk.get('detail')}）"
+                        if chk.get("blocking", True)
+                        else f"财务风险提示：{chk.get('rule')}（{chk.get('detail')}）"
+                    ),
+                }
+                (blockers if chk.get("blocking", True) else warnings).append(item)
 
     # 【P0-6】发布可否：任一 blocker 存在即不可发布终稿（匡算预览不受影响）。
     publishable = not blockers

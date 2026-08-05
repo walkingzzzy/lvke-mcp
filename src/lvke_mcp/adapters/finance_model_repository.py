@@ -15,3 +15,6 @@ MONTE_CARLO_STORE = JSONArtifactStore(
 BASIS_OF_ESTIMATE_STORE = JSONArtifactStore(
     "finance-model", "basis-of-estimate", "fboe", "basis-of-estimate"
 )
+FACT_PACK_STORE = JSONArtifactStore(
+    "finance-model", "fact-packs", "ffp", "fact-packs"
+)

@@ -9,9 +9,11 @@ from pathlib import Path
 from lvke_mcp.domains.finance import revenue_models
 from lvke_mcp.domains.finance.hengli_reference import scenario_matrix
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
+from lvke_mcp.domains.finance.finance_model import check_consistency
 from lvke_mcp.domains.finance.model_application import run_model
 from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
 from lvke_mcp.domains.finance import tables_service
+from lvke_mcp.domains.finance.working_capital import estimate_from_turnover
 
 
 class FinanceFixtureAcceptanceTest(unittest.TestCase):
@@ -131,6 +133,48 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
         self.assertTrue(balance["balanced"])
         self.assertIn("sources", balance)
         self.assertIn("uses", balance)
+
+    def test_table_9_uses_explicit_terminal_working_capital_recovery(self) -> None:
+        for suffix, recovery in (("zero", 0.0), ("partial", 125.0)):
+            scenario = self._scenario("agriculture_food", "grain_processing")
+            scenario["finance"]["terminal_working_capital_recover_wan"] = recovery
+            result, _package = self._run(
+                scenario,
+                f"fixture-terminal-wc-{suffix}",
+            )
+            data = result["data"]
+            check = next(
+                row
+                for row in check_consistency(data)
+                if row["rule"] == "附表9组成合计=净现金流"
+            )
+            self.assertTrue(check["ok"], check)
+            terminal = data["annual"]["project_cashflow"][-1]
+            expected = round(
+                recovery + float(data["raw"].get("terminal_recovery") or 0.0),
+                2,
+            )
+            self.assertEqual(terminal["recover"], expected)
+
+    def test_working_capital_accepts_sealed_fact_pack_base_fields(self) -> None:
+        result = estimate_from_turnover(
+            revenue=99999.0,
+            cash_cost=88888.0,
+            turnover={
+                "receivable": {"days": 60, "base_wan": 12544.340412},
+                "cash": {"days": 30, "base_wan": 440.3592},
+                "payable": {"days": 90, "base_wan": 7440.409324},
+                "inventory_detail": {
+                    "raw": {"days": 30, "base_wan": 7317.08412},
+                    "fuel": {"days": 30, "base_wan": 123.3252},
+                    "wip": {"days": 15, "base_wan": 8004.340416},
+                    "finished": {"days": 15, "base_wan": 12544.340424},
+                },
+            },
+        )
+        self.assertEqual(result["net_working_capital"], 1743.55)
+        self.assertEqual(result["bases"]["receivable"], 12544.340412)
+        self.assertEqual(result["bases"]["payable"], 7440.409324)
 
     def test_hengli_reference_boundary_is_preserved(self) -> None:
         reference = scenario_matrix()

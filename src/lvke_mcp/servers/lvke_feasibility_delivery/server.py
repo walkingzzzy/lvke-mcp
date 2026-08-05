@@ -29,7 +29,7 @@ _OUTPUT = {
         "resource_uris": {"type": "array", "items": {"type": "string"}},
         "warnings": {"type": "array", "items": {"type": "string"}},
         "blockers": {"type": "array", "items": {"type": "string"}},
-        "next_actions": {"type": "array", "items": {"type": "string"}},
+        "next_actions": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": True}]}},
     },
     "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"],
 }
@@ -51,7 +51,7 @@ def build_server() -> OfficialStdioServer:
     server.register_tool(
         "feasibility_start",
         "创建不可变可研交付运行和阶段清单。",
-        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "project_context_id": _ID, "delivery_mode": {"type": "string", "enum": list(DELIVERY_MODES)}, "evidence_policy": {"type": "string", "enum": list(EVIDENCE_POLICIES)}, "release_scope": {"type": "string", "enum": list(RELEASE_SCOPES)}, "project_fact_certified": {"type": "boolean"}, "reconstructed_source_ids": {"type": "array", "items": _ID}, "unresolved_inputs": {"type": "array", "items": {"type": "string"}}, "release_limitations": {"type": "array", "items": {"type": "string"}}, "idempotency_key": _KEY}, "required": ["workspace_id", "delivery_mode", "idempotency_key"]},
+        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "project_context_id": _ID, "delivery_mode": {"type": "string", "enum": list(DELIVERY_MODES)}, "evidence_policy": {"type": "string", "enum": list(EVIDENCE_POLICIES)}, "release_scope": {"type": "string", "enum": list(RELEASE_SCOPES)}, "project_fact_certified": {"type": "boolean"}, "reconstructed_source_ids": {"type": "array", "items": _ID}, "reconstruction_records": {"type": "array", "items": {"type": "object", "additionalProperties": True}}, "unresolved_inputs": {"type": "array", "items": {"type": "string"}}, "release_limitations": {"type": "array", "items": {"type": "string"}}, "idempotency_key": _KEY}, "required": ["workspace_id", "delivery_mode", "idempotency_key"]},
         service.start, _OUTPUT, write,
     )
     server.register_tool(

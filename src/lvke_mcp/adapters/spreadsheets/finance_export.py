@@ -1493,11 +1493,30 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
     cap_capital = _row_values(capital_labels.get("项目资本金"))
     cap_principal = _row_values(capital_labels.get("借款本金偿还"))
     cap_interest = _row_values(capital_labels.get("借款利息支付"))
+    effective_inputs = (
+        fin.get("input_revision")
+        if isinstance(fin.get("input_revision"), dict)
+        else fin.get("raw")
+        if isinstance(fin.get("raw"), dict)
+        else {}
+    )
+    explicit_zero_terminal_policy = (
+        "terminal_fixed_asset_recover_wan" in effective_inputs
+        and "terminal_working_capital_recover_wan" in effective_inputs
+        and abs(float(effective_inputs.get("terminal_fixed_asset_recover_wan") or 0.0)) <= 1e-9
+        and abs(float(effective_inputs.get("terminal_working_capital_recover_wan") or 0.0)) <= 1e-9
+    )
     capital_recover_present = bool(cap_fixed or cap_wc)
     if capital_recover_present:
-        capital_recover_ok = any(abs(v) > 1e-9 for v in (cap_fixed + cap_wc))
+        capital_recover_ok = (
+            any(abs(v) > 1e-9 for v in (cap_fixed + cap_wc))
+            or explicit_zero_terminal_policy
+        )
     else:
-        capital_recover_ok = (pack.get("capital-cashflow") or {}).get("grade") == "not_applicable"
+        capital_recover_ok = (
+            explicit_zero_terminal_policy
+            or (pack.get("capital-cashflow") or {}).get("grade") == "not_applicable"
+        )
     # 所得税 row must not equal 税金及附加+所得税 mix: compare against income_statement tax only.
     # Capital cashflow uses financing-before adjusted income tax from the
     # project cashflow rows, not the accounting tax row in the profit statement.
@@ -1565,7 +1584,9 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
         },
         "capital_cashflow_terminal_recover": {
             "ok": capital_recover_ok or (pack.get("capital-cashflow") or {}).get("grade") == "not_applicable",
-            "detail": "附表10 期末回收不得固定为 0（有终值时）",
+            "detail": (
+                "附表10 接受来源明确的显式零回收；未显式给定时，有终值不得固定为 0"
+            ),
         },
         "capital_cashflow_income_tax_only": {
             "ok": capital_tax_ok or (pack.get("capital-cashflow") or {}).get("grade") == "not_applicable",

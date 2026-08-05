@@ -177,6 +177,12 @@ _COMMON_SPEC_PROPERTIES = {
     },
     "evidence_policy": {"type": "string", "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"]},
     "project_fact_certified": {"type": "boolean"},
+    "reconstruction_records": {"type": "array", "items": {"type": "object"}},
+    "reconstructed_source_ids": {"type": "array", "items": _STRING},
+    "unresolved_inputs": {"type": "array", "items": _STRING},
+    "release_limitations": {"type": "array", "items": _STRING},
+    "business_decision_status": {"type": "string", "enum": ["not_selected", "selected"]},
+    "process_acceptance_basis": {"type": "array", "items": {"type": "object"}},
 }
 _HOTEL_OPERATION_SCHEMA = {
     "type": "object", "additionalProperties": True,
@@ -272,11 +278,11 @@ def build_server() -> OfficialStdioServer:
         ), _OUTPUT, write,
     )
     server.register_tool(
-        "acquisition_confirm_spec", "以新不可变修订确认候选 Spec，不原地修改；estimate_preview 仅确认受控假设的计算范围，不产生正式资格。",
-        _schema({**base, "spec_id": _STRING, "note": {"type": "string", "default": ""}, **keyed}, ["workspace_id", "spec_id", "idempotency_key"]),
+        "acquisition_confirm_spec", "以新不可变修订确认候选 Spec；process_acceptance 保留 source_reconstructed 与未决业务事实。",
+        _schema({**base, "spec_id": _STRING, "note": {"type": "string", "default": ""}, "confirmation_scope": {"type": "string", "enum": ["project_candidate", "process_acceptance"], "default": "project_candidate"}, **keyed}, ["workspace_id", "spec_id", "idempotency_key"]),
         lambda a: service.confirm_spec(
             a["workspace_id"], a["spec_id"],
-            a.get("note", ""), a["idempotency_key"]
+            a.get("note", ""), a["idempotency_key"], a.get("confirmation_scope", "project_candidate")
         ), _OUTPUT, write,
     )
     server.register_tool(

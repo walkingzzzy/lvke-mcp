@@ -1,0 +1,65 @@
+{
+  "schema_version": "industry-skill-routes.v1",
+  "routes": [
+    {
+      "route_id": "hotel-acquisition",
+      "priority": 100,
+      "industry_prefixes": ["hotel", "hospitality"],
+      "asset_types": ["hotel_lease"],
+      "project_types": ["asset_acquisition"],
+      "transaction_structures": ["asset_acquisition", "equity_acquisition", "operation_lease"],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-finance-spec", "lvke-finance-modeling"]
+    },
+    {
+      "route_id": "cultural-tourism",
+      "priority": 80,
+      "industry_prefixes": ["cultural_tourism", "tourism", "culture-tourism"],
+      "asset_types": [],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-market-sizing", "lvke-revenue-drivers"]
+    },
+    {
+      "route_id": "real-estate",
+      "priority": 80,
+      "industry_prefixes": ["real_estate", "construction_real_estate", "housing"],
+      "asset_types": [],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-market-sizing", "lvke-build-scale"]
+    },
+    {
+      "route_id": "manufacturing",
+      "priority": 70,
+      "industry_prefixes": ["manufacturing", "mineral_processing", "chemical", "machinery", "electronics"],
+      "asset_types": ["mineral_processing"],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-cost-drivers", "lvke-build-scale"]
+    },
+    {
+      "route_id": "public-service",
+      "priority": 60,
+      "industry_prefixes": ["public_service", "government_public_service", "environmental_utilities", "infrastructure"],
+      "asset_types": [],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-build-scale", "lvke-cost-drivers"]
+    },
+    {
+      "route_id": "generic",
+      "priority": 10,
+      "industry_prefixes": ["general", "generic"],
+      "asset_types": ["general"],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-market-sizing", "lvke-option-comparison"]
+    }
+  ]
+}

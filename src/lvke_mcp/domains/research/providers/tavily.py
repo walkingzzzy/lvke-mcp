@@ -2,8 +2,9 @@
 
 Tavily 通过已配置的 MCP 搜索服务（``tavily-hikari``）调用，由该 MCP 服务
 持有并管理凭据；本模块不直接持有外部 API key。服务命令经
-``LVKE_MCP_TAVILY_SERVER`` 环境变量配置（如 ``python -m tavily_hikari.server``），
-未配置或连接失败时 provider 不可用（如实上报，不构成单点硬依赖）。
+优先通过 ``TAVILY_MCP_URL`` 连接既有 Streamable HTTP MCP；也兼容
+``LVKE_MCP_TAVILY_SERVER`` 指定的 stdio 命令。未配置或连接失败时 provider
+不可用（如实上报，不构成单点硬依赖）。
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ PROVIDER_NAME = "tavily-hikari"
 SEARCH_TOOL = "tavily_search"
 EXTRACT_TOOL = "tavily_extract"
 _SERVER_ENV = "LVKE_MCP_TAVILY_SERVER"
+_URL_ENV = "TAVILY_MCP_URL"
+_TOKEN_ENV = "TAVILY_MCP_BEARER_TOKEN"
 _CHILD_ENV = ("TAVILY_MCP_URL", "TAVILY_MCP_BEARER_TOKEN")
 _OPEN_TIMEOUT = 8.0
 _CALL_TIMEOUT = 45.0
@@ -31,26 +34,30 @@ def server_command() -> list[str] | None:
     return shlex.split(raw)
 
 
+def server_url() -> str | None:
+    """Return the configured existing Tavily HTTP MCP endpoint."""
+    value = str(os.getenv(_URL_ENV) or "").strip()
+    return value or None
+
+
+def configured_transport() -> str | None:
+    if server_url():
+        return "streamable_http"
+    if server_command():
+        return "stdio"
+    return None
+
+
 async def _call_tool(name: str, arguments: dict[str, Any]) -> Any:
-    """经 stdio 调用 tavily-hikari MCP 工具；失败抛异常由调用方降级。"""
+    """Call the configured existing Tavily MCP without owning search logic."""
+    url = server_url()
     command = server_command()
-    if not command:
-        raise RuntimeError(f"{_SERVER_ENV} 未配置")
+    if not url and not command:
+        raise RuntimeError(f"{_URL_ENV} 与 {_SERVER_ENV} 均未配置")
 
     from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
 
-    child_env = {
-        name: os.environ[name]
-        for name in _CHILD_ENV
-        if str(os.environ.get(name) or "").strip()
-    }
-    params = StdioServerParameters(
-        command=command[0],
-        args=command[1:],
-        env=child_env,
-    )
-    async with stdio_client(params) as (read, write):
+    async def consume(read: Any, write: Any) -> Any:
         async with ClientSession(read, write) as session:
             await asyncio.wait_for(session.initialize(), timeout=_OPEN_TIMEOUT)
             result = await asyncio.wait_for(
@@ -75,6 +82,39 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> Any:
                 return json.loads(text)
             except (TypeError, ValueError):
                 return text
+
+    if url:
+        from mcp.client.streamable_http import (
+            create_mcp_http_client,
+            streamable_http_client,
+        )
+
+        token = str(os.getenv(_TOKEN_ENV) or "").strip()
+        headers = {"Authorization": f"Bearer {token}"} if token else None
+        http_client = create_mcp_http_client(headers=headers)
+        async with http_client:
+            async with streamable_http_client(
+                url,
+                http_client=http_client,
+                terminate_on_close=False,
+            ) as (read, write):
+                return await consume(read, write)
+
+    from mcp.client.stdio import stdio_client
+
+    assert command is not None
+    child_env = {
+        child_name: os.environ[child_name]
+        for child_name in _CHILD_ENV
+        if str(os.environ.get(child_name) or "").strip()
+    }
+    params = StdioServerParameters(
+        command=command[0],
+        args=command[1:],
+        env=child_env,
+    )
+    async with stdio_client(params) as (read, write):
+        return await consume(read, write)
 
 
 def _as_search_payload(payload: Any) -> dict[str, Any]:
@@ -131,15 +171,18 @@ async def tavily_extract(
 
 async def provider_status() -> dict[str, Any]:
     """探测 provider 可用性；返回与 hermes ``list_providers`` 兼容的单条结构。"""
-    command = server_command()
-    if not command:
+    transport = configured_transport()
+    if not transport:
         return {
             "name": PROVIDER_NAME,
             "display_name": "Tavily (tavily-hikari)",
             "available": False,
             "search": True,
             "extract": True,
-            "capabilities": {"reason": f"{_SERVER_ENV} 未配置"},
+            "capabilities": {
+                "reason": f"{_URL_ENV} 与 {_SERVER_ENV} 均未配置",
+                "transport": None,
+            },
         }
     try:
         await _call_tool(SEARCH_TOOL, {"query": "连通性探测", "limit": 1})
@@ -152,5 +195,5 @@ async def provider_status() -> dict[str, Any]:
         "available": available,
         "search": True,
         "extract": True,
-        "capabilities": {},
+        "capabilities": {"transport": transport},
     }

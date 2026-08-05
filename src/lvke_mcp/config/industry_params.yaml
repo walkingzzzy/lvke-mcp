@@ -1,0 +1,17 @@
+default:
+  plot_ratio: 1.0
+  green_ratio: 0.15
+  building_coverage: 0.40
+  workshop_share: 0.70
+  office_share: 0.15
+  floor_height_m: 6.0
+  headcount_per_10k_m2: 60
+  avg_wage_wan: 9.0
+
+industry:
+  电子: {plot_ratio: 1.2, headcount_per_10k_m2: 80, avg_wage_wan: 10.0}
+  制造: {plot_ratio: 1.0, floor_height_m: 7.5, headcount_per_10k_m2: 55, avg_wage_wan: 9.5}
+  机械: {plot_ratio: 0.9, floor_height_m: 9.0, headcount_per_10k_m2: 50, avg_wage_wan: 10.0}
+  化工: {plot_ratio: 0.8, green_ratio: 0.20, floor_height_m: 9.0, headcount_per_10k_m2: 40, avg_wage_wan: 11.0}
+  仓储物流: {workshop_share: 0.85, floor_height_m: 9.0, headcount_per_10k_m2: 20, avg_wage_wan: 8.5}
+  农业: {plot_ratio: 0.6, green_ratio: 0.10, headcount_per_10k_m2: 30, avg_wage_wan: 7.0}

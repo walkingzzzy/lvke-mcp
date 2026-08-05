@@ -126,11 +126,28 @@ _EVIDENCE_BINDING = {
             "type": "string",
             "pattern": r"^(?:sha256:)?[0-9a-fA-F]{64}$",
         },
-        "locator": _STRING,
+        "locator": {
+            "oneOf": [
+                _STRING,
+                {"type": "object", "minProperties": 1},
+                {"type": "array", "minItems": 1},
+            ]
+        },
         "evidence_track": {
             "type": "string",
             "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
         },
+        "reconstruction_id": _STRING,
+        "source_uri": _STRING,
+        "source_kind": {
+            "type": "string",
+            "enum": ["client_report", "finance_template", "historical_statement", "scenario_note"],
+        },
+        "method": {
+            "type": "string",
+            "enum": ["table_extract", "formula_replay", "explicit_mapping"],
+        },
+        "limitations": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
         "source_id",

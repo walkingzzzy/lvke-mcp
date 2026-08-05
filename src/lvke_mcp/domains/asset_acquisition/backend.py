@@ -79,6 +79,42 @@ def _is_estimate_preview_spec(spec: Mapping[str, Any]) -> bool:
     )
 
 
+def _valid_reconstruction_records(value: Any) -> bool:
+    records = value if isinstance(value, list) else []
+    required = {"reconstruction_id", "source_uri", "content_hash", "locator", "source_kind", "method", "limitations"}
+    return bool(records) and all(
+        isinstance(item, Mapping)
+        and required <= set(item)
+        and all(item.get(field) not in (None, "") for field in required - {"limitations"})
+        and isinstance(item.get("limitations"), list)
+        and str(item.get("content_hash") or "").startswith("sha256:")
+        for item in records
+    )
+
+
+def _valid_process_acceptance_basis(value: Any) -> bool:
+    records = value if isinstance(value, list) else []
+    required = {"field", "value", "source_ref", "locator", "content_hash", "method", "limitation"}
+    return bool(records) and all(
+        isinstance(item, Mapping)
+        and required <= set(item)
+        and all(item.get(field) not in (None, "") for field in required)
+        and str(item.get("content_hash") or "").startswith("sha256:")
+        for item in records
+    )
+
+
+def _is_process_acceptance_spec(spec: Mapping[str, Any]) -> bool:
+    return bool(
+        str(spec.get("confirmation_scope") or "") == "process_acceptance"
+        and str(spec.get("evidence_policy") or "") == "source_reconstructed"
+        and spec.get("project_fact_certified") is False
+        and str(spec.get("business_decision_status") or "") == "not_selected"
+        and _valid_reconstruction_records(spec.get("reconstruction_records"))
+        and _valid_process_acceptance_basis(spec.get("process_acceptance_basis"))
+    )
+
+
 
 
 def _now() -> str:
@@ -523,6 +559,7 @@ def confirm_saved_spec(
     spec_id: str,
     *,
     note: str = "",
+    confirmation_scope: str = "project_candidate",
     idempotency_key: str = "",
     request_id: str = "",
 ) -> dict[str, Any]:
@@ -531,6 +568,7 @@ def confirm_saved_spec(
     now = _now()
     body_hash = _hash({
         "action": "confirm_spec", "spec_id": spec_id, "note": str(note or ""),
+        "confirmation_scope": confirmation_scope,
     })
     with _state_guard(workspace_id):
         state = _load(workspace_id)
@@ -538,11 +576,27 @@ def confirm_saved_spec(
         if not source:
             return {"ok": False, "error": "SPEC_NOT_FOUND"}
         candidate = copy.deepcopy(source.get("spec") or {})
+        if confirmation_scope not in {"project_candidate", "process_acceptance"}:
+            return {"ok": False, "error": "CONFIRMATION_SCOPE_INVALID"}
+        if (
+            confirmation_scope == "project_candidate"
+            and str(candidate.get("evidence_policy") or "") == "source_reconstructed"
+        ):
+            return {"ok": False, "error": "PROJECT_FACT_EVIDENCE_MISSING"}
+        if confirmation_scope == "process_acceptance":
+            candidate.update({
+                "confirmation_scope": "process_acceptance",
+                "project_fact_certified": False,
+                "business_decision_status": "not_selected",
+            })
+            if not _is_process_acceptance_spec(candidate):
+                return {"ok": False, "error": "PROCESS_ACCEPTANCE_BASIS_INCOMPLETE"}
         formal_candidate = mark_spec_confirmed(candidate)
         estimate_preview = _is_estimate_preview_spec(candidate)
+        process_acceptance = _is_process_acceptance_spec(candidate)
         schema_ok, schema_errors = (
             validate(formal_candidate)
-            if estimate_preview
+            if estimate_preview or process_acceptance
             else validate_for_formal(formal_candidate)
         )
         evidence_binding = _bind_spec_evidence(
@@ -555,7 +609,7 @@ def confirm_saved_spec(
                 "error": "SPEC_VALIDATION_FAILED",
                 "details": list(schema_errors),
             }
-        if not estimate_preview and not evidence_binding.get("formal_ok"):
+        if not estimate_preview and not process_acceptance and not evidence_binding.get("formal_ok"):
             return {
                 "ok": False,
                 "error": "EVIDENCE_REVIEW_REQUIRED",
@@ -589,6 +643,10 @@ def confirm_saved_spec(
         confirmed = formal_candidate
         if estimate_preview:
             confirmed["confirmation_scope"] = "estimate_preview"
+        elif process_acceptance:
+            confirmed["confirmation_scope"] = "process_acceptance"
+            confirmed["project_fact_certified"] = False
+            confirmed["business_decision_status"] = "not_selected"
         evidence_binding = _bind_spec_evidence(
             workspace_id,
             confirmed,
@@ -620,7 +678,9 @@ def confirm_saved_spec(
             "evidence_binding": evidence_binding,
             "confirmation_status": "confirmed",
             "confirmation_scope": (
-                "estimate_preview" if estimate_preview else "formal_input"
+                "estimate_preview" if estimate_preview else (
+                    "process_acceptance" if process_acceptance else "formal_input"
+                )
             ),
             "confirmation": {
                 "note": str(note or ""),
@@ -681,8 +741,9 @@ def create_run(
     if not _is_selected_scenario(spec, scenario_id):
         return {"ok": False, "error": "SCENARIO_NOT_FOUND"}
     estimate_preview = _is_estimate_preview_spec(spec)
+    process_acceptance = _is_process_acceptance_spec(spec)
     schema_ok, schema_errors = (
-        validate(spec) if estimate_preview else validate_for_formal(spec)
+        validate(spec) if estimate_preview or process_acceptance else validate_for_formal(spec)
     )
     evidence_binding = _bind_spec_evidence(
         workspace_id,
@@ -690,7 +751,7 @@ def create_run(
     )
     if not schema_ok:
         return {"ok": False, "error": "SPEC_VALIDATION_FAILED", "details": list(schema_errors)}
-    if not estimate_preview and not evidence_binding.get("formal_ok"):
+    if not estimate_preview and not process_acceptance and not evidence_binding.get("formal_ok"):
         return {
             "ok": False,
             "error": "EVIDENCE_REVIEW_REQUIRED",
@@ -748,7 +809,9 @@ def create_run(
             "status": "succeeded",
             "lifecycle_status": "validated" if not issues else "validation_failed",
             "delivery_mode": (
-                "estimate_preview" if estimate_preview else "formal_candidate"
+                "estimate_preview" if estimate_preview else (
+                    "process_acceptance" if process_acceptance else "formal_candidate"
+                )
             ),
             "model_version": result["model_version"],
             "spec_version": LATEST_SPEC_VERSION, "spec_hash": _hash(spec), "input_hash": body_hash,
@@ -763,8 +826,19 @@ def create_run(
             "discount_rate": discount_rate, "result": result, "consistency_ok": True,
             "validation_status": "passed" if not issues else "failed",
             "formal_spec_valid": bool(schema_formal_ok and formal_ok),
+            "process_acceptance_valid": bool(process_acceptance and schema_ok),
             "formal_spec_errors": formal_errors, "request_id": request_id,
             "created_at": created_at,
+            "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
+            "project_fact_certified": bool(spec.get(
+                "project_fact_certified",
+                str(spec.get("evidence_policy") or "") != "source_reconstructed",
+            )),
+            "reconstruction_records": copy.deepcopy(spec.get("reconstruction_records") or []),
+            "reconstructed_source_ids": copy.deepcopy(spec.get("reconstructed_source_ids") or []),
+            "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),
+            "release_limitations": copy.deepcopy(spec.get("release_limitations") or []),
+            "business_decision_status": str(spec.get("business_decision_status") or "not_selected"),
             **_migration_binding(spec),
             "issues": issues,
             "state_history": [
@@ -855,6 +929,13 @@ def enqueue_run(
             "formal_spec_errors": formal_errors,
             "request_id": request_id, "created_at": created_at, "updated_at": created_at,
             "issues": [],
+            "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
+            "project_fact_certified": bool(spec.get("project_fact_certified", str(spec.get("evidence_policy") or "") != "source_reconstructed")),
+            "reconstruction_records": copy.deepcopy(spec.get("reconstruction_records") or []),
+            "reconstructed_source_ids": copy.deepcopy(spec.get("reconstructed_source_ids") or []),
+            "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),
+            "release_limitations": copy.deepcopy(spec.get("release_limitations") or []),
+            "business_decision_status": str(spec.get("business_decision_status") or "not_selected"),
             **_migration_binding(spec),
             "state_history": [
                 _history_event("validated_spec", request_id=request_id),
@@ -1420,7 +1501,13 @@ def max_price(
             validation_status=analysis["validation_status"],
         ))
         _save(workspace_id, state)
-    return {"ok": True, "run_id": run_id, "analysis_hash": analysis["analysis_hash"], **solved}
+    return {
+        "ok": True,
+        "run_id": run_id,
+        "analysis_hash": analysis["analysis_hash"],
+        "validation_status": analysis["validation_status"],
+        **solved,
+    }
 
 
 def build_acquisition_report_data(

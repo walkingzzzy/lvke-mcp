@@ -394,9 +394,11 @@ def _source_value(
                 continue
         schedule = fact.get("annual_schedule_wan") or fact.get("schedule_wan")
         if isinstance(schedule, list) and schedule:
-            index = min(max(year_index, 0), len(schedule) - 1)
+            if year_index < 0 or year_index >= len(schedule):
+                values.append(0.0)
+                continue
             try:
-                values.append(float(schedule[index] or 0.0))
+                values.append(float(schedule[year_index] or 0.0))
             except (TypeError, ValueError):
                 pass
             continue
@@ -487,7 +489,8 @@ def _normalize_rows(key: str, rows: list, fin: dict) -> list[dict]:
                 max(float(amort_src or 0.0), 0.0),
             ]
             available_total = round(sum(available_parts), 2)
-            actual_total = round(min(debt_service, available_total), 2)
+            principal_due = max(float(principal or 0.0), 0.0)
+            actual_total = round(min(principal_due, available_total), 2)
             actual_parts = [0.0, 0.0, 0.0]
             if allocation_method == "pro_rata" and available_total > 0 and actual_total > 0:
                 actual_parts[0] = round(actual_total * available_parts[0] / available_total, 2)
@@ -520,8 +523,11 @@ def _normalize_rows(key: str, rows: list, fin: dict) -> list[dict]:
                 "repay_actual_amort": actual_parts[2],
                 "repay_surplus": round(available_total - actual_total, 2),
                 "repay_allocation_method": allocation_method,
-                "repay_actual_covers_debt_service": abs(actual_total - debt_service) <= 0.05,
-                "dscr": round(available_total / debt_service, 2) if debt_service > 0 else None,
+                "repay_actual_covers_principal": abs(actual_total - principal_due) <= 0.05,
+                "dscr": (
+                    round((available_total + float(interest or 0.0)) / debt_service, 2)
+                    if debt_service > 0 else None
+                ),
                 "icr": r.get("icr"),
             })
         return out
@@ -1183,14 +1189,14 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
             values and all(_number(value) is not None for value in values)
             for values in (_column_values(body, field) for field in source_fields)
         )
-        # 来源合计必须覆盖各年还本（或还本付息）——仅“三类存在”不够。
-        debt_service_vals = _column_values(body, "debt_service") or _column_values(body, "principal")
+        # 模板中的利润、折旧和摊销用于偿还本金；利息已计入经营损益。
+        principal_vals = _column_values(body, "principal")
         profit_vals = _column_values(body, "repay_source_profit")
         dep_vals = _column_values(body, "repay_source_dep")
         amort_vals = _column_values(body, "repay_source_amort")
-        repay_closed = bool(debt_service_vals) and bool(profit_vals) and bool(dep_vals) and bool(amort_vals)
+        repay_closed = bool(principal_vals) and bool(profit_vals) and bool(dep_vals) and bool(amort_vals)
         if repay_closed:
-            for idx, need in enumerate(debt_service_vals):
+            for idx, need in enumerate(principal_vals):
                 need_n = _number(need)
                 if need_n is None:
                     repay_closed = False
@@ -1204,7 +1210,7 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
                 if supply + 0.5 < float(need_n):
                     repay_closed = False
                     break
-        checks["repay_source_covers_debt_service"] = repay_closed
+        checks["repay_source_covers_principal"] = repay_closed
         # Parent/child identity on available funds. Prefer item-row layout; fall
         # back to engine field series so pre/post promotion both work.
         available_vals = (
@@ -1219,7 +1225,7 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
         profit_item = _item_row_period_values(body, "可供投资者分配的利润") or profit_vals
         dep_item = _item_row_period_values(body, "折旧费") or dep_vals
         amort_item = _item_row_period_values(body, "摊销费") or amort_vals
-        debt_item = _item_row_period_values(body, "当期还本付息") or debt_service_vals
+        principal_item = _item_row_period_values(body, "还本") or principal_vals
         actual_vals = _item_row_period_values(body, "实际用于偿债的资金") or _column_values(body, "repay_actual")
         actual_profit = _item_row_period_values(body, "实际使用利润") or _column_values(body, "repay_actual_profit")
         actual_dep = _item_row_period_values(body, "实际使用折旧") or _column_values(body, "repay_actual_dep")
@@ -1250,12 +1256,12 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
                 if abs(float(avail) - comp) > 0.05:
                     parent_child_ok = False
                     break
-                if not all(idx < len(values) for values in (actual_vals, actual_profit, actual_dep, actual_amort, debt_item)):
+                if not all(idx < len(values) for values in (actual_vals, actual_profit, actual_dep, actual_amort, principal_item)):
                     parent_child_ok = False
                     break
                 actual_n = float(_number(actual_vals[idx]) or 0.0)
                 actual_comp = sum(float(_number(values[idx]) or 0.0) for values in (actual_profit, actual_dep, actual_amort))
-                need_n = float(_number(debt_item[idx]) or 0.0)
+                need_n = float(_number(principal_item[idx]) or 0.0)
                 if abs(actual_n - actual_comp) > 0.05 or abs(actual_n - need_n) > 0.05:
                     parent_child_ok = False
                     break
@@ -1270,8 +1276,8 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
             gaps.append("偿债资金来源未绑定 confirmed fact_pack 明细；禁止默认 75% 伪造")
         if not checks["repay_source_values"]:
             gaps.append("偿债资金来源的利润/折旧/摊销年度金额不完整")
-        if not checks["repay_source_covers_debt_service"]:
-            gaps.append("可用偿债资金合计不足以覆盖各年还本付息额")
+        if not checks["repay_source_covers_principal"]:
+            gaps.append("可用偿债资金合计不足以覆盖各年还本额")
         if not checks["repay_source_parent_child_closed"]:
             gaps.append("偿债来源父子不勾稽：可用/实际/剩余三组父子恒等式失败")
 
@@ -2373,7 +2379,7 @@ def _promote_reference_period_table(
             period_prefix="分年", source="annual.debt_service+finance_fact_pack.debt_schedule",
             extra={
                 "repay_source_semantics": "available_funds",
-                "parent_child_identity": "5=5.1+5.2+5.3; 6=6.1+6.2+6.3=3; 7=5-6",
+                "parent_child_identity": "5=5.1+5.2+5.3; 6=6.1+6.2+6.3=3.1; 7=5-6",
             },
         )
 

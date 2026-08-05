@@ -1377,7 +1377,27 @@ def _acquisition_checks(
             "rule_input_unavailable:FIN.DEPRECIATION.RECALC",
         ])
 
-    debt = result.get("debt_schedule") or []
+    debt_value = result.get("debt_schedule") or []
+    if isinstance(debt_value, dict):
+        monthly_debt = [
+            row for row in (debt_value.get("monthly") or [])
+            if isinstance(row, dict)
+        ]
+        debt = []
+        for offset in range(0, len(monthly_debt), 12):
+            period = monthly_debt[offset:offset + 12]
+            if not period:
+                continue
+            debt.append({
+                "year": offset // 12 + 1,
+                "opening_principal_wan": period[0].get("opening_principal_wan"),
+                "interest_wan": sum(_number(row.get("interest_wan")) or 0.0 for row in period),
+                "principal_wan": sum(_number(row.get("principal_wan")) or 0.0 for row in period),
+                "debt_service_wan": sum(_number(row.get("debt_service_wan")) or 0.0 for row in period),
+                "closing_principal_wan": period[-1].get("closing_principal_wan"),
+            })
+    else:
+        debt = [row for row in debt_value if isinstance(row, dict)]
     purchase_total = _number(result.get("total_acquisition_cost_wan"))
     expected_opening = (
         purchase_total * financing_ratio
@@ -1708,6 +1728,10 @@ def review_finance_run(
             metrics.update(check_metrics)
 
     allowed = applicable | set(source_rules)
+    findings = [
+        row for row in findings
+        if str(row.get("rule_id") or "") in allowed
+    ]
     executed.intersection_update(allowed)
     incomplete = [
         reason for reason in incomplete

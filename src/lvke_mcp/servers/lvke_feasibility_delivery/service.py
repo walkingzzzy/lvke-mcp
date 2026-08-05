@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 from typing import Any, Callable
 
 from filelock import FileLock
@@ -15,6 +16,13 @@ from lvke_mcp.runtime.storage import (
     utc_now,
 )
 from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.adapters.project_planning_repository import RESOURCE_STORES as PLANNING_STORES
+from lvke_mcp.adapters.data_analysis_repository import RESOURCE_STORES as ANALYSIS_STORES
+from lvke_mcp.adapters.data_acquisition_repository import RESOURCE_STORES as ACQUISITION_DATA_STORES
+from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_PACKAGE_STORE
+from lvke_mcp.adapters.finance_model_repository import SPEC_STORE, BASIS_OF_ESTIMATE_STORE
+from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_PACKAGE_STORE
+from lvke_mcp.adapters.report_repository import PREPARATION_STORE as REPORT_PREPARATION_STORE, REVISION_STORE as REPORT_REVISION_STORE
 from lvke_mcp.servers.lvke_feasibility_delivery.contracts import (
     DELIVERY_MODES,
     EVIDENCE_POLICIES,
@@ -164,6 +172,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("release_scope_invalid", "release_scope 必须是 process_acceptance 或 project_delivery")
     if mode == "estimate_preview" and release_scope == "project_delivery":
         release_scope = "process_acceptance"
+    if project_context_id:
+        project_object = _resolve_object(workspace_id, project_context_id)
+        if project_object is None or project_object.get("kind") != "ProjectContext":
+            return _blocked("project_context_not_found", "project_context_id 必须解析到当前 workspace 的真实 ProjectContext")
     request = {
         "workspace_id": workspace_id,
         "delivery_mode": mode,
@@ -172,6 +184,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         "release_scope": release_scope,
         "project_fact_certified": bool(args.get("project_fact_certified", evidence_policy == "formal_evidence")),
         "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
+        "reconstruction_records": list(args.get("reconstruction_records") or []),
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
         "release_limitations": list(args.get("release_limitations") or []),
     }
@@ -180,10 +193,11 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         stages = empty_stages()
         current_stage = "project"
         if project_context_id:
+            project_object = _resolve_object(workspace_id, project_context_id)
             stages["project"].update({
                 "status": "completed",
                 "output_refs": [project_context_id],
-                "basis_hash": sha256_json({"project_context_id": project_context_id}),
+                "basis_hash": str((project_object or {}).get("basis_hash") or sha256_json({"project_context_id": project_context_id})),
                 "next_actions": [],
             })
             stages["research"]["status"] = "in_progress"
@@ -200,6 +214,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             "release_scope": release_scope,
             "project_fact_certified": request["project_fact_certified"],
             "reconstructed_source_ids": request["reconstructed_source_ids"],
+            "reconstruction_records": request["reconstruction_records"],
             "unresolved_inputs": request["unresolved_inputs"],
             "release_limitations": request["release_limitations"],
             "stages": stages,
@@ -275,6 +290,68 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
         "next_actions": list(args.get("next_actions") or []),
         "reopen": reopen,
     }
+    if stage_status == "completed":
+        if request["blockers"]:
+            return _blocked("stage_blockers_present", "completed 阶段不能保留 blocker")
+        resolved_outputs: list[dict[str, Any]] = []
+        reference_errors: list[str] = []
+        for role in ("input", "output"):
+            for ref in request[f"{role}_refs"]:
+                resolved, error = _validate_reference(workspace_id, str(ref), stage_name, role)
+                if error:
+                    reference_errors.append(error)
+                elif role == "output" and resolved is not None:
+                    resolved_outputs.append(resolved)
+        if reference_errors:
+            return _blocked(
+                "stage_reference_invalid",
+                "阶段引用必须解析到当前 workspace 的真实不可变对象",
+                next_actions=reference_errors,
+            )
+        required_kinds = {
+            "project": {"ProjectContext"},
+            "research": {"ResearchPackage"},
+            "market": {"MarketSizingCase"},
+            "option": {"OptionComparison"},
+            "scale": {"BuildScaleCase"},
+            "drivers": {"CostDriverSet", "LaborPlan", "RevenueDriverSet"},
+            "finance_spec": {"FinanceSpec", "BasisOfEstimate"},
+            "finance_run": {"FinanceRun"},
+            "finance_tables": {"FinanceTablesPackage"},
+            "report": {"ReportRevision"},
+            "review": {"ReviewRun"},
+        }[stage_name]
+        actual_kinds = {str(item.get("kind") or "") for item in resolved_outputs}
+        if stage_name == "finance_spec" and "AcquisitionFinanceSpec" in actual_kinds:
+            required_kinds = {"AcquisitionFinanceSpec"}
+        elif stage_name == "finance_run" and "AcquisitionRun" in actual_kinds:
+            required_kinds = {"AcquisitionRun"}
+        elif stage_name == "finance_tables" and "AcquisitionTablesPackage" in actual_kinds:
+            required_kinds = {"AcquisitionTablesPackage"}
+        if not required_kinds.issubset(actual_kinds):
+            return _blocked(
+                "stage_output_type_invalid",
+                "阶段输出对象类型不完整",
+                next_actions=[f"missing:{item}" for item in sorted(required_kinds - actual_kinds)],
+            )
+        previous_outputs = set(
+            str(item)
+            for item in ((record.get("payload") or {}).get("stages") or {}).get(
+                STAGES[target_index - 1] if target_index > 0 else "", {}
+            ).get("output_refs", [])
+        )
+        if target_index > 0 and previous_outputs and not previous_outputs.intersection(
+            str(item) for item in request["input_refs"]
+        ):
+            return _blocked("stage_parent_binding_missing", "当前阶段输入必须包含上一阶段输出")
+        allowed_basis = {str(item.get("basis_hash") or "") for item in resolved_outputs}
+        allowed_basis.add(sha256_json({
+            "input_refs": request["input_refs"],
+            "output_refs": request["output_refs"],
+            "output_basis_hashes": sorted(str(item.get("basis_hash") or "") for item in resolved_outputs),
+        }))
+        if request["basis_hash"] not in allowed_basis:
+            return _blocked("stage_basis_hash_mismatch", "阶段 basis_hash 与真实输出对象不一致")
 
     def update() -> dict[str, Any]:
         payload = json.loads(json.dumps(record.get("payload") or {}))
@@ -315,6 +392,13 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
                 key, value = str(ref).split(":", 1)
                 lineage[key] = value
         payload["lineage"] = lineage
+        stage_bindings = dict(payload.get("stage_bindings") or {})
+        stage_bindings[stage_name] = {
+            "input_refs": list(request["input_refs"]),
+            "output_refs": list(request["output_refs"]),
+            "basis_hash": request["basis_hash"],
+        }
+        payload["stage_bindings"] = stage_bindings
         child = RUN_STORE.put(
             workspace_id,
             payload,
@@ -358,14 +442,42 @@ def next_actions(args: dict[str, Any]) -> dict[str, Any]:
     stage_name = str(run.get("current_stage") or "project")
     stage_record = dict((run.get("stages") or {}).get(stage_name) or {})
     stored = list(stage_record.get("next_actions") or [])
-    actions = stored or _NEXT_TOOLS.get(stage_name, [])
+    tools = stored or _NEXT_TOOLS.get(stage_name, [])
+    output_refs = [str(item) for item in stage_record.get("output_refs") or [] if str(item)]
+    input_refs = [str(item) for item in stage_record.get("input_refs") or [] if str(item)]
+    missing_inputs = list(stage_record.get("blockers") or [])
+    if not input_refs and stage_name != "project":
+        missing_inputs.append(f"{stage_name}_input_refs")
+    if not output_refs and stage_name != "released":
+        missing_inputs.append(f"{stage_name}_output_refs")
+    next_items: list[dict[str, Any]] = []
+    for item in tools:
+        if isinstance(item, dict):
+            tool = str(item.get("tool") or "")
+            reason = str(item.get("reason") or "完成当前阶段或处理当前缺口")
+            arguments = dict(item.get("arguments") or {})
+        else:
+            tool = str(item)
+            reason = "完成当前阶段或处理当前缺口"
+            arguments = {"workspace_id": workspace_id}
+        if output_refs:
+            if stage_name == "finance_spec" and tool == "finance_validate_spec":
+                arguments["spec_id"] = output_refs[0]
+            elif stage_name == "finance_run" and tool == "finance_get_run":
+                arguments["run_id"] = output_refs[0]
+            elif stage_name == "finance_tables" and tool == "tables_validate":
+                arguments["finance_tables_package_id"] = output_refs[0]
+            elif stage_name == "report" and tool == "report_validate":
+                arguments["report_revision_id"] = output_refs[0]
+        next_items.append({"tool": tool, "arguments": arguments, "reason": reason})
     return _envelope(
         True,
         str(run.get("status") or "in_progress"),
         delivery_run_id=record["object_id"],
         current_stage=stage_name,
-        actions=[{"tool": item, "stage": stage_name, "reason": "完成当前阶段或处理当前缺口"} for item in actions],
-        missing_inputs=list(stage_record.get("blockers") or []),
+        next_actions=next_items,
+        actions=[{"tool": item["tool"], "stage": stage_name, "reason": item["reason"]} for item in next_items],
+        missing_inputs=sorted(set(missing_inputs)),
         resource_uris=[record["resource_uri"]],
     )
 
@@ -448,7 +560,503 @@ def resume(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _validation(run: dict[str, Any], scope: str) -> tuple[bool, list[str], list[str]]:
+def _record_view(record: dict[str, Any], kind: str) -> dict[str, Any]:
+    payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    return {
+        "kind": kind,
+        "object_id": str(record.get("object_id") or ""),
+        "workspace_id": str(record.get("workspace_id") or ""),
+        "resource_uri": str(record.get("resource_uri") or ""),
+        "content_hash": str(record.get("content_hash") or ""),
+        "basis_hash": str(record.get("basis_hash") or ""),
+        "status": str(record.get("status") or ""),
+        "payload": payload,
+        "record": record,
+        "content_integrity_ok": str(record.get("content_hash") or "") == sha256_json(payload),
+        "source_ids": [str(item) for item in (record.get("source_ids") or []) if str(item)],
+    }
+
+
+def _resolve_object(workspace_id: str, reference: str) -> dict[str, Any] | None:
+    """Resolve a stage reference against existing MCP object stores.
+
+    Delivery orchestration stores references only; it never creates a shadow
+    copy of a domain object.  A reference is therefore valid only when its
+    object or canonical Resource already exists in this workspace.
+    """
+    ref = str(reference or "").strip()
+    if not ref or ":" in ref and not ref.startswith("lvke://"):
+        return None
+    source_prefix = f"lvke://source-files/workspaces/{workspace_id}/files/"
+    source_ref = ref.removeprefix(source_prefix).split("/", 1)[0] if ref.startswith(source_prefix) else ref
+    try:
+        from lvke_mcp.adapters import source_files_repository
+
+        state, source = source_files_repository._require_source_record(  # noqa: SLF001
+            workspace_id, source_ref, "feasibility-delivery",
+        )
+        del state
+        path = Path(str(source.get("path") or ""))
+        raw = path.read_bytes() if path.is_file() else b""
+        recorded_hash = "sha256:" + str(source.get("sha256") or "").removeprefix("sha256:")
+        actual_hash = "sha256:" + hashlib.sha256(raw).hexdigest() if raw else ""
+        source_uri = f"lvke://source-files/workspaces/{workspace_id}/files/{source_ref}"
+        if not ref.startswith("lvke://") or ref == source_uri:
+            return {
+                "kind": "SourceFileSnapshot",
+                "object_id": source_ref,
+                "workspace_id": workspace_id,
+                "resource_uri": source_uri,
+                "content_hash": recorded_hash,
+                "basis_hash": sha256_json({
+                    "source_id": source_ref,
+                    "source_version": source.get("version"),
+                    "content_hash": recorded_hash,
+                }),
+                "status": str(source.get("extract_status") or source.get("status") or ""),
+                "payload": dict(source),
+                "record": dict(source),
+                "content_integrity_ok": bool(
+                    raw
+                    and actual_hash == recorded_hash
+                    and len(raw) == int(source.get("size_bytes") or -1)
+                ),
+            }
+    except Exception:  # noqa: BLE001 - continue with the remaining object stores
+        pass
+    stores: list[tuple[Any, str]] = [
+        *PLANNING_STORES,
+        *ANALYSIS_STORES,
+        *ACQUISITION_DATA_STORES,
+        (RESEARCH_PACKAGE_STORE, "ResearchPackage"),
+        (SPEC_STORE, "FinanceSpec"),
+        (BASIS_OF_ESTIMATE_STORE, "BasisOfEstimate"),
+        (TABLE_PACKAGE_STORE, "FinanceTablesPackage"),
+        (REPORT_PREPARATION_STORE, "ReportPreparation"),
+        (REPORT_REVISION_STORE, "ReportRevision"),
+        (RUN_STORE, "FeasibilityDeliveryRun"),
+        (CHECKPOINT_STORE, "FeasibilityCheckpoint"),
+        (RELEASE_STORE, "FeasibilityRelease"),
+    ]
+    for store, kind in stores:
+        try:
+            record = store.resolve_uri(ref) if ref.startswith("lvke://") else store.get(workspace_id, ref)
+        except (OSError, ValueError):
+            record = None
+        if record is not None and str(record.get("workspace_id") or "") == workspace_id:
+            if ref.startswith("lvke://") and str(record.get("resource_uri") or "") != ref:
+                continue
+            normalized_kind = "SourceSnapshot" if kind == "source_snapshot" else kind
+            return _record_view(record, normalized_kind)
+
+    acquisition_ref = ref
+    for prefix in (
+        f"lvke://asset-acquisition/workspaces/{workspace_id}/runs/",
+        f"lvke://asset-acquisition/workspaces/{workspace_id}/specs/",
+        f"lvke://asset-acquisition/workspaces/{workspace_id}/table-packages/",
+    ):
+        if ref.startswith(prefix):
+            acquisition_ref = ref.removeprefix(prefix).split("/", 1)[0]
+            break
+    try:
+        from lvke_mcp.domains.asset_acquisition.backend import get_run as get_acquisition_run, get_spec as get_acquisition_spec
+        from lvke_mcp.domains.asset_acquisition.tables import get_package_record as get_acquisition_package
+
+        acquisition_package = get_acquisition_package(workspace_id, acquisition_ref)
+        if acquisition_package is not None:
+            return _record_view(acquisition_package, "AcquisitionTablesPackage")
+        acquisition_run = get_acquisition_run(workspace_id, acquisition_ref)
+        if acquisition_run and str(acquisition_run.get("run_id") or "") == acquisition_ref:
+            return {
+                "kind": "AcquisitionRun", "object_id": acquisition_ref,
+                "workspace_id": workspace_id, "resource_uri": "",
+                "content_hash": sha256_json(acquisition_run),
+                "basis_hash": str(acquisition_run.get("spec_hash") or acquisition_run.get("input_hash") or ""),
+                "status": str(acquisition_run.get("status") or ""),
+                "payload": acquisition_run, "record": acquisition_run,
+            }
+        acquisition_spec = get_acquisition_spec(workspace_id, acquisition_ref)
+        if acquisition_spec and str(acquisition_spec.get("spec_id") or "") == acquisition_ref:
+            acquisition_spec_payload = dict(acquisition_spec)
+            saved_spec = acquisition_spec.get("spec") if isinstance(acquisition_spec.get("spec"), dict) else {}
+            for field in (
+                "evidence_policy", "project_fact_certified", "reconstruction_records",
+                "reconstructed_source_ids", "unresolved_inputs", "release_limitations",
+                "business_decision_status",
+            ):
+                if field in saved_spec:
+                    acquisition_spec_payload[field] = saved_spec[field]
+            return {
+                "kind": "AcquisitionFinanceSpec", "object_id": acquisition_ref,
+                "workspace_id": workspace_id, "resource_uri": "",
+                "content_hash": sha256_json(acquisition_spec),
+                "basis_hash": str(acquisition_spec.get("spec_hash") or ""),
+                "status": str(acquisition_spec.get("confirmation_status") or ""),
+                "payload": acquisition_spec_payload, "record": acquisition_spec,
+            }
+    except Exception:  # noqa: BLE001
+        pass
+
+    finance_ref = ref
+    finance_prefix = f"lvke://finance-model/workspaces/{workspace_id}/runs/"
+    if ref.startswith(finance_prefix):
+        finance_ref = ref.removeprefix(finance_prefix).split("/", 1)[0]
+    # Finance runs are persisted by the finance engine rather than the JSON
+    # artifact adapter.  Expose the same immutable metadata to the gate.
+    try:
+        from lvke_mcp.domains.finance.run_service import get_workspace_finance_run
+
+        finance_run = get_workspace_finance_run(workspace_id, run_id=finance_ref, view="full")
+        if finance_run.get("available") and str(finance_run.get("run_id") or "") == finance_ref:
+            return {
+                "kind": "FinanceRun",
+                "object_id": finance_ref,
+                "workspace_id": workspace_id,
+                "resource_uri": "",
+                "content_hash": sha256_json(finance_run),
+                "basis_hash": str(finance_run.get("spec_hash") or finance_run.get("input_hash") or ""),
+                "status": "succeeded" if finance_run.get("consistency_ok") else "failed",
+                "payload": finance_run,
+                "record": finance_run,
+            }
+    except Exception:  # noqa: BLE001 - an unavailable engine is a missing object
+        pass
+
+    # Review runs use an append-only event store and consequently do not have a
+    # JSONArtifactStore record.  Resolve them through the review projection.
+    review_ref = ref
+    review_prefix = f"lvke://deliverable-review/workspaces/{workspace_id}/reviews/"
+    if ref.startswith(review_prefix):
+        review_ref = ref.removeprefix(review_prefix).split("/", 1)[0]
+    try:
+        from lvke_mcp.servers.lvke_deliverable_review import service as review_service
+
+        review = review_service.get_review({"workspace_id": workspace_id, "review_id": review_ref})
+        if isinstance(review.get("review"), dict):
+            projected = review["review"]
+            return {
+                "kind": "ReviewRun",
+                "object_id": review_ref,
+                "workspace_id": workspace_id,
+                "resource_uri": f"lvke://deliverable-review/workspaces/{workspace_id}/reviews/{review_ref}",
+                "content_hash": sha256_json(projected),
+                "basis_hash": sha256_json({"review_id": review_ref, "target": projected.get("target")}),
+                "status": str(projected.get("review_status") or ""),
+                "payload": projected,
+                "record": projected,
+            }
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def _validate_reference(workspace_id: str, reference: str, stage: str, role: str) -> tuple[dict[str, Any] | None, str | None]:
+    resolved = _resolve_object(workspace_id, reference)
+    if resolved is None:
+        return None, f"{stage}_{role}_ref_not_found:{reference}"
+    if not str(resolved.get("content_hash") or "").startswith("sha256:"):
+        return None, f"{stage}_{role}_content_hash_missing:{reference}"
+    if resolved.get("content_integrity_ok") is False:
+        return None, f"{stage}_{role}_content_hash_mismatch:{reference}"
+    if not str(resolved.get("basis_hash") or "").startswith("sha256:"):
+        return None, f"{stage}_{role}_basis_hash_missing:{reference}"
+    return resolved, None
+
+
+def _stage_objects(run: dict[str, Any], workspace_id: str, stage: str) -> tuple[list[dict[str, Any]], list[str]]:
+    item = (run.get("stages") or {}).get(stage) or {}
+    resolved: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for role in ("input", "output"):
+        for ref in item.get(f"{role}_refs") or []:
+            obj, error = _validate_reference(workspace_id, str(ref), stage, role)
+            if error:
+                errors.append(error)
+            elif obj is not None:
+                resolved.append({**obj, "reference_role": role})
+    return resolved, errors
+
+
+def _declared_parent_ids(payload: dict[str, Any]) -> set[str]:
+    parents = {str(item) for item in (payload.get("parent_object_ids") or []) if str(item)}
+    upstream = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
+    for source in (payload, upstream):
+        for key, value in source.items():
+            if key in {"parent_spec_id", "parent_revision_id", "parent_run_id"}:
+                # Immutable revision ancestry is not a business-stage input.
+                # The stage gate validates the selected revision itself.
+                continue
+            if key.startswith("parent_") and key.endswith("_id") and isinstance(value, str) and value:
+                parents.add(value)
+            elif key in {
+                "project_context_id", "evidence_pack_id", "evidence_pack_ids",
+                "research_package_ids", "run_id", "finance_run_id",
+                "finance_tables_package_id", "spec_id", "basis_of_estimate_id",
+            }:
+                values = value if isinstance(value, list) else [value]
+                parents.update(str(item) for item in values if str(item))
+    return parents
+
+
+def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[str]:
+    blockers: list[str] = []
+    stages = run.get("stages") or {}
+    objects_by_stage: dict[str, list[dict[str, Any]]] = {}
+    for name in STAGES[:-1]:
+        objects, errors = _stage_objects(run, workspace_id, name)
+        objects_by_stage[name] = objects
+        blockers.extend(errors)
+
+    def payloads(name: str) -> list[dict[str, Any]]:
+        return [
+            obj.get("payload") or {}
+            for obj in objects_by_stage.get(name, [])
+            if obj.get("reference_role") == "output"
+        ]
+
+    # Each formal stage must not merely be marked completed; it must carry a
+    # real object with its immutable hashes and no unresolved blocker.
+    for name in STAGES[:-1]:
+        item = stages.get(name) or {}
+        if item.get("blockers"):
+            blockers.append(f"{name}_blockers_present")
+        if item.get("warnings") and any(str(w).lower() in {"stale", "partial"} for w in item.get("warnings") or []):
+            blockers.append(f"{name}_stale_or_partial_warning")
+
+    required_output_kinds: dict[str, set[str]] = {
+        "project": {"ProjectContext"},
+        "research": {"ResearchPackage"},
+        "market": {"MarketSizingCase"},
+        "option": {"OptionComparison"},
+        "scale": {"BuildScaleCase"},
+        "drivers": {"CostDriverSet", "LaborPlan", "RevenueDriverSet"},
+        "finance_spec": {"FinanceSpec", "BasisOfEstimate"},
+        "finance_run": {"FinanceRun"},
+        "finance_tables": {"FinanceTablesPackage"},
+        "report": {"ReportRevision"},
+        "review": {"ReviewRun"},
+    }
+    for name, required in required_output_kinds.items():
+        actual = {
+            str(obj.get("kind") or "")
+            for obj in objects_by_stage.get(name, [])
+            if obj.get("reference_role") == "output"
+        }
+        if name == "finance_spec" and "AcquisitionFinanceSpec" in actual:
+            required = {"AcquisitionFinanceSpec"}
+        elif name == "finance_run" and "AcquisitionRun" in actual:
+            required = {"AcquisitionRun"}
+        elif name == "finance_tables" and "AcquisitionTablesPackage" in actual:
+            required = {"AcquisitionTablesPackage"}
+        for kind in sorted(required - actual):
+            blockers.append(f"{name}_output_kind_missing:{kind}")
+        outputs = [
+            obj for obj in objects_by_stage.get(name, [])
+            if obj.get("reference_role") == "output"
+        ]
+        if outputs:
+            stage_basis = str(((stages.get(name) or {}).get("basis_hash") or ""))
+            allowed_basis = {str(obj.get("basis_hash") or "") for obj in outputs}
+            allowed_basis.add(sha256_json({
+                "input_refs": list((stages.get(name) or {}).get("input_refs") or []),
+                "output_refs": list((stages.get(name) or {}).get("output_refs") or []),
+                "output_basis_hashes": sorted(str(obj.get("basis_hash") or "") for obj in outputs),
+            }))
+            if stage_basis not in allowed_basis:
+                blockers.append(f"{name}_stage_basis_mismatch")
+
+    for index, name in enumerate(STAGES[1:-1], start=1):
+        previous = STAGES[index - 1]
+        previous_outputs = {str(item) for item in ((stages.get(previous) or {}).get("output_refs") or [])}
+        current_inputs = {str(item) for item in ((stages.get(name) or {}).get("input_refs") or [])}
+        if previous_outputs and not previous_outputs.intersection(current_inputs):
+            blockers.append(f"{name}_parent_stage_binding_missing:{previous}")
+        for obj in objects_by_stage.get(name, []):
+            if obj.get("reference_role") != "output":
+                continue
+            declared_parents = _declared_parent_ids(obj.get("payload") or {})
+            declared_parents.discard(str(obj.get("object_id") or ""))
+            if current_inputs and not declared_parents.intersection(current_inputs):
+                if declared_parents:
+                    blockers.append(f"{name}_object_parent_binding_mismatch:{obj.get('object_id')}")
+
+    expected_policy = str(run.get("evidence_policy") or "formal_evidence")
+    evidence_kinds = {
+        "evidence_pack", "ResearchPackage", "FinanceSpec", "BasisOfEstimate",
+        "FinanceRun", "FinanceTablesPackage", "AcquisitionFinanceSpec",
+        "AcquisitionRun", "AcquisitionTablesPackage", "ReportRevision", "ReviewRun",
+    }
+    for objects in objects_by_stage.values():
+        for obj in objects:
+            if str(obj.get("kind") or "") not in evidence_kinds:
+                continue
+            payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else {}
+            if obj.get("kind") == "ReportRevision":
+                payload = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
+            elif obj.get("kind") == "ReviewRun":
+                payload = payload.get("evidence_metadata") if isinstance(payload.get("evidence_metadata"), dict) else {}
+            policy = str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
+            if policy in {"controlled_assumption", "technical_fixture"}:
+                blockers.append(f"formal_evidence_policy_forbidden:{obj.get('object_id')}:{policy}")
+            if policy and policy != expected_policy:
+                blockers.append(f"evidence_policy_mismatch:{obj.get('object_id')}")
+            if expected_policy == "source_reconstructed":
+                if payload.get("project_fact_certified") is True:
+                    blockers.append(f"source_reconstructed_fact_certification_forbidden:{obj.get('object_id')}")
+                records = payload.get("reconstruction_records") or []
+                if not records:
+                    blockers.append(f"reconstruction_records_not_propagated:{obj.get('object_id')}")
+
+    project_ids = [str(item.get("object_id") or "") for item in objects_by_stage.get("project", []) if item.get("kind") == "ProjectContext" and item.get("reference_role") == "output"]
+    if not project_ids:
+        blockers.append("project_context_object_required")
+    run_project = str(run.get("project_context_id") or "")
+    if run_project and project_ids and run_project not in project_ids:
+        blockers.append("project_context_binding_mismatch")
+
+    research_payloads = payloads("research")
+    if not research_payloads:
+        blockers.append("research_package_object_required")
+    for payload in research_payloads:
+        status = str(payload.get("status") or "")
+        if status == "partial" or not payload.get("quality_review_id"):
+            blockers.append("research_quality_confirmation_required")
+        if payload.get("quality_review_status") not in {"accepted", "accepted_with_limitations", "passed"}:
+            blockers.append("research_quality_not_accepted")
+
+    spec_payloads = [
+        obj.get("payload") or {}
+        for obj in objects_by_stage.get("finance_spec", [])
+        if obj.get("reference_role") == "output"
+        and obj.get("kind") in {"FinanceSpec", "AcquisitionFinanceSpec"}
+    ]
+    if not spec_payloads:
+        blockers.append("finance_spec_object_required")
+    for payload in spec_payloads:
+        if str(payload.get("confirmation_status") or "") not in {"confirmed", "formal_ready"}:
+            blockers.append("finance_spec_not_confirmed")
+
+    finance_payloads = payloads("finance_run")
+    finance_run_ids = [str(obj.get("object_id") or "") for obj in objects_by_stage.get("finance_run", []) if obj.get("kind") in {"FinanceRun", "AcquisitionRun"} and obj.get("reference_role") == "output"]
+    if not finance_run_ids:
+        blockers.append("finance_run_object_required")
+    spec_ids = {
+        str(obj.get("object_id") or "")
+        for obj in objects_by_stage.get("finance_spec", [])
+        if obj.get("reference_role") == "output" and obj.get("kind") in {"FinanceSpec", "AcquisitionFinanceSpec"}
+    }
+    spec_hashes = {str(payload.get("spec_hash") or "") for payload in spec_payloads}
+    for payload in finance_payloads:
+        if str(payload.get("status") or payload.get("calculation_status") or "") in {"failed", "none"}:
+            blockers.append("finance_run_not_successful")
+        run_spec_id = str(payload.get("spec_id") or payload.get("finance_spec_id") or "")
+        if spec_ids and run_spec_id:
+            if run_spec_id not in spec_ids:
+                blockers.append("finance_run_spec_binding_mismatch")
+        elif spec_hashes and str(payload.get("spec_hash") or "") not in spec_hashes:
+            blockers.append("finance_run_spec_binding_mismatch")
+
+    table_payloads = payloads("finance_tables")
+    if not table_payloads:
+        blockers.append("finance_tables_package_required")
+    from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
+    acquisition_table_keys: set[str] = set()
+    try:
+        from lvke_mcp.domains.asset_acquisition.tables import TABLE_DEFINITIONS
+        acquisition_table_keys = {key for key, _title in TABLE_DEFINITIONS}
+    except Exception:  # noqa: BLE001
+        pass
+    for payload in table_payloads:
+        tables = payload.get("tables") if isinstance(payload.get("tables"), dict) else {}
+        required_tables = acquisition_table_keys if str(payload.get("package_schema") or "").startswith("acquisition_") else set(DELIVERY_TABLE_KEYS)
+        missing = [key for key in required_tables if key not in tables]
+        if missing:
+            blockers.append("finance_tables_incomplete")
+        if finance_run_ids and str(payload.get("run_id") or payload.get("bound_run_id") or "") != finance_run_ids[0]:
+            blockers.append("finance_tables_run_binding_mismatch")
+        acquisition_integrity = str((payload.get("integrity") or {}).get("status") or "") == "passed"
+        if not acquisition_integrity:
+            try:
+                from lvke_mcp.domains.finance import tables_service
+
+                formal_validation = tables_service.validate(
+                    workspace_id,
+                    str(payload.get("run_id") or ""),
+                    validation_scope="formal",
+                )
+            except Exception:  # noqa: BLE001
+                formal_validation = {"success": False}
+            if not formal_validation.get("success"):
+                blockers.append("finance_tables_formal_validation_required")
+
+    report_payloads = payloads("report")
+    if not report_payloads:
+        blockers.append("report_revision_required")
+    for payload in report_payloads:
+        snapshot = payload.get("document_snapshot") if isinstance(payload.get("document_snapshot"), dict) else {}
+        content = str(snapshot.get("content") or "")
+        chapter_count = sum(1 for number in range(1, 10) if f"第{number}章" in content)
+        if chapter_count < 9:
+            blockers.append("report_nine_chapters_required")
+        section_lineage = payload.get("section_lineage") if isinstance(payload.get("section_lineage"), dict) else {}
+        complete_section_bindings = [
+            item for item in section_lineage.values()
+            if isinstance(item, dict)
+            and item.get("upstream_refs")
+            and item.get("citation_locators")
+            and item.get("upstream_basis_hashes")
+        ]
+        if len(complete_section_bindings) < 9:
+            blockers.append("report_section_lineage_incomplete")
+        upstream = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
+        if not upstream.get("upstream_refs") and not upstream.get("evidence_pack_ids"):
+            blockers.append("report_upstream_refs_required")
+        if finance_run_ids and str(upstream.get("run_id") or "") != finance_run_ids[0]:
+            blockers.append("report_finance_run_binding_mismatch")
+        if table_payloads and str(upstream.get("finance_tables_package_id") or "") not in {str(obj.get("object_id") or "") for obj in objects_by_stage.get("finance_tables", []) if obj.get("reference_role") == "output"}:
+            blockers.append("report_finance_tables_binding_mismatch")
+        if payload.get("readiness") is False:
+            blockers.append("report_readiness_failed")
+    for obj in objects_by_stage.get("report", []):
+        if obj.get("reference_role") != "output" or obj.get("kind") != "ReportRevision":
+            continue
+        try:
+            from lvke_mcp.domains.reports.validation import validate_report
+            report_validation = validate_report(workspace_id, str(obj.get("object_id") or ""))
+            if not report_validation.get("valid"):
+                blockers.append("report_readiness_failed")
+        except Exception:  # noqa: BLE001
+            blockers.append("report_readiness_unverifiable")
+
+    review_payloads = payloads("review")
+    if not review_payloads:
+        blockers.append("review_run_required")
+    for payload in review_payloads:
+        if payload.get("active_blocking_finding_ids"):
+            blockers.append("review_open_blocker")
+        findings = payload.get("findings") or []
+        open_findings = [row for row in findings if isinstance(row, dict) and str(row.get("status") or "").lower() in {"open", "pending", "needs_revision", "in_progress"}]
+        if open_findings:
+            blockers.append("review_open_finding")
+        if payload.get("validation_complete") is False:
+            blockers.append("review_not_complete")
+    knowledge_ids = list(run.get("knowledge_candidate_ids") or [])
+    if knowledge_ids:
+        try:
+            from lvke_mcp.servers.lvke_knowledge_governance import service as knowledge_service
+            for candidate_id in knowledge_ids:
+                result = knowledge_service.get_candidate({"workspace_id": workspace_id, "candidate_id": candidate_id})
+                reviews = list(result.get("reviews") or [])
+                releases = list(result.get("releases") or [])
+                accepted = any(str((row.get("decision") or (row.get("payload") or {}).get("decision") or "")) == "accepted" for row in reviews if isinstance(row, dict))
+                if not result.get("success") or str(result.get("candidate_status") or "") != "published" or not accepted or not releases:
+                    blockers.append(f"knowledge_candidate_not_accepted:{candidate_id}")
+        except Exception:
+            blockers.append("knowledge_review_required")
+    return sorted(set(blockers))
+
+
+def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tuple[bool, list[str], list[str]]:
     stages = run.get("stages") or {}
     blockers: list[str] = []
     warnings: list[str] = []
@@ -464,12 +1072,26 @@ def _validation(run: dict[str, Any], scope: str) -> tuple[bool, list[str], list[
         if scope == "formal":
             if item_status != "completed":
                 blockers.append(f"{name}_{item_status or 'pending'}")
+            if item.get("blockers"):
+                blockers.append(f"{name}_blockers_present")
+            if item_status in {"partial", "stale", "blocked"}:
+                blockers.append(f"{name}_{item_status}")
         elif item_status in {"partial", "blocked", "stale"}:
             warnings.append(f"{name}_{item_status}")
         if index > 0:
             previous = stages.get(STAGES[index - 1]) or {}
             if item_status == "completed" and previous.get("status") != "completed":
                 blockers.append(f"stage_order_invalid:{name}")
+        if workspace_id and item_status == "completed":
+            _objects, reference_errors = _stage_objects(run, workspace_id, name)
+            blockers.extend(reference_errors)
+            if index > 0:
+                previous_outputs = {
+                    str(ref) for ref in (stages.get(STAGES[index - 1]) or {}).get("output_refs") or []
+                }
+                current_inputs = {str(ref) for ref in item.get("input_refs") or []}
+                if previous_outputs and not previous_outputs.intersection(current_inputs):
+                    blockers.append(f"{name}_parent_stage_binding_missing:{STAGES[index - 1]}")
     if scope == "formal" and str(run.get("delivery_mode") or "") == "estimate_preview":
         blockers.append("preview_cannot_formal_release")
     evidence_policy = str(run.get("evidence_policy") or "formal_evidence")
@@ -481,8 +1103,28 @@ def _validation(run: dict[str, Any], scope: str) -> tuple[bool, list[str], list[
     if scope == "formal" and evidence_policy == "source_reconstructed":
         if not run.get("reconstructed_source_ids"):
             blockers.append("reconstructed_source_ids_missing")
+        records = list(run.get("reconstruction_records") or [])
+        if not records:
+            blockers.append("reconstruction_records_missing")
+        else:
+            from lvke_mcp.runtime.source_reconstruction import validate_reconstruction_records
+            blockers.extend(
+                f"reconstruction_record_invalid:{item.get('index')}:{item.get('code')}"
+                for item in validate_reconstruction_records(records)[:20]
+            )
+            for item in records:
+                uri = str(item.get("source_uri") or "")
+                if uri.startswith("lvke://source-reconstructed/"):
+                    continue
+                resolved = _resolve_object(workspace_id, uri)
+                if resolved is None:
+                    blockers.append(f"reconstruction_source_not_found:{uri}")
+                elif str(resolved.get("content_hash") or "") != str(item.get("content_hash") or ""):
+                    blockers.append(f"reconstruction_source_hash_mismatch:{uri}")
         if run.get("project_fact_certified") is True:
             blockers.append("source_reconstructed_cannot_certify_project_fact")
+    if scope == "formal" and workspace_id:
+        blockers.extend(_formal_object_validation(run, workspace_id))
     return not blockers, blockers, warnings
 
 
@@ -495,7 +1137,7 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
     if scope not in {"technical", "formal"}:
         return _blocked("validation_scope_invalid", "scope 必须是 technical 或 formal")
     run = _view(record)
-    passed, blockers, warnings = _validation(run, scope)
+    passed, blockers, warnings = _validation(run, scope, workspace_id)
     return _envelope(
         passed,
         "ok" if passed else "blocked",
@@ -526,7 +1168,7 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("release_scope_invalid", "release_scope 必须是 process_acceptance 或 project_delivery")
     if requested_scope != str(run.get("release_scope") or "project_delivery"):
         run = {**run, "release_scope": requested_scope}
-    passed, blockers, warnings = _validation(run, "formal")
+    passed, blockers, warnings = _validation(run, "formal", workspace_id)
     if not passed:
         if "project_fact_evidence_missing" in blockers:
             return _blocked("project_fact_evidence_missing", "当前资料只有 source_reconstructed，不能作为 project_delivery 发布", next_actions=["将 release_scope 改为 process_acceptance"], validation_blockers=blockers)
@@ -543,6 +1185,12 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(run.get("unresolved_inputs") or []),
             "release_limitations": list(run.get("release_limitations") or []),
+            "reconstruction_records": list(run.get("reconstruction_records") or []),
+            "stage_bindings": dict(run.get("stage_bindings") or {}),
+            "lineage_hash": sha256_json({
+                "lineage": run.get("lineage") or {},
+                "stage_bindings": run.get("stage_bindings") or {},
+            }),
             "release_note": request["release_note"],
             "object_refs": run.get("lineage") or {},
             "released_at": utc_now(),

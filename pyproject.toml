@@ -57,4 +57,5 @@ lvke_mcp = [
   "domains/**/config/**/*",
   "domains/**/docs/**/*",
   "servers/*/seed/**/*",
+  "config/**/*",
 ]

@@ -301,6 +301,88 @@ def resolve_authoritative_evidence_binding(
         }
 
 
+def resolve_reconstructed_evidence_binding(
+    workspace_id: str,
+    *,
+    source_id: str,
+    locator: str,
+    reconstruction_record: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve an explicit reconstruction mapping against one source snapshot.
+
+    This confirms only snapshot identity and the declared reconstruction
+    locator/method.  It deliberately does not certify the mapped value as an
+    original project fact.
+    """
+
+    from lvke_mcp.runtime.source_reconstruction import reconstruction_errors
+
+    source_id = str(source_id or "").strip()
+    locator = str(locator or "").strip()
+    base = {
+        "source_id": source_id,
+        "evidence_id": "",
+        "locator": locator,
+        "evidence_grade": "B",
+        "review_status": "approved",
+        "validation_status": "missing",
+        "authoritative": True,
+        "binding_ok": False,
+        "allow_claimed_value": False,
+        "project_fact_certified": False,
+        "evidence_policy": "source_reconstructed",
+        "issues": [],
+    }
+    errors = reconstruction_errors(reconstruction_record)
+    if errors:
+        base["issues"] = errors
+        return base
+    expected_uri = f"lvke://source-files/workspaces/{workspace_id}/files/{source_id}"
+    if str(reconstruction_record.get("source_uri") or "") != expected_uri:
+        base["issues"] = ["source_uri 与 Source Snapshot 不一致"]
+        return base
+    if str(reconstruction_record.get("locator") or "") != locator:
+        base["issues"] = ["locator 与来源重建记录不一致"]
+        return base
+    with _state_guard(workspace_id):
+        state = _load_state(workspace_id)
+        record = (state.get("files") or {}).get(source_id)
+        if not isinstance(record, dict) or str(record.get("workspace_id") or "") != workspace_id:
+            base["issues"] = ["source 不存在或不属于当前工作区"]
+            return base
+        source_path = Path(str(record.get("path") or ""))
+        recorded_hash = "sha256:" + str(record.get("sha256") or "").removeprefix("sha256:")
+        if recorded_hash != str(reconstruction_record.get("content_hash") or ""):
+            base["issues"] = ["来源重建 hash 与 Source Snapshot 不一致"]
+            return {**base, "source_sha256": recorded_hash}
+        if not source_path.is_file():
+            base["issues"] = ["Source Snapshot 文件不存在"]
+            return {**base, "source_sha256": recorded_hash}
+        raw = source_path.read_bytes()
+        actual_hash = "sha256:" + hashlib.sha256(raw).hexdigest()
+        if (
+            actual_hash != recorded_hash
+            or len(raw) != int(record.get("size_bytes") or -1)
+        ):
+            base["issues"] = ["Source Snapshot 完整性校验失败"]
+            return {**base, "source_sha256": recorded_hash}
+        spreadsheet = str(record.get("declared_mime") or "").lower() in _SPREADSHEET_MIMES
+        return {
+            **base,
+            "evidence_grade": "A" if spreadsheet else "B",
+            "validation_status": "passed",
+            "binding_ok": True,
+            "allow_claimed_value": True,
+            "source_sha256": recorded_hash,
+            "source_version": record.get("version"),
+            "source_format": record.get("declared_mime"),
+            "reconstruction_id": reconstruction_record.get("reconstruction_id"),
+            "reconstruction_method": reconstruction_record.get("method"),
+            "source_kind": reconstruction_record.get("source_kind"),
+            "issues": [],
+        }
+
+
 def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     data = path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()

@@ -9,8 +9,8 @@
   LLM；Agent 完成研究后用 ``dr_submit`` 固化带引用的发现。
 - **硬规则（只收紧不放宽）**：
   · 预算耗尽→partial，绝不假 done（引擎已保证，本层不覆盖 status）。
-  · 人工采信闸门 research_review 代码级 = False，本 server **不代替人工点头**，
-    也不暴露一个名为 confirm、实际上只读的误导性工具。
+  · dr_submit 只负责保存 partial；dr_confirm_quality 单独保存质量指标和资料限制
+    决策，不把研究文本伪装成独立完成事实。
   · checkpoint 只在真实存在时进资源清单，绝不给死链 URI。
   · 密钥走 env，不进产物。
 
@@ -29,6 +29,7 @@ from mcp import types
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.runtime.responses import err, ok
+from lvke_mcp.runtime.storage import paginate_resource_entries
 from lvke_mcp.domains.research import application as package_service
 
 SERVER_NAME = "lvke-deep-research"
@@ -184,7 +185,12 @@ _BUNDLE_OUTPUT = _output_schema(
     success_requires=["research_package_id", "task_id", "resources"],
 )
 _RESOURCE_LIST_OUTPUT = _output_schema(
-    {"resources": {"type": "array", "items": {"type": "object"}}},
+    {
+        "resources": {"type": "array", "items": {"type": "object"}},
+        "next_cursor": {"type": ["string", "null"]},
+        "has_more": {"type": "boolean"},
+        "snapshot_hash": {"type": "string"},
+    },
     success_requires=["resources"],
 )
 _RESOURCE_READ_OUTPUT = _output_schema(
@@ -793,6 +799,8 @@ def build_server() -> OfficialStdioServer:
                     },
                 },
                 "market_field_bindings": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+                "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
+                "release_limitations": {"type": "array", "items": {"type": "string"}},
             },
             "required": ["workspace_id", "task_id", "report_md", "citations"],
         },
@@ -817,6 +825,27 @@ def build_server() -> OfficialStdioServer:
         handler=package_service.continue_task,
         output_schema=_CONTINUE_OUTPUT,
         annotations=_agent_write,
+    )
+    server.register_tool(
+        name="dr_confirm_quality",
+        description="为 dr_submit 固化的 partial 研究包创建独立质量确认；可明确接受 source_reconstructed 的资料限制，但不认证项目事实。",
+        input_schema={
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "workspace_id": _ws_schema,
+                "research_package_id": {"type": "string", "minLength": 1},
+                "query_rounds": {"type": "integer", "minimum": 0},
+                "usable_source_count": {"type": "integer", "minimum": 0},
+                "citation_coverage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                "missing_fields": {"type": "array", "items": {"type": "string"}},
+                "conflicts": {"type": "array", "items": {"type": "object"}},
+                "accept_material_limitations": {"type": "boolean", "default": False},
+            },
+            "required": ["workspace_id", "research_package_id"],
+        },
+        handler=package_service.confirm_quality,
+        output_schema=_BUNDLE_OUTPUT,
+        annotations=_bundle_write,
     )
     server.register_tool(
         name="dr_status",
@@ -907,11 +936,19 @@ def build_server() -> OfficialStdioServer:
         description="按工作区列举已固化研究包与 artifact；不会枚举其他工作区元数据。",
         input_schema={
             "type": "object", "additionalProperties": False,
-            "properties": {"workspace_id": _ws_schema},
+            "properties": {
+                "workspace_id": _ws_schema,
+                "resource_type": {"type": "string", "maxLength": 100},
+                "cursor": {"type": "string", "maxLength": 8192},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+            },
             "required": ["workspace_id"],
         },
         handler=lambda args: _list_scoped_resources(
-            args["workspace_id"]
+            args["workspace_id"],
+            resource_type=str(args.get("resource_type") or ""),
+            cursor=str(args.get("cursor") or ""),
+            limit=int(args.get("limit") or 50),
         ),
         output_schema=_RESOURCE_LIST_OUTPUT,
         annotations=_read_only,
@@ -961,9 +998,30 @@ def _read_scoped_resource(
     return payload
 
 
-def _list_scoped_resources(workspace_id: str) -> dict[str, Any]:
+def _list_scoped_resources(
+    workspace_id: str,
+    *,
+    resource_type: str = "",
+    cursor: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
     payload = _ok_env(None, source=f"{SERVER_NAME}.dr_list_resources")
-    payload["resources"] = package_service.list_resources(workspace_id)
+    entries = package_service.list_resources(workspace_id)
+    if resource_type:
+        entries = [
+            item for item in entries
+            if f"/{resource_type.strip('/')}/" in str(item.get("uri") or "")
+        ]
+    try:
+        page = paginate_resource_entries(entries, cursor=cursor, limit=limit)
+    except ValueError as exc:
+        return _err_env(
+            f"{SERVER_NAME}.{str(exc)}",
+            "Resource 分页游标无效或列表已变化",
+            status="blocked",
+        )
+    payload.update(page)
+    payload["resource_uris"] = [str(item.get("uri") or "") for item in page["resources"]]
     return payload
 
 

@@ -41,7 +41,9 @@ _METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("payback", re.compile(r"投资回收期|回收期", re.I)),
     ("discount_rate", re.compile(r"折现率|基准收益率", re.I)),
     ("bep", re.compile(r"盈亏平衡点|\bBEP\b", re.I)),
-    ("total_investment", re.compile(r"项目总投资|总投资", re.I)),
+    ("purchase_price", re.compile(r"purchase_price|收购价|购买价|成交价", re.I)),
+    ("valuation_value", re.compile(r"valuation_value|评估值|估值", re.I)),
+    ("total_investment", re.compile(r"total_investment|项目总投资|总投资", re.I)),
     ("construction_investment", re.compile(r"建设投资|三段合计", re.I)),
     ("construction_interest", re.compile(r"建设期(?:贷款)?利息", re.I)),
     ("working_capital", re.compile(r"流动资金|营运资金", re.I)),
@@ -85,7 +87,7 @@ _FINANCIAL_METRICS = {
     "project_irr", "capital_irr", "npv", "dscr", "icr", "payback",
     "static_payback", "dynamic_payback",
     "discount_rate", "bep",
-    "total_investment", "construction_investment", "working_capital", "capital",
+    "purchase_price", "valuation_value", "total_investment", "construction_investment", "working_capital", "capital",
     "construction_interest", "debt", "revenue", "operating_cost", "total_cost",
     "net_profit", "income_tax", "depreciation", "profit", "annual_use",
     "engineering_cost", "civil_cost", "equipment_cost", "installation_cost", "other_investment_cost",
@@ -104,7 +106,9 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("payback", re.compile(r"(?<!dynamic_)(?<!static_)payback", re.I)),
     ("discount_rate", re.compile(r"benchmark_rate|discount_rate", re.I)),
     ("bep", re.compile(r"bep(?:_pct)?", re.I)),
-    ("total_investment", re.compile(r"total_investment|investment\.total(?:$|[.\[])|total_inv", re.I)),
+    ("purchase_price", re.compile(r"purchase_price", re.I)),
+    ("valuation_value", re.compile(r"valuation_value", re.I)),
+    ("total_investment", re.compile(r"total_investment|total_acquisition_cost|investment\.total(?:$|[.\[])|total_inv", re.I)),
     ("construction_investment", re.compile(r"construction_investment|investment\.construction", re.I)),
     ("construction_interest", re.compile(r"construction_interest|investment\.interest|interest_during_construction", re.I)),
     ("working_capital", re.compile(r"working_capital|investment\.working", re.I)),
@@ -577,7 +581,6 @@ def _source_reconstructed_candidate(candidate: dict[str, Any]) -> bool:
     content_hash = str(source.get("content_hash") or "")
     return bool(
         candidate.get("_pack_evidence_track") == "source_reconstructed"
-        and candidate.get("_pack_server_signed_candidates") is True
         and candidate.get("_pack_source_reconstructed_candidate") is True
         and re.fullmatch(r"(?:sha256:)?[0-9a-fA-F]{64}", content_hash)
         and isinstance(candidate.get("locator"), dict)
