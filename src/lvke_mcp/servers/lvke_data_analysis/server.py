@@ -91,8 +91,16 @@ _COMPARE_OUTPUT = {
     "required": [*_OUTPUT["required"], "consistent", "conflicts", "missing", "unable_to_compare", "period_mismatches"],
 }
 _MISSING_FIELD = {
-    "type": "object", "additionalProperties": False,
-    "properties": {"field": {"type": "string"}, "reason": {"type": "string"}},
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "field": {"type": "string"},
+        "reason": {"type": "string"},
+        "aliases_tried": {"type": "array", "items": {"type": "string"}},
+        "expected_unit": {"type": ["string", "null"]},
+        "source_ids": {"type": "array", "items": {"type": "string"}},
+        "next_action": {"type": "string"},
+    },
     "required": ["field", "reason"],
 }
 _PACK_OUTPUT = {
