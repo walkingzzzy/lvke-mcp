@@ -643,11 +643,14 @@ def _resolve_object(workspace_id: str, reference: str) -> dict[str, Any] | None:
             record = store.resolve_uri(ref) if ref.startswith("lvke://") else store.get(workspace_id, ref)
         except (OSError, ValueError):
             record = None
-        if record is not None and str(record.get("workspace_id") or "") == workspace_id:
-            if ref.startswith("lvke://") and str(record.get("resource_uri") or "") != ref:
-                continue
-            normalized_kind = "SourceSnapshot" if kind == "source_snapshot" else kind
-            return _record_view(record, normalized_kind)
+        if record is None:
+            continue
+        if ref.startswith("lvke://") and str(record.get("resource_uri") or "") != ref:
+            continue
+        if str(record.get("workspace_id") or "") != workspace_id:
+            continue
+        normalized_kind = "SourceSnapshot" if kind == "source_snapshot" else kind
+        return _record_view(record, normalized_kind)
 
     acquisition_ref = ref
     for prefix in (
@@ -750,9 +753,32 @@ def _resolve_object(workspace_id: str, reference: str) -> dict[str, Any] | None:
     return None
 
 
+def _uri_workspace(reference: str) -> str | None:
+    """Return the workspace embedded in an ``lvke://`` URI, if it has one.
+
+    Every canonical Resource URI carries its owning workspace as
+    ``lvke://<domain>/workspaces/<workspace_id>/<segment>/<object_id>``.  Reading
+    it back is what lets the gate tell "no such object" apart from "that object
+    belongs to another workspace" without probing every store.
+    """
+
+    ref = str(reference or "").strip()
+    if not ref.startswith("lvke://"):
+        return None
+    parts = ref.removeprefix("lvke://").split("/")
+    if len(parts) < 4 or parts[1] != "workspaces":
+        return None
+    return parts[2] or None
+
+
 def _validate_reference(workspace_id: str, reference: str, stage: str, role: str) -> tuple[dict[str, Any] | None, str | None]:
     resolved = _resolve_object(workspace_id, reference)
     if resolved is None:
+        # P1-017 修复：URI 合法但属于另一个 workspace 时，原先一律报 ref_not_found，
+        # 把"跨 workspace 引用"误述为"对象不存在"，指向了错误的原因。
+        embedded = _uri_workspace(reference)
+        if embedded is not None and embedded != workspace_id:
+            return None, f"{stage}_{role}_ref_wrong_workspace:{reference}"
         return None, f"{stage}_{role}_ref_not_found:{reference}"
     if not str(resolved.get("content_hash") or "").startswith("sha256:"):
         return None, f"{stage}_{role}_content_hash_missing:{reference}"
