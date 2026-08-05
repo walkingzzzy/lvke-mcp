@@ -110,6 +110,18 @@ class JSONArtifactStore:
             f"{self.uri_segment}/{object_id}"
         )
 
+    def preview_identity(self, workspace_id: str, payload: dict[str, Any]) -> dict[str, str]:
+        """Derive the identity a matching ``put`` will produce, without writing.
+
+        Object IDs are content-addressed, so this is a pure function of the
+        payload.  Handlers that must build and validate a complete response
+        before any state changes can resolve identifiers up front and keep the
+        writes as their last step.
+        """
+
+        object_id = f"{self.id_prefix}_{sha256_json(payload).removeprefix('sha256:')[:24]}"
+        return {"object_id": object_id, "resource_uri": self.uri(workspace_id, object_id)}
+
     def put(
         self,
         workspace_id: str,

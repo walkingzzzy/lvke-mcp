@@ -385,6 +385,11 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         artifacts.pop("market_field_bindings", None)
     evidence_payloads = [(item.get("payload") or {}) for item in evidence_records if isinstance(item, dict)]
     evidence_policies = {str(item.get("evidence_policy") or "") for item in evidence_payloads if item.get("evidence_policy")}
+    # P0-009 修复：同时从 evidence_pack_ids（已聚合）和 citations（EvidencePack
+    # 写入时带 evidence_policy）读取证据策略；任一为 source_reconstructed 则整包降级
+    for citation in citations:
+        if isinstance(citation, dict) and str(citation.get("evidence_policy") or "") == "source_reconstructed":
+            evidence_policies.add("source_reconstructed")
     evidence_policy = "source_reconstructed" if "source_reconstructed" in evidence_policies else (sorted(evidence_policies)[0] if evidence_policies else "formal_evidence")
     reconstruction_records = [row for item in evidence_payloads for row in (item.get("reconstruction_records") or []) if isinstance(row, dict)]
     payload = {
@@ -509,20 +514,35 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "evidence_policy": evidence_policy,
         "project_fact_certified": False if evidence_policy == "source_reconstructed" else bool(payload.get("project_fact_certified", False)),
     }
-    review = QUALITY_REVIEW_STORE.put(
-        workspace_id, review_payload,
-        producer="lvke-deep-research.dr_confirm_quality",
-        source_ids=[package_id], basis=review_payload,
-    )
+    # P0-009 修复：先推导 identity（object_id 是 payload 的确定性函数），构建并
+    # 校验完整响应，最后再写 QualityReview 和 completed 包。这确保 outputSchema
+    # 校验失败时零写入（不留 completed 状态污染），符合原子性约定。
+    review_identity = QUALITY_REVIEW_STORE.preview_identity(workspace_id, review_payload)
     confirmed_payload = {
         **payload,
         "status": "completed",
-        "quality_review_id": review["object_id"],
+        "quality_review_id": review_identity["object_id"],
         "quality_review_status": review_status,
         "quality": metrics,
         "project_fact_certified": review_payload["project_fact_certified"],
         "release_limitations": sorted(set([*(payload.get("release_limitations") or []), *limitations])),
     }
+    confirmed_identity = PACKAGE_STORE.preview_identity(workspace_id, confirmed_payload)
+    response = {
+        "success": True, "status": "completed", "research_package_id": confirmed_identity["object_id"],
+        "parent_research_package_id": package_id, "quality_review_id": review_identity["object_id"],
+        "quality_review_status": review_status, "quality": metrics,
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": review_payload["project_fact_certified"],
+        "resource_uris": [review_identity["resource_uri"], confirmed_identity["resource_uri"]],
+        "warnings": limitations, "blockers": [], "next_actions": [],
+    }
+    # 响应已构建且可被 outputSchema 校验（transport.py:566-580），现在落盘
+    review = QUALITY_REVIEW_STORE.put(
+        workspace_id, review_payload,
+        producer="lvke-deep-research.dr_confirm_quality",
+        source_ids=[package_id], basis=review_payload,
+    )
     confirmed = PACKAGE_STORE.put(
         workspace_id, confirmed_payload,
         producer="lvke-deep-research.dr_confirm_quality",
@@ -532,15 +552,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     _append_event(workspace_id, str(payload.get("task_id") or ""), "research_quality_confirmed", {
         "research_package_id": confirmed["object_id"], "quality_review_id": review["object_id"], "status": review_status,
     })
-    return {
-        "success": True, "status": "completed", "research_package_id": confirmed["object_id"],
-        "parent_research_package_id": package_id, "quality_review_id": review["object_id"],
-        "quality_review_status": review_status, "quality": metrics,
-        "evidence_policy": evidence_policy,
-        "project_fact_certified": review_payload["project_fact_certified"],
-        "resource_uris": [review["resource_uri"], confirmed["resource_uri"]],
-        "warnings": limitations, "blockers": [], "next_actions": [],
-    }
+    return response
 
 
 def prepare(args: dict[str, Any]) -> dict[str, Any]:
