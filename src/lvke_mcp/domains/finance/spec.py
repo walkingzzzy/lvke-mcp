@@ -21,6 +21,22 @@ SPEC_VERSION = "finance_spec.v2"
 LEGACY_SPEC_VERSION = "finance_spec.v1"
 LATEST_SPEC_VERSION = "finance_spec.v3"
 SUPPORTED_SPEC_VERSIONS = (LEGACY_SPEC_VERSION, SPEC_VERSION, LATEST_SPEC_VERSION)
+# P1-014：连字符写法是同一版本的常见别名。归一化到下划线正式写法，避免
+# prepare 静默放行、validate/confirm 才报 unsupported 的口径不一致。
+# 真正未知的版本（如 finance_spec.v9）不在此表，仍由 validate 显式拒绝。
+SPEC_VERSION_ALIASES = {
+    "finance-spec.v1": LEGACY_SPEC_VERSION,
+    "finance-spec.v2": SPEC_VERSION,
+    "finance-spec.v3": LATEST_SPEC_VERSION,
+}
+
+
+def normalize_spec_version(value: Any) -> Any:
+    """Map a known version alias onto its canonical spelling, else pass through."""
+
+    if value in (None, ""):
+        return value
+    return SPEC_VERSION_ALIASES.get(str(value), value)
 CONFIRMED_SOURCE_HINTS = {"snapshot_fixed", "user_confirmed", "user_edited", "confirmed_spec"}
 SPEC_MIGRATOR_VERSIONS = {
     "v1_to_v2": "finance_spec_migrator.v1_to_v2.1",
@@ -306,7 +322,8 @@ class FinanceSpecV3(FinanceSpec):
 def migrate_spec_v1_to_v2(spec: dict[str, Any]) -> dict[str, Any]:
     """Mechanically migrate a legacy spec without inventing business values."""
     out = dict(spec or {})
-    if out.get("version") not in (None, "", LEGACY_SPEC_VERSION, SPEC_VERSION):
+    version = normalize_spec_version(out.get("version"))
+    if version not in (None, "", LEGACY_SPEC_VERSION, SPEC_VERSION):
         return out
     out["version"] = SPEC_VERSION
     source_hint = str(out.get("source_hint") or "")
@@ -324,7 +341,7 @@ def migrate_spec_v2_to_v3(spec: dict[str, Any]) -> dict[str, Any]:
 
     if not isinstance(spec, dict):
         return {}
-    version = spec.get("version")
+    version = normalize_spec_version(spec.get("version"))
     if version in (None, "", LEGACY_SPEC_VERSION):
         source = migrate_spec_v1_to_v2(spec)
     elif version in (SPEC_VERSION, LATEST_SPEC_VERSION):
@@ -378,7 +395,10 @@ def migrate_spec_to_v3_with_trace(
     """Migrate to v3 and retain every mandated hop without circular hashes."""
 
     source = dict(spec or {})
-    source_version = source.get("version") or LEGACY_SPEC_VERSION
+    raw_version = source.get("version") or LEGACY_SPEC_VERSION
+    source_version = normalize_spec_version(raw_version)
+    if source_version != raw_version:
+        source["version"] = source_version
     if source_version not in SUPPORTED_SPEC_VERSIONS:
         return dict(source), {
             "source_spec_version": source_version,
@@ -450,9 +470,10 @@ def spec_migration_diff(before: dict[str, Any], after: dict[str, Any]) -> list[d
 
 
 def mark_spec_confirmed(spec: dict[str, Any]) -> dict[str, Any]:
+    version = normalize_spec_version((spec or {}).get("version"))
     out = (
         migrate_spec_to_v3(spec)
-        if isinstance(spec, dict) and spec.get("version") == LATEST_SPEC_VERSION
+        if isinstance(spec, dict) and version == LATEST_SPEC_VERSION
         else migrate_spec_v1_to_v2(spec)
     )
     out["confirmation_status"] = "confirmed"
@@ -465,9 +486,10 @@ def mark_spec_confirmed(spec: dict[str, Any]) -> dict[str, Any]:
 
 def validate_for_formal(spec: dict[str, Any]) -> tuple[bool, list[str]]:
     ok, errors = validate(spec)
+    version = normalize_spec_version((spec or {}).get("version"))
     out = (
         migrate_spec_to_v3(spec)
-        if isinstance(spec, dict) and spec.get("version") == LATEST_SPEC_VERSION
+        if isinstance(spec, dict) and version == LATEST_SPEC_VERSION
         else migrate_spec_v1_to_v2(spec)
     )
     if out.get("confirmation_status") != "confirmed":
@@ -953,9 +975,12 @@ def coerce_llm_spec(spec: dict[str, Any], requirement: dict[str, Any] | None = N
 def validate(spec: dict[str, Any]) -> tuple[bool, list[str]]:
     """结构 + 数值合法性校验。返回 (ok, errors)。非法时上层重试或回退默认 spec。"""
     errs: list[str] = []
-    version = spec.get("version") if isinstance(spec, dict) else None
+    raw_version = spec.get("version") if isinstance(spec, dict) else None
+    # P1-014：先归一化连字符别名，再判定是否受支持。否则 prepare 已按别名迁移，
+    # 这里却报 unsupported，形成同一 spec 在两个工具下版本口径不一致。
+    version = normalize_spec_version(raw_version)
     if version not in (None, "", *SUPPORTED_SPEC_VERSIONS):
-        errs.append(f"unsupported FinanceSpec version {version}")
+        errs.append(f"unsupported FinanceSpec version {raw_version}")
     confirmation_status = spec.get("confirmation_status") if isinstance(spec, dict) else None
     if confirmation_status not in (None, "", "candidate", "confirmed"):
         errs.append(f"invalid confirmation_status {confirmation_status}")
