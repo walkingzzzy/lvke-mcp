@@ -986,7 +986,11 @@ def profile_tabular(
         reasons = {item["reason"] for item in skipped}
         unsupported = bool(skipped) and reasons == {"not_controlled_tabular_file"}
         code = "unsupported_input_kind" if unsupported else "insufficient_source_data"
-        status_value = "blocked" if unsupported else "partial"
+        # P1-007 修复：early-return 失败路径不能返回 status=partial，
+        # 因为 _PROFILE_OUTPUT 的 if/then conditional 要求 partial 时必须有
+        # data_profile_id / profiles / skipped 三字段，而此路径未写 DataProfile 记录，
+        # 无 object_id 可返回。改为 blocked，与 _missing() 的既有模式一致。
+        status_value = "blocked"
         return {
             "success": False,
             "transport_success": True,
