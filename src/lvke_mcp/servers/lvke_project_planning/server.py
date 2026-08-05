@@ -131,7 +131,17 @@ _EVIDENCE_BINDING = {
                 _STRING,
                 {"type": "object", "minProperties": 1},
                 {"type": "array", "minItems": 1},
-            ]
+            ],
+            "description": (
+                "证据定位符，需能在 EvidencePack 的 sources[].locators 或 "
+                "fact_candidates[].locator 中解析到。比较前两侧都会重归一化："
+                "结构化对象/数组按 canonical JSON（sort_keys=True, "
+                "separators=(\",\",\":\"), ensure_ascii=False）序列化；JSON 字符串"
+                "先 loads 再同样序列化。因此 json.dumps 的默认写法（带空格）、"
+                "indent 缩进、键序不同、ensure_ascii=True 都能匹配，无需自行紧凑化。"
+                "纯字符串 locator 按原文精确匹配（仅去首尾空白），数值类型需一致"
+                "（1 与 1.0 不等价）。"
+            ),
         },
         "evidence_track": {
             "type": "string",

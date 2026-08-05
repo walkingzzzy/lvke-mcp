@@ -639,6 +639,16 @@ def _resolve_market_evidence_track(
         if isinstance(item, dict) and item.get("source_id")
     }
     def normalized_locator(value: Any) -> str:
+        """Reduce a locator to its canonical form so both sides compare equal.
+
+        Applied to the binding and to every pack locator before the membership
+        test below, which is what lets a caller pass a structured locator in any
+        JSON spelling — ``json.dumps`` defaults (spaces), ``indent``, a different
+        key order, or ``ensure_ascii=True`` — and still match.  Plain strings are
+        compared verbatim apart from surrounding whitespace, and numbers keep
+        their type (``1`` and ``1.0`` are distinct).
+        """
+
         if isinstance(value, (dict, list)):
             return canonical_json(value)
         text = str(value or "").strip()
