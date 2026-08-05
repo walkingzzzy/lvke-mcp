@@ -13,9 +13,12 @@ import os
 import shutil
 import subprocess
 import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
+
+from filelock import FileLock
 
 
 logger = logging.getLogger(__name__)
@@ -1271,6 +1274,10 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
     wc_delta = wc.get("delta_vs_stated")
     wc_tolerance = max(1.0, abs(float(wc_stated or 0.0)) * 0.01)
     inv_wc = float((fin.get("investment") or {}).get("working_capital") or 0.0)
+    # ``wc_actionable`` records why the gate closed, so the blocker can name the
+    # missing input instead of only the check name.  The pass/fail rules below are
+    # unchanged.
+    wc_actionable: str | None = None
     if inv_wc <= 0.01:
         wc_reconciled = True  # no WC to reconcile
     elif wc.get("method") == "turnover_days":
@@ -1281,6 +1288,12 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
         scaled = bool(wc.get("scaled_to_stated_total"))
         if scaled:
             wc_reconciled = False
+            wc_actionable = (
+                "附表3流动资金被 scaled_to_stated_total 强制缩放到附表1声明值，"
+                "正式交付不接受强制缩放。调用 finance_run_model 时修正 working_capital "
+                "的周转天数输入（应收账款/应付账款/存货/现金），让周转法自身算出的总额"
+                "与附表1一致，而不是事后缩放。"
+            )
         elif wc_stated is None:
             wc_reconciled = True
         else:
@@ -1288,8 +1301,21 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 wc_delta is None
                 or abs(float(wc_delta)) <= max(wc_tolerance, 1.0)
             )
+            if not wc_reconciled:
+                wc_actionable = (
+                    f"附表3周转法流动资金 {wc.get('total')} 与附表1声明值 {wc_stated} "
+                    f"相差 {wc_delta}，超过容差 {round(max(wc_tolerance, 1.0), 2)}。"
+                    "调用 finance_run_model 时二者选一改到一致：修正 working_capital "
+                    "的周转天数输入，或修正投资估算里的流动资金声明值。"
+                )
     else:
         wc_reconciled = False
+        wc_actionable = (
+            f"附表3流动资金计算方法为 {wc.get('method') or 'unset'}，"
+            "正式交付只接受 turnover_days（周转天数法），因为只有它能逐项复算。"
+            "调用 finance_run_model 时把 working_capital.method 设为 turnover_days "
+            "并提供各项周转天数。"
+        )
     product_tree_ok = bool(pack.get("income-statement", {}).get("product_tree"))
     delivery_formula_count = {
         sheet: _non_dependency_formula_count(sheet) for sheet in _DELIVERY_SHEETS.values()
@@ -1335,6 +1361,20 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 target = str(row.get("target") or "").split("!", 1)[0]
                 actual_edges.add((target, sheet))
     expected_edges = contract_expected_edges
+    # 附表 → 对应 pack 输入键。缺公式时用它把 blocker 指向该补的那份输入。
+    supporting_schedule_inputs = {
+        "附表2": "interest-during-construction",
+        "附表3": "working-capital",
+        "附表6-1": "wage",
+        "附表6-3": "amortization",
+        "附表8": "debt-service",
+    }
+    supporting_schedule_gaps = [
+        (sheet, key)
+        for sheet, key in supporting_schedule_inputs.items()
+        if delivery_formula_count.get(sheet, 0) == 0
+        and (pack.get(key) or {}).get("grade") != "not_applicable"
+    ]
     semantic_checks = {
         "all_tables_reference_grade": {
             "ok": all(
@@ -1351,6 +1391,11 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
         "investment_quantity_indicator": {
             "ok": quantity_indicator_ok,
             "detail": "附表1工程量与估算指标必须有输入值，不能只填金额",
+            "actionable": (
+                "附表1明细行（编号 1.x）的 quantity（工程量）和 indicator（估算指标）"
+                "列必须有值，不能只填 total（金额）。调用 finance_run_model 时在 "
+                "quantity_items 输入中补全每项的工程量与单位指标。"
+            ) if not quantity_indicator_ok else None,
         },
         "funding_year_plan": {
             "ok": "分年" in [str(x) for x in (pack.get("funding", {}).get("column_labels") or [])]
@@ -1371,6 +1416,7 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 "附表3周转法流动资金必须与附表1投资流动资金对齐"
                 f"（stated={wc_stated}, turnover={wc.get('total')}, delta={wc_delta}）"
             ),
+            "actionable": wc_actionable,
         },
         "income_formula_driven": {
             "ok": product_tree_ok and delivery_formula_count.get("附表5", 0) > 0,
@@ -1385,18 +1431,18 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
             "detail": "附表6-2必须有累计折旧与期末净值",
         },
         "supporting_schedules_formula_driven": {
-            "ok": all(
-                delivery_formula_count.get(sheet, 0) > 0
-                or (pack.get({
-                    "附表2": "interest-during-construction",
-                    "附表3": "working-capital",
-                    "附表6-1": "wage",
-                    "附表6-3": "amortization",
-                    "附表8": "debt-service",
-                }[sheet]) or {}).get("grade") == "not_applicable"
-                for sheet in ("附表2", "附表3", "附表6-1", "附表6-3", "附表8")
-            ),
+            "ok": not supporting_schedule_gaps,
             "detail": "适用的附表2/3/6-1/6-3/8必须具备表内复算公式；not_applicable 跳过",
+            "actionable": (
+                "以下附表缺少表内非依赖公式且未标记 not_applicable："
+                + "、".join(
+                    f"{sheet}（对应输入 {key}）"
+                    for sheet, key in supporting_schedule_gaps
+                )
+                + "。调用 finance_run_model 时补全对应输入的明细结构（如建设期借款分年"
+                "计息、工资明细、还本付息计划），或把确实不适用的附表标记为 not_applicable。"
+            ) if supporting_schedule_gaps else None,
+            "missing_schedules": [sheet for sheet, _ in supporting_schedule_gaps],
         },
         "cashflow_row_tree": {
             "ok": has_label("附表9", {"现金流入", "现金流出"}) and has_label("附表10", {"现金流入", "现金流出"}),
@@ -1898,25 +1944,41 @@ def export_finance_workbook(
             if sheet_name not in delivery_names:
                 del wb[sheet_name]
 
-    wb.save(str(out))
+    # P1-015 修复：先写临时文件，校验完整后原子发布。原先 wb.save 直接写最终
+    # 路径，1946-1959 行的 validation_complete 和 recalculation 校验失败时文件
+    # 已经落盘，属于非原子写入（与 transport.py:517 的结构性问题同源）。
+    # 临时文件必须保留 .xlsx 后缀，否则 _recalculate_with_soffice 的 LibreOffice
+    # --convert-to xlsx 会因格式检测失败而报错。
+    temporary = out.parent / f".{out.stem}.{uuid.uuid4().hex}.tmp.xlsx"
+    lock_path = str(out) + ".lock"
+    try:
+        wb.save(str(temporary))
 
-    formal_requested = bool(delivery_quality.get("validation_complete"))
-    recalculation = (
-        _recalculate_with_soffice(out)
-        if formal_requested
-        else {"ok": False, "available": False, "skipped": True, "issues": ["reference 导出不要求实际重算"]}
-    )
-    if formal_requested and not recalculation.get("ok"):
-        delivery_quality = dict(delivery_quality)
-        delivery_quality["validation_complete"] = False
-        delivery_quality["recalculation"] = recalculation
-        delivery_quality.setdefault("quality_dimensions", {})["libreoffice_recalculation"] = {
-            "ok": False,
-            "detail": recalculation.get("issues") or [],
-        }
-    else:
-        delivery_quality = dict(delivery_quality)
-        delivery_quality["recalculation"] = recalculation
+        formal_requested = bool(delivery_quality.get("validation_complete"))
+        recalculation = (
+            _recalculate_with_soffice(temporary)
+            if formal_requested
+            else {"ok": False, "available": False, "skipped": True, "issues": ["reference 导出不要求实际重算"]}
+        )
+        if formal_requested and not recalculation.get("ok"):
+            delivery_quality = dict(delivery_quality)
+            delivery_quality["validation_complete"] = False
+            delivery_quality["recalculation"] = recalculation
+            delivery_quality.setdefault("quality_dimensions", {})["libreoffice_recalculation"] = {
+                "ok": False,
+                "detail": recalculation.get("issues") or [],
+            }
+        else:
+            delivery_quality = dict(delivery_quality)
+            delivery_quality["recalculation"] = recalculation
+
+        # 临时文件已写完且校验通过（或 reference 级不要求重算），原子发布到最终路径
+        with FileLock(lock_path, timeout=30):
+            os.replace(temporary, out)
+            temporary = None  # 成功后标记已发布，finally 不删
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
 
     formula_cells = 0
     for sheet in wb.worksheets:

@@ -262,6 +262,15 @@ def delivery_assessment(
             for name in material_semantic_checks
             if not bool((semantic_checks.get(name) or {}).get("ok"))
         ]
+        # P1-015：三张表的 blocker 原本只含检查名，报错后不知道该补哪个输入。
+        # semantic_checks 里的 actionable 字段（finance_export.py 新增）指明缺失字段
+        # 和该调用的工具，把它聚合成独立的 blockers_actionable 列表。
+        semantic_blockers_actionable = [
+            str(check.get("actionable") or "")
+            for name in material_semantic_checks
+            for check in [semantic_checks.get(name) or {}]
+            if not bool(check.get("ok")) and check.get("actionable")
+        ]
         if semantic_blockers:
             validation["blockers"] = [
                 *validation.get("blockers", []),
@@ -270,6 +279,7 @@ def delivery_assessment(
             validation["valid"] = False
         validation["workbook_delivery_quality"] = workbook_quality
         validation["workbook_semantic_blockers"] = semantic_blockers
+        validation["workbook_semantic_blockers_actionable"] = semantic_blockers_actionable
     except Exception:  # noqa: BLE001
         validation["blockers"] = [
             *validation.get("blockers", []),
@@ -278,6 +288,10 @@ def delivery_assessment(
         validation["valid"] = False
         validation["workbook_delivery_quality"] = {}
         validation["workbook_semantic_blockers"] = ["workbook_semantic_audit_failed"]
+        validation["workbook_semantic_blockers_actionable"] = [
+            "工作簿语义审计本身失败（无法打开或解析 XLSX）。先确认 finance_run_model "
+            "已生成完整 run，再重新导出表包。"
+        ]
     validation["technical_blockers"] = list(validation.get("blockers") or [])
     technical_validation = {
         "valid": bool(validation["valid"]),
@@ -290,6 +304,9 @@ def delivery_assessment(
         "workbook_delivery_quality": validation.get("workbook_delivery_quality") or {},
         "workbook_semantic_blockers": list(
             validation.get("workbook_semantic_blockers") or []
+        ),
+        "workbook_semantic_blockers_actionable": list(
+            validation.get("workbook_semantic_blockers_actionable") or []
         ),
     }
     gate = formal_delivery_gate(workspace_id, run_id)
@@ -333,6 +350,9 @@ def delivery_assessment(
         "workbook_delivery_quality": validation.get("workbook_delivery_quality") or {},
         "workbook_semantic_blockers": list(
             validation.get("workbook_semantic_blockers") or []
+        ),
+        "workbook_semantic_blockers_actionable": list(
+            validation.get("workbook_semantic_blockers_actionable") or []
         ),
         "bound_run_id": gate["bound_run_id"],
         "basis_of_estimate_id": boe_id or None,
