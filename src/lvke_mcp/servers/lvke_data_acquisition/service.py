@@ -222,18 +222,31 @@ def search(
     data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
     web = data.get("web", [])
     results = []
+    # NEW-P2-B 修复：provider 可能返回站内跳转的相对 URL（形如
+    # ``/goto?url=<opaque>``）。这类 URL 缺少 scheme 与 host，调用方无法访问，
+    # 也无法作为 locator 固化。这里复用 discover 的同一道规范化过滤，把不可用
+    # URL 归入 skipped 而不是伪装成可用结果。
+    skipped_urls: list[dict[str, str]] = []
     for index, item in enumerate(web if isinstance(web, list) else []):
         if not isinstance(item, dict):
+            continue
+        raw_url = str(item.get("url") or "")
+        canonical_url = _canonical_discovery_url(raw_url)
+        if canonical_url is None:
+            skipped_urls.append({
+                "url": raw_url,
+                "reason": "unsupported_or_relative_url",
+            })
             continue
         title = str(item.get("title") or "")
         summary = str(item.get("description") or item.get("summary") or "")
         results.append({
             "title": title,
-            "url": str(item.get("url") or ""),
+            "url": canonical_url,
             "summary": summary,
             "provider": str(item.get("provider") or "configured-web-provider"),
             "rank": int(item.get("position") or index + 1),
-            "relevance": _search_relevance(query, title, summary, str(item.get("url") or "")),
+            "relevance": _search_relevance(query, title, summary, canonical_url),
         })
     provider_used = str(
         raw.get("provider")
@@ -252,6 +265,9 @@ def search(
     warnings: list[str] = []
     if fallback_reason:
         warnings.append("search_provider_fallback")
+    if skipped_urls:
+        # 让调用方看到「provider 返回了结果但 URL 不可用」，而不是静默变少。
+        warnings.append("search_results_dropped_unusable_url")
     if not results:
         status = "empty"
         warnings.append("search_results_empty")
@@ -262,13 +278,14 @@ def search(
         status = "partial"
         warnings.append("search_results_include_low_relevance")
     else:
-        status = "partial" if fallback_reason else "ok"
+        status = "partial" if (fallback_reason or skipped_urls) else "ok"
     record = SEARCH_STORE.put(
         workspace_id,
         {
             "query": query,
             "limit": limit,
             "results": results,
+            "skipped": skipped_urls,
             "providerRequested": provider_requested,
             "providerUsed": provider_used,
             "fallbackReason": fallback_reason,
@@ -288,6 +305,7 @@ def search(
         "status": status,
         "search_set_id": record["object_id"],
         "results": results,
+        "skipped": skipped_urls,
         "providerRequested": provider_requested,
         "providerUsed": provider_used,
         "fallbackReason": fallback_reason,
@@ -951,22 +969,30 @@ async def _network_safety_decision(url: str) -> tuple[str | None, dict[str, Any]
 async def _trusted_tavily_extract(
     urls: list[str],
     output_format: str,
-) -> list[dict[str, Any]]:
-    """Use the server-owned Tavily adapter and sign a receipt for each body."""
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Use the server-owned Tavily adapter and sign a receipt for each body.
+
+    返回 ``(results, diagnosis)``。``diagnosis`` 为 None 表示成功；否则是失败
+    原因码。调用方必须据此区分**本地配置缺口**与**真实上游故障**——两者的
+    status、retryable 和处置动作完全不同，混为一谈会把本地部署问题伪装成
+    第三方故障，让运维查错方向跑偏（NEW-P1-A）。
+    """
 
     secret = os.getenv(_EXTERNAL_RECEIPT_SECRET_ENV, "").encode("utf-8")
     if not secret:
-        return []
+        # 本地配置缺口：尚未发起任何网络调用，不能归因于 Tavily。
+        return [], "receipt_secret_unconfigured"
     try:
         from lvke_mcp.domains.research.providers import tavily as tavily_provider
 
         if not tavily_provider.configured_transport():
-            return []
+            # 同样是本地配置缺口：provider 传输层未配置。
+            return [], "provider_transport_unconfigured"
         extracted = await tavily_provider.tavily_extract(urls, output_format)
         if not extracted:
-            return []
+            return [], "provider_returned_empty"
     except Exception:  # noqa: BLE001
-        return []
+        return [], "provider_call_failed"
     results: list[dict[str, Any]] = []
     for item in extracted if isinstance(extracted, list) else []:
         if not isinstance(item, dict):
@@ -995,7 +1021,7 @@ async def _trusted_tavily_extract(
             normalized["extraction_receipt"] = receipt
             normalized["extraction_receipt_verified"] = True
         results.append(normalized)
-    return results
+    return results, None
 
 
 async def fetch(
@@ -1044,10 +1070,35 @@ async def fetch(
     trusted_tavily = False
     results: list[dict[str, Any]] = []
     if checked_urls:
+        diagnosis: str | None = None
         if extraction_provider in {"auto", "tavily"}:
-            results = await _trusted_tavily_extract(checked_urls, output_format)
+            results, diagnosis = await _trusted_tavily_extract(checked_urls, output_format)
             trusted_tavily = bool(results)
         if not results and extraction_provider in {"auto", "tavily"}:
+            # NEW-P1-A 修复：本地配置缺口不应归因为 upstream_failure。
+            if diagnosis in {"receipt_secret_unconfigured", "provider_transport_unconfigured"}:
+                return {
+                    "success": False,
+                    "business_success": False,
+                    "system_success": True,
+                    "transport_success": True,
+                    "status": "blocked",
+                    "code": "trusted_extract_local_config_gap",
+                    "message": f"受信 Tavily 提取被本地配置阻断（{diagnosis}）；非上游 Tavily 故障",
+                    "diagnosis": diagnosis,
+                    "provider": "tavily",
+                    "retryable": False,
+                    "trace_id": hashlib.sha256(f"fetch:{time.time_ns()}".encode()).hexdigest()[:24],
+                    "resource_uris": [],
+                    "warnings": [],
+                    "blockers": ["trusted_extract_local_config_gap"],
+                    "next_actions": [
+                        "补充 LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET 到 .env 或运行时环境",
+                        "检查 tavily provider 传输配置（API key 等）",
+                        "或显式选择 extraction_provider=direct_http 绕过受信层",
+                    ],
+                }
+            # 其他情况（provider_returned_empty / provider_call_failed）才归为上游故障。
             return {
                 "success": False,
                 "business_success": False,
@@ -1055,7 +1106,8 @@ async def fetch(
                 "transport_success": True,
                 "status": "upstream_failure",
                 "code": "tavily_extract_unavailable",
-                "message": "受信 Tavily 正文提取当前不可用",
+                "message": f"受信 Tavily 正文提取当前不可用（{diagnosis}）",
+                "diagnosis": diagnosis,
                 "provider": "tavily",
                 "retryable": True,
                 "retry_after": 5,

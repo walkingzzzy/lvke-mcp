@@ -184,6 +184,19 @@ _BUNDLE_OUTPUT = _output_schema(
     },
     success_requires=["research_package_id", "task_id", "resources"],
 )
+_QUALITY_CONFIRM_OUTPUT = _output_schema(
+    {
+        "research_package_id": {"type": "string"},
+        "parent_research_package_id": {"type": "string"},
+        "quality_review_id": {"type": "string"},
+        "quality_review_status": {"type": "string"},
+        "quality": {"type": "object"},
+        "evidence_policy": {"type": "string"},
+        "project_fact_certified": {"type": "boolean"},
+        "release_limitations": {"type": "array", "items": {"type": "string"}},
+    },
+    success_requires=["research_package_id", "quality_review_id", "quality_review_status"],
+)
 _RESOURCE_LIST_OUTPUT = _output_schema(
     {
         "resources": {"type": "array", "items": {"type": "object"}},
@@ -844,7 +857,7 @@ def build_server() -> OfficialStdioServer:
             "required": ["workspace_id", "research_package_id"],
         },
         handler=package_service.confirm_quality,
-        output_schema=_BUNDLE_OUTPUT,
+        output_schema=_QUALITY_CONFIRM_OUTPUT,
         annotations=_bundle_write,
     )
     server.register_tool(
