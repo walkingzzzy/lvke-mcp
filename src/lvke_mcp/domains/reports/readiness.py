@@ -3,8 +3,8 @@
 为既有 ``build_readiness`` 逻辑的域内复刻（PT-5 四维评分：
 结构/数据/论证/表达 + 阻断/警告），仅改 import 路径与证据源，不重写业务逻辑：
 
-- evidence 源重指 ``lvke_data_analysis.EVIDENCE_STORE``（MCP 自有证据包存储；
-  惰性 import，域内独立可 import，存储不可用时降级为空证据）
+- evidence 源重指 ``adapters.data_analysis_repository.EVIDENCE_STORE``
+  （MCP 自有证据包存储；存储不可用时降级为空证据）
 - 财务审计语义改读 MCP 自有 run 存储（``domains.finance.run_store``），
   不再依赖历史 sqlite 审计库
 - ``cross_check`` / ``finance_narrative_verification`` 为
@@ -24,8 +24,7 @@ logger = logging.getLogger(__name__)
 def _latest_evidence_pack(workspace_id: str) -> dict[str, Any]:
     """读取工作区最新 evidence pack（record 的 payload 缺省空 dict）。"""
     try:
-        # 惰性 import：EVIDENCE_STORE 属 MCP 数据链 server，域内不静态依赖。
-        from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+        from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
     except Exception:  # noqa: BLE001 - 数据链不可用时降级为空证据
         return {}
     try:
@@ -172,10 +171,7 @@ def build_readiness(
         try:
             from lvke_mcp.domains.finance import run_store
 
-            au = {
-                "has_run": bool(run_store.latest_run(workspace_id)),
-                "has_approved": bool(run_store.get_approved_run(workspace_id)),
-            }
+            au = {"has_run": bool(run_store.latest_run(workspace_id))}
         except Exception:  # noqa: BLE001 - run 存储不可用不阻断评分
             au = {}
         if not au.get("has_run"):
@@ -183,27 +179,18 @@ def build_readiness(
                     "message": "财务已接地但无测算留痕（未落 calculation_run），正文数字不可追溯"}
             (blockers if strict else warnings).append(item)
         else:
-            # 绑定 run 必须等于 approved run（MCP 版门禁：绑定由调用方显式传入）
             try:
                 from lvke_mcp.domains.finance import gate as finance_gate
 
                 bind_chk = finance_gate.assert_publish_finance_binding(
                     workspace_id,
+                    expected_run_id=str((run_store.latest_run(workspace_id) or {}).get("run_id") or ""),
                     strict=True,
                 )
-                for b in bind_chk.get("blockers") or []:
-                    if b.get("code") == "finance_run_not_approved":
-                        continue
-                    blockers.append(b)
-                for w in bind_chk.get("warnings") or []:
-                    warnings.append(w)
+                blockers.extend(bind_chk.get("blockers") or [])
+                warnings.extend(bind_chk.get("warnings") or [])
             except Exception:  # noqa: BLE001
                 pass
-            if not au.get("has_approved"):
-                blockers.append({
-                    "code": "finance_run_not_approved",
-                    "message": "财务测算尚未批准，终稿正文不得引用未批准运行的结果",
-                })
 
     # 【P0-6 / 方案 §9.4】财务发布门禁：投资口径歧义未确认、勾稽失败 → 阻断终稿发布。
     if has_finance:

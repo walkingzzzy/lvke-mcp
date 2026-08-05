@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from lvke_mcp.servers.finance_calc.calculations import irr, npv
+from lvke_mcp.domains.finance.calculations import irr, npv
 
 IRR_TOLERANCE_PERCENTAGE_POINTS = 0.01
 AMOUNT_TOLERANCE_WAN = 0.01

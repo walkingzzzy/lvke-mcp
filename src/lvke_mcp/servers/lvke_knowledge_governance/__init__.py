@@ -1,1 +1,1 @@
-"""Reviewed-first knowledge governance MCP domain."""
+"""Immutable knowledge snapshot MCP domain."""

@@ -483,6 +483,7 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
         pack_formal = payload.get("formal_evidence_candidate") is True
         pack_track = str(payload.get("evidence_track") or "real")
         pack_fixture = payload.get("technical_fixture_candidate") is True
+        pack_reconstructed = payload.get("source_reconstructed_candidate") is True
         fixture_manifest = payload.get("fixture_manifest") or {}
         by_source = {
             str(source.get("source_id") or ""): source
@@ -498,6 +499,7 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
                 "_pack_formal_evidence_candidate": pack_formal,
                 "_pack_evidence_track": pack_track,
                 "_pack_technical_fixture_candidate": pack_fixture,
+                "_pack_source_reconstructed_candidate": pack_reconstructed,
                 "_pack_fixture_manifest": deepcopy(fixture_manifest),
             })
         for raw in payload.get("fact_candidates") or []:
@@ -513,6 +515,7 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
                 "_pack_formal_evidence_candidate": pack_formal,
                 "_pack_evidence_track": pack_track,
                 "_pack_technical_fixture_candidate": pack_fixture,
+                "_pack_source_reconstructed_candidate": pack_reconstructed,
                 "_pack_fixture_manifest": deepcopy(fixture_manifest),
             })
     return candidates, sources
@@ -561,6 +564,21 @@ def _technical_fixture_candidate(candidate: dict[str, Any]) -> bool:
         and source_id in set(manifest.get("source_snapshot_ids") or [])
         and str(manifest_hashes.get(source_id) or "").removeprefix("sha256:")
         == content_hash.removeprefix("sha256:")
+        and re.fullmatch(r"(?:sha256:)?[0-9a-fA-F]{64}", content_hash)
+        and isinstance(candidate.get("locator"), dict)
+        and candidate.get("locator")
+    )
+
+
+def _source_reconstructed_candidate(candidate: dict[str, Any]) -> bool:
+    """Qualify a source-reconstructed fact for process acceptance only."""
+
+    source = candidate.get("source") or {}
+    content_hash = str(source.get("content_hash") or "")
+    return bool(
+        candidate.get("_pack_evidence_track") == "source_reconstructed"
+        and candidate.get("_pack_server_signed_candidates") is True
+        and candidate.get("_pack_source_reconstructed_candidate") is True
         and re.fullmatch(r"(?:sha256:)?[0-9a-fA-F]{64}", content_hash)
         and isinstance(candidate.get("locator"), dict)
         and candidate.get("locator")
@@ -622,7 +640,7 @@ def _evidence_claims(
 ) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     for candidate in candidates:
-        if not _formal_evidence_candidate(candidate):
+        if not (_formal_evidence_candidate(candidate) or _source_reconstructed_candidate(candidate)):
             continue
         numeric = _number(candidate.get("numeric_value"))
         metric = _candidate_metric(candidate)
@@ -658,6 +676,8 @@ def _candidate_matches_claim(
     qualified = (
         _technical_fixture_candidate(candidate)
         if evidence_track == "technical_fixture"
+        else _source_reconstructed_candidate(candidate)
+        if evidence_track == "source_reconstructed"
         else _formal_evidence_candidate(candidate)
     )
     if numeric is None or not qualified:
@@ -1094,7 +1114,7 @@ def _hotel_findings(
             "P0",
             "酒店经营模式在正文中存在未裁决冲突",
             category="operating_assumption",
-            expected="纯出租、自营、委托或混合经营采用唯一已批准口径",
+            expected="纯出租、自营、委托或混合经营采用唯一一致口径",
             actual=active_modes,
             target_location={"target_id": target_id, "text_anchor": "经营模式"},
             standard_basis=standard_basis,
@@ -1128,7 +1148,7 @@ def _hotel_findings(
             "P0",
             "体育用途土地或建筑用于酒店经营，缺少用途转换合规结论",
             category="land_use_compliance",
-            expected="用途与酒店经营活动一致，或取得有效用途转换批准",
+            expected="用途与酒店经营活动一致，或具备有效用途转换文件",
             actual="报告同时出现体育用途与酒店经营表述",
             target_location={"target_id": target_id, "text_anchor": "体育用途/酒店经营"},
             standard_basis=standard_basis,
@@ -1727,6 +1747,9 @@ def review_report(
     technical_fixture_claims = [
         candidate for candidate in candidates if _technical_fixture_candidate(candidate)
     ]
+    source_reconstructed_claims = [
+        candidate for candidate in candidates if _source_reconstructed_candidate(candidate)
+    ]
     run_index = semantic_finance_index(run) if run else {}
     metrics: dict[str, Any] = {
         "claim_graph": claims,
@@ -1738,6 +1761,7 @@ def review_report(
         "evidence_source_count": len(sources),
         "formal_evidence_claim_count": len(evidence_claims),
         "technical_fixture_claim_count": len(technical_fixture_claims),
+        "source_reconstructed_claim_count": len(source_reconstructed_claims),
         "evidence_track": evidence_track,
     }
     incomplete: list[str] = []
@@ -1745,6 +1769,8 @@ def review_report(
         track_qualified = any(
             _technical_fixture_candidate(candidate)
             if evidence_track == "technical_fixture"
+            else _source_reconstructed_candidate(candidate)
+            if evidence_track == "source_reconstructed"
             else _formal_evidence_candidate(candidate)
             for candidate in candidates
         )
@@ -1752,6 +1778,8 @@ def review_report(
             incomplete.append(
                 "technical_fixture_candidates_unavailable"
                 if evidence_track == "technical_fixture"
+                else "source_reconstructed_candidates_unavailable"
+                if evidence_track == "source_reconstructed"
                 else "formal_evidence_candidates_unavailable"
             )
     for claim in claims:

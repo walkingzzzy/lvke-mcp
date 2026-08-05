@@ -1,0 +1,48 @@
+{
+  "schema_version": "source_reconstructed.review_closure.v1",
+  "review_scope": [
+    "chapter_completeness",
+    "numeric_consistency",
+    "finance_table_reconciliation",
+    "source_locator",
+    "lineage"
+  ],
+  "excluded_scope": ["security", "permission", "identity", "authentication"],
+  "cases": [
+    {
+      "case_id": "cy_xiangyuan",
+      "finding_id": "fnd_srcx_cy_boe_gap",
+      "category": "source_data_gap",
+      "severity": "P2",
+      "initial_status": "open",
+      "remediation": "保留原始BoE缺失说明，绑定报告和模板定位，不补造项目事实",
+      "retest_status": "resolved",
+      "retest_basis": "source_reconstructed manifest + 9 chapter revision",
+      "evidence_track": "source_reconstructed"
+    },
+    {
+      "case_id": "qianshan_forest_park",
+      "finding_id": "fnd_srcx_qs_boe_gap",
+      "category": "source_data_gap",
+      "severity": "P2",
+      "initial_status": "open",
+      "remediation": "保留原始BoE和客流底稿缺失说明，绑定报告和模板定位，不补造项目事实",
+      "retest_status": "resolved",
+      "retest_basis": "source_reconstructed manifest + 9 chapter revision",
+      "evidence_track": "source_reconstructed"
+    },
+    {
+      "case_id": "hengli_hotel",
+      "finding_id": "fnd_srcx_hengli_unselected",
+      "category": "scenario_decision_pending",
+      "severity": "P2",
+      "initial_status": "open",
+      "remediation": "六档情景分别保留，经营模式、交易类型、资产边界和收购价不作最终选择",
+      "retest_status": "resolved",
+      "retest_basis": "six independent scenario records; business_decision_status=not_selected",
+      "evidence_track": "source_reconstructed"
+    }
+  ],
+  "all_retested": true,
+  "project_fact_certified": false
+}

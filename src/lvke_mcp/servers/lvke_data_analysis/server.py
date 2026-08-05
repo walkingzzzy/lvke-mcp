@@ -36,8 +36,23 @@ _IDS = {
 }
 _EVIDENCE_TRACK = {
     "type": "string",
-    "enum": ["real", "technical_fixture", "controlled_assumption"],
+    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
     "default": "real",
+}
+_RECONSTRUCTION_RECORD = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "reconstruction_id": {"type": "string", "minLength": 1},
+        "source_uri": {"type": "string", "pattern": r"^lvke://.+"},
+        "content_hash": {"type": "string", "pattern": r"^sha256:[0-9a-f]{64}$"},
+        "locator": {"type": "string", "minLength": 1},
+        "source_kind": {"type": "string", "enum": ["client_report", "finance_template", "historical_statement", "scenario_note"]},
+        "method": {"type": "string", "enum": ["table_extract", "formula_replay", "explicit_mapping"]},
+        "original_formula_available": {"type": "boolean"},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["reconstruction_id", "source_uri", "content_hash", "locator", "source_kind", "method", "original_formula_available", "limitations"],
 }
 _FIXTURE_MANIFEST = {
     "type": "object",
@@ -54,6 +69,7 @@ _FIXTURE_MANIFEST = {
         "generated_at": {"type": "string", "format": "date-time"},
         "generator_version": {"type": "string", "minLength": 1},
         "test_scope": _IDS,
+        "reconstruction_records": {"type": "array", "items": _RECONSTRUCTION_RECORD},
     },
     "required": ["fixture_id", "fixture_version", "project_type", "industry_code", "source_snapshot_ids", "content_hashes", "allowed_fields", "prohibited_extrapolations", "generated_at", "generator_version", "test_scope"],
 }
@@ -389,7 +405,7 @@ def build_server() -> OfficialStdioServer:
     }, _OUTPUT, read)
     server.register_tool("analysis_build_evidence_pack", "把选定来源、服务端候选事实、显式冲突与 missing_fields 缺口固化为不可变 evidence_pack_id；调用方自报候选仅具 estimate_preview 资格。", {
         "type": "object", "additionalProperties": False,
-        "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}, "selected_source_ids": _IDS, "candidate_set_id": {"type": "string", "minLength": 1}, "selected_candidate_ids": _IDS, "fact_candidates": {"type": "array", "items": {"type": "object"}, "default": []}, "conflicts": {"type": "array", "items": {"type": "object"}, "default": []}, "expected_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []}, "evidence_track": _EVIDENCE_TRACK, "fixture_manifest": _FIXTURE_MANIFEST},
+        "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}, "selected_source_ids": _IDS, "candidate_set_id": {"type": "string", "minLength": 1}, "selected_candidate_ids": _IDS, "fact_candidates": {"type": "array", "items": {"type": "object"}, "default": []}, "conflicts": {"type": "array", "items": {"type": "object"}, "default": []}, "expected_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "default": []}, "evidence_track": _EVIDENCE_TRACK, "fixture_manifest": _FIXTURE_MANIFEST, "reconstruction_records": {"type": "array", "items": _RECONSTRUCTION_RECORD}},
         "required": ["workspace_id", "analysis_task_id"],
     }, lambda a: service.build_evidence_pack(
         a["workspace_id"], a["analysis_task_id"], a.get("selected_source_ids"),
@@ -397,6 +413,7 @@ def build_server() -> OfficialStdioServer:
         a.get("expected_fields", []), a.get("candidate_set_id", ""),
         a.get("selected_candidate_ids"), a.get("evidence_track", "real"),
         a.get("fixture_manifest"),
+        a.get("reconstruction_records"),
     ), _PACK_OUTPUT, write)
     server.register_tool(
         "analysis_list_resources",

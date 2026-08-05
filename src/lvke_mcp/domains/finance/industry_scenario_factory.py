@@ -670,7 +670,7 @@ def build_scenario(industry: Industry, archetype: Archetype, variant: Variant) -
             "annual_revenue_wan": {
                 "evidence_level": "C",
                 "source_ref": f"synthetic_matrix:{scenario_id}",
-                "note": "行业场景压力测试假设，不得用于真实项目报批",
+                "note": "行业场景压力测试假设，不得作为真实项目输入",
             },
         },
     }
@@ -682,7 +682,6 @@ def build_scenario(industry: Industry, archetype: Archetype, variant: Variant) -
         "industry_profile_version": industry.profile_version,
         "selected_scenario_id": scenario_id,
         "confirmation_status": "confirmed",
-        "confirmed_by": "deterministic_scenario_factory",
         "source_hint": "synthetic_quality_matrix",
         "revenue": revenue,
         "cost": {

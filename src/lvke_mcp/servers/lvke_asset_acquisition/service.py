@@ -9,12 +9,12 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
-from lvke_mcp.servers.lvke_asset_acquisition.model import AcquisitionModelError
-from lvke_mcp.servers.lvke_asset_acquisition.spec import validate, validate_for_formal
+from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
+from lvke_mcp.domains.asset_acquisition.model import AcquisitionModelError
+from lvke_mcp.domains.finance.spec import validate, validate_for_formal
 from lvke_mcp.runtime.storage import JSONArtifactStore, require_safe_id, sha256_json
-from lvke_mcp.servers.lvke_asset_acquisition import tables
-from lvke_mcp.domains.review.deliverable_review_compat import full_review_requirement
+from lvke_mcp.runtime.source_reconstruction import SOURCE_RECONSTRUCTED, validate_reconstruction_records
+from lvke_mcp.domains.asset_acquisition import tables
 
 IDEMPOTENCY_STORE = JSONArtifactStore(
     "asset-acquisition", "mcp_idempotency", "acqidp", "idempotency"
@@ -39,8 +39,7 @@ def _failed(result: dict[str, Any], fallback: str) -> dict[str, Any]:
     code = _error_code(result, fallback)
     system_failures = {
         "SPEC_SAVE_FAILED", "SPEC_CONFIRM_FAILED", "RUN_FAILED",
-        "REFERENCE_REVIEW_FAILED", "MAX_PRICE_FAILED", "BUSINESS_REVIEW_FAILED",
-        "ARTIFACT_GENERATION_FAILED", "ARTIFACT_RELEASE_FAILED",
+        "MAX_PRICE_FAILED", "ARTIFACT_GENERATION_FAILED",
     }
     status = "failed" if code in system_failures else "blocked"
     return {
@@ -118,6 +117,10 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     )
     acquisition_contract = hotel_contract or solar_contract
     blockers = [*errors]
+    reconstruction_errors = []
+    if isinstance(spec, dict) and str(spec.get("evidence_policy") or "") == SOURCE_RECONSTRUCTED:
+        reconstruction_errors = validate_reconstruction_records(spec.get("reconstruction_records"))
+        blockers.extend(f"source_reconstruction:{item.get('code')}" for item in reconstruction_errors)
     field_errors: list[dict[str, Any]] = []
     def error_path(message: str) -> str:
         if message.startswith("未知收入模型"):
@@ -215,7 +218,7 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     field_errors = deduplicated_field_errors
     if field_errors and not acquisition_contract:
         blockers.append("acquisition_mode_invalid")
-    accepted = bool(valid and acquisition_contract and not opening_date_missing)
+    accepted = bool(valid and acquisition_contract and not opening_date_missing and not reconstruction_errors)
     response_code = None
     if not accepted:
         response_code = "SPEC_VALIDATION_FAILED" if opening_date_missing else "acquisition_mode_invalid"
@@ -229,6 +232,9 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "formal_valid": bool(formal_valid and acquisition_contract and not opening_date_missing),
         "validation_errors": errors, "formal_validation_errors": formal_errors,
         "field_errors": field_errors,
+        "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
+        "project_fact_certified": False if str(spec.get("evidence_policy") or "") == SOURCE_RECONSTRUCTED else True,
+        "reconstruction_errors": reconstruction_errors,
         "spec_hash": acquisition_service._hash(spec),  # noqa: SLF001
         "resource_uris": [], "warnings": [], "blockers": blockers,
         "next_actions": (
@@ -236,7 +242,6 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             if accepted and not formal_valid
             else ([] if accepted else ["按资产类型修正 FinanceSpec v3 收购计算粒度和运营字段后重新校验"])
         ),
-        **full_review_requirement(),
     }
 
 
@@ -289,7 +294,7 @@ def confirm_spec(
          "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=confirmed_id, uris=[_uri(workspace_id, "specs", confirmed_id)],
         warnings=(
-            ["仅确认 estimate_preview 受控假设；正式输入、批准和发布门禁仍未满足"]
+            ["该 Spec 使用 estimate_preview 受控假设，输出会保留完整度限制"]
             if estimate_preview else []
         ),
         next_actions=["调用 acquisition_run_model"],
@@ -334,18 +339,17 @@ def run_model(
          "delivery_mode": run.get("delivery_mode"),
          "formal_spec_valid": bool(run.get("formal_spec_valid")),
          "evidence_binding_hash": run.get("evidence_binding_hash"),
-         "governance_status": {
-             "lifecycle_status": run.get("lifecycle_status"),
-             "reference_review_status": run.get("reference_review_status"),
-             "business_review_status": run.get("business_review_status"),
-             "review_status": run.get("review_status"),
+         "validation_status": {
+             "consistency_ok": bool(run.get("consistency_ok")),
+             "formal_spec_valid": bool(run.get("formal_spec_valid")),
+             "evidence_formal_ok": bool(run.get("evidence_formal_ok")),
         }, "idempotent_replay": bool(run.get("idempotent_replay"))},
         object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)],
         warnings=(
-            ["该运行仅具 estimate_preview 资格；不得用于正式批准或发布"]
+            ["该运行使用 estimate_preview 输入，结果会保留完整度限制"]
             if estimate_preview else []
         ),
-        next_actions=["创建情景矩阵并完成参考、业务复核及批准"],
+        next_actions=["可创建情景矩阵、求解最高价格或生成工件"],
     )
 
 
@@ -365,9 +369,10 @@ def get_run(
         "spec_version", "spec_id", "spec_hash", "input_hash", "evidence_binding_hash",
         "scenario_id", "created_at",
     }
-    governance_keys = {
-        "run_id", "lifecycle_status", "reference_review_status", "business_review_status",
-        "review_status", "issues", "approved_at", "approved_by", "max_acquisition_price_analysis",
+    validation_keys = {
+        "run_id", "issues", "consistency_ok", "formal_spec_valid",
+        "formal_spec_errors", "evidence_formal_ok", "evidence_status",
+        "max_acquisition_price_analysis",
     }
     if view == "summary":
         payload = {key: copy.deepcopy(run.get(key)) for key in summary_keys}
@@ -376,7 +381,7 @@ def get_run(
         payload = {key: copy.deepcopy(run.get(key)) for key in summary_keys}
         payload["result"] = copy.deepcopy(run.get("result") or {})
     elif view == "governance":
-        payload = {key: copy.deepcopy(run.get(key)) for key in governance_keys}
+        payload = {key: copy.deepcopy(run.get(key)) for key in validation_keys}
     else:
         payload = copy.deepcopy(run)
     return _ok({"run_id": run_id, "view": view, "run": payload}, object_id=run_id,
@@ -398,42 +403,6 @@ def create_scenario_matrix(
          "dimensions": row.get("dimensions"), "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=matrix_id, uris=[_uri(workspace_id, "scenario-matrices", matrix_id)],
     )
-
-
-def review_reference(args: dict[str, Any]) -> dict[str, Any]:
-    workspace_id = str(args["workspace_id"])
-    payload = {key: copy.deepcopy(args.get(key)) for key in (
-        "run_id", "status", "diffs", "tolerance", "note", "reference_hash", "reference_kind"
-    )}
-
-    def action() -> dict[str, Any]:
-        row = acquisition_service.review_reference(
-            workspace_id, str(args["run_id"]), status=str(args["status"]),
-            diffs=list(args.get("diffs") or []), tolerance=float(args.get("tolerance", 0.01)),
-            note=str(args.get("note") or ""),
-            reference_hash=str(args.get("reference_hash") or ""),
-            reference_kind=str(args.get("reference_kind") or "generic"),
-        )
-        if not row.get("ok"):
-            return _failed(row, "REFERENCE_REVIEW_FAILED")
-        run_id = str(args["run_id"])
-        return _ok(row, object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)])
-
-    result = _mutation(
-        workspace_id,
-        "acquisition_review_reference",
-        args["idempotency_key"],
-        payload,
-        action,
-    )
-    return {
-        **result,
-        **full_review_requirement(
-            workspace_id,
-            "acquisition_run",
-            str(args["run_id"]),
-        ),
-    }
 
 
 def solve_max_price(args: dict[str, Any]) -> dict[str, Any]:
@@ -463,52 +432,6 @@ def solve_max_price(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def review_business(args: dict[str, Any]) -> dict[str, Any]:
-    workspace_id = str(args["workspace_id"])
-    payload = {key: copy.deepcopy(args.get(key)) for key in ("run_id", "status", "note")}
-
-    def action() -> dict[str, Any]:
-        row = acquisition_service.review_business(
-            workspace_id, str(args["run_id"]), status=str(args["status"]),
-            note=str(args.get("note") or ""),
-        )
-        if not row.get("ok"):
-            return _failed(row, "BUSINESS_REVIEW_FAILED")
-        run_id = str(args["run_id"])
-        return _ok(row, object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)])
-
-    return _mutation(
-        workspace_id,
-        "acquisition_review_business",
-        args["idempotency_key"],
-        payload,
-        action,
-    )
-
-
-def approve_run(args: dict[str, Any]) -> dict[str, Any]:
-    workspace_id = str(args["workspace_id"])
-    payload = {key: copy.deepcopy(args.get(key)) for key in ("run_id", "note")}
-
-    def action() -> dict[str, Any]:
-        row = acquisition_service.approve_run(
-            workspace_id, str(args["run_id"]),
-            note=str(args.get("note") or ""),
-        )
-        if not row.get("ok"):
-            return _failed(row, "RUN_NOT_APPROVABLE")
-        run_id = str(args["run_id"])
-        return _ok(row, object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)])
-
-    return _mutation(
-        workspace_id,
-        "acquisition_approve_run",
-        args["idempotency_key"],
-        payload,
-        action,
-    )
-
-
 def generate_artifact(
     workspace_id: str,
     run_id: str,
@@ -524,7 +447,7 @@ def generate_artifact(
     artifact_id = str(row["artifact_id"])
     return _ok(
         {"artifact_id": artifact_id, "run_id": row.get("run_id"),
-         "artifact_status": row.get("status"), "release_status": row.get("release_status"),
+         "artifact_status": row.get("status"),
          "spec_hash": row.get("spec_hash"), "report_data_hash": row.get("report_data_hash"),
          "integrity_status": row.get("integrity_status"),
          "numeric_consistency": row.get("numeric_consistency"), "files": row.get("files") or [],
@@ -578,29 +501,6 @@ def export_tables_csv(
                      {"package_id": package_id}, lambda: tables.export_csv(
                          workspace_id, package_id,
                      ))
-
-
-def release_artifact(args: dict[str, Any]) -> dict[str, Any]:
-    workspace_id = str(args["workspace_id"])
-    row = acquisition_service.release_artifact(
-        workspace_id, str(args["artifact_id"]),
-        review_id=str(args["review_id"]),
-        note=str(args.get("note") or ""), idempotency_key=str(args["idempotency_key"]),
-    )
-    if not row.get("ok"):
-        return _failed(row, "ARTIFACT_RELEASE_FAILED")
-    artifact_id = str(row["artifact_id"])
-    release = copy.deepcopy(row.get("release") or {})
-    return _ok(
-        {"artifact_id": artifact_id, "run_id": row.get("run_id"),
-         "release_id": release.get("release_id"), "release_status": row.get("release_status"),
-         "review_id": release.get("review_id"),
-         "review_release_id": release.get("review_release_id"),
-         "review_release_hash": release.get("review_release_hash"),
-         "release": release, "idempotent_replay": bool(row.get("idempotent_replay"))},
-        object_id=str(release.get("release_id") or artifact_id),
-        uris=[_uri(workspace_id, "artifacts", artifact_id)],
-    )
 
 
 def resolve_resource(

@@ -103,7 +103,7 @@ def _read_value_sheets(path: Path, sheet_names: list[str]) -> tuple[dict[str, An
             workbook.close()
     except Exception as openpyxl_error:  # noqa: BLE001
         try:
-            from lvke_mcp.servers.excel_bridge.reader import pick_backend
+            from lvke_mcp.adapters.spreadsheets.reader import pick_backend
 
             backend = pick_backend()
             result = {}
@@ -781,7 +781,7 @@ def _extract_reference_data(reference_pack: dict[str, Any]) -> None:
 
     if project_after and benchmark is not None:
         try:
-            from lvke_mcp.servers.finance_calc.calculations import npv
+            from lvke_mcp.domains.finance.calculations import npv
             from lvke_mcp.domains.finance.reference_track import payback_from_period_rows
 
             values = [float(item["value"]) for item in project_after]
@@ -853,11 +853,11 @@ def build_reference_pack(xlsx_path: str | Path) -> dict[str, Any]:
         raise VendorImportError(f"不支持的甲方工作簿类型：{path.suffix}")
 
     try:
-        from lvke_mcp.servers.excel_bridge.formulas import (
+        from lvke_mcp.adapters.spreadsheets.formulas import (
             FormulaBackend,
             FormulaBackendUnavailable,
         )
-        from lvke_mcp.servers.lvke_templates.catalog import map_vendor_sheet
+        from lvke_mcp.domains.templates.catalog import map_vendor_sheet
     except Exception as exc:  # noqa: BLE001
         raise VendorImportError(f"缺少 Excel/附表桥接模块：{exc}") from exc
 
@@ -886,7 +886,7 @@ def build_reference_pack(xlsx_path: str | Path) -> dict[str, Any]:
         formula_status = "unavailable"
         formula_warning = str(exc)
         try:
-            from lvke_mcp.servers.excel_bridge.reader import pick_backend
+            from lvke_mcp.adapters.spreadsheets.reader import pick_backend
 
             sheet_names = pick_backend().list_sheets(path)
         except Exception as read_exc:  # noqa: BLE001
@@ -1112,7 +1112,7 @@ def detect_cleanup_issues(
     trials = (reference_pack.get("vendor_indicators") or {}).get("trial_rates") or {}
     cashflows = reference_pack.get("cashflows") or {}
     try:
-        from lvke_mcp.servers.finance_calc.calculations import irr, npv
+        from lvke_mcp.domains.finance.calculations import irr, npv
     except Exception:  # noqa: BLE001
         irr = npv = None  # type: ignore
     for key, label in (

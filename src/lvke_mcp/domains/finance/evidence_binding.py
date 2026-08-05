@@ -19,13 +19,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from lvke_mcp.servers.lvke_source_files.backend import (
+from lvke_mcp.adapters.source_files_repository import (
     _load_analysis,
     _load_state,
     _root,
 )
+from lvke_mcp.runtime.source_reconstruction import (
+    SOURCE_RECONSTRUCTED,
+    normalize_reconstruction,
+    validate_reconstruction_records,
+)
 
-BINDING_VERSION = "finance_evidence_binding.v2"
+BINDING_VERSION = "finance_evidence_binding.v3"
 
 _EV_ID = re.compile(r"^ev_[0-9a-f]{24}$")
 _EVP_ID = re.compile(r"^evp_[0-9a-f]{24}$")
@@ -767,71 +772,14 @@ def _validate_local_file_chain(
     }, None
 
 
-def _approved_review_revision(
-    item: Mapping[str, Any],
-    source_path: str,
-    *,
-    evidence_id: str,
-) -> tuple[str, dict[str, Any] | None, dict[str, Any] | None]:
-    status = str(item.get("manual_review_status") or "pending")
-    if status == "pending":
-        return "pending", None, _issue(
-            source_path,
-            "EVIDENCE_REVIEW_PENDING",
-            "证据尚未人工批准",
-            evidence_id=evidence_id,
-            locator=str(item.get("locator") or ""),
-        )
-    if status != "approved":
-        return "invalid", None, _issue(
-            source_path,
-            "EVIDENCE_REVIEW_NOT_APPROVED",
-            "证据人工复核未批准",
-            evidence_id=evidence_id,
-            locator=str(item.get("locator") or ""),
-        )
-    revisions = item.get("review_revisions")
-    if not isinstance(revisions, list) or not revisions:
-        return "invalid", None, _issue(
-            source_path,
-            "EVIDENCE_REVIEW_REVISION_INVALID",
-            "已批准证据缺不可变复核修订",
-            evidence_id=evidence_id,
-        )
-    expected_versions = list(range(1, len(revisions) + 1))
-    try:
-        versions = [int(row.get("version")) for row in revisions if isinstance(row, Mapping)]
-    except (TypeError, ValueError):
-        versions = []
-    latest = revisions[-1] if isinstance(revisions[-1], Mapping) else {}
-    corrected = latest.get("corrected_value")
-    expected_reviewed = corrected if corrected is not None else item.get("original_value")
-    if (
-        versions != expected_versions
-        or str(latest.get("decision") or "") != "approved"
-        or not str(latest.get("reviewer") or "").strip()
-        or not str(latest.get("reviewed_at") or "").strip()
-        or not str(latest.get("reason") or "").strip()
-        or not str(latest.get("request_id") or "").strip()
-        or "reviewed_value" not in item
-        or latest.get("original_value") != item.get("original_value")
-        or item.get("reviewed_value") != expected_reviewed
-    ):
-        return "invalid", None, _issue(
-            source_path,
-            "EVIDENCE_REVIEW_REVISION_INVALID",
-            "证据复核修订链不完整或与批准状态不一致",
-            evidence_id=evidence_id,
-        )
-    revision_payload = {
-        "version": int(latest["version"]),
-        "decision": "approved",
-        "reviewer": str(latest["reviewer"]),
-        "reviewed_at": str(latest["reviewed_at"]),
-        "request_id": str(latest.get("request_id") or ""),
-        "revision_hash": _canonical_hash(latest),
-    }
-    return "approved", revision_payload, None
+def _evidence_content_hash(item: Mapping[str, Any]) -> str:
+    content = dict(item)
+    content.pop("manual_review_status", None)
+    content.pop("review_revisions", None)
+    content.pop("reviewed_value", None)
+    content.pop("reviewer", None)
+    content.pop("reviewed_at", None)
+    return _canonical_hash(content)
 
 
 def _bind_local_reference(
@@ -886,13 +834,6 @@ def _bind_local_reference(
             file_id=file_id,
             locator=reference.locator,
         )
-    review_status, review, review_error = _approved_review_revision(
-        item, reference.source_path, evidence_id=evidence_id,
-    )
-    if review_status != "approved" or not review:
-        assert review_error is not None
-        return review_status, review_error
-
     payload = {
         "binding_version": BINDING_VERSION,
         "source_type": "workspace_source",
@@ -903,7 +844,7 @@ def _bind_local_reference(
         "source_size_bytes": chain["source_size_bytes"],
         "parse_job": chain["parse_job"],
         "attempt": chain["attempt"],
-        "review_revision": review,
+        "evidence_content_hash": _evidence_content_hash(item),
     }
     return "bound", {
         "source_path": reference.source_path,
@@ -952,7 +893,7 @@ def _bind_evidence_pack_reference(
 ) -> tuple[str, dict[str, Any]]:
     """Bind one server-signed evidence-pack candidate in the same workspace."""
 
-    from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+    from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 
     try:
         record = EVIDENCE_STORE.get(workspace_id, reference.evidence_id)
@@ -1052,13 +993,43 @@ def bind_finance_spec_evidence(
     pending: list[dict[str, Any]] = []
     invalid: list[dict[str, Any]] = []
 
+    # A reconstructed source is a first-class process-acceptance input.  It is
+    # bound by its immutable URI/hash/locator record, while remaining clearly
+    # distinct from certified project evidence.
+    reconstructed = []
+    if isinstance(spec, Mapping) and str(spec.get("evidence_policy") or "") == SOURCE_RECONSTRUCTED:
+        raw_records = spec.get("reconstruction_records")
+        reconstruction_errors = validate_reconstruction_records(raw_records)
+        if reconstruction_errors:
+            invalid.extend({
+                "source_path": f"/reconstruction_records/{item.get('index') if item.get('index') is not None else ''}",
+                "code": f"SOURCE_RECONSTRUCTION_{item.get('code')}",
+                "message": "source_reconstructed 记录缺少 hash、locator、method 或限制字段",
+            } for item in reconstruction_errors)
+        else:
+            reconstructed = [normalize_reconstruction(item) for item in raw_records]
+            for item in reconstructed:
+                binding = {
+                    "binding_version": BINDING_VERSION,
+                    "source_type": SOURCE_RECONSTRUCTED,
+                    "source_uri": item["source_uri"],
+                    "reconstruction_id": item["reconstruction_id"],
+                    "locator": item["locator"],
+                    "source_sha256": item["content_hash"],
+                    "method": item["method"],
+                    "original_formula_available": item["original_formula_available"],
+                    "limitations": item["limitations"],
+                }
+                binding["binding_hash"] = _canonical_hash(binding)
+                bindings.append(binding)
+
     if not isinstance(spec, Mapping):
         invalid.append(_issue("$", "INVALID_FINANCE_SPEC", "finance spec 必须是对象"))
         references: list[_Reference] = []
     else:
         references, collection_invalid = _collect_references(spec)
         invalid.extend(collection_invalid)
-    if not references and not invalid:
+    if not references and not invalid and not reconstructed:
         missing.append(_issue(
             "$",
             "NO_EVIDENCE_REFERENCES",
@@ -1148,6 +1119,9 @@ def bind_finance_spec_evidence(
         "pending": pending,
         "invalid": invalid,
         "binding_hash": assessment_hash,
+        "evidence_policy": SOURCE_RECONSTRUCTED if reconstructed else "formal_evidence",
+        "project_fact_certified": not bool(reconstructed),
+        "reconstruction_ids": [item.get("reconstruction_id") for item in reconstructed],
     }
 
 

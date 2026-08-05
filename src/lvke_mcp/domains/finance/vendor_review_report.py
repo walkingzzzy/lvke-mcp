@@ -160,7 +160,7 @@ def render_review_md(
 
 ### 4.2 修正轨金额桥接
 
-逐期桥接 {len(bridge.get('rows') or [])} 项，待业务裁决 {bridge.get('blocking_count', 0)} 项。待裁决项保持 blocking，不得批准或发布。
+逐期桥接 {len(bridge.get('rows') or [])} 项，待规则归类 {bridge.get('blocking_count', 0)} 项。未归类项保持 blocking，validation_status 不得为 passed。
 
 ## 五、审查裁决与发布预警
 
@@ -173,7 +173,7 @@ def render_review_md(
 1. 甲方工作簿已作为只读公式参考档留存，证据等级固定为 C，不进入对外数字源。
 2. F1/F2/F3 均按检测结果留痕；系统没有静默修改甲方单元格。
 3. 对外报告、13张附表和正文数字必须绑定本报告列示的我方 run。
-4. 负 IRR、ICR/DSCR<1 及其他 blocking 问题必须关闭后才允许批准和发布。
+4. 负 IRR、ICR/DSCR<1 及其他 blocking 问题必须关闭后，validation_status 才能为 passed。
 """
 
 

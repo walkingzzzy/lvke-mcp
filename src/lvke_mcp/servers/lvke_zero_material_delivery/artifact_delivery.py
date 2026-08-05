@@ -88,13 +88,13 @@ def _report_markdown(
     assumptions = [dict(item) for item in assumption_package.get("fields") or []]
     rows = "\n".join(
         f"| {item.get('name')} | {item.get('value')} {item.get('unit')} | "
-        f"{item.get('source_type')} | {item.get('confidence')} | {item.get('release_condition')} |"
+        f"{item.get('source_type')} | {item.get('confidence')} | {item.get('validation_condition')} |"
         for item in assumptions
     )
     gaps = "\n".join(f"- `{item}`" for item in blockers) or "- 无技术链 blocker"
     return f"""# {intent.get('project_name')}技术预估报告
 
-> **技术预估版，非正式发布。** 本报告在甲方零材料条件下生成，只用于方案讨论和参数确认，不构成正式可研、审批、融资、招采或投资决策依据。
+> **技术预估版。** 本报告在甲方零材料条件下生成，所有结论均受当前输入快照和受控假设约束。
 
 ## 一、项目识别
 
@@ -131,7 +131,7 @@ def _report_markdown(
 
 ## 五、十三表交付
 
-已从同一 FinanceRun 确定性生成十三张主表、13 个 CSV 与 XLSX。表格完整性不代表正式证据、签审或发布门禁已满足。
+已从同一 FinanceRun 确定性生成十三张主表、13 个 CSV 与 XLSX。表格的完整性状态由 manifest、文件 hash 和跨表一致性校验共同确定。
 
 ## 六、缺口与下一步
 
@@ -139,11 +139,10 @@ def _report_markdown(
 
 用户确认参数后，系统创建新的 AssumptionPackage、FinanceSpec、FinanceRun、十三表和报告版本，不覆盖本版本。
 
-## 七、发布门禁
+## 七、验证边界
 
-- `formal_delivery_ready=false`
-- `publish_eligibility=false`
-- 未满足条件：甲方原始材料、专业签审、正式批准与受控 release。
+- 输入范围：甲方原始材料缺失，当前结果使用受控假设。
+- 后续替换材料时必须重新计算并校验 input hash、lineage 与数值一致性。
 """
 
 
@@ -213,8 +212,8 @@ def build_delivery_artifacts(
         "finance_run_id": finance_run_id,
         "finance_tables_package_id": refs.get("finance_tables_package_id", ""),
         "research_task_id": refs.get("research_task_id", ""),
-        "formal_delivery_ready": False,
-        "publish_eligibility": False,
+        "validation_complete": False,
+        "input_evidence_complete": False,
     }
     report_record = stores["report"].put(
         workspace_id,
@@ -257,7 +256,7 @@ def build_delivery_artifacts(
             "assumption_package_id": assumption_package.get("assumption_package_id"),
             "revision": assumption_package.get("revision"),
             "fields": assumption_package.get("fields") or [],
-            "formal_delivery_ready": False,
+            "validation_complete": False,
         },
         producer="lvke-zero-material-delivery.assumption_register",
         status="ok",
@@ -270,8 +269,8 @@ def build_delivery_artifacts(
             "blockers": blockers,
             "missing_client_materials": ["合同", "测绘", "报价", "权属", "设计", "批复"],
             "research_status": str((domain.get("research") or {}).get("status") or ""),
-            "formal_delivery_ready": False,
-            "publish_eligibility": False,
+            "validation_complete": False,
+            "input_evidence_complete": False,
         },
         producer="lvke-zero-material-delivery.gap_register",
         status="partial",
@@ -313,8 +312,8 @@ def build_delivery_artifacts(
         "service_version": service_version,
         "status": "estimate_preview",
         "blockers": blockers,
-        "formal_delivery_ready": False,
-        "publish_eligibility": False,
+        "validation_complete": False,
+        "input_evidence_complete": False,
     }
     manifest_record = stores["manifest"].put(
         workspace_id,

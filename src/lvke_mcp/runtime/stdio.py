@@ -3,7 +3,7 @@
 当本机未安装官方 ``mcp`` SDK 时,本模块提供一个最小化、协议兼容的
 JSON-RPC over stdio 调度器:
 
-- 支持 ``initialize`` / ``tools/list`` / ``tools/call`` 三个核心 RPC
+- 支持 ``initialize`` / ``tools/list`` / ``tools/call`` / ``resources/list`` 核心 RPC
 - ``tools/call`` 把结果包成标准 ``CallToolResult``(``content`` + 可选
   ``isError``),让 hermes 端复用现有 ``call_tool`` 解析逻辑
 - 通过 ``register_tool(name, handler, schema, description)`` 注册工具,
@@ -87,8 +87,12 @@ class StdioServer:
             },
             "capabilities": {
                 "tools": {"listChanged": False},
+                "resources": {"listChanged": False},
             },
         }
+
+    def _handle_resources_list(self, params: dict) -> dict:
+        return {"resources": []}
 
     def _handle_tools_list(self, params: dict) -> dict:
         def public_output_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -252,6 +256,8 @@ class StdioServer:
             result: Any = self._handle_initialize(params)
         elif method == "tools/list":
             result = self._handle_tools_list(params)
+        elif method == "resources/list":
+            result = self._handle_resources_list(params)
         elif method == "tools/call":
             result = self._handle_tools_call(params)
         elif method == "notifications/initialized" or req_id is None:

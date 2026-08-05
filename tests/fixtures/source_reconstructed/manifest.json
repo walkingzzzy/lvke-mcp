@@ -1,0 +1,196 @@
+{
+  "schema_version": "source_reconstructed.manifest.v1",
+  "evidence_policy": "source_reconstructed",
+  "release_scope": "process_acceptance",
+  "project_fact_certified": false,
+  "sources": [
+    {
+      "source_id": "srcx_cy_report",
+      "reconstruction_id": "srcx_cy_report",
+      "path": "docs/client-materials/崇阳香苑小区一期贷款可研（盖章版）5.26.md",
+      "source_uri": "lvke://source-reconstructed/client-report/cy-xiangyuan",
+      "content_hash": "sha256:93dd8b69327734d9df76a93344e3e5e50dad45b1e634af1bcf6c3888a50f0619",
+      "source_kind": "client_report",
+      "locator": "document:markdown; headings:all",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["原始经济测算Excel未提供", "报告反推值不得标记为real"]
+    },
+    {
+      "source_id": "srcx_qs_report",
+      "reconstruction_id": "srcx_qs_report",
+      "path": "docs/client-materials/(盖章）湖北潜山国家森林公园文旅综合开发示范项目.md",
+      "source_uri": "lvke://source-reconstructed/client-report/qianshan-forest-park",
+      "content_hash": "sha256:cdfc1559bd20d09cf289a87d2abf14e5fa9f050f07ad4436d89cf7b39b589135",
+      "source_kind": "client_report",
+      "locator": "document:markdown; headings:all",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["原始经济测算Excel未提供", "报告反推值不得标记为real"]
+    },
+    {
+      "source_id": "srcx_template_real_estate",
+      "reconstruction_id": "srcx_template_real_estate",
+      "path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/工程投资与资金筹措分析表(房地产房屋售卖）.xlsx",
+      "source_uri": "lvke://source-reconstructed/finance-template/real-estate",
+      "content_hash": "sha256:1f41660ae4b1e47bc9200c2293491c68bc4a89a730f2aad4bd7dceb7356a5370",
+      "source_kind": "finance_template",
+      "locator": "workbook:sheets-and-formulas",
+      "method": "formula_replay",
+      "original_formula_available": true,
+      "limitations": ["模板不是崇阳项目原始BoE"]
+    },
+    {
+      "source_id": "srcx_template_product_1",
+      "reconstruction_id": "srcx_template_product_1",
+      "path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售一）.xlsx",
+      "source_uri": "lvke://source-reconstructed/finance-template/product-sales-1",
+      "content_hash": "sha256:44441fd041bff7dba4941b9cad97cda121b43b745521f259eeabf0528f26d3ac",
+      "source_kind": "finance_template",
+      "locator": "workbook:sheets-and-formulas",
+      "method": "formula_replay",
+      "original_formula_available": true,
+      "limitations": ["模板不是潜山项目原始BoE"]
+    },
+    {
+      "source_id": "srcx_template_product_2",
+      "reconstruction_id": "srcx_template_product_2",
+      "path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售二）.xlsx",
+      "source_uri": "lvke://source-reconstructed/finance-template/product-sales-2",
+      "content_hash": "sha256:0ad67de5ee80e3dc6c01d86c9400b9e1d181eddfda27a3b7a0825661b0427577",
+      "source_kind": "finance_template",
+      "locator": "workbook:sheets-and-formulas",
+      "method": "formula_replay",
+      "original_formula_available": true,
+      "limitations": ["模板不是潜山项目原始BoE"]
+    },
+    {
+      "source_id": "srcx_template_lease",
+      "reconstruction_id": "srcx_template_lease",
+      "path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（厂房出租）.xlsx",
+      "source_uri": "lvke://source-reconstructed/finance-template/factory-lease",
+      "content_hash": "sha256:131c8de45f8f1846b3b959ece599fb45e40c50980cd37cc63dec69b1fa26189c",
+      "source_kind": "finance_template",
+      "locator": "workbook:sheets-and-formulas",
+      "method": "formula_replay",
+      "original_formula_available": true,
+      "limitations": ["模板不是项目原始BoE"]
+    },
+    {
+      "source_id": "srcx_template_cemetery",
+      "reconstruction_id": "srcx_template_cemetery",
+      "path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（墓地售卖）.xlsx",
+      "source_uri": "lvke://source-reconstructed/finance-template/cemetery-sale",
+      "content_hash": "sha256:4f0da624dcef266f1bf4af68a3a2d7837440e9f70894f6efd1d04d1bdcb34e8d",
+      "source_kind": "finance_template",
+      "locator": "workbook:sheets-and-formulas",
+      "method": "formula_replay",
+      "original_formula_available": true,
+      "limitations": ["模板不是项目原始BoE"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2023_profit",
+      "reconstruction_id": "srcx_hengli_report_2023_profit",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/利润表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2023-profit",
+      "content_hash": "sha256:e43e9e7b223c3c3345560a39d0e0041f48ffb673e7372616619f842fa00395e3",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2023-12",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2023_cashflow",
+      "reconstruction_id": "srcx_hengli_report_2023_cashflow",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/现金流量表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2023-cashflow",
+      "content_hash": "sha256:6569006392747edd183f8692550af098c099f67c4f3863aa7bd1a60f4696cc7a",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2023-12",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2023_balance",
+      "reconstruction_id": "srcx_hengli_report_2023_balance",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/资产负债表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2023-balance",
+      "content_hash": "sha256:85f29f9e4bf989277fccb986083c39f555bd94e4d43e6f20d1c8dd4ba1cdd34f",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2023-12",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2024_profit",
+      "reconstruction_id": "srcx_hengli_report_2024_profit",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/利润表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2024-09-profit",
+      "content_hash": "sha256:ff6f783e973d223f99b47b4aeaed5f0d87e241cc0613af61beabb0b2ea9220ab",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2024-09",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2024_cashflow",
+      "reconstruction_id": "srcx_hengli_report_2024_cashflow",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/现金流量表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2024-09-cashflow",
+      "content_hash": "sha256:537fd833a2e53c1e079c0b3e8d4c4cd7133046acabc976402961c543ae1b328b",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2024-09",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    },
+    {
+      "source_id": "srcx_hengli_report_2024_balance",
+      "reconstruction_id": "srcx_hengli_report_2024_balance",
+      "path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/资产负债表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+      "source_uri": "lvke://source-reconstructed/hengli/historical/2024-09-balance",
+      "content_hash": "sha256:836595816245b2bf341d97fb71879e82b992dea2b4a310088f5891b99d19c518",
+      "source_kind": "historical_statement",
+      "locator": "workbook:sheet1; period:2024-09",
+      "method": "table_extract",
+      "original_formula_available": false,
+      "limitations": ["历史报表不解决最终交易结构和资产边界"]
+    }
+  ],
+  "cases": {
+    "cy_xiangyuan": {
+      "report_source_id": "srcx_cy_report",
+      "template_source_ids": ["srcx_template_real_estate"],
+      "revised_report": "tests/fixtures/source_reconstructed/reports/cy_xiangyuan_revision.md",
+      "unresolved_inputs": ["原始经济测算Excel", "未提供的逐项BoE公式"],
+      "chapters": 9
+    },
+    "qianshan_forest_park": {
+      "report_source_id": "srcx_qs_report",
+      "template_source_ids": ["srcx_template_product_1", "srcx_template_product_2"],
+      "revised_report": "tests/fixtures/source_reconstructed/reports/qianshan_forest_park_revision.md",
+      "unresolved_inputs": ["原始经济测算Excel", "未提供的客流和投资原始底稿"],
+      "chapters": 9
+    },
+    "hengli_hotel": {
+      "historical_source_ids": [
+        "srcx_hengli_report_2023_profit",
+        "srcx_hengli_report_2023_cashflow",
+        "srcx_hengli_report_2023_balance",
+        "srcx_hengli_report_2024_profit",
+        "srcx_hengli_report_2024_cashflow",
+        "srcx_hengli_report_2024_balance"
+      ],
+      "scenario_purchase_prices_wan": [2000, 2200, 2400, 2600, 2800, 3000],
+      "business_decision_status": "not_selected",
+      "scenario_set_complete": true,
+      "project_fact_certified": false,
+      "release_scope": "process_acceptance",
+      "unresolved_inputs": ["最终经营模式", "交易类型", "资产边界", "购买价分摊", "税费承担", "改造和营运资金"]
+    }
+  }
+}

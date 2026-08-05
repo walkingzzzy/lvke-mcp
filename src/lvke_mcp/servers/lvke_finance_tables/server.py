@@ -10,31 +10,13 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
-from lvke_mcp.servers.lvke_finance_tables import service
+from lvke_mcp.domains.finance import tables_service as service
 
 SERVER_NAME = "lvke-finance-tables"
 SERVER_VERSION = "0.1.0"
 logger = get_logger(SERVER_NAME)
-_OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "formal_delivery_ready": {"type": "boolean", "description": "由宿主正式发布门禁决定；表名齐全或 XLSX 写出绝不单独为 true"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "formal_delivery_ready", "resource_uris", "warnings", "blockers", "next_actions"]}
-_VALIDATE_OUTPUT = {
-    **_OUTPUT,
-    "properties": {
-        **_OUTPUT["properties"],
-        "full_review_required": {"const": True},
-        "review_id": {"type": ["string", "null"]},
-        "deliverable_review_id": {"type": ["string", "null"]},
-        "deliverable_review_status": {"type": "string"},
-        "deliverable_formally_deliverable": {"type": "boolean"},
-    },
-    "required": [
-        *_OUTPUT["required"],
-        "full_review_required",
-        "review_id",
-        "deliverable_review_id",
-        "deliverable_review_status",
-        "deliverable_formally_deliverable",
-    ],
-}
+_OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "validation_complete": {"type": "boolean", "description": "由宿主正式发布门禁决定；表名齐全或 XLSX 写出绝不单独为 true"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "validation_complete", "resource_uris", "warnings", "blockers", "next_actions"]}
+_VALIDATE_OUTPUT = _OUTPUT
 _BASE = {
     "workspace_id": {"type": "string", "minLength": 1},
     "run_id": {"type": "string", "minLength": 1},
@@ -63,14 +45,14 @@ def _read_scoped_resource(
             "success": False, "transport_success": True, "business_success": False,
             "completed": False, "outcome": "blocked",
             "status": "blocked", "code": "resource_not_found",
-            "message": "资源不存在或不属于当前工作区", "formal_delivery_ready": False,
+            "message": "资源不存在或不属于当前工作区", "validation_complete": False,
             "resource_uris": [], "warnings": [], "blockers": ["resource_not_found"],
             "next_actions": ["调用 tables_list_resources 获取当前工作区可读 URI"],
         }
     content, mime_type = resolved
     encoded = isinstance(content, bytes)
     return {
-        "success": True, "status": "ok", "formal_delivery_ready": False,
+        "success": True, "status": "ok", "validation_complete": False,
         "uri": uri, "mime_type": mime_type,
         "content_encoding": "base64" if encoded else "utf-8",
         "content": base64.b64encode(content).decode("ascii") if encoded else content,

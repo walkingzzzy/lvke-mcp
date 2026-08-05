@@ -1,6 +1,6 @@
 {
   "schema": "baseline_samples.v1",
-  "captured_at": "2026-08-03T22:04:47+0800",
+  "captured_at": "2026-08-04T23:45:11+0800",
   "protocol_version": "2025-11-25",
   "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §29.2",
   "domains": [
@@ -11,8 +11,8 @@
   ],
   "exit_condition": "四个核心领域均有至少一个可回放成功样本；无法取得的样本登记为当前实现缺陷",
   "summary": {
-    "ok": 10,
-    "defect": 2,
+    "ok": 5,
+    "defect": 0,
     "pending": 0,
     "ok_domains": [
       "finance",
@@ -20,190 +20,80 @@
       "report",
       "research"
     ],
-    "defect_domains": [
-      "finance",
-      "research"
-    ]
+    "defect_domains": []
   },
   "samples": [
     {
-      "id": "finance-run-full",
+      "id": "finance-run-roundtrip",
       "domain": "finance",
       "server": "lvke_finance_model",
-      "tool": "finance_get_run",
+      "tool": "finance_prepare_spec→finance_confirm_spec→finance_run_model→finance_get_run",
       "params": {
-        "workspace_id": "case01-hubei-pv",
-        "run_id": "run_accc8c053bd8",
-        "view": "full"
-      },
-      "status": "defect",
-      "file": null,
-      "sha256": null,
-      "detail": "run 非终态(status=blocked): {\"available\": true, \"invest_type\": \"\", \"investment\": {\"total\": 42642.0, \"construction\": 41789.16, \"other\": 2070.0, \"reserve\": 1217.16, \"interest\": 477.59, \"working_capital\": 0.0, \"fixed_asset\": 42266.",
-      "note": ""
-    },
-    {
-      "id": "calc-irr",
-      "domain": "finance",
-      "server": "finance_calc",
-      "tool": "calc_irr",
-      "params": {
-        "cashflows": [
-          -1000,
-          300,
-          400,
-          500,
-          600
-        ]
+        "workspace_id": "baseline-core-v2",
+        "mode": "estimate_preview"
       },
       "status": "ok",
-      "file": "finance/calc.irr.json",
-      "sha256": "1c807a1ca4867cdb89a04ab5d46ee840c6bdb7743edb152544aa67cced7ad7f9",
+      "file": "finance/FinanceRun.roundtrip.v1.json",
+      "sha256": "9aff845bcb7f6de1de9048c2457dd3cc6f50331b2536e4b5383faf3ddfef0cb7",
       "detail": "",
-      "note": ""
+      "note": "空 MCP 数据目录中的确定性技术基线；非正式交付样本"
     },
     {
-      "id": "finance-error-missing-ws",
-      "domain": "finance",
-      "server": "lvke_finance_model",
-      "tool": "finance_get_run",
-      "params": {
-        "run_id": "run_accc8c053bd8",
-        "view": "summary"
-      },
-      "status": "ok",
-      "file": "finance/error.missing-workspace.json",
-      "sha256": "8df36a5af7ccfc0313ec354f2dc4b464c5023d011bf7d8116e0469dfc6a7c127",
-      "detail": "",
-      "note": "缺 workspace_id 的错误响应"
-    },
-    {
-      "id": "finance-error-bad-ws",
-      "domain": "finance",
-      "server": "lvke_finance_model",
-      "tool": "finance_get_run",
-      "params": {
-        "workspace_id": "ws-not-exist-000",
-        "view": "summary"
-      },
-      "status": "ok",
-      "file": "finance/error.bad-workspace.json",
-      "sha256": "d7ce65d4079c29644bcba2469fae01203d5d87dbda8b6c6566b233004e24492d",
-      "detail": "",
-      "note": "不存在工作区的错误响应"
-    },
-    {
-      "id": "tables-thirteen",
+      "id": "finance-tables-roundtrip",
       "domain": "finance-tables",
       "server": "lvke_finance_tables",
-      "tool": "tables_read_resource",
+      "tool": "tables_render→tables_export_csv→tables_export_xlsx→tables_read_resource",
       "params": {
-        "workspace_id": "case01-hubei-pv",
-        "uri": "lvke://finance-tables/workspaces/case01-hubei-pv/packages/ftp_136398d8bf4952051b68ba50"
+        "workspace_id": "baseline-core-v2",
+        "run_id": "run_0cd056150739"
       },
       "status": "ok",
-      "file": "finance-tables/thirteen_tables.json",
-      "sha256": "753e783e1a28e100d6f6deb07ef90281c3b50496e18a0ab6299c4e89611b64bd",
+      "file": "finance-tables/FinanceTables.roundtrip.v1.json",
+      "sha256": "55fa7ace50011173ed672d8e4244dbc716af35409cbed4439151d1c52b4cf7af",
       "detail": "",
-      "note": ""
+      "note": "绑定本次 FinanceRun 的十三表、CSV 和 XLSX 技术工件"
     },
     {
-      "id": "tables-xlsx",
-      "domain": "finance-tables",
-      "server": "lvke_finance_tables",
-      "tool": "tables_export_xlsx",
-      "params": {
-        "workspace_id": "case01-hubei-pv",
-        "run_id": "run_accc8c053bd8"
-      },
-      "status": "ok",
-      "file": "finance-tables/export.workbook.xlsx",
-      "sha256": "12bd510bda1e301cae1721269993230667dd9556b2cffd8b3ad9134191cee860",
-      "detail": "",
-      "note": "字节级拷贝既有 xlsx 产物"
-    },
-    {
-      "id": "tables-csv",
-      "domain": "finance-tables",
-      "server": "lvke_finance_tables",
-      "tool": "tables_export_csv",
-      "params": {
-        "workspace_id": "case01-hubei-pv",
-        "run_id": "run_accc8c053bd8"
-      },
-      "status": "ok",
-      "file": "finance-tables/export.csv.manifest.json",
-      "sha256": "9e0e9af4fb7c796ebad7c0bce522e29dd0b0e19384e19c2745a45565b50a3e39",
-      "detail": "",
-      "note": ""
-    },
-    {
-      "id": "template-catalog",
-      "domain": "finance-tables",
-      "server": "lvke_templates",
-      "tool": "list_templates",
-      "params": {},
-      "status": "ok",
-      "file": "finance-tables/template.catalog.json",
-      "sha256": "90fc928195a22d12b80b9cb619395d7dab6d1343df5bf966bf9320375ea183c6",
-      "detail": "",
-      "note": ""
-    },
-    {
-      "id": "report-revision-partial",
-      "domain": "report",
-      "server": "lvke_report_generation",
-      "tool": "report_list_resources",
-      "params": {
-        "workspace_id": "mcp-stress-20260730-cc01-generic",
-        "resource_type": "revision"
-      },
-      "status": "ok",
-      "file": "report/ReportRevision.v1.json",
-      "sha256": "b1c7f4acef85e64c5a84f5eae1fbc07de4bb1f6dfcd6de4378c884b14afd8cd5",
-      "detail": "",
-      "note": "既有 revision 经 transport 读取；read 返回 revision 对象"
-    },
-    {
-      "id": "report-error-missing-ws",
-      "domain": "report",
-      "server": "lvke_report_generation",
-      "tool": "report_list_resources",
-      "params": {},
-      "status": "ok",
-      "file": "report/error.missing-workspace.json",
-      "sha256": "8df36a5af7ccfc0313ec354f2dc4b464c5023d011bf7d8116e0469dfc6a7c127",
-      "detail": "",
-      "note": "缺 workspace_id 的错误响应"
-    },
-    {
-      "id": "research-package",
+      "id": "research-package-roundtrip",
       "domain": "research",
       "server": "lvke_deep_research",
-      "tool": "dr_list_resources",
+      "tool": "dr_start→dr_submit→dr_get_bundle→dr_read_resource",
       "params": {
-        "workspace_id": "ws-dr-audit-deepassist"
-      },
-      "status": "defect",
-      "file": null,
-      "sha256": null,
-      "detail": "dr_list_resources 无当前布局包（既有包在旧版路径,当前代码不可读）: {\"ok\": true, \"items\": []}",
-      "note": "当前布局(非旧版路径)研究包需 agent 生命周期(dr_start→submit→get_bundle)终结；若当前工作区无可读包则登记为缺陷"
-    },
-    {
-      "id": "research-industry-report",
-      "domain": "research",
-      "server": "industry_research",
-      "tool": "search_report",
-      "params": {
-        "keyword": "光伏",
-        "limit": 3
+        "workspace_id": "baseline-core-v2"
       },
       "status": "ok",
-      "file": "research/industry.report.json",
-      "sha256": "2ed5fd1b854cca8d9d58ad9f0d958b8a9802e558fb0db4f778d875af847a9fa2",
+      "file": "research/ResearchPackage.roundtrip.v1.json",
+      "sha256": "77d1de785dbd836b33264d58502b596ec10f341f4758051ef912515e9e9d7b43",
       "detail": "",
-      "note": ""
+      "note": "可回读 partial ResearchPackage；不冒充独立质量审计完成"
+    },
+    {
+      "id": "evidence-pack-roundtrip",
+      "domain": "report",
+      "server": "lvke_source_files+lvke_data_analysis",
+      "tool": "source_import_content→analysis_ingest→analysis_build_evidence_pack",
+      "params": {
+        "workspace_id": "baseline-core-v2"
+      },
+      "status": "ok",
+      "file": "report/EvidencePack.roundtrip.v1.json",
+      "sha256": "046d3b4f388a9eaaf4901133adf8cd0242d203955d3cb8c7391b9650ec1e41e8",
+      "detail": "",
+      "note": "Report 上游的本地真实源文件与不可变 EvidencePack"
+    },
+    {
+      "id": "report-revision-roundtrip",
+      "domain": "report",
+      "server": "lvke_report_generation",
+      "tool": "report_prepare→report_start→report_status→report_validate→report_export_docx→report_read_resource",
+      "params": {
+        "workspace_id": "baseline-core-v2"
+      },
+      "status": "ok",
+      "file": "report/ReportRevision.roundtrip.v1.json",
+      "sha256": "ee7b0395211c546be4a06f71a299149092f0bd53051846d326faf242725177be",
+      "detail": "",
+      "note": "绑定本次 Finance、十三表、Evidence 与 Research 对象的 partial 报告工件"
     }
   ]
 }

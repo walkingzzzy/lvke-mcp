@@ -14,7 +14,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import HTTPException
 from filelock import FileLock
 
 from lvke_mcp.runtime.storage import (
@@ -23,8 +22,8 @@ from lvke_mcp.runtime.storage import (
     require_safe_id,
     sha256_json,
 )
+from lvke_mcp.adapters import source_files_repository as source_api
 from lvke_mcp.runtime.workspace import workspace_root
-from lvke_mcp.servers.lvke_source_files import backend as source_api
 from lvke_mcp.runtime.coordination import build_coordination
 from lvke_mcp.servers.lvke_source_files.external_corpora import (
     ExternalCorpusError,
@@ -95,7 +94,7 @@ def _blocked(
     )
 
 
-def _from_http_exception(exc: HTTPException) -> dict[str, Any]:
+def _from_source_exception(exc: source_api.SourceFileError) -> dict[str, Any]:
     detail = exc.detail if isinstance(exc.detail, dict) else {}
     code = str(detail.get("code") or "source_operation_failed").lower()
     return _blocked(
@@ -262,8 +261,8 @@ def _commit_and_parse(
             expected_sha256=expected_sha256,
             expected_size=expected_size,
         )
-    except HTTPException as exc:
-        return _from_http_exception(exc)
+    except source_api.SourceFileError as exc:
+        return _from_source_exception(exc)
     file_id = str(record.get("file_id") or "")
     job_id = str(record.get("parse_job_id") or "")
     state = source_api._load_state(workspace_id)  # noqa: SLF001
@@ -808,8 +807,8 @@ def get_source_file(
         _state, record = source_api._require_source_record(  # noqa: SLF001
             workspace_id, file_id, "mcp"
         )
-    except HTTPException as exc:
-        return _from_http_exception(exc)
+    except source_api.SourceFileError as exc:
+        return _from_source_exception(exc)
     analysis = source_api._load_analysis(workspace_id, file_id)  # noqa: SLF001
     uris = [_file_uri(workspace_id, file_id)]
     if analysis:
@@ -835,8 +834,8 @@ def parse_status(
             job_id,
             "mcp",
         )
-    except HTTPException as exc:
-        return _from_http_exception(exc)
+    except source_api.SourceFileError as exc:
+        return _from_source_exception(exc)
     public = source_api._public_parse_job(job)  # noqa: SLF001
     state = str(public.get("status") or "failed")
     success = state in {"queued", "running", "succeeded"}
@@ -908,7 +907,6 @@ def parse_retry(
                     "status": "queued",
                     "extract_status": "queued",
                     "ocr_status": "pending",
-                    "manual_review_status": "pending",
                     "deterministic_status": "pending",
                     "updated_at": _now().isoformat(),
                 }
@@ -926,8 +924,8 @@ def parse_retry(
             "parse_job_id": new_id,
             "idempotent_replay": False,
         }
-    except HTTPException as exc:
-        return _from_http_exception(exc)
+    except source_api.SourceFileError as exc:
+        return _from_source_exception(exc)
 
 
 def parse_cancel(
@@ -983,8 +981,8 @@ def parse_cancel(
             task_status="cancelled",
             idempotent_replay=False,
         )
-    except HTTPException as exc:
-        return _from_http_exception(exc)
+    except source_api.SourceFileError as exc:
+        return _from_source_exception(exc)
 
 
 def list_resources(
@@ -1081,9 +1079,9 @@ def read_resource(
             content_value = source_api._public_parse_job(job)  # noqa: SLF001
         else:
             return _blocked("resource_not_found", "未知 Resource 类型")
-    except (HTTPException, ValueError) as exc:
-        if isinstance(exc, HTTPException):
-            return _from_http_exception(exc)
+    except (source_api.SourceFileError, ValueError) as exc:
+        if isinstance(exc, source_api.SourceFileError):
+            return _from_source_exception(exc)
         return _blocked("resource_not_found", "Resource URI 无效")
     content = json.dumps(content_value, ensure_ascii=False, indent=2)
     return _envelope(

@@ -14,5 +14,5 @@
 - ``sensitivity``             敏感性分析表(6.6)
 - ``key-indicators``          主要技术经济指标汇总表(9.2)
 - ``risk-matrix``             风险评级矩阵(7.X)
-- ``approval-schedule``       审批进度安排(9.4)
+- ``regulatory-schedule``     行政手续进度安排(9.4)
 """

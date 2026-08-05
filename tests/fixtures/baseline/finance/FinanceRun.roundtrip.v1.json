@@ -1,0 +1,137 @@
+{
+  "schema": "finance_run_roundtrip.v1",
+  "fixture_kind": "technical_estimate_preview",
+  "valuation_date": "2026-01-15",
+  "status_chain": [
+    "ok",
+    "ok",
+    "ok",
+    "ok"
+  ],
+  "resource_roundtrip": true,
+  "consistency_ok": true,
+  "hash_contract": {
+    "input_hash": "sha256",
+    "spec_hash": "sha256",
+    "table_bundle_hash": "sha256"
+  },
+  "investment": {
+    "asset_map": {
+      "capitalized_interest": 300.0,
+      "fixed_asset_dep_base": 10000.0,
+      "fixed_asset_gross": 10000.0,
+      "intangible_original": 0.0,
+      "inventory_development": 0.0,
+      "method": "fixed_asset_plus_intangible",
+      "note": "固定资产原值=建设投资+资本化建设期利息；折旧基数=固定资产原值−无形资产−其他资产",
+      "other_assets_original": 0.0
+    },
+    "breakdown_detail": {
+      "contingency": [
+        [
+          "预备费合计",
+          500.0
+        ]
+      ],
+      "contingency_total": 500.0,
+      "engineering": [
+        [
+          "建筑工程",
+          2500.0
+        ],
+        [
+          "设备及工器具购置",
+          4700.0
+        ],
+        [
+          "安装工程",
+          1000.0
+        ]
+      ],
+      "engineering_total": 8200.0,
+      "other": [
+        [
+          "工程建设其他费合计",
+          1000.0
+        ]
+      ],
+      "other_total": 1000.0
+    },
+    "construction": 9700.0,
+    "fixed_asset": 10000.0,
+    "interest": 300.0,
+    "other": 1000.0,
+    "reserve": 500.0,
+    "scope_status": {
+      "code": "",
+      "reason": "总投资 = 建设投资 + 建设期利息 + 流动资金，口径自洽",
+      "status": "clear"
+    },
+    "total": 10000.0,
+    "working_capital": 0.0
+  },
+  "funding": {
+    "capital": 4000.0,
+    "capital_pct": 40.0,
+    "loan": 6000.0,
+    "loan_pct": 60.0,
+    "loan_rate": 0.045,
+    "loan_years": 8,
+    "subsidy": 0.0,
+    "subsidy_pct": 0.0
+  },
+  "params": {
+    "build_years": 1,
+    "calc_years": 12,
+    "is_operating": true,
+    "loan_grace_years": 0,
+    "loan_repay_method": "equal_principal"
+  },
+  "indicators": {
+    "benchmark_rate_pct": 8.0,
+    "bep_pct": 52.7,
+    "depreciation": 863.64,
+    "dynamic_payback_years": null,
+    "income_tax": 151.89,
+    "net_profit": 455.67,
+    "npv_wan": -367.05,
+    "op_cashflow": 1319.31,
+    "op_cost": 2363.64,
+    "profit_before": 607.56,
+    "project_irr_pct": 7.26,
+    "revenue": 3000.0,
+    "static_payback_years": 7.58,
+    "tax_surcharge": 28.8,
+    "vat_input": 150.0,
+    "vat_input_rate": 0.1,
+    "vat_net_payable": 240.0,
+    "vat_output": 390.0,
+    "vat_payable": 240.0,
+    "vat_rate": 0.13,
+    "vat_refund": 0.0
+  },
+  "assurance_level": "estimate_preview",
+  "model_version": "finance_model.v2.4",
+  "policy_version": null,
+  "table_keys": [
+    "amortization",
+    "capital-cashflow",
+    "cashflow",
+    "debt-service",
+    "depreciation",
+    "financial-plan",
+    "financing",
+    "funding",
+    "income-statement",
+    "indicators",
+    "interest-during-construction",
+    "investment",
+    "investment-estimation",
+    "key-indicators",
+    "profit-distribution",
+    "sensitivity",
+    "total-cost",
+    "wage",
+    "working-capital"
+  ]
+}

@@ -156,7 +156,7 @@ def build_evidence(
         "run_id": fin.get("run_id"),
         "grade": quality.get("grade") or "summary",
         "delivery_format": "xlsx+json+readable_md",
-        "formal_delivery_ready": bool(quality.get("formal_delivery_ready")),
+        "validation_complete": bool(quality.get("validation_complete")),
         "effective_table_count": quality.get("effective_table_count"),
         "required_table_count": quality.get("required_table_count"),
         "ineffective_tables": quality.get("ineffective_tables") or [],
@@ -258,7 +258,7 @@ def structured_to_readable_md(
     lines.append("| --- | --- |")
     for k in (
         "run_id", "workspace_id", "grade", "delivery_format",
-        "model_version", "checks_total", "checks_blocking_failed", "formal_delivery_ready",
+        "model_version", "checks_total", "checks_blocking_failed", "validation_complete",
         "effective_table_count", "required_table_count",
         "llm_fills_cells", "llm_participated_in_tables",
         "prepare_used_llm", "tables_generated_by", "llm_role",
@@ -381,7 +381,7 @@ def write_readable_artifacts(
         evidence["missing_fields_by_table"] = meta.get("missing_fields_by_table")
         evidence["template_ready"] = meta.get("template_ready")
         evidence["reference_schema"] = meta.get("reference_schema") or "docs/reference_table_schema.json"
-        evidence["formal_delivery_ready"] = bool(meta.get("formal_delivery_ready"))
+        evidence["validation_complete"] = bool(meta.get("validation_complete"))
         evidence["effective_table_count"] = meta.get("effective_table_count")
         evidence["required_table_count"] = meta.get("required_table_count")
         evidence["ineffective_tables"] = meta.get("ineffective_tables") or []
@@ -434,7 +434,7 @@ def write_readable_artifacts(
         "run_id": evidence.get("run_id"),
         "delivery_count": evidence.get("delivery_count"),
         "effective_delivery_count": evidence.get("effective_delivery_count"),
-        "formal_delivery_ready": evidence.get("formal_delivery_ready"),
+        "validation_complete": evidence.get("validation_complete"),
         "consistency_ok": evidence.get("consistency_ok"),
         "grade": evidence.get("grade"),
         "delivery_format": evidence.get("delivery_format"),

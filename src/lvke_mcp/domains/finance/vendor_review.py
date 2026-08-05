@@ -128,25 +128,6 @@ def _import_vendor_workbook_review(
         issue_record = review_verdict.persist_verdict(
             workspace_id, str(run["run_id"]), verdict
         )
-        # 参考轨复现状态（GOV-001）：超容差 red_flag → out_of_tolerance（阻断批准）；
-        # 收敛 → converged；否则待人工复核。业务复核状态在人工裁决前保持 pending。
-        red_flags = comparison.get("red_flags") or []
-        needs_explanation = comparison.get("needs_explanation") or []
-        if not sheet_decisions.get("formal_ok"):
-            reference_status = "pending"
-        elif red_flags:
-            reference_status = "out_of_tolerance"
-        elif needs_explanation:
-            reference_status = "explain_pending"
-        else:
-            reference_status = "converged"
-        run_store.set_reference_review_status(
-            workspace_id, str(run["run_id"]), reference_status
-        )
-        run_store.set_business_review_status(
-            workspace_id, str(run["run_id"]), "pending"
-        )
-
     report_md = vendor_review_report.render_review_md(
         reference_pack, cleanup_findings, run, comparison, verdict,
         reference_replay=reference_replay, amount_bridge=amount_bridge,

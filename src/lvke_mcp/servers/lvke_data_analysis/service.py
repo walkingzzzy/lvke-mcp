@@ -7,41 +7,26 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
+from lvke_mcp.adapters.data_analysis_repository import (
+    BENCHMARK_COMPARISON_STORE,
+    CANDIDATE_STORE,
+    EVIDENCE_STORE,
+    FINANCIAL_TREND_STORE,
+    INGEST_STORE,
+    NORMALIZED_COMPARE_STORE,
+    PROFILE_STORE,
+    resolve_resource as resolve_repository_resource,
+)
 from lvke_mcp.runtime.storage import (
-    JSONArtifactStore,
     paginate_resource_entries,
     sha256_json,
 )
-from lvke_mcp.servers.lvke_data_acquisition.service import SOURCE_STORE
-
-INGEST_STORE = JSONArtifactStore("data-analysis", "ingest_tasks", "analysis", "tasks")
-EVIDENCE_STORE = JSONArtifactStore(
-    "data-analysis", "evidence_packs", "evp", "evidence-packs"
+from lvke_mcp.runtime.source_reconstruction import (
+    SOURCE_RECONSTRUCTED,
+    normalize_reconstruction,
+    validate_reconstruction_records,
 )
-CANDIDATE_STORE = JSONArtifactStore(
-    "data-analysis", "candidate_sets", "cset", "candidate-sets"
-)
-PROFILE_STORE = JSONArtifactStore(
-    "data-analysis", "data_profiles", "profile", "profiles"
-)
-NORMALIZED_COMPARE_STORE = JSONArtifactStore(
-    "data-analysis", "normalized_comparisons", "ncmp", "normalized-comparisons"
-)
-FINANCIAL_TREND_STORE = JSONArtifactStore(
-    "data-analysis", "financial_trends", "ftrend", "financial-trends"
-)
-BENCHMARK_COMPARISON_STORE = JSONArtifactStore(
-    "data-analysis", "benchmark_comparisons", "bench", "benchmark-comparisons"
-)
-_RESOURCE_STORES = (
-    (INGEST_STORE, "task"),
-    (EVIDENCE_STORE, "evidence_pack"),
-    (CANDIDATE_STORE, "candidate_set"),
-    (PROFILE_STORE, "profile"),
-    (NORMALIZED_COMPARE_STORE, "normalized_comparison"),
-    (FINANCIAL_TREND_STORE, "financial_trend"),
-    (BENCHMARK_COMPARISON_STORE, "benchmark_comparison"),
-)
+from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
 
 # Exact, auditable conversions only.  The dictionary is opt-in and never uses
 # fuzzy unit inference; every applied rule is returned with its basis.
@@ -58,7 +43,7 @@ CONTROLLED_UNIT_RULES: dict[str, tuple[str, float, str]] = {
     "倍": ("倍", 1.0, "受控倍数单位字典：单位恒等"),
 }
 
-EVIDENCE_TRACKS = {"real", "technical_fixture", "controlled_assumption"}
+EVIDENCE_TRACKS = {"real", SOURCE_RECONSTRUCTED, "technical_fixture", "controlled_assumption"}
 _SHA256_PATTERN = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
 
 
@@ -215,7 +200,7 @@ def _file_document(
     workspace_id: str,
     file_id: str,
 ) -> dict[str, Any] | None:
-    from lvke_mcp.servers.lvke_source_files import backend as source
+    from lvke_mcp.adapters import source_files_repository as source
 
     state = source._load_state(workspace_id)  # noqa: SLF001
     record = (state.get("files") or {}).get(file_id)
@@ -233,18 +218,18 @@ def _file_document(
         str(item.get("kind") or "") == "ocr_block" for item in locators
     )
     unresolved_low_confidence = [
-        item
-        for item in locators
-        if item.get("low_confidence") is True
-        and str(item.get("manual_review_status") or "pending").lower() != "approved"
+        item for item in locators if item.get("low_confidence") is True
     ]
-    formal_use_allowed = bool(record.get("security_formal_use_allowed", False))
-    if ocr_used:
-        formal_use_allowed = bool(
-            formal_use_allowed
-            and formal_use_decision == "approved"
-            and not unresolved_low_confidence
-        )
+    deterministic_status = str(
+        analysis.get("deterministic_status")
+        or record.get("deterministic_status")
+        or "pending"
+    ).lower()
+    formal_use_allowed = bool(
+        str(record.get("extract_status") or record.get("status") or "") == "succeeded"
+        and deterministic_status == "succeeded"
+        and (not ocr_used or ocr_status != "failed")
+    )
     text_parts = []
     for locator in locators:
         for key in ("text", "content", "value"):
@@ -260,19 +245,13 @@ def _file_document(
         "content_hash": record.get("sha256"),
         "fetched_at": str(record.get("created_at") or record.get("updated_at") or ""),
         "status": str(record.get("extract_status") or record.get("status") or "pending"),
-        "security_status": record.get("security_review_status") or record.get("security_scan"),
+        "validation_status": deterministic_status,
         "formal_use_allowed": formal_use_allowed,
         "formal_use_decision": formal_use_decision,
         "ocr_formal_use_decision": str(
             analysis.get("ocr_formal_use_decision")
             or formal_use_decision
         ).lower(),
-        "manual_review_status": str(
-            analysis.get("manual_review_status")
-            or record.get("manual_review_status")
-            or "pending"
-        ),
-        "ocr_review_ledger_count": len(analysis.get("ocr_review_ledger") or []),
         "unresolved_low_confidence_locator_count": len(unresolved_low_confidence),
         "locators": locators,
     }
@@ -1845,12 +1824,19 @@ def build_evidence_pack(
     selected_candidate_ids: list[str] | None = None,
     evidence_track: str = "real",
     fixture_manifest: dict[str, Any] | None = None,
+    reconstruction_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     evidence_track = str(evidence_track or "real").strip()
     if evidence_track not in EVIDENCE_TRACKS:
         return _missing("evidence_track_invalid", "evidence_track 必须为 real、technical_fixture 或 controlled_assumption")
     if evidence_track != "technical_fixture" and fixture_manifest:
         return _missing("fixture_manifest_not_applicable", "fixture_manifest 仅允许用于 technical_fixture 轨")
+    normalized_reconstructions = [normalize_reconstruction(item) for item in (reconstruction_records or [])]
+    reconstruction_errors = validate_reconstruction_records(reconstruction_records) if evidence_track == SOURCE_RECONSTRUCTED else []
+    if evidence_track == SOURCE_RECONSTRUCTED and reconstruction_errors:
+        return _missing("source_reconstruction_invalid", "source_reconstructed 必须提供完整来源重建记录", field_errors=reconstruction_errors)
+    if evidence_track != SOURCE_RECONSTRUCTED and reconstruction_records:
+        return _missing("reconstruction_records_not_applicable", "reconstruction_records 仅允许用于 source_reconstructed 轨")
     documents = _documents_from_task(
         workspace_id,
         task_id,
@@ -1942,6 +1928,13 @@ def build_evidence_pack(
             for item in fact_candidates
         )
     )
+    source_reconstructed_candidate = bool(
+        evidence_track == SOURCE_RECONSTRUCTED
+        and normalized_reconstructions
+        and not conflicts
+        and not missing_fields
+        and fact_candidates
+    )
     normalized_fixture_manifest = None
     fixture_errors: list[str] = []
     technical_fixture_candidate = False
@@ -1978,6 +1971,9 @@ def build_evidence_pack(
         "candidate_set_id": candidate_set_id or None,
         "server_signed_candidates": server_signed_candidates,
         "formal_evidence_candidate": formal_evidence_candidate,
+        "source_reconstructed_candidate": source_reconstructed_candidate,
+        "reconstruction_records": normalized_reconstructions,
+        "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
         "sources": [
             {
                 key: doc.get(key)
@@ -1985,7 +1981,6 @@ def build_evidence_pack(
                     "source_id", "source_type", "title", "url", "content_hash",
                     "fetched_at", "status", "formal_use_allowed",
                     "formal_use_decision", "ocr_formal_use_decision",
-                    "manual_review_status", "ocr_review_ledger_count",
                     "unresolved_low_confidence_locator_count", "locators",
                 )
             }
@@ -1996,9 +1991,9 @@ def build_evidence_pack(
         "missing_fields": missing_fields,
         "conflicts": conflicts,
         "limitations": limits,
-        "finance_boundary": "证据包不等于已确认 FinanceSpec；real 轨只有服务端候选且来源正式资格完整时可进入正式证据绑定；technical_fixture 仅验证技术链且永不获得正式资格；controlled_assumption 与调用方自报候选只允许 estimate_preview。",
+        "finance_boundary": "证据包不等于已确认 FinanceSpec；source_reconstructed 只表示基于现有项目资料重建，必须保留限制且不能认证项目事实；technical_fixture 仅验证技术链；controlled_assumption 只允许 estimate_preview。",
     }
-    status_value = "partial" if limits or conflicts or missing_fields else "ok"
+    status_value = "partial" if conflicts or missing_fields else "ok"
     record = EVIDENCE_STORE.put(
         workspace_id,
         payload,
@@ -2030,6 +2025,9 @@ def build_evidence_pack(
         "missing_fields": missing_fields,
         "auto_accepted_estimate_fields": auto_accepted,
         "formal_evidence_candidate": formal_evidence_candidate,
+        "source_reconstructed_candidate": source_reconstructed_candidate,
+        "reconstruction_records": normalized_reconstructions,
+        "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
         "technical_fixture_candidate": technical_fixture_candidate,
         "evidence_track": evidence_track,
         "fixture_manifest_hash": (
@@ -2089,17 +2087,10 @@ def resolve_resource(
     uri: str,
     workspace_id: str,
 ) -> dict[str, Any] | None:
-    expected = f"lvke://data-analysis/workspaces/{workspace_id}/"
-    if not str(uri).startswith(expected):
-        return None
-    for store, _kind in _RESOURCE_STORES:
-        record = store.resolve_uri(uri)
-        if record is not None:
-            return record
-    return None
+    return resolve_repository_resource(uri, workspace_id)
 
 
-def _missing(code: str, message: str) -> dict[str, Any]:
+def _missing(code: str, message: str, **extra: Any) -> dict[str, Any]:
     return {
         "success": False,
         "transport_success": True,
@@ -2113,4 +2104,5 @@ def _missing(code: str, message: str) -> dict[str, Any]:
         "warnings": [],
         "blockers": [code],
         "next_actions": [],
+        **extra,
     }

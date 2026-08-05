@@ -16,7 +16,7 @@ from datetime import date
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.responses import err, ok
 from lvke_mcp.runtime.stdio import StdioServer
-from lvke_mcp.servers.finance_calc.calculations import (
+from lvke_mcp.domains.finance.calculations import (
     PaybackResult,
     break_even_analysis,
     cashflow_sign_changes,

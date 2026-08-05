@@ -1,10 +1,10 @@
 {
-  "frozen_at": "2026-08-03T20:41:25+0800",
+  "frozen_at": "2026-08-05T00:01:22+0800",
   "protocol_version": "2025-11-25",
-  "python": "/Users/mac/Desktop/工程/hubei-lvke/.venv/bin/python",
+  "python": "installed-environment",
   "servers": [
     {
-      "server": "environmental_data",
+      "server": "environmental-data",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -16,7 +16,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "excel_bridge",
+      "server": "excel-bridge",
       "ok": true,
       "tools": 5,
       "tool_names": [
@@ -30,7 +30,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "finance_calc",
+      "server": "finance-calc",
       "ok": true,
       "tools": 7,
       "tool_names": [
@@ -46,7 +46,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "industry_research",
+      "server": "industry-research",
       "ok": true,
       "tools": 2,
       "tool_names": [
@@ -57,7 +57,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_archive",
+      "server": "lvke-archive",
       "ok": true,
       "tools": 6,
       "tool_names": [
@@ -72,9 +72,9 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_asset_acquisition",
+      "server": "lvke-asset-acquisition",
       "ok": true,
-      "tools": 16,
+      "tools": 12,
       "tool_names": [
         "acquisition_validate_spec",
         "acquisition_save_spec",
@@ -82,22 +82,18 @@
         "acquisition_run_model",
         "acquisition_get_run",
         "acquisition_create_scenario_matrix",
-        "acquisition_review_reference",
         "acquisition_solve_max_price",
-        "acquisition_review_business",
-        "acquisition_approve_run",
         "acquisition_generate_artifact",
         "acquisition_get_artifact",
         "acquisition_render_tables",
         "acquisition_export_tables_xlsx",
-        "acquisition_export_tables_csv",
-        "acquisition_release_artifact"
+        "acquisition_export_tables_csv"
       ],
       "resources": 0,
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_clients",
+      "server": "lvke-clients",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -109,7 +105,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_data_acquisition",
+      "server": "lvke-data-acquisition",
       "ok": true,
       "tools": 12,
       "tool_names": [
@@ -130,7 +126,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_data_analysis",
+      "server": "lvke-data-analysis",
       "ok": true,
       "tools": 13,
       "tool_names": [
@@ -152,7 +148,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_deep_research",
+      "server": "lvke-deep-research",
       "ok": true,
       "tools": 19,
       "tool_names": [
@@ -180,9 +176,9 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_deliverable_review",
+      "server": "lvke-deliverable-review",
       "ok": true,
-      "tools": 19,
+      "tools": 17,
       "tool_names": [
         "review_list_rubrics",
         "review_score_section",
@@ -194,9 +190,7 @@
         "review_get_finding",
         "review_disposition_finding",
         "review_retest",
-        "review_attest",
         "review_export",
-        "review_release",
         "review_resolve_standards",
         "review_list_requirements",
         "review_attach_requirement_evidence",
@@ -208,7 +202,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_experts",
+      "server": "lvke-experts",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -220,7 +214,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_finance_model",
+      "server": "lvke-finance-model",
       "ok": true,
       "tools": 16,
       "tool_names": [
@@ -245,7 +239,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_finance_tables",
+      "server": "lvke-finance-tables",
       "ok": true,
       "tools": 23,
       "tool_names": [
@@ -277,15 +271,14 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_knowledge_governance",
+      "server": "lvke-knowledge-governance",
       "ok": true,
-      "tools": 7,
+      "tools": 6,
       "tool_names": [
         "knowledge_submit_candidate",
         "knowledge_list_candidates",
         "knowledge_get_candidate",
-        "knowledge_review_candidate",
-        "knowledge_publish_release",
+        "knowledge_create_snapshot",
         "knowledge_list_resources",
         "knowledge_read_resource"
       ],
@@ -293,7 +286,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_project_planning",
+      "server": "lvke-project-planning",
       "ok": true,
       "tools": 47,
       "tool_names": [
@@ -349,9 +342,9 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_report_generation",
+      "server": "lvke-report-generation",
       "ok": true,
-      "tools": 16,
+      "tools": 15,
       "tool_names": [
         "report_prepare",
         "report_start",
@@ -366,7 +359,6 @@
         "report_diff",
         "report_apply",
         "report_get_readiness",
-        "report_release",
         "report_list_resources",
         "report_read_resource"
       ],
@@ -374,7 +366,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_source_files",
+      "server": "lvke-source-files",
       "ok": true,
       "tools": 15,
       "tool_names": [
@@ -398,7 +390,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_templates",
+      "server": "lvke-templates",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -410,7 +402,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "lvke_zero_material_delivery",
+      "server": "lvke-zero-material-delivery",
       "ok": true,
       "tools": 11,
       "tool_names": [
@@ -430,7 +422,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "map_geo",
+      "server": "map-geo",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -442,7 +434,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "policy_search",
+      "server": "policy-search",
       "ok": true,
       "tools": 3,
       "tool_names": [
@@ -454,7 +446,7 @@
       "protocol_version": "2025-11-25"
     },
     {
-      "server": "statistics_cn",
+      "server": "statistics-cn",
       "ok": true,
       "tools": 2,
       "tool_names": [

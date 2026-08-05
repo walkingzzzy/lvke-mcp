@@ -85,8 +85,8 @@ def _read_standard(uri: str) -> tuple[bytes, str]:
 
 
 def _assert_fail_closed(payload: dict[str, Any]) -> None:
-    assert payload.get("formal_delivery_ready") is False
-    assert payload.get("publish_eligibility") is False
+    assert payload.get("validation_complete") is False
+    assert payload.get("input_evidence_complete") is False
 
 
 def _find_uri(uris: list[str], suffix: str) -> str:
@@ -302,8 +302,8 @@ def _run() -> dict[str, Any]:
         "csv_count": len(csv_uris),
         "xlsx_sheet_count": len(load_workbook(io.BytesIO(xlsx_bytes), read_only=True).sheetnames),
         "standard_resource_count": len(resources),
-        "formal_delivery_ready": False,
-        "publish_eligibility": False,
+        "validation_complete": False,
+        "input_evidence_complete": False,
     }
 
 

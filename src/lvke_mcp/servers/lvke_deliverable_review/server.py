@@ -184,7 +184,7 @@ _PROJECT_CONTEXT = {
         "project_type": {"type": "string", "enum": ["generic_feasibility", "asset_acquisition"]},
         "transaction_structure": {"type": "string", "enum": ["new_build", "operation_lease", "asset_acquisition", "equity_acquisition", "ppp", "other"]},
         "asset_type": {"type": "string", "enum": ["general", "amusement_park", "solar_power", "hotel_lease", "mineral_processing"]},
-        "evidence_track": {"type": "string", "enum": ["real", "technical_fixture", "controlled_assumption"], "default": "real"},
+        "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"], "default": "real"},
     },
 }
 _FACILITIES = {
@@ -260,19 +260,17 @@ def _output_schema() -> dict[str, Any]:
         {
             "code": {"type": "string"},
             "message": {"type": "string"},
-            "review_id": {"type": "string"},
-            "review_status": {"type": "string"},
+            "validation_id": {"type": "string"},
+            "validation_status": {"type": "string"},
             "overall_verdict": {
                 "type": "string",
                 "enum": ["pass", "conditional_pass", "fail", "incomplete"],
             },
-            "release_ready": {"type": "boolean"},
-            "formally_deliverable": {"type": "boolean"},
+            "validation_complete": {"type": "boolean"},
             "deployment_mode": {
                 "type": "string",
                 "enum": ["enforced", "shadow"],
             },
-            "would_release_under_enforced_mode": {"type": "boolean"},
         },
         required=("resource_uris", "warnings", "blockers", "next_actions"),
         status_values=(
@@ -541,21 +539,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "review_attest",
-        "记录审查过程中的质量说明；不执行身份、角色授权或签审门禁。",
-        _write_schema(
-            {
-                "review_id": _ID,
-                "verdict": {"type": "string", "enum": ["approve", "reject"]},
-                "note": {"type": "string", "minLength": 1, "maxLength": 4000},
-            },
-            ["review_id", "verdict", "note"],
-        ),
-        service.attest,
-        _output_schema(),
-        write,
-    )
-    server.register_tool(
         "review_export",
         "导出不可变 JSON、Markdown、DOCX 审查报告及 findings XLSX。",
         _write_schema(
@@ -574,20 +557,6 @@ def build_server() -> OfficialStdioServer:
         service.export_review,
         _output_schema(),
         write,
-    )
-    server.register_tool(
-        "review_release",
-        "固化审查结果与导出文件；不要求身份、角色或人工签审。",
-        _write_schema(
-            {
-                "review_id": _ID,
-                "note": {"type": "string", "maxLength": 4000},
-            },
-            ["review_id"],
-        ),
-        service.release,
-        _output_schema(),
-        terminal,
     )
     server.register_tool(
         "review_resolve_standards",
@@ -632,7 +601,7 @@ def build_server() -> OfficialStdioServer:
                 "content_hash": _SHA256,
                 "evidence_track": {
                     "type": "string",
-                    "enum": ["real", "technical_fixture", "controlled_assumption"],
+                    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
                 },
             },
             [
@@ -657,7 +626,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "review_list_resources",
-        "按显式工作区分页列举规则包、审查运行、findings、导出和正式审查包。",
+        "按显式工作区分页列举规则包、检查运行、findings、导出和校验快照。",
         _schema(
             {
                 "workspace_id": _SAFE_ID,
@@ -669,7 +638,7 @@ def build_server() -> OfficialStdioServer:
                         "finding",
                         "export",
                         "export_file",
-                        "release",
+                        "validation_snapshot",
                         "rule_pack",
                         "standards",
                         "standard_applicability",

@@ -371,9 +371,7 @@ def _new_run(
         "manifest_uri": manifest_uri,
         "domain_results": dict(domain_results or {}),
         "blockers": list(blockers or []),
-        "formal_delivery_ready": False,
-        "publish_eligibility": False,
-        "release_condition": "甲方材料、专业签审与正式批准均未满足",
+        "validation_condition": "甲方原始材料缺失，结果按受控假设范围校验",
         "service_version": SERVICE_VERSION,
     }
     return RUN_STORE.put(
@@ -428,7 +426,7 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
             "delivery_mode": "zero_material",
             "assurance_level": "estimate_preview",
             "material_state": "client_materials_absent",
-            "formal_delivery_ready": False,
+            "validation_complete": False,
         }
         intent = INTENT_STORE.put(
             workspace_id,
@@ -465,19 +463,19 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
                         "candidates": route["candidates"],
                     }
                 ],
-                formal_delivery_ready=False,
-                publish_eligibility=False,
+                validation_complete=False,
+                input_evidence_complete=False,
             )
         return _envelope(
             True,
             "ok",
-            warnings=["零材料结果固定为技术预估版，不构成正式可研或审批依据"],
+            warnings=["零材料结果固定为技术预估版，受当前输入快照与受控假设约束"],
             next_actions=["调用 delivery_start 生成受控假设包并推进交付链"],
             resource_uris=[intent["resource_uri"], run["resource_uri"]],
             delivery_intent=intent_view,
             delivery_run=run_view,
-            formal_delivery_ready=False,
-            publish_eligibility=False,
+            validation_complete=False,
+            input_evidence_complete=False,
         )
 
     return _idempotent_mutation(
@@ -523,10 +521,10 @@ def _assumption_field(
         "decision_impact": decision_impact,
         "confirmation_priority_score": 0 if confirmed else priority_score,
         "confirmed": confirmed,
-        "release_condition": (
-            "用户已确认；仍需原始材料和专业签审方可作为正式证据"
+        "validation_condition": (
+            "已确认参数仍需与后续原始材料进行 hash 和数值一致性校验"
             if confirmed
-            else "须由用户确认，并以合同、测绘、报价或权属等材料替换"
+            else "须确认参数，并以合同、测绘、报价或权属等材料替换"
         ),
     }
 
@@ -633,8 +631,8 @@ def _build_assumption_package(intent: dict[str, Any]) -> dict[str, Any]:
             "production_claim_allowed": False,
             "statement": "场景仅作为确定性行业种子，所有项目特定数字均为受控假设",
         },
-        "formal_delivery_ready": False,
-        "publish_eligibility": False,
+        "validation_complete": False,
+        "input_evidence_complete": False,
     }
 
 
@@ -912,10 +910,10 @@ def _start_research(
     *,
     idempotency_key: str,
 ) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_deep_research import package_service
+    from lvke_mcp.domains.research import application as research
 
     industry = dict(intent.get("industry") or {})
-    return package_service.start_agent(
+    return research.start_agent(
         {
             "workspace_id": workspace_id,
             "topic": f"{intent.get('project_name')}公开研究缺口登记",
@@ -945,7 +943,7 @@ def _create_project_context(
     *,
     idempotency_key: str,
 ) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_project_planning import service as planning
+    from lvke_mcp.domains.project_planning import application as planning
 
     industry = dict(intent.get("industry") or {})
     return planning.create_project_context(
@@ -975,8 +973,8 @@ def execute(
 ) -> dict[str, Any]:
     """Execute only through existing domain boundaries; never grant release."""
 
-    from lvke_mcp.servers.lvke_finance_model import service as finance
-    from lvke_mcp.servers.lvke_finance_tables import service as tables
+    from lvke_mcp.domains.finance import model_application as finance
+    from lvke_mcp.domains.finance import tables_service as tables
 
     lineage_key = sha256_json(
         {
@@ -1047,7 +1045,7 @@ def execute(
         {
             "workspace_id": workspace_id,
             "spec_id": candidate_spec_id,
-            "note": "零材料技术预估使用受控假设确认 FinanceSpec；不代表项目事实或正式批准。",
+            "note": "零材料技术预估使用受控假设确认 FinanceSpec；结果仅绑定当前输入快照。",
             "idempotency_key": f"zmd-confirm-{lineage_key}",
         }
     )
@@ -1133,7 +1131,7 @@ def execute(
         }
     csv_export = tables.export_csv(workspace_id, finance_run_id)
     xlsx_export = tables.export_xlsx(workspace_id, finance_run_id)
-    from lvke_mcp.servers.lvke_report_generation import service as report_generation
+    from lvke_mcp.domains.reports import application as report_generation
 
     report_preparation = report_generation.prepare(
         {
@@ -1358,8 +1356,8 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             assumption_package=assumption_view,
             delivery_run=_view(next_run, "delivery_run_id"),
             domain_status=str(domain.get("status") or ""),
-            formal_delivery_ready=False,
-            publish_eligibility=False,
+            validation_complete=False,
+            input_evidence_complete=False,
         )
 
     return _idempotent_mutation(
@@ -1384,8 +1382,8 @@ def get_delivery(args: dict[str, Any]) -> dict[str, Any]:
                 resource_uris=[record["resource_uri"]],
                 object_type=object_type,
                 object=view,
-                formal_delivery_ready=False,
-                publish_eligibility=False,
+                validation_complete=False,
+                input_evidence_complete=False,
             )
     return _blocked("delivery_object_not_found", "未找到指定交付对象")
 
@@ -1405,8 +1403,8 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
         stage=run["stage"],
         progress=_stage_progress(str(run["stage"])),
         resume_token=record["content_hash"],
-        formal_delivery_ready=False,
-        publish_eligibility=False,
+        validation_complete=False,
+        input_evidence_complete=False,
     )
 
 
@@ -1446,8 +1444,8 @@ def list_assumptions(args: dict[str, Any]) -> dict[str, Any]:
         assumption_package_id=package_id,
         assumptions=fields,
         confirmation_items=[item for item in fields if not item.get("confirmed")][:limit],
-        formal_delivery_ready=False,
-        publish_eligibility=False,
+        validation_complete=False,
+        input_evidence_complete=False,
     )
 
 
@@ -1486,7 +1484,7 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
                     "confidence": 1.0,
                     "confirmed": True,
                     "confirmation_note": str(confirmation.get("note") or ""),
-                    "release_condition": "用户已确认；仍需原始材料和专业签审方可作为正式证据",
+                    "validation_condition": "已确认参数仍需与后续原始材料进行 hash 和数值一致性校验",
                 }
             )
         payload = {
@@ -1497,8 +1495,8 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             "confirmation_status": "partially_confirmed" if any(
                 not item.get("confirmed") for item in known.values()
             ) else "confirmed",
-            "formal_delivery_ready": False,
-            "publish_eligibility": False,
+            "validation_complete": False,
+            "input_evidence_complete": False,
         }
         revised = ASSUMPTION_STORE.put(
             workspace_id,
@@ -1537,8 +1535,8 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             resource_uris=[revised["resource_uri"], next_run["resource_uri"]],
             assumption_package=_view(revised, "assumption_package_id"),
             delivery_run=_view(next_run, "delivery_run_id"),
-            formal_delivery_ready=False,
-            publish_eligibility=False,
+            validation_complete=False,
+            input_evidence_complete=False,
         )
 
     confirmation = _idempotent_mutation(
@@ -1621,8 +1619,8 @@ def _transition_control(args: dict[str, Any], *, operation: str) -> dict[str, An
             next_actions=["调用 delivery_start 继续运行"] if operation == "resume" else [],
             resource_uris=[next_run["resource_uri"]],
             delivery_run=_view(next_run, "delivery_run_id"),
-            formal_delivery_ready=False,
-            publish_eligibility=False,
+            validation_complete=False,
+            input_evidence_complete=False,
         )
 
     return _idempotent_mutation(
@@ -1657,8 +1655,8 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
         resource_uris=sorted(set([*uris, *artifact_uris])),
         artifacts=artifact_uris,
         manifest_uri=str(run.get("manifest_uri") or ""),
-        formal_delivery_ready=False,
-        publish_eligibility=False,
+        validation_complete=False,
+        input_evidence_complete=False,
     )
 
 
@@ -1797,7 +1795,7 @@ def resolve_resource(
             require_safe_id(workspace_id, "workspace_id")
         except ValueError:
             return None
-        from lvke_mcp.servers.lvke_finance_tables import service as finance_tables
+        from lvke_mcp.domains.finance import tables_service as finance_tables
 
         return finance_tables.resolve_resource(
             uri,

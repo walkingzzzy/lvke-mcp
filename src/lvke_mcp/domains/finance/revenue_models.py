@@ -355,11 +355,21 @@ def _flat(rev: dict[str, Any], op_years: int) -> dict[str, Any]:
 def _scheduled(rev: dict[str, Any], op_years: int, model: str) -> dict[str, Any]:
     raw = [_f(value) for value in (rev.get("annual_schedule_wan") or [])]
     schedule = raw[:op_years] + [0.0] * max(op_years - len(raw), 0)
+    total = sum(schedule)
+    # Inventory sales consume a finite stock. Expose the realized share of
+    # the stock so the finance kernel can recognize inventory COGS and recover
+    # the remaining working capital without treating sales as recurring rent.
+    absorption = (
+        [round(value / total, 12) for value in schedule]
+        if model == "inventory_sales" and total > 0
+        else None
+    )
     return {
         "revenue_by_year": schedule,
         "var_cost_by_year": [0.0] * op_years,
         "model": model,
         "cost_side": "inventory_cogs" if model == "inventory_sales" else "lease_operation",
+        **({"absorption": absorption} if absorption is not None else {}),
         "note": (
             "存量销售逐年去化计划（未售部分不得重复确认收入）"
             if model == "inventory_sales"

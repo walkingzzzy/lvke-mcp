@@ -29,7 +29,7 @@ from mcp import types
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.runtime.responses import err, ok
-from lvke_mcp.servers.lvke_deep_research import package_service
+from lvke_mcp.domains.research import application as package_service
 
 SERVER_NAME = "lvke-deep-research"
 SERVER_VERSION = "0.3.0"
@@ -253,7 +253,7 @@ def _source_descriptor(source_type: str, description: str) -> dict[str, Any]:
         if source_type == "technical_fixture"
         else {
             "type": "string",
-            "enum": ["real", "technical_fixture", "controlled_assumption"],
+            "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
         }
     )
     return {
@@ -295,6 +295,7 @@ _MIXED_SOURCE_DESCRIPTOR = {
         _source_descriptor("reviewed_knowledge", "已复核知识发布版"),
         _source_descriptor("policy_record", "政策记录"),
         _source_descriptor("industry_record", "行业记录"),
+        _source_descriptor("source_reconstructed", "依据现有项目资料重建的来源记录"),
         _source_descriptor("technical_fixture", "仅限技术金标验证的 fixture"),
     ]
 }
@@ -780,6 +781,18 @@ def build_server() -> OfficialStdioServer:
                 "citations": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": True}},
                 "evidence_pack_ids": {"type": "array", "items": {"type": "string"}},
                 "source_snapshot_ids": {"type": "array", "items": {"type": "string"}},
+                "quality_summary": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "properties": {
+                        "query_rounds": {"type": "integer", "minimum": 0},
+                        "usable_source_count": {"type": "integer", "minimum": 0},
+                        "citation_coverage": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                        "missing_fields": {"type": "array", "items": {"type": "string"}},
+                        "conflicts": {"type": "array", "items": {"type": "object"}},
+                    },
+                },
+                "market_field_bindings": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
             },
             "required": ["workspace_id", "task_id", "report_md", "citations"],
         },

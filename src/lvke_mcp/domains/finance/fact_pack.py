@@ -124,14 +124,12 @@ def _record_seal_ledger(
     seal_id: str,
     content_hash: str,
     seal_mac: str,
-    actor: str,
     ceiling: str,
 ) -> None:
     entry = {
         "seal_id": seal_id,
         "content_hash": content_hash,
         "seal_mac": seal_mac,
-        "actor": actor,
         "ceiling": ceiling,
         "sealed_at": _now_iso(),
         "workspace_id": workspace_id,
@@ -180,7 +178,7 @@ def compute_fact_pack_mac(
     content_hash: str | None = None,
 ) -> str:
     digest = content_hash or compute_fact_pack_hash(pack)
-    material = f"{digest}|{pack.get('confirmed_by') or ''}|{pack.get('confirmed_at') or ''}|{pack.get('seal_id') or ''}"
+    material = f"{digest}|{workspace_id}|{pack.get('seal_id') or ''}|{pack.get('sealed_at') or ''}"
     secret = _seal_secret(workspace_id)
     return "hmac-sha256:" + hmac.new(
         secret, material.encode("utf-8"), hashlib.sha256
@@ -203,8 +201,8 @@ def verify_fact_pack_seal(
     seal_version = str(pack.get("seal_version") or "")
     if seal_version not in {SEAL_VERSION, LEGACY_SEAL_VERSION}:
         issues.append("finance_fact_pack 未由服务端 seal")
-    if not str(pack.get("confirmed_by") or "").strip():
-        issues.append("finance_fact_pack 缺 confirmed_by")
+    if not str(pack.get("sealed_at") or "").strip():
+        issues.append("finance_fact_pack 缺 sealed_at")
 
     # Content hash excludes mac/id so re-verify is stable.
     expected = compute_fact_pack_hash(pack)
@@ -919,11 +917,10 @@ def _migrate_v0_pack(raw_pack: dict[str, Any]) -> dict[str, Any]:
     return raw
 
 
-def adjudicate_fact_pack(
+def build_fact_pack_snapshot(
     raw_pack: Any,
     *,
     workspace_id: str,
-    actor: str = "",
     confirm: bool = False,
     evidence_resolver: EvidenceResolver | None = None,
 ) -> dict[str, Any]:
@@ -958,7 +955,7 @@ def adjudicate_fact_pack(
     depth = assess_domain_depth(domains)
     resolver = evidence_resolver
     if resolver is None:
-        from lvke_mcp.servers.lvke_source_files.backend import (
+        from lvke_mcp.adapters.source_files_repository import (
             resolve_authoritative_evidence_binding,
         )
 
@@ -1029,7 +1026,7 @@ def adjudicate_fact_pack(
     binding_passed = sum(1 for item in binding_by_domain.values() if item.get("ok"))
     source_coverage = round(binding_passed / len(DOMAIN_KEYS), 4)
 
-    confirmed = bool(confirm and actor)
+    confirmed = bool(confirm)
     if not confirmed:
         ceiling = "summary"
     elif not depth.get("ok"):
@@ -1071,8 +1068,6 @@ def adjudicate_fact_pack(
     if confirmed:
         seal_id = f"seal_{secrets.token_hex(8)}"
         result.update({
-            "confirmed_by": actor,
-            "confirmed_at": _now_iso(),
             "sealed_at": _now_iso(),
             "seal_version": SEAL_VERSION,
             "seal_id": seal_id,
@@ -1089,7 +1084,6 @@ def adjudicate_fact_pack(
             seal_id=seal_id,
             content_hash=content_hash,
             seal_mac=seal_mac,
-            actor=str(actor),
             ceiling=ceiling,
         )
     return result

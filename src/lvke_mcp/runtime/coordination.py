@@ -25,6 +25,7 @@ QUALITY_STATES = (
 EVIDENCE_ELIGIBILITY = (
     "none",
     "formal_evidence",
+    "source_reconstructed",
     "technical_fixture",
     "controlled_assumption",
     "estimate_preview",
@@ -199,6 +200,7 @@ def build_coordination(result: dict[str, Any], *, server_name: str | None = None
         output_types = list(dict.fromkeys(inferred_output_types))
     track = str(result.get("evidence_track") or "")
     inferred_eligibility = {
+        "source_reconstructed": "source_reconstructed",
         "technical_fixture": "technical_fixture",
         "controlled_assumption": "controlled_assumption",
         "estimate_preview": "estimate_preview",

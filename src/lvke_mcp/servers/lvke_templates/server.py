@@ -13,7 +13,7 @@ from pathlib import Path
 from lvke_mcp.runtime.logging import get_logger  # noqa: E402
 from lvke_mcp.runtime.responses import err, ok  # noqa: E402
 from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
-from lvke_mcp.servers.lvke_templates.catalog import (  # noqa: E402
+from lvke_mcp.domains.templates.catalog import (  # noqa: E402
     TEMPLATES,
     filter_by_category,
     list_categories,
@@ -103,7 +103,7 @@ def build_server() -> StdioServer:
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "可选分类:investment-estimation / financing / income-statement / cashflow / sensitivity / key-indicators / risk-matrix / approval-schedule",
+                    "description": "可选分类:investment-estimation / financing / income-statement / cashflow / sensitivity / key-indicators / risk-matrix / regulatory-schedule",
                 },
             },
         },

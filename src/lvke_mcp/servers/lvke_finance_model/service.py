@@ -6,33 +6,33 @@ from typing import Any
 
 
 def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_finance_model.server import _tool_prepare_spec
+    from lvke_mcp.domains.finance.model_application import prepare_spec as use_case
 
-    return _tool_prepare_spec(args)
+    return use_case(args)
 
 
 def validate_spec(args: dict[str, Any]) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_finance_model.server import _tool_validate_spec
+    from lvke_mcp.domains.finance.model_application import validate_spec as use_case
 
-    return _tool_validate_spec(args)
+    return use_case(args)
 
 
 def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_finance_model.server import _tool_confirm_spec
+    from lvke_mcp.domains.finance.model_application import confirm_spec as use_case
 
-    return _tool_confirm_spec(args)
+    return use_case(args)
 
 
 def run_model(args: dict[str, Any]) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_finance_model.server import _tool_run_model
+    from lvke_mcp.domains.finance.model_application import run_model as use_case
 
-    return _tool_run_model(args)
+    return use_case(args)
 
 
 def get_run(args: dict[str, Any]) -> dict[str, Any]:
-    from lvke_mcp.servers.lvke_finance_model.server import _tool_get_run
+    from lvke_mcp.domains.finance.model_application import get_run as use_case
 
-    return _tool_get_run(args)
+    return use_case(args)
 
 
 __all__ = ["confirm_spec", "get_run", "prepare_spec", "run_model", "validate_spec"]

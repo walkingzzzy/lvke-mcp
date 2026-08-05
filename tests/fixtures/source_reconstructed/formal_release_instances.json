@@ -1,0 +1,36 @@
+{
+  "schema_version": "source_reconstructed.formal_release_instances.v1",
+  "release_scope": "process_acceptance",
+  "evidence_policy": "source_reconstructed",
+  "project_fact_certified": false,
+  "instances": [
+    {
+      "instance_id": "fdr_srcx_cy_xiangyuan",
+      "case_id": "cy_xiangyuan",
+      "release_status": "released",
+      "business_decision_status": "not_applicable",
+      "unresolved_inputs": ["原始经济测算Excel", "未提供的逐项BoE公式"],
+      "lineage_manifest": "tests/fixtures/source_reconstructed/manifest.json",
+      "report_revision": "tests/fixtures/source_reconstructed/reports/cy_xiangyuan_revision.md"
+    },
+    {
+      "instance_id": "fdr_srcx_qianshan_forest_park",
+      "case_id": "qianshan_forest_park",
+      "release_status": "released",
+      "business_decision_status": "not_applicable",
+      "unresolved_inputs": ["原始经济测算Excel", "未提供的客流和投资原始底稿"],
+      "lineage_manifest": "tests/fixtures/source_reconstructed/manifest.json",
+      "report_revision": "tests/fixtures/source_reconstructed/reports/qianshan_forest_park_revision.md"
+    },
+    {
+      "instance_id": "fdr_srcx_hengli_hotel_scenarios",
+      "case_id": "hengli_hotel",
+      "release_status": "released",
+      "business_decision_status": "not_selected",
+      "scenario_set_complete": true,
+      "scenario_purchase_prices_wan": [2000, 2200, 2400, 2600, 2800, 3000],
+      "unresolved_inputs": ["最终经营模式", "交易类型", "资产边界", "购买价分摊", "税费承担", "改造和营运资金"],
+      "lineage_manifest": "tests/fixtures/source_reconstructed/manifest.json"
+    }
+  ]
+}

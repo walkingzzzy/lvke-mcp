@@ -6,7 +6,8 @@ from mcp import types
 
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
-from lvke_mcp.servers.lvke_project_planning import lifecycle, service
+from lvke_mcp.domains.project_planning import application as service
+from lvke_mcp.servers.lvke_project_planning import lifecycle
 
 SERVER_NAME = "lvke-project-planning"
 SERVER_VERSION = "0.1.0"
@@ -88,7 +89,7 @@ _CONTEXT_PROPERTIES = {
     },
     "evidence_track": {
         "type": "string",
-        "enum": ["real", "technical_fixture", "controlled_assumption"],
+        "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
         "default": "real",
     },
     "description": {"type": "string", "maxLength": 10000},
@@ -117,6 +118,7 @@ _EVIDENCE_BINDING = {
                 "controlled_file",
                 "technical_fixture",
                 "selected_fact",
+                "source_reconstructed",
                 "search_summary",
             ],
         },
@@ -127,7 +129,7 @@ _EVIDENCE_BINDING = {
         "locator": _STRING,
         "evidence_track": {
             "type": "string",
-            "enum": ["real", "technical_fixture", "controlled_assumption"],
+            "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
         },
     },
     "required": [

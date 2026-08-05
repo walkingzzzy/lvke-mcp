@@ -871,7 +871,6 @@ def apply_agent_proposal(
     workspace_id: str,
     proposal_id: str,
     *,
-    actor: str = "",
     readonly: bool = False,
     enforce_structure: bool = True,
 ) -> dict[str, Any]:

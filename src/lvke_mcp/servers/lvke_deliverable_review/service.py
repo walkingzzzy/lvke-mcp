@@ -26,7 +26,6 @@ from lvke_mcp.runtime.storage import (
     sha256_json, utc_now,
 )
 from lvke_mcp.runtime.workspace import workspace_root
-# MCP 本地工具服务不做身份认证。
 from lvke_mcp.servers.lvke_deliverable_review import financial_checks, report_checks, rules
 from lvke_mcp.servers.lvke_deliverable_review.contracts import (
     DEPLOYMENT_MODES, FINDING_STATUSES, SEVERITIES, SEVERITY_ORDER,
@@ -41,9 +40,6 @@ PREPARATION_STORE = JSONArtifactStore(
 )
 EXPORT_STORE = JSONArtifactStore(
     "deliverable-review", "exports", "rvexp", "exports"
-)
-RELEASE_STORE = JSONArtifactStore(
-    "deliverable-review", "releases", "rvrel", "releases"
 )
 STANDARD_APPLICABILITY_STORE = JSONArtifactStore(
     "deliverable-review", "standard_applicabilities", "stdapp", "standard-applicabilities"
@@ -83,22 +79,17 @@ def _write(operation: str, args: dict[str, Any], callback: Callable[[str], dict[
         def execute_once() -> dict[str, Any]:
             cached = STORE.idempotent(workspace_id, scoped_operation, key, args)
             if cached is not None:
-                if operation != "review_release":
-                    return cached
-                # A terminal release response is idempotent, but it must not
-                # conceal later target, event-chain, record, or file damage.
-                verified = callback(workspace_id)
-                return cached if verified.get("status") == "ok" else verified
+                return cached
             response = callback(workspace_id)
             STORE.remember(workspace_id, scoped_operation, key, args, response)
             return response
 
         with STORE.mutation_guard(workspace_id, scoped_operation, key):
             review_id = str(args.get("review_id") or "").strip()
-            if review_id and operation != "review_release":
+            if review_id:
                 with STORE.mutation_guard(
                     workspace_id,
-                    "review_terminal_mutation",
+                    "review_mutation",
                     review_id,
                 ):
                     return execute_once()
@@ -191,12 +182,12 @@ def _legacy_gate_snapshot(
 
     try:
         if target_type == "finance_run":
-            from lvke_mcp.servers.lvke_finance_tables import service as tables_service
+            from lvke_mcp.domains.finance.tables_application import validate_tables
 
-            result = tables_service.validate(workspace_id, target_id)
+            result = validate_tables(workspace_id, target_id)
             assessment = result.get("validation") if isinstance(result.get("validation"), dict) else {}
             valid = assessment.get("valid")
-            formal = result.get("formal_delivery_ready")
+            formal = result.get("validation_complete")
             validation = _legacy_gate_result(
                 valid if isinstance(valid, bool) else None,
                 "tables_validate",
@@ -205,14 +196,14 @@ def _legacy_gate_snapshot(
             )
             publish = _legacy_gate_result(
                 formal if isinstance(formal, bool) else None,
-                "tables_validate.formal_delivery_ready",
+                "tables_validate.validation_complete",
                 blockers=result.get("blockers") or assessment.get("gate_blockers"),
             )
         elif target_type == "finance_tables_package":
             payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
             assessment = payload.get("validation") if isinstance(payload.get("validation"), dict) else {}
             valid = assessment.get("valid")
-            formal = payload.get("formal_delivery_ready")
+            formal = payload.get("validation_complete")
             validation = _legacy_gate_result(
                 valid if isinstance(valid, bool) else None,
                 "finance_tables_package.validation",
@@ -221,7 +212,7 @@ def _legacy_gate_snapshot(
             )
             publish = _legacy_gate_result(
                 formal if isinstance(formal, bool) else None,
-                "finance_tables_package.formal_delivery_ready",
+                "finance_tables_package.validation_complete",
                 blockers=assessment.get("gate_blockers"),
             )
         elif target_type in {"finance_xlsx", "finance_xlsx_source"}:
@@ -251,11 +242,12 @@ def _legacy_gate_snapshot(
                 available
                 and succeeded
                 and consistent
-                and str(snapshot.get("review_status") or "") == "approved"
+                and snapshot.get("formal_spec_valid") is True
+                and snapshot.get("evidence_formal_ok") is True
                 and not open_blockers,
-                "acquisition_run.approval_gate",
+                "acquisition_run.deterministic_validation",
                 blockers=open_blockers,
-                details={"review_status": snapshot.get("review_status")},
+                details={"validation_status": snapshot.get("validation_status")},
             )
         elif target_type == "acquisition_tables_package":
             payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
@@ -267,7 +259,7 @@ def _legacy_gate_snapshot(
                 blockers=integrity.get("blockers"),
             )
             run_id = str((resolved.get("bindings") or {}).get("finance_run_id") or "")
-            from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
+            from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 
             run = (
                 acquisition_service.get_run(
@@ -277,17 +269,22 @@ def _legacy_gate_snapshot(
                 if run_id
                 else {}
             )
-            run_approved = bool(run) and str(run.get("review_status") or "") == "approved"
+            run_valid = bool(run) and bool(
+                run.get("status") == "succeeded"
+                and run.get("consistency_ok") is True
+                and run.get("formal_spec_valid") is True
+                and run.get("evidence_formal_ok") is True
+            )
             publish = _legacy_gate_result(
-                integrity_passed and run_approved,
-                "acquisition_tables_package.integrity_and_run_approval",
+                integrity_passed and run_valid,
+                "acquisition_tables_package.integrity_and_run_validation",
                 blockers=integrity.get("blockers"),
-                details={"run_id": run_id, "run_review_status": run.get("review_status")},
+                details={"run_id": run_id, "run_validation_status": run.get("validation_status")},
             )
         elif target_type == "report_revision":
-            from lvke_mcp.servers.lvke_report_generation import service as report_service
+            from lvke_mcp.domains.reports.validation import validate_report
 
-            result = report_service.validate(workspace_id, target_id)
+            result = validate_report(workspace_id, target_id)
             valid = result.get("valid")
             validation = _legacy_gate_result(
                 valid if isinstance(valid, bool) else None,
@@ -471,7 +468,7 @@ def _linked_generic_report_revision(
     if not native_revision_id:
         return {}, {}
     try:
-        from lvke_mcp.servers.lvke_report_generation.service import REVISION_STORE
+        from lvke_mcp.adapters.report_repository import REVISION_STORE
 
         records = REVISION_STORE.list(workspace_id)
     except (OSError, ValueError):
@@ -563,7 +560,7 @@ def _resolve_report_artifact(
         return snapshot, bindings, []
     if artifact_domain == "asset_acquisition":
         try:
-            from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
+            from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 
             acquisition = acquisition_service.get_artifact(
                 workspace_id,
@@ -659,7 +656,7 @@ def _resolve_target(
             blockers.append("finance_run_not_found")
         bindings["finance_run_id"] = target_id
     elif target_type == "finance_tables_package":
-        from lvke_mcp.servers.lvke_finance_tables.service import PACKAGE_STORE
+        from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE
         record = PACKAGE_STORE.get(
             workspace_id,
             target_id,
@@ -678,7 +675,7 @@ def _resolve_target(
             digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
             payload = {"path": str(path), "size": path.stat().st_size, "sha256": digest}
     elif target_type == "finance_xlsx_source":
-        from lvke_mcp.servers.lvke_source_files.backend import resolve_source_workbook_for_review
+        from lvke_mcp.adapters.source_files_repository import resolve_source_workbook_for_review
         source_file_id = str(target.get("source_file_id") or "").strip()
         if not source_file_id:
             blockers.append("finance_xlsx_source_file_id_required")
@@ -699,7 +696,7 @@ def _resolve_target(
                 }
                 bindings["source_file_id"] = str(resolution.get("source_file_id") or source_file_id)
     elif target_type == "acquisition_run":
-        from lvke_mcp.servers.lvke_asset_acquisition.backend import get_run
+        from lvke_mcp.domains.asset_acquisition.backend import get_run
         payload = get_run(
             workspace_id,
             target_id,
@@ -708,7 +705,7 @@ def _resolve_target(
             blockers.append("acquisition_run_not_found")
         bindings["finance_run_id"] = target_id
     elif target_type == "acquisition_tables_package":
-        from lvke_mcp.servers.lvke_asset_acquisition.tables import get_package_record
+        from lvke_mcp.domains.asset_acquisition.tables import get_package_record
         record = get_package_record(workspace_id, target_id)
         payload = record
         if record is None:
@@ -717,7 +714,7 @@ def _resolve_target(
             bindings["finance_run_id"] = str((record.get("payload") or {}).get("run_id") or "")
             resource_uri = str(record.get("resource_uri") or "")
     elif target_type == "report_revision":
-        from lvke_mcp.servers.lvke_report_generation.service import REVISION_STORE
+        from lvke_mcp.adapters.report_repository import REVISION_STORE
         record = REVISION_STORE.get(
             workspace_id,
             target_id,
@@ -804,38 +801,20 @@ def _resolve_target(
 
 
 def _acquisition_run_snapshot(run: dict[str, Any]) -> dict[str, Any]:
-    """Project acquisition-run business state without release bookkeeping."""
+    """Project immutable acquisition inputs and deterministic validation state."""
 
-    snapshot = deepcopy(run)
-    release_states = {"release_ready", "released"}
-    history = [
-        deepcopy(event)
-        for event in snapshot.get("state_history") or []
-        if not isinstance(event, dict)
-        or str(event.get("status") or "") not in release_states
-    ]
-    if "state_history" in snapshot:
-        snapshot["state_history"] = history
-    if str(snapshot.get("lifecycle_status") or "") in release_states:
-        previous_status = next(
-            (
-                str(event.get("status") or "")
-                for event in reversed(history)
-                if isinstance(event, dict) and str(event.get("status") or "")
-            ),
-            "",
-        )
-        if previous_status:
-            snapshot["lifecycle_status"] = previous_status
-        else:
-            snapshot.pop("lifecycle_status", None)
-    for field in ("release_status", "release_ready_at", "released_at", "release", "release_history"):
-        snapshot.pop(field, None)
-    snapshot = {
-        key: value for key, value in snapshot.items()
-        if not key.endswith("_by")
+    retained = (
+        "run_id", "status", "available", "validation_status", "consistency_ok",
+        "formal_spec_valid", "formal_spec_errors", "spec_id", "spec_hash",
+        "input_hash", "spec_snapshot_hash", "evidence_binding_version",
+        "evidence_binding_hash", "evidence_status", "evidence_formal_ok",
+        "model_version", "result", "issues", "created_at",
+    )
+    return {
+        key: deepcopy(run.get(key))
+        for key in retained
+        if key in run
     }
-    return snapshot
 
 
 def _binding_snapshot(
@@ -861,7 +840,7 @@ def _binding_snapshot(
             pass
         if not run.get("available"):
             try:
-                from lvke_mcp.servers.lvke_asset_acquisition.backend import get_run
+                from lvke_mcp.domains.asset_acquisition.backend import get_run
 
                 run = get_run(
                     workspace_id,
@@ -883,7 +862,7 @@ def _binding_snapshot(
     if table_id:
         record = None
         try:
-            from lvke_mcp.servers.lvke_finance_tables.service import PACKAGE_STORE
+            from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE
 
             record = PACKAGE_STORE.get(
                 workspace_id,
@@ -893,7 +872,7 @@ def _binding_snapshot(
             record = None
         if record is None:
             try:
-                from lvke_mcp.servers.lvke_asset_acquisition.tables import get_package_record
+                from lvke_mcp.domains.asset_acquisition.tables import get_package_record
 
                 record = get_package_record(workspace_id, table_id)
             except (ValueError, OSError):
@@ -907,7 +886,7 @@ def _binding_snapshot(
     report_revision_id = str(bindings.get("report_revision_id") or "")
     if report_revision_id:
         try:
-            from lvke_mcp.servers.lvke_report_generation.service import REVISION_STORE
+            from lvke_mcp.adapters.report_repository import REVISION_STORE
 
             record = REVISION_STORE.get(
                 workspace_id,
@@ -922,7 +901,7 @@ def _binding_snapshot(
         }
 
     try:
-        from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+        from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
     except Exception:  # noqa: BLE001
         EVIDENCE_STORE = None  # type: ignore[assignment]
     evidence_rows = []
@@ -943,7 +922,7 @@ def _binding_snapshot(
         snapshot["evidence_packs"] = evidence_rows
 
     try:
-        from lvke_mcp.servers.lvke_deep_research.package_service import PACKAGE_STORE as RESEARCH_STORE
+        from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_STORE
     except Exception:  # noqa: BLE001
         RESEARCH_STORE = None  # type: ignore[assignment]
     research_rows = []
@@ -1341,7 +1320,7 @@ def _run_from_preparation(
         run = snapshot if isinstance(snapshot, dict) else {}
         if run and not isinstance(run.get("spec"), dict):
             try:
-                from lvke_mcp.servers.lvke_asset_acquisition.backend import get_spec
+                from lvke_mcp.domains.asset_acquisition.backend import get_spec
 
                 spec_row = get_spec(
                     workspace_id,
@@ -1355,7 +1334,7 @@ def _run_from_preparation(
     if not run_id:
         return {}
     if target_type == "acquisition_tables_package":
-        from lvke_mcp.servers.lvke_asset_acquisition.backend import get_run, get_spec
+        from lvke_mcp.domains.asset_acquisition.backend import get_run, get_spec
 
         run = get_run(workspace_id, run_id)
         spec_row = (
@@ -1377,7 +1356,7 @@ def _run_from_preparation(
     if run.get("available") and str(run.get("run_id") or "") == run_id:
         return run
     try:
-        from lvke_mcp.servers.lvke_asset_acquisition.backend import get_run, get_spec
+        from lvke_mcp.domains.asset_acquisition.backend import get_run, get_spec
 
         acquisition_run = get_run(
             workspace_id,
@@ -1616,7 +1595,7 @@ def _finance_recalculation_findings(run: dict[str, Any], standard_basis: list[di
                 standard_basis=standard_basis, review_area="finance", remediation="披露多重 IRR 风险并以 NPV 等指标交叉判断",
             ))
         try:
-            from lvke_mcp.servers.finance_calc.calculations import irr, npv
+            from lvke_mcp.domains.finance.calculations import irr, npv
             independent_irr = irr(numeric) * 100.0
             reported_irr = _number((run.get("indicators") or {}).get("project_irr_pct"))
             coverage["finance_recalculations"].append("project_irr")
@@ -1719,7 +1698,7 @@ def _report_content(workspace_id: str, preparation_payload: dict[str, Any]) -> s
 
 def _report_evidence_packs(workspace_id: str, preparation_payload: dict[str, Any]) -> list[dict[str, Any]]:
     try:
-        from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+        from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
     except Exception:  # noqa: BLE001
         return []
     records: list[dict[str, Any]] = []
@@ -1755,8 +1734,11 @@ def _report_findings(
     coverage: dict[str, Any] = {"claim_count": 0, "financial_claim_count": 0, "matched_financial_claims": 0}
     if target_type == "report_revision":
         try:
-            from lvke_mcp.servers.lvke_report_generation.service import validate as validate_report
-            validation = validate_report(workspace_id, str(target.get("target_id") or ""))
+            from lvke_mcp.domains.reports.validation import validate_report
+
+            validation = validate_report(
+                workspace_id, str(target.get("target_id") or "")
+            )
         except Exception:  # noqa: BLE001
             validation = {"valid": False, "blockers": ["report_validator_failed"]}
         for blocker in validation.get("blockers") or []:
@@ -1828,7 +1810,7 @@ def _report_artifact_text(
             if Path(name).suffix.lower() not in {".md", ".txt", ".docx"}:
                 continue
             if artifact_family == "asset_acquisition":
-                from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
+                from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 
                 resolved = acquisition_service.read_artifact_candidate_download(
                     workspace_id,
@@ -1930,6 +1912,7 @@ def _summarize_track_coverage(
     ]
     formal_count = sum(int(row.get("formal_evidence_claim_count") or 0) for row in report_metrics)
     technical_count = sum(int(row.get("technical_fixture_claim_count") or 0) for row in report_metrics)
+    reconstructed_count = sum(int(row.get("source_reconstructed_claim_count") or 0) for row in report_metrics)
     external_reason_count = sum(
         1 for reason in incomplete_reasons
         if (
@@ -1953,6 +1936,7 @@ def _summarize_track_coverage(
         "evidence_track": evidence_track,
         "formal_evidence_claim_count": formal_count,
         "technical_fixture_claim_count": technical_count,
+        "source_reconstructed_claim_count": reconstructed_count,
         "external_data_gap_count": external_reason_count + external_finding_count,
         "local_implementation_issue_count": local_reason_count + local_finding_count,
     }
@@ -2428,9 +2412,8 @@ def _schedule_async_review(
 def _resume_async_review_if_needed(workspace_id: str, state: dict[str, Any]) -> bool:
     if (
         state.get("execution") != "async"
-        or state.get("reviewed")
+        or state.get("validation_complete")
         or state.get("invalidated")
-        or state.get("released")
     ):
         return False
     preparation_id = str(state.get("review_preparation_id") or "")
@@ -2586,10 +2569,11 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             review_status=current.get("review_status"), overall_verdict=current.get("overall_verdict"),
             deployment_mode=current.get("deployment_mode"),
             shadow_comparison=current.get("shadow_comparison") or {},
-            release_ready=bool(current.get("release_ready")),
+            validation_status=current.get("validation_status"),
+            validation_complete=bool(current.get("validation_complete")),
             resource_uris=[_review_uri(workspace_id, review_id)],
             blockers=current.get("blockers") or [], warnings=[],
-            next_actions=["调用 review_get 查询深度审查进度"] if execution == "async" else ["处理 findings 或调用 review_release 固化质量检查结果"],
+            next_actions=["调用 review_get 查询深度校验进度"] if execution == "async" else ["处理 findings 或导出不可变校验结果"],
         )
     return _write("review_start", args, execute)
 
@@ -2769,24 +2753,20 @@ def _gate_difference(legacy_verdict: str, unified_verdict: str) -> str:
     return "legacy_block_unified_pass"
 
 
-def _shadow_comparison(state: dict[str, Any], enforced_release_ready: bool) -> dict[str, Any]:
+def _shadow_comparison(state: dict[str, Any], validation_complete: bool) -> dict[str, Any]:
     legacy = state.get("legacy_gate_snapshot") or {}
     automated = str(state.get("automated_gate_verdict") or "unknown")
-    formal = "pass" if enforced_release_ready else (
+    current = "pass" if validation_complete and automated == "pass" else (
         "fail" if automated in {"pass", "fail"} else "unknown"
     )
     legacy_validation = str((legacy.get("validation") or {}).get("verdict") or "unknown")
-    legacy_publish = str((legacy.get("publish") or {}).get("verdict") or "unknown")
     return {
-        "schema_version": "deliverable_review_shadow_comparison.v1",
+        "schema_version": "deliverable_review_shadow_comparison.v2",
         "legacy_snapshot_hash": legacy.get("content_hash"),
         "legacy_validation_verdict": legacy_validation,
-        "legacy_publish_verdict": legacy_publish,
-        "unified_automated_verdict": automated,
-        "unified_formal_gate_verdict": formal,
-        "validation_difference": _gate_difference(legacy_validation, automated),
-        "publish_difference": _gate_difference(legacy_publish, formal),
-        "release_effect": "record_only_release_forbidden",
+        "automated_validation_verdict": automated,
+        "current_validation_verdict": current,
+        "validation_difference": _gate_difference(legacy_validation, current),
     }
 
 
@@ -2828,8 +2808,8 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         "schema_version": "deliverable_review.v1", "workspace_id": workspace_id,
         "review_id": review_id, "review_status": "created", "overall_verdict": "incomplete",
         "target": {}, "bindings": {}, "rule_pack": {}, "standards": {}, "project_context": {}, "findings": [],
-        "incomplete_reasons": [], "coverage": {}, "quality_notes": [], "exports": [], "retests": [],
-        "released": False, "release": None, "invalidated": False,
+        "incomplete_reasons": [], "coverage": {}, "exports": [], "retests": [],
+        "invalidated": False,
         "deployment_mode": "enforced", "legacy_gate_snapshot": {},
         "automated_gate_verdict": "unknown", "shadow_comparison": {},
         "pending_retest_operation_ids": sorted(retest_operations["pending"]),
@@ -2838,12 +2818,10 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         "invalid_retest_operations": deepcopy(retest_operations["invalid"]),
     }
     findings: dict[str, dict[str, Any]] = {}
-    quality_notes: list[dict[str, Any]] = []
     disposition_seen = False
     engine_completed = False
     engine_failed = False
     last_review_basis_change_sequence = 0
-    release_sequence = 0
     for event in events:
         event_type = str(event.get("event_type") or "")
         payload = deepcopy(event.get("payload") or {})
@@ -2922,8 +2900,6 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
                 row["status"] = str(payload.get("new_status") or row.get("status") or "open")
                 row["retest_result"] = deepcopy(payload)
                 row.setdefault("history", []).append({**audit, **payload})
-        elif event_type == "quality_note_recorded":
-            quality_notes.append({**payload, **audit})
         elif event_type == "retest_linked":
             operation_id = str(payload.get("operation_id") or "")
             if operation_id and operation_id not in completed_retest_operations:
@@ -2944,45 +2920,10 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
             )
         elif event_type == "review_exported":
             state["exports"].append({**payload, **audit})
-        elif event_type == "review_released":
-            if not state["released"]:
-                state["released"] = True
-                state["release"] = {**payload, **audit}
-                release_sequence = int(event.get("sequence") or 0)
         elif event_type == "review_invalidated":
             state["invalidated"] = True
             state["invalidation"] = {**payload, **audit}
 
-    post_release_events = [
-        {
-            "sequence": event.get("sequence"),
-            "event_type": event.get("event_type"),
-            "event_hash": event.get("event_hash"),
-        }
-        for event in events
-        if release_sequence and int(event.get("sequence") or 0) > release_sequence
-    ]
-    unexpected_post_release_events = [
-        event
-        for event in post_release_events
-        if event.get("event_type") != "review_invalidated"
-    ]
-    state["post_release_events"] = post_release_events
-    state["release_is_terminal"] = bool(
-        state["released"] and not unexpected_post_release_events
-    )
-    if unexpected_post_release_events:
-        state["invalidated"] = True
-        state["incomplete_reasons"] = sorted(set([
-            *state["incomplete_reasons"],
-            *[
-                f"post_release_mutation:{event.get('event_type')}"
-                for event in unexpected_post_release_events
-            ],
-        ]))
-        state["post_release_mutation"] = unexpected_post_release_events
-
-    state["quality_notes"] = quality_notes
     ordered_findings = sorted(
         findings.values(), key=lambda row: (
             SEVERITY_ORDER.get(str(row.get("severity") or ""), 9), str(row.get("finding_id") or ""),
@@ -3019,34 +2960,43 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     if state["invalidated"]:
         verdict = "incomplete"
         state["review_status"] = "invalidated"
+        state["validation_status"] = "invalidated"
     elif state["pending_retest_operation_ids"]:
         state["review_status"] = "retest_required"
+        state["validation_status"] = "incomplete"
     elif state["active_failed_retest_operations"] or state["invalid_retest_operations"]:
         state["review_status"] = "retest_required"
+        state["validation_status"] = "failed"
     elif engine_completed:
         if active_blockers:
             state["review_status"] = "remediation_in_progress" if disposition_seen else "findings_ready"
+            state["validation_status"] = "failed"
         elif state["incomplete_reasons"]:
             state["review_status"] = "findings_ready"
+            state["validation_status"] = "incomplete"
         else:
-            state["review_status"] = "approved"
+            state["review_status"] = "validated"
+            state["validation_status"] = (
+                "passed" if verdict == "pass" else "conditional"
+            )
     elif engine_failed:
         state["review_status"] = "findings_ready"
+        state["validation_status"] = "failed"
+    else:
+        state["validation_status"] = "pending"
     state["overall_verdict"] = verdict
-    # Findings remain visible as quality results. They are never authorization
-    # or identity gates for creating an immutable MCP review package.
-    enforced_release_ready = bool(
-        not state["invalidated"] and engine_completed
+    validation_complete = bool(
+        engine_completed
+        and not engine_failed
         and not state["pending_retest_operation_ids"]
+        and chain_ok
     )
-    state["would_release_under_enforced_mode"] = enforced_release_ready
-    state["release_ready"] = bool(enforced_release_ready)
     if state.get("deployment_mode") == "shadow":
         state["shadow_comparison"] = _shadow_comparison(
             state,
-            enforced_release_ready,
+            validation_complete,
         )
-        # Technical verification is diagnostic information, not an authorization gate.
+        # Technical verification is a deterministic diagnostic projection.
         deterministic_blocking_ids = [
             str(row.get("finding_id") or "")
             for row in active_blockers
@@ -3058,10 +3008,8 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         )
         state["technical_verification_blockers"] = deterministic_blocking_ids
     state["generated"] = True
-    state["validated"] = bool(engine_completed and not engine_failed)
-    state["reviewed"] = bool(engine_completed)
-    state["approved"] = state["review_status"] == "approved" or bool(state["released"])
-    state["formally_deliverable"] = bool(state["released"] and not state["invalidated"])
+    state["validation_complete"] = validation_complete
+    state["validated"] = bool(validation_complete)
     state["event_chain_hash"] = STORE.event_chain_hash(workspace_id, review_id)
     state["event_chain_valid"] = chain_ok
     state["event_count"] = len(events)
@@ -3087,15 +3035,16 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     )
     if state.get("deployment_mode") == "shadow":
         blockers.append("shadow_mode_release_forbidden")
-    if str((state.get("project_context") or {}).get("evidence_track") or "real") != "real":
-        blockers.append("non_real_evidence_track_release_forbidden")
+    evidence_track = str((state.get("project_context") or {}).get("evidence_track") or "real")
+    if evidence_track == "controlled_assumption":
+        blockers.append("controlled_assumption_release_forbidden")
     state["blockers"] = sorted(set(blockers))
-    state["gate_status"] = {
-        "review": state["review_status"], "verdict": state["overall_verdict"],
-        "deployment_mode": state.get("deployment_mode"),
-        "would_release_under_enforced_mode": state["would_release_under_enforced_mode"],
-        "release_ready": state["release_ready"],
-        "formally_deliverable": state["formally_deliverable"],
+    state["validation_summary"] = {
+        "status": state["validation_status"],
+        "complete": state["validation_complete"],
+        "overall_verdict": state["overall_verdict"],
+        "event_chain_valid": state["event_chain_valid"],
+        "event_chain_hash": state["event_chain_hash"],
     }
     return state
 
@@ -3179,13 +3128,13 @@ def get_review(args: dict[str, Any] | str, review_id: str = "") -> dict[str, Any
     return _ok(
         status=_review_envelope_status(state),
         review=state, review_id=state["review_id"], review_status=state["review_status"],
-        overall_verdict=state["overall_verdict"], release_ready=state["release_ready"],
+        validation_status=state["validation_status"],
+        validation_complete=state["validation_complete"],
+        overall_verdict=state["overall_verdict"],
         deployment_mode=state.get("deployment_mode"),
         shadow_comparison=state.get("shadow_comparison") or {},
-        would_release_under_enforced_mode=bool(state.get("would_release_under_enforced_mode")),
-        formally_deliverable=state["formally_deliverable"], finding_counts=state["finding_counts"],
+        finding_counts=state["finding_counts"],
         active_finding_counts=state["active_finding_counts"], coverage=state.get("coverage") or {},
-        quality_notes=state.get("quality_notes") or [],
         blockers=state.get("blockers") or [], resource_uris=[_review_uri(workspace_id, review_id)],
         next_actions=_next_actions(state),
     )
@@ -3218,9 +3167,7 @@ def _next_actions(state: dict[str, Any]) -> list[str]:
     if state.get("active_blocking_finding_ids"):
         return ["处置阻断 findings，完成整改后调用 review_retest"]
     if state.get("deployment_mode") == "shadow":
-        return ["影子审查仅记录新旧门禁差异；继续采集指标，不得正式释放"]
-    if state.get("release_ready") and not state.get("released"):
-        return ["调用 review_release 固化正式审查包"]
+        return ["影子校验仅记录新旧规则差异；继续采集指标"]
     return []
 
 
@@ -3271,9 +3218,9 @@ def _workspace_metrics_payload(
         states.append(state)
         raw_events[review_id] = STORE.events(workspace_id, review_id)
 
-    completed = [state for state in states if state.get("reviewed")]
+    completed = [state for state in states if state.get("validation_complete")]
     shadow = [state for state in states if state.get("deployment_mode") == "shadow"]
-    completed_shadow = [state for state in shadow if state.get("reviewed")]
+    completed_shadow = [state for state in shadow if state.get("validation_complete")]
     applicable_rule_count = 0
     executed_rule_count = 0
     high_risk_rule_count = 0
@@ -3558,12 +3505,8 @@ def _require_open_review(
         return None, _blocked("review_not_found", _message("review_not_found"))
     if state.get("invalidated"):
         return None, _blocked("review_invalidated", "目标或审查依据已变化，旧审查不可继续处置", review_id=review_id)
-    if state.get("released"):
-        return None, _blocked("review_already_released", "正式审查包已固化，不可修改其审查历史", review_id=review_id)
-    if not state.get("reviewed"):
-        return None, _blocked("review_not_ready", "审查引擎尚未形成 findings", review_id=review_id)
-    if state.get("review_status") in {"approved", "rejected", "waived"}:
-        return None, _blocked("review_terminal", "审查已进入终态；后续变化必须创建新版本复测", review_id=review_id)
+    if not state.get("validation_complete"):
+        return None, _blocked("review_not_ready", "校验引擎尚未形成 findings", review_id=review_id)
     return state, None
 
 
@@ -3696,7 +3639,7 @@ def disposition_finding(args: dict[str, Any]) -> dict[str, Any]:
             if "before_value" not in args or "after_value" not in args:
                 return _blocked("before_after_values_required", "关闭 finding 必须记录整改前值与整改后值")
             if not _evidence_is_precise(evidence):
-                return _blocked("closure_evidence_required", "关闭 finding 必须绑定带哈希和精确定位的批准证据")
+                return _blocked("closure_evidence_required", "关闭 finding 必须绑定带哈希和精确定位的整改证据")
             if finding_blocks(finding):
                 retest_review_id = str(args.get("retest_review_id") or "")
                 if not _successful_retest_closes_finding(
@@ -3719,49 +3662,14 @@ def disposition_finding(args: dict[str, Any]) -> dict[str, Any]:
         return _ok(
             review_id=review_id, finding_id=finding_id, finding_status=updated.get("status"),
             review_status=current["review_status"], overall_verdict=current["overall_verdict"],
-            release_ready=current["release_ready"], blockers=current["blockers"],
+            validation_status=current["validation_status"],
+            validation_complete=current["validation_complete"], blockers=current["blockers"],
             resource_uris=[_finding_uri(workspace_id, review_id, finding_id)],
             next_actions=_next_actions(current),
         )
     return _write("review_disposition_finding", args, execute)
 
 
-def attest(args: dict[str, Any]) -> dict[str, Any]:
-    def execute(workspace_id: str) -> dict[str, Any]:
-        review_id = str(args.get("review_id") or "")
-        state, blocked = _require_open_review(
-            workspace_id, review_id,
-        )
-        if blocked is not None or state is None:
-            return blocked or _blocked("review_not_found", _message("review_not_found"))
-        verdict = str(args.get("verdict") or "")
-        if verdict not in {"approve", "reject"}:
-            return _blocked("quality_verdict_invalid", "质量结论必须为 approve 或 reject")
-        note = str(args.get("note") or "").strip()
-        if not note:
-            return _blocked("quality_note_required", "质量结论必须提供依据说明")
-        quality_note_id = "qnote_" + sha256_json({
-            "review_id": review_id,
-            "verdict": verdict,
-            "note": note,
-            "basis": state.get("event_chain_hash"),
-        }).removeprefix("sha256:")[:24]
-        STORE.append(workspace_id, review_id, "quality_note_recorded", {
-            "quality_note_id": quality_note_id,
-            "verdict": verdict,
-            "note": note,
-            "basis_event_chain_hash": state.get("event_chain_hash"),
-            "recorded_at": utc_now(),
-        })
-        current = _project(workspace_id, review_id, check_freshness=False)
-        return _ok(
-            review_id=review_id, quality_note_id=quality_note_id, verdict=verdict,
-            review_status=current["review_status"],
-            overall_verdict=current["overall_verdict"], release_ready=current["release_ready"],
-            blockers=current["blockers"], resource_uris=[_review_uri(workspace_id, review_id)],
-            next_actions=_next_actions(current),
-        )
-    return _write("review_attest", args, execute)
 
 
 def _retest_operation_identity(
@@ -3889,20 +3797,8 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     review_id=parent_review_id,
                 )
         else:
-            if not parent.get("reviewed"):
-                return _blocked("review_not_ready", "原审查尚未完成，不能复测")
-            if parent.get("released"):
-                return _blocked(
-                    "review_already_released",
-                    "正式审查包已固化；复测必须从未发布审查创建新版本链，不能修改原正式包",
-                    review_id=parent_review_id,
-                )
-            if parent.get("review_status") in {"approved", "rejected", "waived"}:
-                return _blocked(
-                    "review_terminal",
-                    "审查已进入终态；请重新准备目标并创建独立的新版本审查",
-                    review_id=parent_review_id,
-                )
+            if not parent.get("validation_complete"):
+                return _blocked("review_not_ready", "原校验尚未完成，不能复测")
             if parent.get("pending_retest_operation_ids"):
                 return _blocked(
                     "retest_already_in_progress",
@@ -4229,8 +4125,9 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             retest_review_id=child_review_id,
             review_id=child_review_id,
             review_status=child["review_status"],
+            validation_status=child["validation_status"],
+            validation_complete=child["validation_complete"],
             overall_verdict=child["overall_verdict"],
-            release_ready=child["release_ready"],
             closed_finding_ids=closed,
             remaining_finding_ids=remaining,
             resource_uris=[
@@ -4276,8 +4173,8 @@ def _review_markdown(state: dict[str, Any]) -> str:
         f"- 目标哈希：`{(state.get('target') or {}).get('target_sha256')}`",
         f"- 规则包：`{(state.get('rule_pack') or {}).get('rule_pack_id')}` / `{(state.get('rule_pack') or {}).get('version')}`",
         f"- 总体结论：`{state.get('overall_verdict')}`",
-        f"- 审查状态：`{state.get('review_status')}`",
-        f"- 结果可固化：`{str(bool(state.get('release_ready'))).lower()}`", "",
+        f"- 校验状态：`{state.get('validation_status')}`",
+        f"- 校验完成：`{str(bool(state.get('validation_complete'))).lower()}`", "",
         "## Findings", "",
     ]
     if not state.get("findings"):
@@ -4293,12 +4190,7 @@ def _review_markdown(state: dict[str, Any]) -> str:
             f"- 检查分类：`{row.get('review_area') or '-'}`",
             f"- 整改建议：{row.get('remediation') or '-'}", "",
         ])
-    lines.extend(["## 质量说明", ""])
-    for row in state.get("quality_notes") or []:
-        lines.append(
-            f"- `{row.get('quality_note_id')}` / `{row.get('verdict')}` / `{row.get('note')}`"
-        )
-    lines.extend(["", "## 不可核查项", ""])
+    lines.extend(["## 不可核查项", ""])
     if state.get("incomplete_reasons"):
         lines.extend(f"- `{item}`" for item in state["incomplete_reasons"])
     else:
@@ -4321,12 +4213,6 @@ def _review_docx(state: dict[str, Any]) -> bytes:
         document.add_paragraph(f"期望：{canonical_json(row.get('expected'))}")
         document.add_paragraph(f"实际：{canonical_json(row.get('actual'))}")
         document.add_paragraph(f"整改建议：{row.get('remediation') or '-'}")
-    document.add_heading("质量说明", level=2)
-    for row in state.get("quality_notes") or []:
-        document.add_paragraph(
-            f"{row.get('quality_note_id')} / {row.get('verdict')} / {row.get('note')}",
-            style="List Bullet",
-        )
     buffer = io.BytesIO()
     document.save(buffer)
     return buffer.getvalue()
@@ -4373,21 +4259,14 @@ def _export_review_locked(
     review_id: str,
     requested_formats: Any,
 ) -> dict[str, Any]:
-    """Export one review while the caller holds its terminal-mutation lock."""
+    """Export one validation snapshot while holding its mutation lock."""
 
     try:
         state = _project(workspace_id, review_id)
     except ValueError:
         return _blocked("review_not_found", _message("review_not_found"))
-    if not state.get("reviewed"):
-        return _blocked("review_not_ready", "审查尚未形成可导出的不可变结论")
-    if state.get("released"):
-        return _blocked(
-            "review_already_released",
-            "正式审查包已固化；请读取 release 绑定的不可变导出文件",
-            review_id=review_id,
-            resource_uris=list((state.get("release") or {}).get("resource_uris") or []),
-        )
+    if not state.get("validation_complete"):
+        return _blocked("review_not_ready", "校验尚未形成可导出的不可变结果")
     for previous in state.get("exports") or []:
         integrity_reasons = _export_integrity_reasons(
             workspace_id,
@@ -4530,214 +4409,6 @@ def export_review(args: dict[str, Any]) -> dict[str, Any]:
     return _write("review_export", args, execute)
 
 
-def release(args: dict[str, Any]) -> dict[str, Any]:
-    def execute(workspace_id: str) -> dict[str, Any]:
-        review_id = str(args.get("review_id") or "")
-        with STORE.mutation_guard(
-            workspace_id,
-            "review_terminal_mutation",
-            review_id,
-        ):
-            try:
-                state = _project(workspace_id, review_id)
-            except ValueError:
-                return _blocked("review_not_found", _message("review_not_found"))
-            if state.get("deployment_mode") == "shadow":
-                return _blocked(
-                    "review_shadow_mode_release_forbidden",
-                    "影子期审查仅记录新旧门禁差异，不得固化为正式审查包",
-                    review_id=review_id,
-                    shadow_comparison=state.get("shadow_comparison") or {},
-                )
-            if str((state.get("project_context") or {}).get("evidence_track") or "real") != "real":
-                return _blocked(
-                    "review_non_real_evidence_release_forbidden",
-                    "technical_fixture 或 controlled_assumption 轨不得固化正式审查包",
-                    review_id=review_id,
-                    evidence_track=(state.get("project_context") or {}).get("evidence_track"),
-                )
-            if state.get("released"):
-                target = state.get("target") or {}
-                target_spec = state.get("target_spec") or {}
-                verified = require_released_review_for_target(
-                    workspace_id,
-                    review_id,
-                    str(target.get("target_type") or ""),
-                    str(target.get("target_id") or ""),
-                    artifact_domain=str(
-                        target_spec.get("artifact_domain") or ""
-                    ),
-
-                    target_spec=target_spec,
-                )
-                if verified.get("status") != "ok":
-                    return verified
-                release_row = state.get("release") or {}
-                return _ok(
-                    review_id=review_id,
-                    release_id=release_row.get("release_id"),
-                    release_record_id=release_row.get("release_record_id"),
-                    release_record_hash=release_row.get("release_record_hash"),
-                    released_at=release_row.get("released_at"),
-                    release_note=release_row.get("release_note"),
-                    formally_deliverable=True,
-                    resource_uris=list(
-                        release_row.get("resource_uris")
-                        or [_review_uri(workspace_id, review_id)]
-                    ),
-                    warnings=["正式审查包此前已固化并重新通过完整性校验"],
-                    blockers=[],
-                    next_actions=[],
-                )
-            export_result = _export_review_locked(
-                workspace_id,
-                review_id,
-                ["json", "markdown", "docx", "xlsx"],
-            )
-            if export_result.get("status") == "blocked":
-                return export_result
-            state = _project(workspace_id, review_id)
-            if state.get("invalidated"):
-                return _blocked(
-                    "review_invalidated",
-                    "目标或审查依据在导出期间发生变化，正式审查包未固化",
-                    review_id=review_id,
-                    invalidation=state.get("invalidation") or {},
-                )
-            export_envelope = {
-                "review_id": review_id,
-                "export_id": export_result.get("export_id"),
-                "export_record_id": export_result.get("export_record_id"),
-                "export_record_hash": export_result.get("export_record_hash"),
-                "export_basis_hash": export_result.get("export_basis_hash"),
-                "export_files": export_result.get("files") or [],
-            }
-            export_integrity_reasons = _export_integrity_reasons(
-                workspace_id,
-                export_envelope,
-            )
-            if export_integrity_reasons:
-                return _blocked(
-                    "review_export_integrity_failed",
-                    "正式审查包引用的导出记录或文件完整性校验失败",
-                    review_id=review_id,
-                    integrity_reasons=export_integrity_reasons,
-                )
-            release_note = str(args.get("note") or "").strip()
-            release_basis = {
-                "review_id": review_id,
-                "target": state.get("target"),
-                "rule_pack_hash": (state.get("rule_pack") or {}).get(
-                    "content_hash"
-                ),
-                "standards_hash": (state.get("standards") or {}).get(
-                    "content_hash"
-                ),
-                "event_chain_hash": state.get("event_chain_hash"),
-                "export_id": export_result.get("export_id"),
-                "export_record_id": export_result.get("export_record_id"),
-                "export_record_hash": export_result.get("export_record_hash"),
-                "export_basis_hash": export_result.get("export_basis_hash"),
-            }
-            if release_note:
-                release_basis["release_note"] = release_note
-            release_id = (
-                "release_"
-                + sha256_json(release_basis).removeprefix("sha256:")[:24]
-            )
-            release_payload = {
-                **release_basis,
-                "release_id": release_id,
-                "released_at": utc_now(),
-                "immutable_review_snapshot": state,
-                "export_files": export_result.get("files") or [],
-                "notice": (
-                    "固化审查包记录的是工具检查结果，不代表人工签字或安全审批。"
-                ),
-            }
-            record = RELEASE_STORE.put(
-                workspace_id,
-                release_payload,
-                producer="lvke-deliverable-review.review_release",
-                source_ids=[
-                    review_id,
-                    str(export_result.get("export_id") or ""),
-                ],
-                basis=release_basis,
-                schema_version="deliverable_review_release.v1",
-            )
-            expected_release_record_id = (
-                f"{RELEASE_STORE.id_prefix}_"
-                f"{sha256_json(release_payload).removeprefix('sha256:')[:24]}"
-            )
-            if (
-                record.get("payload") != release_payload
-                or record.get("content_hash") != sha256_json(release_payload)
-                or record.get("basis_hash") != sha256_json(release_basis)
-                or record.get("object_id") != expected_release_record_id
-                or record.get("workspace_id") != workspace_id
-            ):
-                return _blocked(
-                    "review_release_integrity_failed",
-                    "正式审查包记录写入后完整性校验失败",
-                    review_id=review_id,
-                )
-            resource_uris = [
-                record["resource_uri"],
-                *list(export_result.get("resource_uris") or []),
-            ]
-            STORE.append(
-                workspace_id,
-                review_id,
-                "review_released",
-                {
-                    "release_id": release_id,
-                    "release_record_id": record["object_id"],
-                    "release_record_hash": record["content_hash"],
-                    "released_at": (record.get("payload") or {}).get(
-                        "released_at"
-                    ),
-                    **(
-                        {"release_note": release_note}
-                        if release_note else {}
-                    ),
-                    "resource_uris": resource_uris,
-                },
-            )
-            current = _project(
-                workspace_id,
-                review_id,
-            )
-            if current.get("formally_deliverable") is not True:
-                code = (
-                    "review_invalidated"
-                    if current.get("invalidated")
-                    else "review_release_integrity_failed"
-                )
-                return _blocked(
-                    code,
-                    "正式审查包固化后完整性复验失败，不得宣称发布成功",
-                    review_id=review_id,
-                    release_id=release_id,
-                    release_record_id=record["object_id"],
-                    formally_deliverable=False,
-                    resource_uris=resource_uris,
-                    invalidation=current.get("invalidation") or {},
-                )
-            return _ok(
-                review_id=review_id,
-                release_id=release_id,
-                release_record_id=record["object_id"],
-                release_record_hash=record["content_hash"],
-                released_at=(record.get("payload") or {}).get("released_at"),
-                release_note=release_note or None,
-                formally_deliverable=current.get("formally_deliverable"),
-                resource_uris=resource_uris,
-                warnings=["发布记录仅表示 MCP 检查结果已固化"],
-                blockers=[],
-                next_actions=[],
-            )
-    return _write("review_release", args, execute)
 
 
 def _release_export_integrity_reasons(
@@ -4876,240 +4547,6 @@ def _export_integrity_reasons(
     ]))
 
 
-def require_released_review_for_target(
-    workspace_id: str,
-    review_id: str,
-    target_type: str,
-    target_id: str,
-    *,
-    artifact_domain: str = "",
-    target_spec: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Validate one explicit review against the current exact target.
-
-    Formal release callers must never search for an arbitrary eligible review.
-    This helper re-resolves the current target, runs the freshness projection,
-    compares the immutable target hash and verifies the stored review-release
-    envelope before returning binding material for the legacy release record.
-    """
-
-    try:
-        workspace_id = require_safe_id(workspace_id, "workspace_id")
-        review_id = require_safe_id(review_id, "review_id")
-        artifact_scope = {"artifact_domain": artifact_domain}
-        normalized = normalize_target(
-            deepcopy(target_spec)
-            if isinstance(target_spec, dict)
-            else {
-                "target_type": target_type,
-                "target_id": target_id,
-                **(
-                    artifact_scope
-                    if target_type == "report_artifact" else {}
-                ),
-            }
-        )
-        if (
-            normalized.get("target_type") != target_type
-            or normalized.get("target_id") != target_id
-        ):
-            return _blocked(
-                "review_target_scope_mismatch",
-                "完整目标规格与待发布目标类型或逻辑 ID 不一致",
-                review_id=review_id,
-            )
-        resolved, target_blockers = _resolve_target(
-            workspace_id,
-            normalized,
-        )
-        if target_blockers or resolved is None:
-            return _blocked(
-                "review_target_unavailable",
-                "待发布目标不存在、已失效或完整性校验未通过",
-                review_id=review_id,
-                blockers=target_blockers or ["review_target_unavailable"],
-            )
-        state = _project(workspace_id, review_id)
-    except ValueError as exc:
-        code = "review_not_found" if str(exc) in {"review_not_found", "invalid review_id"} else str(exc)
-        return _blocked(code, _message(code), review_id=str(review_id or ""))
-
-    reviewed_target = state.get("target") or {}
-    if target_type == "report_artifact":
-        reviewed_spec = state.get("target_spec") or {}
-        expected_spec = resolved.get("target_spec") or {}
-        expected_scope = {
-            "artifact_domain": expected_spec.get("artifact_domain"),
-        }
-        actual_scope = {
-            "artifact_domain": reviewed_spec.get("artifact_domain"),
-        }
-        if actual_scope != expected_scope:
-            return _blocked(
-                "review_target_scope_mismatch",
-                "review_id 未绑定当前待发布工件的业务域范围",
-                review_id=review_id,
-                expected_scope=expected_scope,
-                actual_scope=actual_scope,
-            )
-    expected_target = {
-        key: resolved.get(key)
-        for key in ("target_type", "target_id", "target_sha256")
-    }
-    actual_target = {
-        key: reviewed_target.get(key)
-        for key in ("target_type", "target_id", "target_sha256")
-    }
-    if actual_target != expected_target:
-        return _blocked(
-            "review_target_mismatch",
-            "review_id 未绑定当前待发布工件的精确内容哈希",
-            review_id=review_id,
-            expected_target=expected_target,
-            actual_target=actual_target,
-        )
-    if state.get("invalidated"):
-        return _blocked(
-            "review_invalidated",
-            "审查目标或依据已变化，原审查不可用于正式发布",
-            review_id=review_id,
-            invalidation=state.get("invalidation") or {},
-        )
-    if state.get("event_chain_valid") is not True:
-        return _blocked(
-            "review_event_chain_invalid",
-            "审查事件链完整性校验失败",
-            review_id=review_id,
-        )
-    if state.get("released") is not True:
-        return _blocked(
-            "review_not_released",
-            "统一审查尚未固化正式审查包",
-            review_id=review_id,
-        )
-    if state.get("formally_deliverable") is not True:
-        return _blocked(
-            "review_not_formally_deliverable",
-            "统一审查未通过正式交付门禁",
-            review_id=review_id,
-            overall_verdict=state.get("overall_verdict"),
-            review_status=state.get("review_status"),
-        )
-
-    release_projection = state.get("release") or {}
-    release_record_id = str(release_projection.get("release_record_id") or "")
-    try:
-        release_record = (
-            RELEASE_STORE.get(workspace_id, release_record_id)
-            if release_record_id else None
-        )
-    except ValueError:
-        release_record = None
-    if release_record is None:
-        return _blocked(
-            "review_release_record_missing",
-            "正式审查包记录不存在",
-            review_id=review_id,
-        )
-    release_payload = release_record.get("payload") or {}
-    release_hash = str(release_record.get("content_hash") or "")
-    release_basis_keys = [
-        "review_id",
-        "target",
-        "rule_pack_hash",
-        "standards_hash",
-        "event_chain_hash",
-        "export_id",
-    ]
-    release_basis_keys.extend(
-        key
-        for key in (
-            "export_record_id",
-            "export_record_hash",
-            "export_basis_hash",
-            "release_note",
-        )
-        if key in release_payload
-    )
-    release_basis = {
-        key: deepcopy(release_payload.get(key))
-        for key in release_basis_keys
-    }
-    expected_basis_hash = sha256_json(release_basis)
-    expected_release_id = (
-        "release_" + expected_basis_hash.removeprefix("sha256:")[:24]
-    )
-    expected_record_id = (
-        f"{RELEASE_STORE.id_prefix}_"
-        f"{release_hash.removeprefix('sha256:')[:24]}"
-    )
-    if (
-        release_hash != sha256_json(release_payload)
-        or release_record_id != expected_record_id
-        or str(release_record.get("object_id") or "") != expected_record_id
-        or str(release_record.get("workspace_id") or "") != workspace_id
-        or str(release_record.get("basis_hash") or "") != expected_basis_hash
-        or (
-            str(release_projection.get("release_record_hash") or "")
-            and str(release_projection.get("release_record_hash") or "")
-            != release_hash
-        )
-        or str(release_payload.get("review_id") or "") != review_id
-        or (release_payload.get("target") or {}) != reviewed_target
-        or str(release_payload.get("release_id") or "")
-        != str(release_projection.get("release_id") or "")
-        or str(release_payload.get("release_id") or "") != expected_release_id
-        or (
-            "release_note" in release_projection
-            and release_projection.get("release_note")
-            != release_payload.get("release_note")
-        )
-    ):
-        return _blocked(
-            "review_release_integrity_failed",
-            "正式审查包哈希或目标绑定校验失败",
-            review_id=review_id,
-        )
-    export_integrity_reasons = (
-        _export_integrity_reasons(
-            workspace_id,
-            {
-                "review_id": review_id,
-                "export_id": release_payload.get("export_id"),
-                "export_record_id": release_payload.get("export_record_id"),
-                "export_record_hash": release_payload.get("export_record_hash"),
-                "export_basis_hash": release_payload.get("export_basis_hash"),
-                "export_files": release_payload.get("export_files"),
-            },
-        )
-        if "export_record_id" in release_payload
-        else _release_export_integrity_reasons(
-            workspace_id,
-            release_payload,
-        )
-    )
-    if export_integrity_reasons:
-        return _blocked(
-            "review_release_integrity_failed",
-            "正式审查包绑定的导出文件不存在或哈希校验失败",
-            review_id=review_id,
-            integrity_reasons=export_integrity_reasons,
-        )
-    return _ok(
-        review_id=review_id,
-
-        target=expected_target,
-        review_release_id=release_projection.get("release_id"),
-        review_release_record_id=release_record_id,
-        review_release_hash=release_hash,
-        review_release_basis_hash=release_record.get("basis_hash"),
-        review_event_chain_hash=state.get("event_chain_hash"),
-        released_at=release_projection.get("released_at"),
-        formally_deliverable=True,
-        resource_uris=list(release_projection.get("resource_uris") or []),
-        blockers=[],
-        next_actions=[],
-    )
 
 
 def latest_review_for_target(
@@ -5165,39 +4602,6 @@ def latest_review_for_target(
     return deepcopy(candidates[0])
 
 
-def released_review_for_target(
-    workspace_id: str,
-    target_type: str,
-    target_id: str,
-    *,
-    target_sha256: str = "",
-    artifact_domain: str = "",
-) -> dict[str, Any] | None:
-    """Return a fresh formally-deliverable review for an exact target binding."""
-
-    if target_type == "report_artifact" and artifact_domain not in _REPORT_ARTIFACT_DOMAINS:
-        return None
-    candidates: list[dict[str, Any]] = []
-    for review_id in STORE.review_ids(require_safe_id(workspace_id, "workspace_id")):
-        try:
-            state = _project(workspace_id, review_id)
-        except ValueError:
-            continue
-        target = state.get("target") or {}
-        if target.get("target_type") != target_type or str(target.get("target_id") or "") != str(target_id):
-            continue
-        if target_type == "report_artifact":
-            target_spec = state.get("target_spec") or {}
-            if target_spec.get("artifact_domain") != artifact_domain:
-                continue
-        if target_sha256 and target.get("target_sha256") != target_sha256:
-            continue
-        if state.get("formally_deliverable"):
-            candidates.append(state)
-    if not candidates:
-        return None
-    candidates.sort(key=lambda row: str(((row.get("release") or {}).get("released_at") or "")), reverse=True)
-    return candidates[0]
 
 
 def _standard_catalog() -> dict[str, Any]:
@@ -5402,16 +4806,16 @@ def _resolve_standard_evidence_resource(
     workspace_id: str,
 ) -> tuple[dict[str, Any], str] | None:
     if uri.startswith(f"lvke://data-acquisition/workspaces/{workspace_id}/"):
-        from lvke_mcp.servers.lvke_data_acquisition import service as acquisition_service
+        from lvke_mcp.adapters.data_acquisition_repository import resolve_resource
 
-        record = acquisition_service.resolve_resource(uri, workspace_id)
+        record = resolve_resource(uri, workspace_id)
         if not isinstance(record, dict):
             return None
         return record, "real"
     if uri.startswith(f"lvke://data-analysis/workspaces/{workspace_id}/"):
-        from lvke_mcp.servers.lvke_data_analysis import service as analysis_service
+        from lvke_mcp.adapters.data_analysis_repository import resolve_resource
 
-        record = analysis_service.resolve_resource(uri, workspace_id)
+        record = resolve_resource(uri, workspace_id)
         if not isinstance(record, dict):
             return None
         payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
@@ -5476,10 +4880,12 @@ def attach_requirement_evidence(args: dict[str, Any]) -> dict[str, Any]:
             evidence_track=requested_track,
             evidence_status={
                 "technical_fixture": "satisfied_technical_fixture",
+                "source_reconstructed": "satisfied_source_reconstructed_process_acceptance",
                 "real": "evidence_attached_pending_review",
                 "controlled_assumption": "unable_to_determine",
             }.get(requested_track, "unable_to_determine"),
-            formal_evidence_candidate=requested_track == "real",
+            formal_evidence_candidate=requested_track in {"real", "source_reconstructed"},
+            project_fact_certified=requested_track == "real",
             compliance_conclusion="not_determined",
             resource_uris=[evidence_record["resource_uri"], resource_uri],
             warnings=[], blockers=[], next_actions=["调用 review_validate_standards 汇总证据状态"],
@@ -5509,6 +4915,8 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
             evidence_status = "pending_evidence"
         elif evidence_track == "technical_fixture":
             evidence_status = "satisfied_technical_fixture"
+        elif evidence_track == "source_reconstructed":
+            evidence_status = "satisfied_source_reconstructed_process_acceptance"
         elif evidence_track == "real":
             evidence_status = "evidence_attached_pending_review"
         else:
@@ -5518,6 +4926,7 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
         status: sum(1 for row in requirements if row.get("evidence_status") == status)
         for status in (
             "satisfied_technical_fixture",
+            "satisfied_source_reconstructed_process_acceptance",
             "evidence_attached_pending_review",
             "pending_evidence",
             "unable_to_determine",
@@ -5542,6 +4951,10 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
             status_counts["evidence_attached_pending_review"]
             if evidence_track == "real" else 0
         ),
+        source_reconstructed_claim_count=(
+            status_counts.get("satisfied_source_reconstructed_process_acceptance", 0)
+            if evidence_track == "source_reconstructed" else 0
+        ),
         technical_fixture_claim_count=(
             status_counts["satisfied_technical_fixture"]
             if evidence_track == "technical_fixture" else 0
@@ -5553,10 +4966,10 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
         resource_uris=[record["resource_uri"], *[
             str(row.get("resource_uri") or "") for row in attachments if row.get("resource_uri")
         ]],
-        warnings=["标准证据状态不能替代专业合规审查或法定审批"],
-        blockers=[] if technical_complete else ["standard_evidence_or_professional_review_incomplete"],
+        warnings=["标准证据状态仅表示当前技术验证结果"],
+        blockers=[] if technical_complete else ["standard_evidence_validation_incomplete"],
         next_actions=(
-            ["技术夹具链已完成；不得据此形成正式合规或 release 结论"]
+            ["技术夹具链已完成；结果保留当前 evidence track 标记"]
             if technical_complete else ["补充真实不可变证据并完成质量核验"]
         ),
     )
@@ -5608,11 +5021,6 @@ def list_resources(args: dict[str, Any] | str) -> dict[str, Any]:
                     **_resource_entry(file_uri, "export_file", str(file_row.get("filename") or ""), "审查报告导出文件"),
                     "mime_type": file_row.get("media_type") or "application/octet-stream",
                 }
-        for record in RELEASE_STORE.list(workspace_id):
-            payload = record.get("payload") or {}
-            review_id = str(payload.get("review_id") or "")
-            uri = str(record.get("resource_uri") or "")
-            entries[uri] = _resource_entry(uri, "release", str(record.get("object_id") or ""), "正式不可变审查包")
         for record in STANDARD_APPLICABILITY_STORE.list(workspace_id):
             uri = str(record.get("resource_uri") or "")
             entries[uri] = _resource_entry(
@@ -5747,11 +5155,6 @@ def resolve_resource(
         if "sha256:" + hashlib.sha256(content).hexdigest() != file_row.get("sha256"):
             return None
         return content, str(file_row.get("media_type") or "application/octet-stream")
-    if segment == "releases" and len(parts) == 3:
-        record = RELEASE_STORE.get(uri_workspace, parts[2])
-        if not record:
-            return None
-        return (json.dumps(record, ensure_ascii=False, indent=2, default=str), "application/json") if record else None
     if segment == "standard-applicabilities" and len(parts) == 3:
         record = STANDARD_APPLICABILITY_STORE.resolve_uri(uri)
         if record is None or str(record.get("workspace_id") or "") != uri_workspace:

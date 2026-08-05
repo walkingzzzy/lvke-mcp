@@ -1,0 +1,1 @@
+"""Asset-acquisition model, persistence, and table packages."""

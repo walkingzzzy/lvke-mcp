@@ -1,0 +1,1 @@
+"""MCP-owned infrastructure adapters shared by application modules."""

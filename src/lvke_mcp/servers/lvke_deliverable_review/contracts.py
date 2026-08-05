@@ -15,11 +15,10 @@ FINDING_STATUSES = {
     "open", "confirmed", "rejected", "remediation_in_progress",
     "false_positive_appeal", "waiver_requested", "waived", "resolved", "superseded",
 }
-TERMINAL_REVIEW_STATUSES = {"approved", "rejected", "waived", "invalidated"}
 DEPLOYMENT_MODES = {"enforced", "shadow"}
 
 SEVERITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-EVIDENCE_TRACKS = {"real", "technical_fixture", "controlled_assumption"}
+EVIDENCE_TRACKS = {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}
 PROJECT_TYPES = {"generic_feasibility", "asset_acquisition"}
 TRANSACTION_STRUCTURES = {
     "new_build", "operation_lease", "asset_acquisition", "equity_acquisition",

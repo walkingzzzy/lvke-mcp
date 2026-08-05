@@ -127,9 +127,8 @@ def build_verdict(
             source="vendor_reference",
         ))
 
-    # 参考轨超容差（red_flag）：文档 §14.1 要求现金流/IRR 超容差必须阻断批准。
-    # 此前 blocking=False 只提示不拦，导致内部自洽但与甲方参考轨严重不符的 run
-    # 仍可被批准（GOV-001）。改为 blocking=True，并前移到 approve_run（见 audit_db）。
+    # 参考轨超容差必须形成 blocking finding，避免内部自洽但与甲方
+    # 参考轨严重不符的 run 被标记为 validation passed。
     for item in comparison.get("red_flags") or []:
         if not isinstance(item, dict):
             continue

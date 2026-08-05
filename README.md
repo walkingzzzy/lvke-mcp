@@ -25,7 +25,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
   `forward（MCP → 外部）= 0`，即 `src/lvke_mcp` 不调用任何其他项目代码；
   新发行版只扫描和运行 `src/lvke_mcp` 自有代码，不保留旧顶层导入入口。
 
-## 正式业务工具面（十一服务）
+## 核心业务工具面（十三服务）
 
 | Server | 核心对象 | 职责 |
 |---|---|---|
@@ -40,6 +40,8 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 | `lvke-asset-acquisition` | `spec_id` / `acqrun_*` / `acquisition_tables_package_id` | 月度资产收购模型、治理、工件、专用十三表与发布 |
 | `lvke-deliverable-review` | `review_preparation_id` / `review_id` / `finding_id` | 财务表、研报与联合交付包的统一审查、整改复测、签审和正式固化 |
 | `lvke-knowledge-governance` | `candidate_id` / `review_id` / `release_id` | 证据化知识候选、独立复核和 reviewed-first 发布 |
+| `lvke-feasibility-delivery` | `delivery_run_id` / `checkpoint_id` / `release_id` | 可研项目阶段编排、对象 lineage、stale、checkpoint/resume、technical/formal 校验和交付发布 |
+| `lvke-zero-material-delivery` | `delivery_run_id` / `preview_id` | 零材料受控假设与 `estimate_preview` 预览交付，不作为正式可研发布入口 |
 
 ## 支撑服务（11 个）
 
@@ -64,7 +66,7 @@ mcp_servers/
 │   ├── domains/              # 领域业务层，随切片迁入
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
-│       └── <domain>/         # 23 个正式及支撑 server
+│       └── <domain>/         # 24 个正式及支撑 server
 ├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```

@@ -1276,7 +1276,7 @@ def _acquisition_checks(
             ))
     if project_cashflows and all(_number(value) is not None for value in project_cashflows):
         try:
-            from lvke_mcp.servers.finance_calc.calculations import irr, npv
+            from lvke_mcp.domains.finance.calculations import irr, npv
 
             numeric_cashflows = [float(value) for value in project_cashflows]
             independent_irr = irr(numeric_cashflows) * 100.0

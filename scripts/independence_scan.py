@@ -4,13 +4,13 @@
 v2（AST 精确版）：改用 ``ast`` 解析，只统计**真实代码依赖**，不再把
 docstring / 注释 / 字符串字面量当作依赖点。
 
-  正向 MCP -> 外部（MCP 不得调用其他项目代码）：
+  MCP 项目边界：
       - import 语句根模块 ∈ {hermes_cli, tools, agent}
       - importlib.import_module / __import__ 动态加载上述模块
       - 读取 ``HERMES_*`` 环境变量（os.environ.get / os.getenv / environ[...]）
-  反向 Hermes -> MCP（Hermes 不得进程内 import MCP 包，只能经 stdio transport）：
-      - hermes_cli/ 下 import 根模块 ∈ {mcp_servers, lvke_mcp}
-      - importlib 动态加载 mcp_servers / lvke_mcp
+
+扫描只证明当前 MCP 项目自身不存在外部宿主依赖、跨 Server 私有导入和禁用
+身份/权限语义。仓库外项目不属于本项目的构建或验收输入。
 
 排除目录：build/（构建产物）、*.egg-info、tests、fixtures、scripts、quality、
 __pycache__。
@@ -26,22 +26,20 @@ __pycache__。
 
 from __future__ import annotations
 
+import argparse
 import ast
 import json
 import re
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MCP_ROOT = REPO_ROOT / "mcp_servers"
-HERMES_ROOT = REPO_ROOT / "hermes_cli"
 DEFAULT_OUT = MCP_ROOT / "quality" / "independence_dependency_scan.json"
 
-# 外部项目模块（MCP 侧禁止 import）。keyui_ 前缀模块在 hermes 命名空间内。
+# 外部宿主模块（MCP 侧禁止 import）。
 _FORBIDDEN_ROOTS = frozenset({"hermes_cli", "tools", "agent"})
-_MCP_ROOTS = frozenset({"mcp_servers", "lvke_mcp"})
 
 # 扫描时排除的目录名（相对各自扫描根）。
 _EXCLUDED_DIRS = frozenset({
@@ -52,6 +50,116 @@ _EXCLUDED_SUFFIXES = (".egg-info",)
 
 # 文本残留模式（仅跟踪，不判定）。
 _TEXT_RESIDUE_RE = re.compile(r"hermes_cli|HERMES_|keyui_|from tools|from agent|import tools|import agent")
+_FORBIDDEN_SEMANTIC_RE = re.compile(
+    r"\b(?:actor|actor_id|reviewer|reviewed_at|reviewed_on|authenticated|authentication|"
+    r"authorization|authorized|permission|rbac|approved_run|review_grade|security_review|"
+    r"attest|signoff|release_status|release_condition|formal_delivery_ready|"
+    r"formally_deliverable|publish_eligibility|released_by|released_at|approved_by|"
+    r"approved_at|accepted_by|confirmed_by|reviewed_by|calculated_by|closed_by|created_by|"
+    r"updated_by)\b|职责分离|权限|认证|审批|批准|签审|安全审查",
+    re.IGNORECASE,
+)
+
+
+def _server_package(module: str) -> str | None:
+    parts = module.split(".")
+    try:
+        index = parts.index("servers")
+    except ValueError:
+        return None
+    return parts[index + 1] if len(parts) > index + 1 else None
+
+
+def _module_for_path(path: Path) -> str:
+    try:
+        relative = path.relative_to(MCP_ROOT / "src")
+    except ValueError:
+        return ""
+    return ".".join(relative.with_suffix("").parts)
+
+
+def _architecture_entry(path: Path, rel: str, node: ast.AST, imported: str, reason: str) -> dict:
+    return {
+        "mcp_file": rel,
+        "line": getattr(node, "lineno", 0),
+        "direction": "internal_architecture",
+        "forbidden_reference": imported,
+        "reason": reason,
+        "status": "non_conforming",
+    }
+
+
+def _scan_internal_architecture(path: Path, rel: str) -> list[dict]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+    source_module = _module_for_path(path)
+    source_server = _server_package(source_module)
+    source_is_domain = source_module.startswith("lvke_mcp.domains.")
+    entries: list[dict] = []
+    for node in ast.walk(tree):
+        modules: list[tuple[str, ast.AST]] = []
+        if isinstance(node, ast.Import):
+            modules.extend((alias.name, node) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.append((node.module, node))
+        for imported, import_node in modules:
+            target_server = _server_package(imported)
+            if source_is_domain and target_server:
+                entries.append(_architecture_entry(
+                    path, rel, import_node, imported, "domains_must_not_import_servers",
+                ))
+            elif source_server and target_server and source_server != target_server:
+                entries.append(_architecture_entry(
+                    path, rel, import_node, imported, "cross_server_python_import",
+                ))
+            elif source_module.endswith(".service") and imported.endswith(".server"):
+                entries.append(_architecture_entry(
+                    path, rel, import_node, imported, "service_must_not_import_server",
+                ))
+    return entries
+
+
+def _legacy_key_removal_lines(path: Path) -> set[int]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (SyntaxError, UnicodeDecodeError):
+        return set()
+    lines: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "pop" or len(node.args) != 2:
+            continue
+        key, default = node.args
+        if (
+            isinstance(key, ast.Constant)
+            and isinstance(key.value, str)
+            and _FORBIDDEN_SEMANTIC_RE.search(key.value)
+            and isinstance(default, ast.Constant)
+            and default.value is None
+        ):
+            lines.add(int(getattr(node, "lineno", 0)))
+    return lines
+
+
+def _scan_forbidden_semantics(path: Path, rel: str) -> list[dict]:
+    entries: list[dict] = []
+    legacy_removal_lines = _legacy_key_removal_lines(path)
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line_number in legacy_removal_lines:
+            continue
+        for match in _FORBIDDEN_SEMANTIC_RE.finditer(line):
+            entries.append({
+                "mcp_file": rel,
+                "line": line_number,
+                "direction": "forbidden_semantics",
+                "forbidden_reference": match.group(0),
+                "raw_line": line.strip(),
+                "status": "non_conforming",
+            })
+    return entries
 
 # 每个 MCP 领域 -> (capability, owner_module, contract, golden_fixture, verification_test)。
 _DOMAIN = {
@@ -147,17 +255,12 @@ def _scan_file_ast(path: Path, rel: str, direction: str) -> tuple[list[dict], li
         if isinstance(node, ast.Import):
             for alias in node.names:
                 root = _root_module(alias.name)
-                if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
-                    hit = (root, alias.name)
-                    break
-                if direction == "hermes_to_mcp" and root in _MCP_ROOTS:
+                if root in _FORBIDDEN_ROOTS:
                     hit = (root, alias.name)
                     break
         elif isinstance(node, ast.ImportFrom) and node.module:
             root = _root_module(node.module)
-            if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
-                hit = (root, node.module)
-            elif direction == "hermes_to_mcp" and root in _MCP_ROOTS:
+            if root in _FORBIDDEN_ROOTS:
                 hit = (root, node.module)
         elif isinstance(node, ast.Call):
             # importlib.import_module("hermes_cli...") / __import__("...")
@@ -166,11 +269,9 @@ def _scan_file_ast(path: Path, rel: str, direction: str) -> tuple[list[dict], li
                     isinstance(func, ast.Name) and func.id == "__import__"):
                 if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                     root = _root_module(node.args[0].value)
-                    if direction == "mcp_to_external" and root in _FORBIDDEN_ROOTS:
+                    if root in _FORBIDDEN_ROOTS:
                         hit = (root, node.args[0].value)
-                    elif direction == "hermes_to_mcp" and root in _MCP_ROOTS:
-                        hit = (root, node.args[0].value)
-            elif direction == "mcp_to_external":
+            else:
                 key = _env_key_from_call(node)
                 if key and key.startswith("HERMES_"):
                     hit = ("HERMES_*", f"os.environ[{key!r}]")
@@ -205,7 +306,7 @@ def _scan_file_ast(path: Path, rel: str, direction: str) -> tuple[list[dict], li
     return entries, text_lines
 
 
-def _annotate(entry: dict, hermes_file: str | None = None) -> dict:
+def _annotate(entry: dict) -> dict:
     key = _domain_key(entry["mcp_file"])
     capability, owner, contract, golden, test = _DOMAIN.get(
         key, ("unknown", "lvke_mcp.domains.unknown", "Unknown.v1", "", "")
@@ -215,8 +316,6 @@ def _annotate(entry: dict, hermes_file: str | None = None) -> dict:
     entry["contract"] = contract
     entry["golden_fixture"] = golden
     entry["verification_test"] = test
-    if hermes_file:
-        entry["hermes_file"] = hermes_file
     return entry
 
 
@@ -232,73 +331,78 @@ def scan_forward() -> tuple[list[dict], list[dict]]:
     return entries, text_residue
 
 
-def scan_reverse() -> list[dict]:
-    """Hermes -> MCP：扫描 hermes_cli/ 下 import mcp_servers/lvke_mcp 的真实语句。"""
-    entries: list[dict] = []
-    if not HERMES_ROOT.is_dir():
-        return entries
-    for path in _iter_py_files(HERMES_ROOT):
+def scan_internal_boundaries() -> tuple[list[dict], list[dict]]:
+    architecture: list[dict] = []
+    semantics: list[dict] = []
+    for path in _iter_py_files(MCP_ROOT / "src" / "lvke_mcp"):
         rel = path.relative_to(REPO_ROOT).as_posix()
-        hits, _ = _scan_file_ast(path, rel, "hermes_to_mcp")
-        for h in hits:
-            h["forbidden_reference"] = f"{path.as_posix()}:{h['line']}"
-            entries.append(_annotate(h, hermes_file=rel))
-    return entries
+        architecture.extend(_scan_internal_architecture(path, rel))
+        semantics.extend(_scan_forbidden_semantics(path, rel))
+    return architecture, semantics
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Scan MCP independence and architecture boundaries")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit non-zero when project-boundary violations exist",
+    )
+    return parser.parse_args()
 
 
 def main() -> int:
-    out = Path(sys.argv[sys.argv.index("--output") + 1] if "--output" in sys.argv else DEFAULT_OUT)
+    args = _parse_args()
+    out = args.output.expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
 
     forward, text_residue = scan_forward()
-    reverse = scan_reverse()
-    conforming = not forward and not reverse
-    scan_status = "conforming" if conforming else "non_conforming"
+    architecture, semantics = scan_internal_boundaries()
+    violations = forward + architecture + semantics
+    scan_status = "conforming" if not violations else "non_conforming"
 
     doc = {
-        "schema": "independence_dependency_scan.v2",
+        "schema": "independence_dependency_scan.v4",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §26.2/§26.4 (AST v2)",
-        "scan_commands": {
-            "forward": "AST scan of mcp_servers/**/*.py (import roots in {hermes_cli, tools, agent}; importlib dynamic load; HERMES_* env reads)",
-            "reverse": "AST scan of hermes_cli/**/*.py (import roots in {mcp_servers, lvke_mcp}; importlib dynamic load)",
-        },
+        "plan_ref": "MCP_INDEPENDENCE_PLAN.md §19/§26.2/§26.4",
+        "strict": bool(args.strict),
         "status_summary": {
             "overall": scan_status,
             "forward": {
                 "matches": len(forward),
-                "files": len({e["mcp_file"] for e in forward}),
+                "files": len({entry["mcp_file"] for entry in forward}),
                 "status": "conforming" if not forward else "non_conforming",
             },
-            "reverse": {
-                "matches": len(reverse),
-                "files": len({e["hermes_file"] for e in reverse if e.get("hermes_file")}),
-                "status": "conforming" if not reverse else "non_conforming",
+            "internal_architecture": {
+                "matches": len(architecture),
+                "files": len({entry["mcp_file"] for entry in architecture}),
+                "status": "conforming" if not architecture else "non_conforming",
+            },
+            "forbidden_semantics": {
+                "matches": len(semantics),
+                "files": len({entry["mcp_file"] for entry in semantics}),
+                "status": "conforming" if not semantics else "non_conforming",
             },
             "text_residue": {
                 "matches": len(text_residue),
-                "files": len({e["file"] for e in text_residue}),
-                "note": "docstring/注释/字符串字样，仅跟踪文案清理进度，不参与 conforming 判定；"
-                        "data_identifier=True 的是存量数据 schema 标识，必须保留",
+                "files": len({entry["file"] for entry in text_residue}),
+                "note": "tracked compatibility text; excluded from conformance",
             },
-            "note": (
-                "v2 以 AST 为准，只统计真实 import / 动态加载 / HERMES_* 环境变量读取；"
-                "注释与字符串字面量不再计为依赖。独立化完成要求 forward 与 reverse 均为零；"
-                "Hermes 侧对 mcp_servers 的 config-block 字符串引用是宿主启动配置（stdio 拉起 MCP），"
-                "非 Python 依赖，不计入 reverse 依赖点。"
-            ),
         },
-        "dependencies": forward + reverse,
+        "dependencies": forward,
+        "internal_architecture_violations": architecture,
+        "forbidden_semantic_entries": semantics,
         "text_residue_entries": text_residue,
     }
 
     out.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"forward: {len(forward)} matches / {len({e['mcp_file'] for e in forward})} files")
-    print(f"reverse: {len(reverse)} matches / {len({e['hermes_file'] for e in reverse if e.get('hermes_file')})} files")
-    print(f"text_residue: {len(text_residue)} matches / {len({e['file'] for e in text_residue})} files")
+    print(f"forward: {len(forward)} matches / {len({entry['mcp_file'] for entry in forward})} files")
+    print(f"internal_architecture: {len(architecture)} matches / {len({entry['mcp_file'] for entry in architecture})} files")
+    print(f"forbidden_semantics: {len(semantics)} matches / {len({entry['mcp_file'] for entry in semantics})} files")
     print(f"overall status: {scan_status}")
     print(f"written -> {out}")
-    return 0
+    return 1 if args.strict and scan_status != "conforming" else 0
 
 
 if __name__ == "__main__":

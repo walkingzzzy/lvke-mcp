@@ -1,4 +1,4 @@
-"""Immutable knowledge candidates, human review, and governed release."""
+"""Immutable knowledge candidates and content-addressed snapshots."""
 
 from __future__ import annotations
 
@@ -14,10 +14,14 @@ from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
     sha256_json,
+    utc_now,
 )
 
 CANDIDATE_STORE = JSONArtifactStore(
     "knowledge-governance", "candidates", "knc", "candidates"
+)
+SNAPSHOT_STORE = JSONArtifactStore(
+    "knowledge-governance", "snapshots", "kns", "snapshots"
 )
 REVIEW_STORE = JSONArtifactStore(
     "knowledge-governance", "reviews", "knr", "reviews"
@@ -28,9 +32,13 @@ RELEASE_STORE = JSONArtifactStore(
 IDEMPOTENCY_STORE = JSONArtifactStore(
     "knowledge-governance", "idempotency", "idem", "idempotency"
 )
+RUBRIC_ASSESSMENT_STORE = JSONArtifactStore(
+    "deliverable-review", "rubric_assessments", "rva", "rubric-assessments"
+)
 
 _RESOURCE_STORES = (
     (CANDIDATE_STORE, "KnowledgeCandidate"),
+    (SNAPSHOT_STORE, "KnowledgeSnapshot"),
     (REVIEW_STORE, "KnowledgeReview"),
     (RELEASE_STORE, "KnowledgeRelease"),
 )
@@ -152,27 +160,6 @@ def _object_view(record: dict[str, Any], id_field: str) -> dict[str, Any]:
     }
 
 
-def _reviews_for_candidate(
-    workspace_id: str,
-    candidate_id: str,
-) -> list[dict[str, Any]]:
-    rows = [
-        item for item in REVIEW_STORE.list(workspace_id)
-        if str((item.get("payload") or {}).get("candidate_id") or "") == candidate_id
-    ]
-    return sorted(rows, key=lambda item: str(item.get("created_at") or ""))
-
-
-def _releases_for_candidate(
-    workspace_id: str,
-    candidate_id: str,
-) -> list[dict[str, Any]]:
-    return [
-        item for item in RELEASE_STORE.list(workspace_id)
-        if str((item.get("payload") or {}).get("candidate_id") or "") == candidate_id
-    ]
-
-
 def _validate_evidence(evidence: list[dict[str, Any]]) -> list[str]:
     blockers: list[str] = []
     for index, item in enumerate(evidence):
@@ -192,11 +179,10 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
     candidate = dict(args["candidate"])
     evidence = [dict(item) for item in candidate.get("evidence_bindings") or []]
     blockers = _validate_evidence(evidence)
-    from lvke_mcp.servers.lvke_deliverable_review.rubrics import ASSESSMENT_STORE
 
     assessment_id = str(candidate.get("rubric_assessment_id") or "")
     assessment = (
-        ASSESSMENT_STORE.get(workspace_id, assessment_id)
+        RUBRIC_ASSESSMENT_STORE.get(workspace_id, assessment_id)
         if assessment_id else None
     )
     if not assessment_id or assessment is None:
@@ -220,8 +206,14 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
         )
     payload = {
         **candidate,
-        "candidate_status": "pending_review",
+        "candidate_status": "validated",
         "evidence_bindings": evidence,
+        "evidence_policy": "source_reconstructed" if any(
+            str(item.get("evidence_track") or "") == "source_reconstructed" for item in evidence
+        ) else "formal_evidence",
+        "project_fact_certified": not any(
+            str(item.get("evidence_track") or "") == "source_reconstructed" for item in evidence
+        ),
     }
     request_payload = {"candidate": candidate}
 
@@ -244,9 +236,9 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
             "ok",
             candidate=view,
             candidate_id=record["object_id"],
-            candidate_status="pending_review",
+            candidate_status="validated",
             resource_uris=[record["resource_uri"]],
-            next_actions=["调用 knowledge_review_candidate 记录内容质量审查结果"],
+            next_actions=["调用 knowledge_create_snapshot 生成内容寻址快照"],
         )
 
     return _idempotent_mutation(
@@ -258,6 +250,44 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _snapshots_for_candidate(
+    workspace_id: str,
+    candidate_id: str,
+) -> list[dict[str, Any]]:
+    return [
+        item for item in SNAPSHOT_STORE.list(workspace_id)
+        if str((item.get("payload") or {}).get("candidate_id") or "") == candidate_id
+    ]
+
+
+def _reviews_for_candidate(workspace_id: str, candidate_id: str) -> list[dict[str, Any]]:
+    rows = [
+        item for item in REVIEW_STORE.list(workspace_id)
+        if str((item.get("payload") or {}).get("candidate_id") or "") == candidate_id
+    ]
+    return sorted(rows, key=lambda item: str(item.get("created_at") or ""))
+
+
+def _releases_for_candidate(workspace_id: str, candidate_id: str) -> list[dict[str, Any]]:
+    rows = [
+        item for item in RELEASE_STORE.list(workspace_id)
+        if str((item.get("payload") or {}).get("candidate_id") or "") == candidate_id
+    ]
+    return sorted(rows, key=lambda item: str(item.get("created_at") or ""))
+
+
+def _candidate_status(workspace_id: str, candidate_id: str) -> str:
+    releases = _releases_for_candidate(workspace_id, candidate_id)
+    if releases:
+        return "published"
+    reviews = _reviews_for_candidate(workspace_id, candidate_id)
+    if reviews:
+        return str((reviews[-1].get("payload") or {}).get("decision") or "needs_revision")
+    if _snapshots_for_candidate(workspace_id, candidate_id):
+        return "snapshotted"
+    return "validated"
+
+
 def list_candidates(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     status_filter = str(args.get("candidate_status") or "")
@@ -267,13 +297,7 @@ def list_candidates(args: dict[str, Any]) -> dict[str, Any]:
     rows = []
     for record in CANDIDATE_STORE.list(workspace_id):
         view = _candidate_view(record)
-        reviews = _reviews_for_candidate(workspace_id, record["object_id"])
-        releases = _releases_for_candidate(workspace_id, record["object_id"])
-        effective_status = (
-            "published" if releases else
-            str((reviews[-1].get("payload") or {}).get("decision") or "pending_review")
-            if reviews else "pending_review"
-        )
+        effective_status = _candidate_status(workspace_id, record["object_id"])
         view["candidate_status"] = effective_status
         if status_filter and effective_status != status_filter:
             continue
@@ -303,6 +327,10 @@ def get_candidate(args: dict[str, Any]) -> dict[str, Any]:
     record = CANDIDATE_STORE.get(workspace_id, candidate_id)
     if record is None:
         return _blocked("knowledge_candidate_not_found", "知识候选不存在或不属于当前工作区")
+    snapshots = [
+        _object_view(item, "knowledge_snapshot_id")
+        for item in _snapshots_for_candidate(workspace_id, candidate_id)
+    ]
     reviews = [
         _object_view(item, "knowledge_review_id")
         for item in _reviews_for_candidate(workspace_id, candidate_id)
@@ -315,10 +343,13 @@ def get_candidate(args: dict[str, Any]) -> dict[str, Any]:
         True,
         "ok",
         candidate=_candidate_view(record),
+        candidate_status=_candidate_status(workspace_id, candidate_id),
+        snapshots=snapshots,
         reviews=reviews,
         releases=releases,
         resource_uris=[
             record["resource_uri"],
+            *[item["resource_uri"] for item in snapshots],
             *[item["resource_uri"] for item in reviews],
             *[item["resource_uri"] for item in releases],
         ],
@@ -327,136 +358,170 @@ def get_candidate(args: dict[str, Any]) -> dict[str, Any]:
 
 def review_candidate(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
-    candidate_id = str(args["candidate_id"])
-    decision = str(args["decision"])
+    candidate_id = require_safe_id(args.get("candidate_id"), "candidate_id")
+    decision = str(args.get("decision") or "")
+    if decision not in {"accepted", "rejected", "needs_revision"}:
+        return _blocked("knowledge_review_decision_invalid", "审核结论必须是 accepted、rejected 或 needs_revision")
     candidate = CANDIDATE_STORE.get(workspace_id, candidate_id)
     if candidate is None:
         return _blocked("knowledge_candidate_not_found", "知识候选不存在或不属于当前工作区")
-    request_payload = {
+    reason = str(args.get("reason") or args.get("review_note") or "").strip()
+    if not reason:
+        return _blocked("knowledge_review_reason_required", "审核结论必须提供 reason")
+    rubric_assessment_id = str(args.get("rubric_assessment_id") or (candidate.get("payload") or {}).get("rubric_assessment_id") or "")
+    request = {
         "candidate_id": candidate_id,
         "decision": decision,
-        "review_note": str(args["review_note"]),
+        "reason": reason,
+        "rubric_assessment_id": rubric_assessment_id,
         "required_changes": list(args.get("required_changes") or []),
     }
 
     def create() -> dict[str, Any]:
-        existing = _reviews_for_candidate(workspace_id, candidate_id)
-        if existing:
-            return _blocked("knowledge_candidate_already_reviewed", "知识候选已有不可变审定结果")
+        payload = {
+            "candidate_id": candidate_id,
+            "decision": decision,
+            "reason": reason,
+            "required_changes": request["required_changes"],
+            "rubric_assessment_id": rubric_assessment_id,
+            "candidate_basis_hash": candidate["basis_hash"],
+            "candidate_content_hash": candidate["content_hash"],
+            "evidence_hash": sha256_json((candidate.get("payload") or {}).get("evidence_bindings") or []),
+            "reviewed_at": utc_now(),
+        }
         record = REVIEW_STORE.put(
             workspace_id,
-            {
-                **request_payload,
-                "candidate_basis_hash": candidate["basis_hash"],
-            },
+            payload,
             producer="lvke-knowledge-governance.knowledge_review_candidate",
-            status=decision,
-            source_ids=[candidate_id],
-            basis={
-                "candidate_id": candidate_id,
-                "candidate_basis_hash": candidate["basis_hash"],
-                "decision": decision,
-            },
+            source_ids=[candidate_id, rubric_assessment_id],
+            basis=request,
+            schema_version="knowledge_review.v1",
         )
         return _envelope(
             True,
             "ok",
             knowledge_review=_object_view(record, "knowledge_review_id"),
             knowledge_review_id=record["object_id"],
-            candidate_status=decision,
+            candidate_id=candidate_id,
+            decision=decision,
+            evidence_hash=payload["evidence_hash"],
             resource_uris=[record["resource_uri"]],
-            next_actions=(
-                ["调用 knowledge_publish_release 固化 reviewed knowledge"]
-                if decision == "accepted"
-                else (["按 required_changes 创建新的知识候选"] if decision == "request_changes" else [])
-            ),
+            next_actions=["调用 knowledge_publish_release" if decision == "accepted" else "根据 required_changes 修改候选后重新提交"],
         )
 
     return _idempotent_mutation(
         workspace_id,
         operation="knowledge_review_candidate",
         idempotency_key=str(args["idempotency_key"]),
-        request_payload=request_payload,
+        request_payload=request,
         mutation=create,
     )
 
 
 def publish_release(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
-    candidate_id = str(args["candidate_id"])
+    candidate_id = require_safe_id(args.get("candidate_id"), "candidate_id")
+    review_id = require_safe_id(args.get("review_id") or args.get("knowledge_review_id"), "review_id")
     candidate = CANDIDATE_STORE.get(workspace_id, candidate_id)
+    review = REVIEW_STORE.get(workspace_id, review_id)
     if candidate is None:
         return _blocked("knowledge_candidate_not_found", "知识候选不存在或不属于当前工作区")
-    reviews = _reviews_for_candidate(workspace_id, candidate_id)
-    if not reviews or str((reviews[-1].get("payload") or {}).get("decision") or "") != "accepted":
-        return _blocked("knowledge_candidate_not_accepted", "知识候选尚未通过内容质量审查")
-    review = reviews[-1]
-    releases = _releases_for_candidate(workspace_id, candidate_id)
-    if releases:
-        release = releases[0]
-        return _envelope(
-            True,
-            "ok",
-            knowledge_release=_object_view(release, "knowledge_release_id"),
-            knowledge_release_id=release["object_id"],
-            idempotent_replay=True,
-            resource_uris=[release["resource_uri"]],
-        )
-    payload = dict(candidate.get("payload") or {})
-    request_payload = {"candidate_id": candidate_id, "review_id": review["object_id"]}
+    if review is None or str((review.get("payload") or {}).get("candidate_id") or "") != candidate_id:
+        return _blocked("knowledge_review_not_found", "审核记录不存在或不匹配")
+    if str((review.get("payload") or {}).get("decision") or "") != "accepted":
+        return _blocked("knowledge_review_not_accepted", "只有 accepted 候选才能发布")
+    request = {"candidate_id": candidate_id, "review_id": review_id, "release_note": str(args.get("release_note") or "")}
 
     def create() -> dict[str, Any]:
-        evidence = [
-            {
-                "source_path": str(item.get("resource_uri") or ""),
-                "locator": str(item.get("locator") or ""),
-                "evidence_grade": "A" if item.get("evidence_track") == "real" else "T",
-                "source_sha256": str(item.get("content_hash") or "").removeprefix("sha256:"),
-                "revision_workspace_id": workspace_id,
-            }
-            for item in payload.get("evidence_bindings") or []
-        ]
-        memory_id = "mem_" + sha256_json({"candidate_id": candidate_id, "content": payload.get("content")})[7:31]
-        memory = {
-            "id": memory_id,
-            "version": 1,
-            "status": "published",
-            "content": str(payload.get("content") or ""),
-            "source_fingerprint": sha256_json(evidence),
+        payload = dict(candidate.get("payload") or {})
+        release_payload = {
+            "candidate_id": candidate_id,
+            "review_id": review_id,
+            "title": payload.get("title", ""),
+            "content": payload.get("content", ""),
+            "candidate_basis_hash": candidate["basis_hash"],
+            "candidate_content_hash": candidate["content_hash"],
+            "review_basis_hash": review["basis_hash"],
+            "evidence_bindings": payload.get("evidence_bindings", []),
+            "release_note": request["release_note"],
+            "released_at": utc_now(),
         }
-        release = RELEASE_STORE.put(
+        record = RELEASE_STORE.put(
             workspace_id,
-            {
-                "candidate_id": candidate_id,
-                "knowledge_review_id": review["object_id"],
-                "memory_id": str(memory.get("id") or ""),
-                "memory_version": memory.get("version"),
-                "memory_status": str(memory.get("status") or ""),
-                "memory_source_fingerprint": str(memory.get("source_fingerprint") or ""),
-                "legacy_mirror": {},
-            },
+            release_payload,
             producer="lvke-knowledge-governance.knowledge_publish_release",
-            status="published",
-            source_ids=[candidate_id, review["object_id"], str(memory.get("id") or "")],
-            basis={
-                "candidate_basis_hash": candidate["basis_hash"],
-                "review_basis_hash": review["basis_hash"],
-                "memory_id": str(memory.get("id") or ""),
-            },
+            source_ids=[candidate_id, review_id],
+            basis=request,
+            schema_version="knowledge_release.v1",
         )
         return _envelope(
             True,
             "ok",
-            knowledge_release=_object_view(release, "knowledge_release_id"),
-            knowledge_release_id=release["object_id"],
-            memory_id=str(memory.get("id") or ""),
-            resource_uris=[release["resource_uri"]],
-            warnings=[],
+            knowledge_release=_object_view(record, "knowledge_release_id"),
+            knowledge_release_id=record["object_id"],
+            candidate_id=candidate_id,
+            resource_uris=[record["resource_uri"]],
         )
 
     return _idempotent_mutation(
         workspace_id,
         operation="knowledge_publish_release",
+        idempotency_key=str(args["idempotency_key"]),
+        request_payload=request,
+        mutation=create,
+    )
+
+
+def create_snapshot(args: dict[str, Any]) -> dict[str, Any]:
+    workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
+    candidate_id = str(args["candidate_id"])
+    candidate = CANDIDATE_STORE.get(workspace_id, candidate_id)
+    if candidate is None:
+        return _blocked("knowledge_candidate_not_found", "知识候选不存在或不属于当前工作区")
+    payload = dict(candidate.get("payload") or {})
+    evidence = [
+        {
+            "resource_uri": str(item.get("resource_uri") or ""),
+            "locator": str(item.get("locator") or ""),
+            "content_hash": str(item.get("content_hash") or ""),
+            "evidence_track": str(item.get("evidence_track") or ""),
+        }
+        for item in payload.get("evidence_bindings") or []
+    ]
+    request_payload = {"candidate_id": candidate_id}
+
+    def create() -> dict[str, Any]:
+        snapshot = SNAPSHOT_STORE.put(
+            workspace_id,
+            {
+                "candidate_id": candidate_id,
+                "candidate_basis_hash": candidate["basis_hash"],
+                "candidate_content_hash": candidate["content_hash"],
+                "content": str(payload.get("content") or ""),
+                "evidence_fingerprint": sha256_json(evidence),
+            },
+            producer="lvke-knowledge-governance.knowledge_create_snapshot",
+            source_ids=[candidate_id],
+            basis={
+                "candidate_id": candidate_id,
+                "candidate_basis_hash": candidate["basis_hash"],
+                "candidate_content_hash": candidate["content_hash"],
+                "evidence_fingerprint": sha256_json(evidence),
+            },
+            schema_version="knowledge_snapshot.v1",
+        )
+        return _envelope(
+            True,
+            "ok",
+            knowledge_snapshot=_object_view(snapshot, "knowledge_snapshot_id"),
+            knowledge_snapshot_id=snapshot["object_id"],
+            candidate_status="snapshotted",
+            resource_uris=[snapshot["resource_uri"]],
+        )
+
+    return _idempotent_mutation(
+        workspace_id,
+        operation="knowledge_create_snapshot",
         idempotency_key=str(args["idempotency_key"]),
         request_payload=request_payload,
         mutation=create,
@@ -521,6 +586,7 @@ __all__ = [
     "submit_candidate",
     "list_candidates",
     "get_candidate",
+    "create_snapshot",
     "review_candidate",
     "publish_release",
     "list_resources",

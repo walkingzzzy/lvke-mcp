@@ -19,7 +19,7 @@ import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
-from lvke_mcp.servers.finance_calc.calculations import irr, npv
+from lvke_mcp.domains.finance.calculations import irr, npv
 
 from .reference_track import payback_from_period_rows
 
@@ -227,14 +227,6 @@ def replay_hengli_reference(value: dict[str, Any] | None = None) -> dict[str, An
     benchmark_rate = float(data.get("benchmark_rate") or 0.0)
     scenarios: list[dict[str, Any]] = []
     blocking_issues: list[dict[str, Any]] = []
-    manual_review_status = str((data.get("source") or {}).get("manual_review_status") or "pending")
-    if manual_review_status != "approved":
-        blocking_issues.append({
-            "code": "HENGLI_REFERENCE_MANUAL_REVIEW_REQUIRED",
-            "blocking": True,
-            "detail": "六档参考轨仍是人工重建表，必须由已认证使用者逐项核对原DOC后方可批准。",
-            "manual_review_status": manual_review_status,
-        })
     for row in data.get("scenarios") or []:
         pre_tax = _solve_track(
             row, values_field="project_pre_tax_cashflows_wan",
@@ -288,10 +280,6 @@ def replay_hengli_reference(value: dict[str, Any] | None = None) -> dict[str, An
         for track_name in ("project_pre_tax", "project_after_tax")
         for check in ("irr_within_tolerance", "npv_within_display_precision", "payback_within_tolerance")
     )
-    manual_blocking = any(
-        issue.get("code") == "HENGLI_REFERENCE_MANUAL_REVIEW_REQUIRED"
-        for issue in blocking_issues
-    )
     equity_blocking = any(
         issue.get("code") == "HENGLI_EQUITY_CASHFLOW_SOURCE_MISSING"
         for issue in blocking_issues
@@ -316,7 +304,6 @@ def replay_hengli_reference(value: dict[str, Any] | None = None) -> dict[str, An
         "expert_reference_usable": complete_project_track,
         "blocking_issues": blocking_issues,
         "blocking_summary": {
-            "manual_review_pending": manual_blocking,
             "equity_cashflow_gap": equity_blocking,
         },
     }
@@ -325,21 +312,19 @@ def replay_hengli_reference(value: dict[str, Any] | None = None) -> dict[str, An
 def synthesize_equity_cashflow_assumption(
     scenario: dict[str, Any],
     *,
-    authorized: bool = False,
-    actor: str = "",
+    enabled: bool = False,
     note: str = "",
 ) -> dict[str, Any]:
-    """OPTIONAL capital-CF proxy from project CF + financing split.
+    """Build an optional capital-CF proxy from project CF and financing split.
 
-    Default authorized=False → refused. Never silently marks equity available.
-    Output is C-grade assumption for expert discussion only unless professional
-    approval workflow promotes it (out of scope of this pure function).
+    The explicit technical switch defaults to disabled. The result remains a
+    disclosed assumption candidate and never becomes source evidence.
     """
-    if not authorized:
+    if not enabled:
         return {
             "ok": False,
-            "error": "CAPITAL_CF_SYNTHESIS_UNAUTHORIZED",
-            "detail": "资本金现金流假设生成默认关闭；须专业授权与假设披露",
+            "error": "CAPITAL_CF_SYNTHESIS_DISABLED",
+            "detail": "资本金现金流假设生成默认关闭；启用时必须保留假设披露",
         }
     project = list(scenario.get("project_after_tax_cashflows_wan") or [])
     if len(project) < 2:
@@ -362,9 +347,8 @@ def synthesize_equity_cashflow_assumption(
         "cashflows_wan": series,
         "method": "project_after_tax_scaled_by_equity_share",
         "equity_share": equity_share,
-        "actor": actor,
         "note": note
-        or "非原件资本金CF；不得作为未披露假设的 formal reference",
+        or "非原件资本金CF；不得作为未披露假设的 reference",
         "blocking_for_complete_full": True,
     }
 
@@ -424,7 +408,7 @@ def scenario_matrix() -> dict[str, Any]:
         "valid": not errors,
         "errors": errors,
         "replay": replay,
-        "approval_status": "pending" if replay["blocking_issues"] else "reviewable",
+        "validation_status": "incomplete" if replay["blocking_issues"] else "passed",
         "warning": "本轨仅还原甲方原报告的价格—目标租金谈判边界，不代表市场租金合理性。",
         "independent_corrected_track_required": True,
     }

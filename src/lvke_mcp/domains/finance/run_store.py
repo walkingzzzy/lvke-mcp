@@ -2,9 +2,8 @@
 
 MCP 独立化后不引入 sqlite：run 记录以 JSON 文件落在 MCP 自有
 workspace 存储（``runtime.workspace.workspace_root``），字段语义与
-历史 audit_db 的 calculation_runs 视图对齐，保证
-``run_service`` 消费面（spec_json / review_status / results / snapshot 等）
-零改动可读。
+历史 calculation_runs 视图对齐，保证 ``run_service`` 消费的计算结果、
+一致性、来源映射和快照可独立回读。
 """
 
 from __future__ import annotations
@@ -121,7 +120,6 @@ def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     view = dict(record)
     view.pop("_result_snapshot", None)
     view.setdefault("consistency_ok", False)
-    view.setdefault("review_status", "draft")
     view.setdefault("consistency", [])
     view.setdefault("results", [])
     view.setdefault("assumptions", [])
@@ -132,7 +130,6 @@ def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     view.setdefault("dependencies", [])
     view.setdefault("input_elements", [])
     view.setdefault("migration_events", [])
-    view.setdefault("review_actions", [])
     view.setdefault("stale_reasons", [])
     view.setdefault("field_source_ledger", [])
     view.setdefault("period_count", 0)
@@ -149,7 +146,7 @@ def latest_run(workspace_id: str) -> dict[str, Any]:
 
 
 def find_run_by_idempotency_key(workspace_id: str, idempotency_key: str) -> dict[str, Any]:
-    """按幂等键查找已有 run；返回 {run_id, review_status, result?} 或空 dict。"""
+    """按幂等键查找已有 run；返回 run 元数据和可选结果快照。"""
     if not idempotency_key:
         return {}
     records = [
@@ -162,7 +159,6 @@ def find_run_by_idempotency_key(workspace_id: str, idempotency_key: str) -> dict
     record = records[-1]
     out: dict[str, Any] = {
         "run_id": record.get("run_id"),
-        "review_status": str(record.get("review_status") or "draft"),
         "input_hash": record.get("input_hash"),
         "spec_hash": record.get("spec_hash"),
         "model_version": record.get("model_version"),
@@ -191,23 +187,6 @@ def load_result_snapshot(workspace_id: str, run_id: str) -> Optional[dict[str, A
         return None
     snapshot = record.get("_result_snapshot")
     return snapshot if isinstance(snapshot, dict) else None
-
-
-def get_approved_run(workspace_id: str) -> dict[str, Any]:
-    """最新已批准运行（MCP 无审批流程，恒空）。"""
-    records = [
-        r for r in _list_records(workspace_id)
-        if str(r.get("review_status") or "") == "approved"
-    ]
-    if not records:
-        return {}
-    records.sort(
-        key=lambda r: (
-            str(r.get("approved_at") or r.get("finished_at") or r.get("started_at") or ""),
-            str(r.get("run_id") or ""),
-        )
-    )
-    return _view_from_record(records[-1])
 
 
 def record_run(
@@ -312,9 +291,6 @@ def record_run(
         "consistency": consistency,
         "spec_json": spec_json,
         "spec_hash": spec_hash,
-        "review_status": "draft",
-        "approved_at": None,
-        "approved_by": None,
         "parent_run_id": None,
         "input_hash": input_hash or fin.get("input_hash") or "",
         "idempotency_key": idempotency_key or "",
@@ -346,9 +322,6 @@ def record_run(
         "dependencies": [],
         "input_elements": [],
         "migration_events": [],
-        "review_actions": [],
-        "reference_review_status": "n_a",
-        "business_review_status": "pending",
         "_result_snapshot": snap,
     }
     _write_record(_run_path(workspace_id, run_id), record)
@@ -362,7 +335,6 @@ def map_key_report_values(
     *,
     report_file: str = "",
     section: str = "",
-    require_approved: bool = False,
 ) -> int:
     """把关键正文数字映射到已有 run（MCP 版记录到 run 文件，供 report_mappings 回读）。"""
     if not fin or not run_id:
@@ -383,8 +355,6 @@ def map_key_report_values(
     path = _run_path(workspace_id, run_id)
     record = _read_record(path)
     if record is None:
-        return 0
-    if require_approved and str(record.get("review_status") or "draft") != "approved":
         return 0
     existing = {m.get("element_code") for m in (record.get("report_mappings") or [])}
     now = _now()
@@ -503,10 +473,9 @@ def _vendor_sheet_decisions(
     workspace_id: str,
     reference_id: str,
 ) -> dict[str, Any]:
-    """从快照 sheet_map 计算裁决状态。
+    """从快照 sheet_map 计算确定性映射完整度。
 
-    MCP 无人工 mapped/ignored 裁决入口：非空表一律 pending，formal_ok 恒为
-    False（与「无批准入口 → approved 恒不通过」的产品语义一致）。
+    没有显式 mapping 的非空表保持 pending，``formal_ok`` 为 False。
     """
     record = load_vendor_reference(workspace_id, reference_id)
     if not record:
@@ -557,7 +526,7 @@ def _vendor_sheet_decisions(
         elif state == "mapped":
             mapped.append(str(sheet_name))
             try:
-                from lvke_mcp.servers.lvke_templates.catalog import map_vendor_sheet
+                from lvke_mcp.domains.templates.catalog import map_vendor_sheet
 
                 canonical = map_vendor_sheet(business=effective_business) or {}
             except Exception:  # noqa: BLE001
@@ -617,7 +586,7 @@ def bind_vendor_reference_run(
     reference_id: str,
     run_id: str,
 ) -> dict[str, Any]:
-    """绑定甲方快照与引擎 run；已绑定幂等复用；approved run 不可变。"""
+    """绑定甲方快照与引擎 run；已绑定时幂等复用。"""
     record = load_vendor_reference(workspace_id, reference_id)
     if not record:
         return {"ok": False, "error": "reference_not_found", "reference_id": reference_id}
@@ -625,17 +594,12 @@ def bind_vendor_reference_run(
     run_record = _read_record(run_path)
     if run_record is None:
         return {"ok": False, "error": "run_not_found", "run_id": run_id}
-    if str(run_record.get("review_status") or "") == "approved":
-        return {"ok": False, "error": "approved_run_immutable", "run_id": run_id}
     run_ids = list(record.get("run_ids") or [])
     reused = str(run_id) in run_ids
     if not reused:
         run_ids.append(str(run_id))
         record["run_ids"] = run_ids
         _write_record(_vendor_path(workspace_id, reference_id), record)
-        run_record["reference_review_status"] = "pending"
-        run_record["business_review_status"] = "pending"
-        _write_record(run_path, run_record)
     decision_status = _vendor_sheet_decisions(workspace_id, reference_id)
     return {
         "ok": True,
@@ -707,86 +671,3 @@ def record_model_issues(
         "reused": reused,
         "count": len(inserted) + len(reused),
     }
-
-
-def _update_run_review_gates(
-    workspace_id: str,
-    run_id: str,
-    *,
-    reference_review_status: str | None = None,
-    business_review_status: str | None = None,
-    actor: str = "",
-    note: str = "",
-) -> dict[str, Any]:
-    """设置参考轨复核 / 业务复核状态（MCP 版，仅显式字段）。"""
-    updates: list[tuple[str, str]] = []
-    if reference_review_status is not None:
-        if reference_review_status not in _REFERENCE_REVIEW_STATES:
-            return {"ok": False, "error": "invalid_reference_review_status",
-                    "value": reference_review_status}
-        updates.append(("reference_review_status", reference_review_status))
-    if business_review_status is not None:
-        if business_review_status not in _BUSINESS_REVIEW_STATES:
-            return {"ok": False, "error": "invalid_business_review_status",
-                    "value": business_review_status}
-        updates.append(("business_review_status", business_review_status))
-    if not updates:
-        return {"ok": False, "error": "no_updates"}
-    actor = str(actor or "").strip()
-    if business_review_status == "approved" and not actor:
-        return {"ok": False, "error": "authenticated_actor_required", "run_id": run_id}
-    if reference_review_status == "approved" and not actor:
-        return {"ok": False, "error": "authenticated_actor_required", "run_id": run_id}
-    path = _run_path(workspace_id, run_id)
-    record = _read_record(path)
-    if record is None:
-        return {"ok": False, "error": "run_not_found", "run_id": run_id}
-    if str(record.get("review_status") or "") == "approved":
-        return {"ok": False, "error": "approved_run_immutable", "run_id": run_id}
-    for col, val in updates:
-        record[col] = val
-    if actor:
-        record["review_actions"] = list(record.get("review_actions") or []) + [{
-            "action_id": _gen_id("act"),
-            "run_id": run_id,
-            "actor": actor,
-            "action": "reference_review" if reference_review_status is not None else "business_review",
-            "payload_json": json.dumps({"note": note}, ensure_ascii=False),
-            "created_at": _now(),
-        }]
-    _write_record(path, record)
-    return {"ok": True, "run_id": run_id, **dict(updates)}
-
-
-def set_reference_review_status(
-    workspace_id: str,
-    run_id: str,
-    status: str,
-    *,
-    actor: str = "",
-    note: str = "",
-    request_id: str = "",
-    payload: Optional[dict[str, Any]] = None,
-) -> dict[str, Any]:
-    """兼容包装：vendor/reference-track 编排调用。"""
-    return _update_run_review_gates(
-        workspace_id, run_id, reference_review_status=str(status or "pending"),
-        actor=actor, note=note,
-    )
-
-
-def set_business_review_status(
-    workspace_id: str,
-    run_id: str,
-    status: str,
-    *,
-    actor: str = "",
-    note: str = "",
-    request_id: str = "",
-    payload: Optional[dict[str, Any]] = None,
-) -> dict[str, Any]:
-    """兼容包装：业务差异裁决调用。"""
-    return _update_run_review_gates(
-        workspace_id, run_id, business_review_status=str(status or "pending"),
-        actor=actor, note=note,
-    )

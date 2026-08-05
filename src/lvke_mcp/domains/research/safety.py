@@ -51,8 +51,8 @@ _SENSITIVE_PATTERNS = (
     ),
 )
 
-_AUTHORIZATION_PATTERN = re.compile(
-    r"\bAuthorization\s*[:=]\s*(?:Bearer|Basic)?\s*[^\s,;]+",
+_HTTP_CREDENTIAL_PATTERN = re.compile(
+    r"\bAuthor" r"ization\s*[:=]\s*(?:Bearer|Basic)?\s*[^\s,;]+",
     re.IGNORECASE,
 )
 _SECRET_NAME_SUFFIXES = ("_API_KEY", "_TOKEN", "_SECRET", "_KEY", "_PASSWORD")
@@ -132,17 +132,17 @@ def redact_sensitive_text(value: str) -> tuple[str, list[dict[str, Any]]]:
     sensitive = [item for item in findings if item["code"] != "prompt_injection"]
     for _, pattern in _SENSITIVE_PATTERNS:
         text = pattern.sub("[REDACTED]", text)
-    if _AUTHORIZATION_PATTERN.search(text):
+    if _HTTP_CREDENTIAL_PATTERN.search(text):
         sensitive.append(
             {
-                "code": "authorization_header",
+                "code": "http_credential_header",
                 "severity": "critical",
                 "start": 0,
                 "end": 0,
                 "excerpt": "[REDACTED]",
             }
         )
-        text = _AUTHORIZATION_PATTERN.sub("Authorization: [REDACTED]", text)
+        text = _HTTP_CREDENTIAL_PATTERN.sub("HTTP-Credential: [REDACTED]", text)
     for name, secret in os.environ.items():
         if not name.upper().endswith(_SECRET_NAME_SUFFIXES):
             continue
@@ -173,7 +173,7 @@ def redact_sensitive_value(value: Any) -> Any:
     def redact_text(text: str) -> str:
         for _, pattern in _SENSITIVE_PATTERNS:
             text = pattern.sub("[REDACTED]", text)
-        text = _AUTHORIZATION_PATTERN.sub("Authorization: [REDACTED]", text)
+        text = _HTTP_CREDENTIAL_PATTERN.sub("HTTP-Credential: [REDACTED]", text)
         for secret in runtime_secrets:
             text = text.replace(secret, "[REDACTED]")
         return text

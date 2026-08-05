@@ -8,31 +8,13 @@ from mcp import types
 
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
-from lvke_mcp.servers.lvke_report_generation import service
+from lvke_mcp.domains.reports import application as service
 
 SERVER_NAME = "lvke-report-generation"
 SERVER_VERSION = "0.1.0"
 logger = get_logger(SERVER_NAME)
 _OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"]}
-_VALIDATE_OUTPUT = {
-    **_OUTPUT,
-    "properties": {
-        **_OUTPUT["properties"],
-        "full_review_required": {"const": True},
-        "review_id": {"type": ["string", "null"]},
-        "deliverable_review_id": {"type": ["string", "null"]},
-        "deliverable_review_status": {"type": "string"},
-        "deliverable_formally_deliverable": {"type": "boolean"},
-    },
-    "required": [
-        *_OUTPUT["required"],
-        "full_review_required",
-        "review_id",
-        "deliverable_review_id",
-        "deliverable_review_status",
-        "deliverable_formally_deliverable",
-    ],
-}
+_VALIDATE_OUTPUT = _OUTPUT
 _WS = {"type": "string", "minLength": 1}
 
 
@@ -76,7 +58,6 @@ def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(SERVER_NAME, SERVER_VERSION, logger)
     read = types.ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
     write = types.ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
-    release = types.ToolAnnotations(title="正式内部发布（需要确认）", readOnlyHint=False, destructiveHint=True, idempotentHint=False, openWorldHint=False)
     server.register_tool(
         "report_prepare",
         "校验 evidence/research 与类型化财务绑定；通用和资产收购分别查询对应领域服务。",
@@ -187,7 +168,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "report_validate",
-        "执行结构、数字、财务绑定与 readiness 工程校验；返回关联的统一审查状态。",
+        "执行结构、数字、财务绑定与 readiness 工程校验。",
         _input_schema(
             {
                 "workspace_id": _WS,
@@ -283,7 +264,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "report_export_docx",
-        "生成带门禁语义的 draft 或 formal_candidate 不可变 DOCX 工件；项目目录镜像必须显式启用。",
+        "生成 draft 或经确定性工程校验的 formal_candidate 不可变 DOCX 工件；项目目录镜像必须显式启用。",
         _input_schema(
             {
                 "workspace_id": _WS,
@@ -399,25 +380,6 @@ def build_server() -> OfficialStdioServer:
         ),
         _OUTPUT,
         read,
-    )
-    server.register_tool(
-        "report_release",
-        "记录本地交付状态；不执行身份、角色或人工签审。",
-        _input_schema(
-            {
-                "workspace_id": _WS,
-                "artifact_id": {"type": "string", "minLength": 1},
-                "note": {"type": "string", "maxLength": 2000},
-            },
-            ["workspace_id", "artifact_id"],
-        ),
-        lambda a: service.release(
-            a["workspace_id"],
-            a["artifact_id"],
-            a.get("note", ""),
-        ),
-        _OUTPUT,
-        release,
     )
     server.register_tool(
         "report_list_resources",

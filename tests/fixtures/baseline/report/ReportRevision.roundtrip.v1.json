@@ -1,0 +1,17 @@
+{
+  "schema": "report_revision_roundtrip.v1",
+  "preparation_status": "partial",
+  "revision_status": "ok",
+  "validation_valid": false,
+  "validation_blockers": [
+    "finance_formal_delivery_incomplete",
+    "finance_xlsx_missing"
+  ],
+  "lineage_bound": true,
+  "upstream_hash_contract": true,
+  "revision_resource_roundtrip": true,
+  "docx_resource_roundtrip": true,
+  "docx_zip_signature": true,
+  "artifact_kind": "draft",
+  "document_content_hash": "sha256:95069ced8f878aa5974a46ed222eb0640ece0cfc57e774507ab42c0e4f99ed06"
+}

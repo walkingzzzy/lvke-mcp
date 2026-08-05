@@ -1,4 +1,4 @@
-"""Official-SDK MCP server for reviewed-first knowledge governance."""
+"""Official-SDK MCP server for immutable knowledge snapshots."""
 
 from __future__ import annotations
 
@@ -32,8 +32,9 @@ _EVIDENCE = {
                 "evidence_pack",
                 "report_revision",
                 "review_finding",
-                "reviewed_knowledge",
+                "knowledge_snapshot",
                 "technical_fixture",
+                "source_reconstructed",
                 "search_summary",
             ],
         },
@@ -46,7 +47,7 @@ _EVIDENCE = {
         "locator": _STRING,
         "evidence_track": {
             "type": "string",
-            "enum": ["real", "technical_fixture", "controlled_assumption"],
+            "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
         },
         "note": {"type": "string", "maxLength": 1000},
     },
@@ -122,6 +123,7 @@ _CANDIDATE = {
 _OUTPUT = make_tool_output_schema(
     {
         "candidate_id": {"type": "string"},
+        "knowledge_snapshot_id": {"type": "string"},
         "knowledge_review_id": {"type": "string"},
         "knowledge_release_id": {"type": "string"},
         "candidate_status": {"type": "string"},
@@ -158,7 +160,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "knowledge_submit_candidate",
-        "提交证据化知识候选；候选保持 pending_review，不会激活长期记忆。",
+        "提交证据化知识候选；服务端验证不可变证据与 rubric 绑定后固化。",
         _schema(
             {"candidate": _CANDIDATE, "idempotency_key": _KEY},
             ["candidate", "idempotency_key"],
@@ -175,7 +177,7 @@ def build_server() -> OfficialStdioServer:
             {
                 "candidate_status": {
                     "type": "string",
-                    "enum": ["pending_review", "accepted", "rejected", "request_changes", "published"],
+                    "enum": ["validated", "snapshotted", "accepted", "rejected", "needs_revision", "published"],
                 },
                 "industry": {"type": "string", "maxLength": 256},
                 "section_id": {"type": "string", "maxLength": 160},
@@ -197,32 +199,37 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "knowledge_get_candidate",
-        "读取候选原文、来源 revision、rubric 变化、审定和发布 lineage。",
+        "读取候选原文、来源 revision、rubric 变化和快照 lineage。",
         _schema({"candidate_id": _SAFE_ID}, ["candidate_id"]),
         service.get_candidate,
         _OUTPUT,
         read,
     )
     server.register_tool(
+        "knowledge_create_snapshot",
+        "从已验证候选生成内容寻址的不可变知识快照。",
+        _schema(
+            {"candidate_id": _SAFE_ID, "idempotency_key": _KEY},
+            ["candidate_id", "idempotency_key"],
+        ),
+        service.create_snapshot,
+        _OUTPUT,
+        write,
+    )
+    server.register_tool(
         "knowledge_review_candidate",
-        "记录对知识候选的内容质量审查结果。",
+        "记录知识候选审核结论；accepted、rejected、needs_revision 均生成不可变审核快照。",
         _schema(
             {
                 "candidate_id": _SAFE_ID,
-                "decision": {
-                    "type": "string",
-                    "enum": ["accepted", "rejected", "request_changes"],
-                },
-                "review_note": {"type": "string", "minLength": 1, "maxLength": 2000},
-                "required_changes": {
-                    "type": "array",
-                    "items": {"type": "string", "minLength": 1, "maxLength": 500},
-                    "maxItems": 30,
-                },
+                "decision": {"type": "string", "enum": ["accepted", "rejected", "needs_revision"]},
+                "reason": {"type": "string", "minLength": 1, "maxLength": 2000},
+                "review_note": {"type": "string", "maxLength": 2000},
+                "required_changes": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": 30},
+                "rubric_assessment_id": _SAFE_ID,
                 "idempotency_key": _KEY,
             },
-            ["candidate_id", "decision", "review_note", "idempotency_key"],
-            
+            ["candidate_id", "decision", "reason", "idempotency_key"],
         ),
         service.review_candidate,
         _OUTPUT,
@@ -230,11 +237,16 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "knowledge_publish_release",
-        "将已通过内容质量审查的候选发布为 reviewed knowledge。",
+        "仅将 accepted 候选发布为不可变 KnowledgeRelease。",
         _schema(
-            {"candidate_id": _SAFE_ID, "idempotency_key": _KEY},
-            ["candidate_id", "idempotency_key"],
-            
+            {
+                "candidate_id": _SAFE_ID,
+                "review_id": _SAFE_ID,
+                "knowledge_review_id": _SAFE_ID,
+                "release_note": {"type": "string", "maxLength": 2000},
+                "idempotency_key": _KEY,
+            },
+            ["candidate_id", "review_id", "idempotency_key"],
         ),
         service.publish_release,
         _OUTPUT,
@@ -242,12 +254,12 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "knowledge_list_resources",
-        "分页列举不可变 KnowledgeCandidate、KnowledgeReview 和 KnowledgeRelease Resources。",
+        "分页列举 KnowledgeCandidate、KnowledgeSnapshot、KnowledgeReview 和 KnowledgeRelease Resources。",
         _schema(
             {
                 "resource_type": {
                     "type": "string",
-                    "enum": ["KnowledgeCandidate", "KnowledgeReview", "KnowledgeRelease"],
+                    "enum": ["KnowledgeCandidate", "KnowledgeSnapshot", "KnowledgeReview", "KnowledgeRelease"],
                 },
                 "cursor": {"type": "string", "maxLength": 8192},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},

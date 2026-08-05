@@ -1,24 +1,18 @@
-"""报告域交付工件 —— MCP 自有实现（零外部依赖）。
+"""报告域确定性交付工件实现。
 
-为既有交付工件逻辑的无签审子集：被引 7 符号
-（``create_draft_export`` / ``create_deliverable_artifact`` / ``_artifact_root`` /
-``record_internal_release`` / ``list_artifacts`` / ``get_artifact`` /
-``read_artifact_download``）及其闭包，仅改 import 路径、存储根与降级语义，
-不重写业务逻辑：
+提供 ``create_draft_export`` / ``create_deliverable_artifact`` /
+``_artifact_root`` / ``list_artifacts`` / ``get_artifact`` /
+``read_artifact_download`` 及其闭包：
 
 - doc_service → ``lvke_mcp.domains.reports.doc_service``（MCP 自有）
-- professional_review（专业复核）无 MCP 等价域 → 无签审子集：
-  ``_inspect_review`` 恒返回 none 状态，正式工件门禁不再校验专业复核批准记录
 - report_artifacts._path → 读工作区根 ``{name}.json``；governed 快照裁剪为
-  MCP 域内实际存在的 ``evidence_pack``（读 ``lvke_data_analysis.EVIDENCE_STORE``）
+  MCP 域内实际存在的 ``evidence_pack``（读公共 data-analysis repository）
 - source_files_api.source_basis_snapshot → 读 ``lvke_data_acquisition.SOURCE_STORE``
   构造同 schema 快照（存储不可用 fail-closed 进入 basis 指纹）
 - finance 审计/门禁 → ``lvke_mcp.domains.finance.run_store`` /
   ``lvke_mcp.domains.finance.gate``；MCP 边界无持久化 finance_binding，
   绑定退化为最新 run（与 MCP gate 语义一致），门禁显式传 expected_run_id
 - docx_fonts.normalize_docx_fonts → ``lvke_mcp.domains.reports.docx_fonts``
-- 统一审查绑定（``_require_unified_release_review``）剔除：内部发布记录不
-  绑定统一审查 review（release 权限门禁由审查域自身承载）
 """
 
 from __future__ import annotations
@@ -57,7 +51,7 @@ _SAFE_REVISION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,160}$")
 _SAFE_TEMPLATE_VERSION = re.compile(r"^[A-Za-z0-9_.:-]{1,120}$")
 _SAFE_OPERATION_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
 _LOCK = threading.RLock()
-# MCP 域内 governed 工件只有 evidence_pack（数据链 EVIDENCE_STORE）；
+# MCP 域内 governed 工件只有 evidence_pack（公共 repository 中的 EVIDENCE_STORE）；
 # fact_pack / research_decisions / appendix_manifest 为 hermes 独有概念，
 # MCP 无对应持久化，不参与工件依据指纹。
 _GOVERNED_SNAPSHOTS = ("evidence_pack",)
@@ -72,14 +66,6 @@ _SUPPORT_SUFFIXES = {
     ".xlsx",
 }
 _VERIFIED_APPENDIX_STATES = {"approved", "ready", "reviewed", "verified"}
-_INTERNAL_ACTOR = {
-    "actor_id": "system:deliverable-artifacts",
-    "authenticated": True,
-    "display_name": "Deliverable artifact integrity service",
-    "auth_method": "internal",
-}
-
-
 class DeliverableArtifactError(RuntimeError):
     """Machine-readable service error."""
 
@@ -361,9 +347,8 @@ def bind_finance_run(
             "evidence_binding_version",
             "evidence_binding_hash",
             "model_version",
+            "validation_level",
             "template_version",
-            "assurance_level",
-            "review_status",
             "artifact_id",
             "artifact_job_id",
             "artifact_status",
@@ -384,43 +369,6 @@ def _state_guard(workspace_id: str):
     root.mkdir(parents=True, exist_ok=True)
     with _LOCK, FileLock(str(root / "state.lock"), timeout=30):
         yield
-
-
-def _validated_actor(actor: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Validate and sanitize an authenticated actor without persisting tokens.
-
-    MCP 版本地实现（hermes 委托 professional_review.validate_authenticated_actor；
-    MCP 无专业复核域，按同语义校验）。缺省用内部服务身份。
-    """
-    if actor is None:
-        actor = _INTERNAL_ACTOR
-    if not isinstance(actor, Mapping):
-        raise DeliverableArtifactError(
-            "AUTHENTICATION_REQUIRED", "工件操作必须提供已认证身份",
-        )
-    actor_id = str(actor.get("actor_id") or "").strip()
-    if actor.get("authenticated") is not True or not actor_id:
-        raise DeliverableArtifactError(
-            "AUTHENTICATION_REQUIRED", "工件操作必须提供已认证身份",
-        )
-    if len(actor_id) > 160 or any(ord(char) < 32 for char in actor_id):
-        raise DeliverableArtifactError("INVALID_ACTOR", "操作人标识不合法")
-    return {
-        "actor_id": actor_id,
-        "authenticated": True,
-        "display_name": str(actor.get("display_name") or "").strip()[:160],
-        "auth_method": str(actor.get("auth_method") or "").strip()[:80],
-    }
-
-
-def _internal_release_integrity_material(release: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the stable internal-release envelope, excluding later signoff data."""
-
-    return {
-        str(key): copy.deepcopy(value)
-        for key, value in release.items()
-        if str(key) not in {"professional_signoff", "release_integrity_hash"}
-    }
 
 
 def _document_snapshot(workspace_id: str) -> tuple[dict[str, Any], str, dict[str, Any]]:
@@ -476,7 +424,7 @@ def _evidence_pack_snapshot(workspace_id: str) -> tuple[dict[str, Any], Any]:
     存储不可用或空按缺失处理（present=False，进入 basis 指纹）。
     """
     try:
-        from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+        from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 
         records = EVIDENCE_STORE.list(workspace_id) or []
     except Exception as exc:  # noqa: BLE001 - 数据链不可用按缺失处理
@@ -547,7 +495,7 @@ def _source_basis_snapshot(workspace_id: str) -> dict[str, Any]:
     """
     unavailable = ""
     try:
-        from lvke_mcp.servers.lvke_data_acquisition.service import SOURCE_STORE
+        from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
 
         records = SOURCE_STORE.list(workspace_id) or []
     except Exception as exc:  # noqa: BLE001 - 资料链不可用 fail-closed
@@ -613,19 +561,6 @@ def _fresh_readiness(workspace_id: str) -> dict[str, Any]:
     return value
 
 
-def _inspect_review(workspace_id: str) -> dict[str, Any]:
-    """无签审子集：MCP 无专业复核域，恒返回 none 状态。
-
-    basis 的 professional_review 摘要保持 schema 形状（空记录），
-    hermes 的批准记录校验在 ``_assert_formal_basis`` 中已裁剪。
-    """
-    return {
-        "status": "none",
-        "basis_matches": False,
-        "review_id": "",
-    }
-
-
 def _load_finance_run(workspace_id: str, run_id: str) -> dict[str, Any] | None:
     if not run_id or run_id.startswith("acqrun_"):
         return None
@@ -683,7 +618,6 @@ def _capture_basis(
     readiness = _without_volatile_timestamps(
         _fresh_readiness(workspace_id)
     )
-    review = _inspect_review(workspace_id)
     sources = _source_basis_snapshot(workspace_id)
 
     artifacts: dict[str, dict[str, Any]] = {}
@@ -731,15 +665,6 @@ def _capture_basis(
             _strict_finance_gate(workspace_id, expected_run_id=run_id)
         ),
     }
-    review_summary = {
-        "review_id": review.get("review_id"),
-        "status": review.get("status"),
-        "recorded_decision": review.get("recorded_decision"),
-        "basis_matches": review.get("basis_matches") is True,
-        "basis_fingerprint": review.get("basis_fingerprint"),
-        "current_basis_fingerprint": review.get("current_basis_fingerprint"),
-        "error": review.get("error"),
-    }
     meta_doc_kind = str(meta.get("doc_kind") or "")
     material = {
         "schema_version": BASIS_SCHEMA_VERSION,
@@ -754,7 +679,6 @@ def _capture_basis(
             "hash": _canonical_hash(readiness),
             "snapshot": readiness,
         },
-        "professional_review": review_summary,
         "finance": finance,
         "artifacts": artifacts,
         "appendix_files": appendix_files,
@@ -802,7 +726,7 @@ def _readiness_blockers(readiness: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None:
-    """无签审子集：hermes 版的专业复核批准/依据指纹比对段已裁剪（MCP 无该域）。"""
+    """Validate immutable inputs and readiness evidence for a formal artifact."""
     if basis.get("doc_kind") != "feasibility" or basis.get("report_type") == "asset_acquisition":
         raise DeliverableArtifactError(
             "FORMAL_ARTIFACT_TYPE_UNSUPPORTED",
@@ -875,13 +799,6 @@ def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None
             run_id=run_id,
             error=(run or {}).get("_load_error") if isinstance(run, dict) else "not_found",
         ))
-    elif str(run.get("review_status") or "") != "approved":
-        problems.append(_basis_problem(
-            "FINANCE_RUN_NOT_APPROVED",
-            "finance_binding 指向的财务 run 尚未批准",
-            run_id=run_id,
-            review_status=run.get("review_status"),
-        ))
     elif str(run.get("workspace_id") or basis.get("workspace_id") or "") != basis.get("workspace_id"):
         problems.append(_basis_problem(
             "FINANCE_RUN_WORKSPACE_MISMATCH",
@@ -901,7 +818,7 @@ def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None
             if bound not in (None, "") and bound != current:
                 problems.append(_basis_problem(
                     "FINANCE_BINDING_HASH_MISMATCH",
-                    "财务绑定字段与批准 run 不一致",
+                    "财务绑定字段与 FinanceRun 不一致",
                     field=field,
                     expected=bound,
                     actual=current,
@@ -922,14 +839,6 @@ def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None
             expected=run_id,
             actual=finance_gate.get("bound_run_id"),
         ))
-    if str(finance_gate.get("approved_run_id") or "") != run_id:
-        problems.append(_basis_problem(
-            "FINANCE_GATE_APPROVED_RUN_MISMATCH",
-            "财务门禁返回的批准 run 与工件依据不一致",
-            expected=run_id,
-            actual=finance_gate.get("approved_run_id"),
-        ))
-
     if problems:
         raise DeliverableArtifactError(
             "FORMAL_BASIS_INCONSISTENT",
@@ -969,7 +878,7 @@ def _marker_markdown(
     lines = [
         f"# {DRAFT_MARKER}",
         "",
-        "> 本文件为**专家参考稿/内部复核材料**，供专业人员修订使用，**不是报批终稿**，不构成法律或审批效力。系统与 AI **不承担**专业结论责任；采用前须人工审核。",
+        "> 本文件为**验证草稿**，供输入核对与修订使用。内容受当前输入快照、来源绑定和完整性状态约束。",
         "",
         "## 阻断项与警告摘要",
         "",
@@ -1020,12 +929,6 @@ def _draft_basis_blockers(
         blockers.append({
             "code": "finance_run_unavailable",
             "message": "绑定的财务 run 不存在或不可读",
-            "details": {"run_id": finance.get("run_id")},
-        })
-    elif run.get("review_status") != "approved":
-        blockers.append({
-            "code": "finance_run_not_approved",
-            "message": "绑定的财务 run 尚未批准",
             "details": {"run_id": finance.get("run_id")},
         })
     finance_gate = finance.get("publish_gate") or {}
@@ -1128,7 +1031,7 @@ def _verify_finance_workbook(path: Path, run: dict[str, Any]) -> tuple[bool, str
         return False, f"workbook_unreadable:{type(exc).__name__}"
     if str(metadata.get("run_id") or "") != str(run.get("run_id") or ""):
         return False, "run_id_mismatch"
-    formal_value = metadata.get("formal_delivery_ready")
+    formal_value = metadata.get("validation_complete")
     if str(formal_value).strip().lower() not in {"1", "true", "yes"}:
         return False, "formal_delivery_not_ready"
     expected_manifest = str(run.get("manifest_hash") or "")
@@ -1403,7 +1306,6 @@ def _build_artifact_directory(
     docx_bytes: bytes,
     basis: dict[str, Any],
     blocker_summary: dict[str, Any],
-    actor: dict[str, Any],
     context: dict[str, Any],
     docx_font_audit: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -1471,21 +1373,16 @@ def _build_artifact_directory(
                 "manifest_hash": finance_run.get("manifest_hash"),
                 "model_version": finance_run.get("model_version"),
                 "template_version": finance_run.get("template_version"),
-                "review_status": finance_run.get("review_status"),
                 "publish_gate_hash": _canonical_hash(
                     finance_basis.get("publish_gate") or {}
                 ),
             },
-            "professional_review": copy.deepcopy(
-                basis.get("professional_review") or {}
-            ),
             "governed_snapshots": copy.deepcopy(basis.get("artifacts") or {}),
             "appendix_file_snapshots": copy.deepcopy(
                 basis.get("appendix_files") or []
             ),
             "blocker_summary": copy.deepcopy(blocker_summary),
             "support_file_warnings": copy.deepcopy(support_warnings),
-            "created_by": copy.deepcopy(actor),
             "created_at": _now(),
             "payload_files": copy.deepcopy(payload_files),
             "docx_font_audit": copy.deepcopy(docx_font_audit or {}),
@@ -1727,7 +1624,7 @@ def _basis_change_reasons(
         stored_finance.get("run_id"), current_finance.get("run_id"),
     )
     changed(
-        "FINANCE_RUN_CHANGED", "绑定财务 run 内容或批准状态已变化",
+        "FINANCE_RUN_CHANGED", "绑定财务 run 内容已变化",
         stored_finance.get("run_hash"), current_finance.get("run_hash"),
     )
     changed(
@@ -1748,12 +1645,6 @@ def _basis_change_reasons(
         _canonical_hash(current.get("appendix_files") or []),
     )
 
-    stored_review = stored.get("professional_review") or {}
-    current_review = current.get("professional_review") or {}
-    changed(
-        "PROFESSIONAL_REVIEW_CHANGED", "专业复核记录或状态已变化",
-        _canonical_hash(stored_review), _canonical_hash(current_review),
-    )
     if stored.get("fingerprint") != current.get("fingerprint") and not reasons:
         reasons.append({
             "code": "ARTIFACT_BASIS_CHANGED",
@@ -1769,14 +1660,12 @@ def _append_event(
     artifact_id: str,
     event: str,
     *,
-    actor: dict[str, Any],
     details: dict[str, Any] | None = None,
 ) -> None:
     state.setdefault("history", []).append({
         "event_id": f"artevent_{uuid.uuid4().hex}",
         "artifact_id": artifact_id,
         "event": event,
-        "actor": copy.deepcopy(actor),
         "details": copy.deepcopy(details or {}),
         "created_at": _now(),
     })
@@ -1803,7 +1692,6 @@ def _persist_new_record(
             state,
             previous_id,
             "superseded",
-            actor=copy.deepcopy(record["created_by"]),
             details={"superseded_by": artifact_id, "kind": kind},
         )
     state.setdefault("artifacts", {})[artifact_id] = record
@@ -1812,7 +1700,6 @@ def _persist_new_record(
     state["updated_at"] = now
     _append_event(
         state, artifact_id, "created",
-        actor=copy.deepcopy(record["created_by"]),
         details={
             "kind": record["kind"],
             "basis_fingerprint": record["basis_fingerprint"],
@@ -1825,14 +1712,12 @@ def _create(
     workspace_id: str,
     *,
     kind: str,
-    actor: Mapping[str, Any] | None,
     template_version: str,
     operation_id: str = "",
 ) -> dict[str, Any]:
     workspace_id = _validate_workspace_id(workspace_id)
     _require_workspace(workspace_id)
     template_version = _validate_template_version(template_version)
-    validated_actor = _validated_actor(actor)
     operation_id = str(operation_id or "").strip()
     if operation_id and not _SAFE_OPERATION_ID.fullmatch(operation_id):
         raise DeliverableArtifactError(
@@ -1871,7 +1756,7 @@ def _create(
             }
             subject = "受控可行性研究报告交付工件"
             keywords = ["可行性研究报告", "受控交付工件"]
-            comments = "由服务端基于批准 run 和有效专业复核依据生成；不表示法律签署。"
+            comments = "由服务端基于已绑定且通过一致性校验的 run 生成。"
         else:
             report_content, blocker_summary = _marker_markdown(
                 content,
@@ -1918,7 +1803,6 @@ def _create(
             docx_bytes=docx_bytes,
             basis=second_basis,
             blocker_summary=blocker_summary,
-            actor=validated_actor,
             context=second_context,
             docx_font_audit=docx_font_audit,
         )
@@ -1973,21 +1857,15 @@ def _create(
                     "spec_hash"
                 )
             ),
-            "professional_review_id": (
-                final_basis.get("professional_review") or {}
-            ).get("review_id"),
             "blocker_summary": blocker_summary,
             "support_file_warnings": support_warnings,
             "files": files,
             "manifest_hash": manifest_hash,
             "index_hash": index_hash,
             "integrity_status": "passed",
-            "created_by": validated_actor,
             "created_at": now,
             "updated_at": now,
             "invalidation_reasons": [],
-            "release_status": "not_released",
-            "release_history": [],
         }
         try:
             _persist_new_record(workspace_id, state, record)
@@ -2001,7 +1879,6 @@ def _create(
 def create_draft_export(
     workspace_id: str,
     *,
-    actor: Mapping[str, Any] | None = None,
     template_version: str = DEFAULT_TEMPLATE_VERSION,
     operation_id: str = "",
 ) -> dict[str, Any]:
@@ -2014,7 +1891,6 @@ def create_draft_export(
     return _create(
         workspace_id,
         kind="draft",
-        actor=actor,
         template_version=template_version,
         operation_id=operation_id,
     )
@@ -2023,7 +1899,6 @@ def create_draft_export(
 def create_deliverable_artifact(
     workspace_id: str,
     *,
-    actor: Mapping[str, Any] | None = None,
     template_version: str = DEFAULT_TEMPLATE_VERSION,
     operation_id: str = "",
 ) -> dict[str, Any]:
@@ -2032,7 +1907,6 @@ def create_deliverable_artifact(
     return _create(
         workspace_id,
         kind="formal",
-        actor=actor,
         template_version=template_version,
         operation_id=operation_id,
     )
@@ -2049,13 +1923,11 @@ def _invalidate_locked(
     now = _now()
     artifact_id = str(record["artifact_id"])
     previous_status = str(record.get("status") or "")
-    previous_release_status = str(record.get("release_status") or "")
     record["status"] = "invalidated"
     record["current"] = False
     record["integrity_status"] = (
         "failed" if any(
             "FILE_" in str(item.get("code") or "")
-            or item.get("code") == "PROFESSIONAL_SIGNOFF_INTEGRITY_FAILED"
             for item in reasons
         )
         else record.get("integrity_status") or "passed"
@@ -2064,9 +1936,6 @@ def _invalidate_locked(
     record["invalidated_at"] = now
     record["updated_at"] = now
     record["previous_status"] = previous_status
-    if previous_release_status == "released":
-        record["historical_release_status"] = "released"
-        record["release_status"] = "invalidated"
     state.setdefault("artifacts", {})[artifact_id] = record
     kind = str(record.get("kind") or "")
     if (state.setdefault("current", {})).get(kind) == artifact_id:
@@ -2076,7 +1945,6 @@ def _invalidate_locked(
         state,
         artifact_id,
         "invalidated",
-        actor=_INTERNAL_ACTOR,
         details={"previous_status": previous_status, "reasons": reasons},
     )
     _write_json_atomic(_state_path(workspace_id), state)
@@ -2177,17 +2045,11 @@ def _resolve_artifact_download(
     artifact_id: str,
     filename: str,
 ) -> dict[str, Any]:
-    """Resolve a safe, current, hash-verified artifact file.
-
-    无签审子集：hermes 版对正式工件要求统一审查发布绑定
-    （``_require_current_release_review``），MCP 域无该绑定，删除此门禁；
-    正式工件在 ``succeeded``（候选）与 ``released``（已内部发布）状态
-    均可下载，发布权限由审查域自身承载。
-    """
+    """Resolve a safe, current, hash-verified artifact file."""
 
     safe_name = _safe_relative_name(filename)
     record = get_artifact(workspace_id, artifact_id)
-    if record.get("status") not in {"succeeded", "released"} or not record.get("current"):
+    if record.get("status") != "succeeded" or not record.get("current"):
         raise DeliverableArtifactError(
             "ARTIFACT_NOT_CURRENT",
             "交付工件已失效或不是当前可下载工件",
@@ -2279,111 +2141,3 @@ def read_artifact_download(
             details={"filename": resolved.get("filename")},
         )
     return {**resolved, "content": content}
-
-
-def record_internal_release(
-    workspace_id: str,
-    artifact_id: str,
-    *,
-    actor: Mapping[str, Any] | None = None,
-    note: str = "",
-) -> dict[str, Any]:
-    """Record an authenticated internal release of a current formal artifact.
-
-    无签审子集：hermes 版要求显式绑定已固化的统一审查 review_id
-    （``_require_unified_release_review``），MCP 版内部发布不绑定统一审查
-    （release 权限门禁由审查域自身承载），review 绑定字段保持空值以兼容
-    schema 形状。该记录不是法律签署，也不构成专业复核证明。
-    """
-
-    workspace_id = _validate_workspace_id(workspace_id)
-    _require_workspace(workspace_id)
-    artifact_id = _validate_artifact_id(artifact_id)
-    validated_actor = _validated_actor(actor)
-    with _state_guard(workspace_id):
-        state = _read_state(workspace_id)
-        record = _refresh_record_locked(
-            workspace_id,
-            state,
-            artifact_id,
-        )
-        if record.get("kind") != "formal":
-            raise DeliverableArtifactError(
-                "DRAFT_RELEASE_FORBIDDEN", "内部初稿不能记录为正式发布",
-            )
-        if record.get("status") == "released":
-            previous = copy.deepcopy(record.get("release") or {})
-            if (
-                str((previous.get("actor") or {}).get("actor_id") or "")
-                == str(validated_actor.get("actor_id") or "")
-                and str(previous.get("note") or "")
-                == str(note or "").strip()[:2000]
-            ):
-                return {**copy.deepcopy(record), "idempotent_replay": True}
-            raise DeliverableArtifactError(
-                "ARTIFACT_ALREADY_RELEASED", "交付工件已经记录过内部发布",
-            )
-        if record.get("status") != "succeeded" or not record.get("current"):
-            raise DeliverableArtifactError(
-                "ARTIFACT_NOT_CURRENT", "仅当前有效的正式工件可以记录内部发布",
-                details={"status": record.get("status")},
-            )
-        final_basis, _content, final_context = _capture_basis(
-            workspace_id,
-            template_version=str(
-                record.get("template_version") or DEFAULT_TEMPLATE_VERSION
-            ),
-        )
-        release_reasons = _basis_change_reasons(
-            record.get("basis") or {}, final_basis,
-        )
-        if release_reasons:
-            _invalidate_locked(
-                workspace_id,
-                state,
-                record,
-                release_reasons,
-            )
-            raise DeliverableArtifactError(
-                "ARTIFACT_NOT_CURRENT",
-                "交付依据在内部发布提交前发生变化",
-                details={"invalidation_reasons": release_reasons},
-            )
-        _assert_formal_basis(final_basis, final_context)
-        release = {
-            "release_id": f"release_{uuid.uuid4().hex}",
-            "kind": "authorized_internal_release",
-            "actor": validated_actor,
-            "note": str(note or "").strip()[:2000],
-            "basis_fingerprint": record.get("basis_fingerprint"),
-            "review_id": "",
-            "review_release_id": "",
-            "review_release_hash": "",
-            "review_release_basis_hash": "",
-            "review_event_chain_hash": "",
-            "review_target_sha256": "",
-            "created_at": _now(),
-            "legal_signature": False,
-            "professional_signature": False,
-        }
-        release["release_integrity_hash"] = _canonical_hash(
-            _internal_release_integrity_material(release)
-        )
-        record.setdefault("release_history", []).append(release)
-        record["status"] = "released"
-        record["release_status"] = "released"
-        record["released_at"] = release["created_at"]
-        record["released_by"] = validated_actor["actor_id"]
-        record["release"] = copy.deepcopy(release)
-        record["updated_at"] = release["created_at"]
-        state.setdefault("artifacts", {})[artifact_id] = record
-        state["updated_at"] = release["created_at"]
-        _append_event(
-            state,
-            artifact_id,
-            "internal_release_recorded",
-            actor=validated_actor,
-            details={"release_id": release["release_id"]},
-        )
-        _write_json_atomic(_state_path(workspace_id), state)
-    return copy.deepcopy(record)

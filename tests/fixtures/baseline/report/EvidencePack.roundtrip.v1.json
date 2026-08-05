@@ -1,0 +1,14 @@
+{
+  "schema": "evidence_pack_roundtrip.v1",
+  "status_chain": [
+    "ok",
+    "ok",
+    "ok"
+  ],
+  "source_sha256": "sha256:59cb4a4bfd5d2cf0d9f79f5830fdb1e6229cb2e4f6e9e58998f9ea87796b3051",
+  "source_count": 1,
+  "basis_hash_contract": "sha256",
+  "data_completeness": "complete",
+  "evidence_track": "real",
+  "missing_fields": []
+}

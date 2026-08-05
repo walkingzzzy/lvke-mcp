@@ -1,0 +1,18 @@
+{
+  "schema": "research_package_roundtrip.v1",
+  "status": "partial",
+  "fixture_kind": "technical_fixture",
+  "resource_roundtrip": true,
+  "basis_hash_contract": "sha256",
+  "artifact_names": [
+    "checkpoint",
+    "citation_audit",
+    "evidence",
+    "quality",
+    "report",
+    "sources"
+  ],
+  "report": "# MCP 独立化技术基线\n\n本样本仅验证 ResearchPackage 的持久化与资源回读。[1]",
+  "mime_type": "text/markdown",
+  "limitations_preserved": true
+}

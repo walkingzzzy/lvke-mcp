@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -76,39 +77,6 @@ def _get_storage() -> ArchiveStorage:
     return _storage
 
 
-# ── PT-6：reviewed-first 治理（server 内轻量读 review 台账，无跨包依赖）──────────
-import json as _json  # noqa: E402
-
-_REVIEW_REGISTRY: dict | None = None
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
-def _load_review_registry() -> dict:
-    """读 skills/_governance/review_registry.json；失败静默返回空台账。"""
-    global _REVIEW_REGISTRY
-    if _REVIEW_REGISTRY is None:
-        path = _repo_root() / "skills" / "_governance" / "review_registry.json"
-        try:
-            _REVIEW_REGISTRY = _json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            _REVIEW_REGISTRY = {"entries": []}
-    return _REVIEW_REGISTRY
-
-
-# scene → 对应 drafting/审查 skill（reviewed references 优先取该 skill 下的已核资料）
-_SCENE_SKILL = {
-    "policy-driver": "report-drafting/chapter-2-background",
-    "necessity": "report-drafting/chapter-2-background",
-    "market-demand": "report-drafting/chapter-3-demand-scale",
-    "risk-financial": "report-drafting/chapter-7-risk",
-    "risk-policy": "report-drafting/chapter-7-risk",
-    "conclusion": "report-drafting/chapter-9-conclusion",
-    "site-selection": "report-drafting/site-and-factors",
-}
-
 _SCENE_KEYWORDS = {
     "policy-driver": "政策依据 战略 规划",
     "necessity": "必要性 建设必要",
@@ -118,24 +86,6 @@ _SCENE_KEYWORDS = {
     "conclusion": "研究结论 主要结论",
     "site-selection": "项目选址 建设条件",
 }
-
-
-def _reviewed_refs_for_scene(scene: str) -> list[dict]:
-    """返回该 scene 对应 skill 下可用 references（reviewed > seeded），按优先级排序。
-
-    reviewed=B 级(专家审定)、seeded=C 级(系统预置人工方法论)；unverified/draft 不计入
-    优先返回集（仍可由 raw snippet 兜底）。
-    """
-    slug = _SCENE_SKILL.get(scene)
-    if not slug:
-        return []
-    reg = _load_review_registry()
-    out: list[dict] = []
-    for e in reg.get("entries", []):
-        if str(e.get("path", "")).startswith(slug + "/") and e.get("state") in ("reviewed", "seeded"):
-            out.append(e)
-    out.sort(key=lambda e: -int(e.get("usable_priority", 1)))
-    return out
 
 
 # ── 工具实现 ─────────────────────────────────────────────────────────────
@@ -402,56 +352,33 @@ def _tool_get_template_paragraph(args: dict) -> dict:
     # 场景 → 关键词映射（简版；Phase A.1 可升级为聚类落表）
     query = _SCENE_KEYWORDS[scene]
 
-    # PT-6 reviewed-first：先给该 scene 对应 skill 下 state=reviewed 的 references
-    # （B 级、已核，优先采用）；无 reviewed 时回退 raw archive snippet（C 级、未核）。
     items: list[dict] = []
-    reviewed = _reviewed_refs_for_scene(scene)
-    for e in reviewed[:top_k]:
-        st = e.get("state")
-        if st == "reviewed":
-            items.append({
-                "kind": "reviewed_reference", "skill_path": e.get("path"),
-                "reviewer": e.get("reviewer", ""), "reviewed_on": e.get("reviewed_on", ""),
-                "review_state": "reviewed", "evidence_level": "B",
-                "note": "已由业务专家审定的可复用段落，优先采用（reviewed-first）。",
-            })
-        else:  # seeded
-            items.append({
-                "kind": "seeded_reference", "skill_path": e.get("path"),
-                "review_state": "seeded", "evidence_level": "C",
-                "note": "系统预置人工方法论段落（C 级，未经专家审定）：可优先于原始档案片段参考，但不作发布级强证据。",
-            })
-
-    remaining = max(0, top_k - len(items))
-    if remaining > 0:
-        storage = _get_storage()
-        if storage.mode() != "sqlite":
-            if items:
-                return ok({"scene": scene, "industry": industry, "items": items,
-                           "reviewed_first": True},
-                          source=f"{SERVER_NAME}.get_template_paragraph")
-            return err(
-                f"{SERVER_NAME}.index_unavailable",
-                "套话段落需要全量索引；请先运行 scripts/build_archive_index.py",
-            )
-        records = storage.search(query=query, industry=industry, corpus="lvke", limit=remaining * 2)
-        if not records:
-            records = storage.search(query=query, industry=industry, limit=remaining * 2)
-        for rec in records[:remaining]:
-            items.append({
-                "kind": "raw_snippet",
-                "source_report_id": rec.report_id,
-                "source_title": rec.project_name,
-                "source_industry": rec.industry,
-                "snippet": (rec.brief or "")[:300],
-                "source_path": rec.source_path,
-                "review_state": "unverified",
-                "evidence_level": "C",
-                "note": "未审核原始片段（C 级）：仅参考论证结构与表述风格，不得作发布级强证据。",
-            })
+    storage = _get_storage()
+    if storage.mode() != "sqlite":
+        return err(
+            f"{SERVER_NAME}.index_unavailable",
+            "套话段落需要全量索引；请先运行 scripts/build_archive_index.py",
+        )
+    records = storage.search(query=query, industry=industry, corpus="lvke", limit=top_k * 2)
+    if not records:
+        records = storage.search(query=query, industry=industry, limit=top_k * 2)
+    for rec in records[:top_k]:
+        snippet = (rec.brief or "")[:300]
+        content_hash = hashlib.sha256(snippet.encode("utf-8")).hexdigest()
+        items.append({
+            "kind": "archive_snippet",
+            "source_report_id": rec.report_id,
+            "source_title": rec.project_name,
+            "source_industry": rec.industry,
+            "snippet": snippet,
+            "source_path": rec.source_path,
+            "content_hash": content_hash,
+            "validation_status": "source_indexed" if snippet else "content_missing",
+            "evidence_level": "C",
+            "note": "归档索引片段仅用于参考论证结构与表述风格。",
+        })
     return ok(
-        {"scene": scene, "industry": industry, "items": items,
-         "reviewed_first": bool(reviewed)},
+        {"scene": scene, "industry": industry, "items": items},
         source=f"{SERVER_NAME}.get_template_paragraph",
     )
 
@@ -568,10 +495,9 @@ def build_server() -> StdioServer:
     server.register_tool(
         name="get_template_paragraph",
         description=(
-            "按场景拿可复用段落。scene 枚举: policy-driver / necessity / "
+            "按场景获取归档索引中的可复用段落。scene 枚举: policy-driver / necessity / "
             "market-demand / risk-financial / risk-policy / conclusion / site-selection。"
-            "reviewed-first：优先返回业务专家已审定 references(B 级)，无则回退 raw 档案 "
-            "snippet(C 级、未核，仅供结构参考)。每项带 review_state / evidence_level。"
+            "每项包含来源定位、内容 hash 和确定性 validation_status。"
         ),
         input_schema={
             "type": "object",

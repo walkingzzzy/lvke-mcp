@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 from lvke_mcp.runtime.storage import sha256_json
-from lvke_mcp.servers.lvke_project_planning import service
+from lvke_mcp.domains.project_planning import application as service
 
 
 def _payload(record: dict[str, Any] | None) -> dict[str, Any]:

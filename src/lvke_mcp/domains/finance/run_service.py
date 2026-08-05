@@ -127,9 +127,8 @@ def compute_idempotency_key(
 def _resolve_valuation_date_for_mode(mode: str, valuation_date: str = "") -> tuple[str, list[str]]:
     """Return the valuation date used by this run and blocking errors, if any.
 
-    Preview runs may default to the server date for convenience. Review/formal
-    runs must carry an explicit valuation date so the active policy profile,
-    manifest validation and audit evidence are reproducible.
+    Deterministic runs require an explicit valuation date whenever their mode
+    is not ``estimate_preview`` so policy and manifest selection are reproducible.
     """
     value = str(valuation_date or "").strip()
     if value:
@@ -138,8 +137,8 @@ def _resolve_valuation_date_for_mode(mode: str, valuation_date: str = "") -> tup
         except ValueError:
             return "", [f"valuation_date 格式无效：{value}，应为 YYYY-MM-DD"]
         return value, []
-    if mode in {"review_candidate", "review_grade"}:
-        return "", ["正式/评审级财务 run 必须显式传入 valuation_date，禁止依赖服务器当天日期"]
+    if mode != "estimate_preview":
+        return "", ["非预览财务 run 必须显式传入 valuation_date，禁止依赖服务器当天日期"]
     return date.today().isoformat(), []
 
 
@@ -794,8 +793,8 @@ def run_workspace_finance_model(
                     fin["field_source_ledger"] = field_source_ledger
                     fin["industry_required_missing"] = industry_required_missing
                     fin["assurance_level"] = fin.get("assurance_level") or mode
-                    fin["calculation_status"] = existing.get("review_status") or "draft"
-                    fin["review_status"] = existing.get("review_status") or "draft"
+                    fin["calculation_status"] = "computed"
+                    fin.pop("review_status", None)
                     # Replays must preserve the original business validity.
                     # An immutable run with failed consistency checks cannot
                     # become an ``ok`` result merely because it was reused.
@@ -807,7 +806,6 @@ def run_workspace_finance_model(
                     # from the immutable tables and bind every entry to the
                     # authoritative outer run.
                     fin["table_manifest"] = _table_manifest(fin, existing["run_id"])
-                    _attach_approval_meta(workspace_id, fin)
                     return fin
         except Exception:  # noqa: BLE001
             pass
@@ -1041,21 +1039,14 @@ def run_workspace_finance_model(
             from lvke_mcp.domains.finance import run_store
 
             view = run_store.load_run(workspace_id, run_id) or {}
-            result["review_status"] = view.get("review_status") or "draft"
             result["consistency_ok"] = bool(view.get("consistency_ok"))
         except Exception:  # noqa: BLE001
-            result["review_status"] = "draft"
-        _attach_approval_meta(workspace_id, result)
-        if (
-            result.get("review_status") == "approved"
-            and result.get("consistency_ok")
-            and result.get("run_id") == result.get("approved_run_id")
-        ):
-            result["assurance_level"] = "review_grade"
-            result["calculation_status"] = "approved"
-        else:
-            result["assurance_level"] = mode or "estimate_preview"
-            result["calculation_status"] = "draft"
+            result["consistency_ok"] = bool(result.get("consistency_ok"))
+        result.pop("review_status", None)
+        result.pop("approved_run_id", None)
+        result.pop("approved_run_stale", None)
+        result["assurance_level"] = mode or "estimate_preview"
+        result["calculation_status"] = "computed"
 
     return result
 
@@ -1151,6 +1142,7 @@ def get_workspace_finance_run(
     - checks: 勾稽 / issues
     """
     _ensure_workspace(workspace_id)
+    from lvke_mcp.domains.finance import run_store
 
     if run_id:
         audit_view = run_store.load_run(workspace_id, run_id) or {}
@@ -1185,13 +1177,9 @@ def get_workspace_finance_run(
         "input_revision_id": audit_view.get("input_revision"),
         "idempotency_key": audit_view.get("idempotency_key"),
         "table_bundle_hash": audit_view.get("table_bundle_hash"),
-        "review_status": audit_view.get("review_status") or "draft",
         "consistency_ok": bool(audit_view.get("consistency_ok")),
-        "approved_at": audit_view.get("approved_at"),
-        "approved_by": audit_view.get("approved_by"),
         "available": True,
     }
-    _attach_approval_meta(workspace_id, base)
 
     if snapshot and isinstance(snapshot, dict):
         # 合并快照（快照优先数值，base 保留审计元数据）
@@ -1224,12 +1212,8 @@ def get_workspace_finance_run(
                 "summary_md": snapshot.get("summary_md") or "",
                 "missing_inputs": snapshot.get("missing_inputs") or [],
                 "table_manifest": _table_manifest(snapshot, rid),
-                "assurance_level": snapshot.get("assurance_level") or (
-                    "review_grade" if base.get("review_status") == "approved" else "estimate_preview"
-                ),
-                "calculation_status": (
-                    "approved" if base.get("review_status") == "approved" else "draft"
-                ),
+                "assurance_level": snapshot.get("assurance_level") or "estimate_preview",
+                "calculation_status": "computed",
             }
         # full
         merged["audit"] = {
@@ -1316,7 +1300,7 @@ def generate_workspace_finance_package(
                 for item in valuation_errors
             ],
             "message": "正式/评审级财务交付必须显式传入估值日期",
-            "formal_delivery_ready": False,
+            "validation_complete": False,
             "professional_finance_appendices": False,
         }
     # 正式交付可直接传入人工确认并冻结的 spec，package 内不得再次让 LLM 改写。
@@ -1430,7 +1414,7 @@ def generate_workspace_finance_package(
         include_control_tables=True,
     )
 
-    # 交付产物：可读包 + 专业 xlsx。是否可正式发布由 table_quality/formal_delivery_ready 决定。
+    # 交付产物：可读包 + 专业 xlsx。是否可正式发布由 table_quality/validation_complete 决定。
     artifacts: dict[str, Any] = {}
     tables_structured: dict[str, Any] = {}
     evidence: dict[str, Any] = {}
@@ -1493,7 +1477,7 @@ def generate_workspace_finance_package(
 
         table_quality = (table_render.build_all_structured(run).get("_meta") or {})
         try:
-            from lvke_mcp.servers.excel_bridge.finance_export import export_finance_workbook
+            from lvke_mcp.adapters.spreadsheets.finance_export import export_finance_workbook
 
             excel_path = art_dir / "财务专业附表.xlsx"
             excel_artifact = export_finance_workbook(
@@ -1618,19 +1602,19 @@ def generate_workspace_finance_package(
     formal_ready = (
         bool(table_quality.get("reference_structure_ready"))
         and bool(excel_artifact.get("ok"))
-        and bool(delivery_quality.get("formal_delivery_ready"))
+        and bool(delivery_quality.get("validation_complete"))
         and not semantic_blockers
         and ceiling == "formal_candidate"
         and depth_ok
     )
     table_quality = dict(table_quality)
-    table_quality["formal_delivery_ready"] = formal_ready
+    table_quality["validation_complete"] = formal_ready
     table_quality["delivery_grade_ceiling"] = ceiling
     table_quality["depth_ok"] = depth_ok
     table_quality["semantic_checks"] = semantic_checks
     table_quality["semantic_blockers"] = semantic_blockers
     table_quality["quality_dimensions"] = quality_dimensions
-    evidence["formal_delivery_ready"] = formal_ready
+    evidence["validation_complete"] = formal_ready
     evidence["professional_finance_appendices"] = formal_ready
     evidence["delivery_grade_ceiling"] = ceiling
     evidence["depth_ok"] = depth_ok
@@ -1671,7 +1655,6 @@ def generate_workspace_finance_package(
         "industry_profile": run.get("industry_profile") or {},
         "assurance_level": run.get("assurance_level"),
         "calculation_status": run.get("calculation_status"),
-        "review_status": run.get("review_status"),
         "indicators": run.get("indicators") or {},
         "summary_md": run.get("summary_md") or "",
         "table_manifest": tables.get("table_manifest") or run.get("table_manifest") or [],
@@ -1681,7 +1664,7 @@ def generate_workspace_finance_package(
         "artifacts": artifacts,
         "delivery_format": "xlsx+json+readable_md",
         "grade": table_quality.get("grade") or "summary",
-        "formal_delivery_ready": formal_ready,
+        "validation_complete": formal_ready,
         "professional_finance_appendices": formal_ready,
         "table_quality": table_quality,
         "semantic_blockers": semantic_blockers,
@@ -1777,23 +1760,6 @@ def _table_manifest(fin: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
             "content_hash": _sha256_hex(content),
         })
     return out
-
-
-def _attach_approval_meta(workspace_id: str, fin: dict[str, Any]) -> None:
-    try:
-        from lvke_mcp.domains.finance import run_store
-
-        approved = run_store.get_approved_run(workspace_id) or {}
-        fin["approved_run_id"] = approved.get("run_id")
-        # 当前候选与已批准不一致 → 旧批准过期
-        cur = fin.get("run_id")
-        if approved.get("run_id") and cur and approved.get("run_id") != cur:
-            fin["approved_run_stale"] = True
-        else:
-            fin["approved_run_stale"] = False
-    except Exception:  # noqa: BLE001
-        fin.setdefault("approved_run_id", None)
-        fin.setdefault("approved_run_stale", False)
 
 
 def _ensure_workspace(workspace_id: str) -> None:

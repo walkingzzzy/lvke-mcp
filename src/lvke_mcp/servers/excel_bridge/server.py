@@ -8,9 +8,9 @@ from pathlib import Path
 from lvke_mcp.runtime.logging import get_logger  # noqa: E402
 from lvke_mcp.runtime.responses import err, ok  # noqa: E402
 from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
-from lvke_mcp.servers.excel_bridge.reader import pick_backend  # noqa: E402
-from lvke_mcp.servers.excel_bridge.formulas import FormulaBackend, FormulaBackendUnavailable  # noqa: E402
-from lvke_mcp.servers.lvke_finance_tables import service as finance_tables_service  # noqa: E402
+from lvke_mcp.adapters.finance_tables_repository import get_xlsx_package  # noqa: E402
+from lvke_mcp.adapters.spreadsheets.reader import pick_backend  # noqa: E402
+from lvke_mcp.adapters.spreadsheets.formulas import FormulaBackend, FormulaBackendUnavailable  # noqa: E402
 
 SERVER_NAME = "excel-bridge"
 SERVER_VERSION = "0.1.0"
@@ -52,7 +52,7 @@ def _resolve_source(args: dict) -> tuple[Path | None, dict, dict | None]:
         if path is None:
             return None, {}, err(
                 f"{SERVER_NAME}.file_not_found",
-                "path 必须指向存在的 xlsx 文件",
+                "path 必须指向存在的 xls/xlsx 文件",
             )
         return path, {"source_type": "path", "filename": path.name}, None
 
@@ -77,28 +77,13 @@ def _resolve_source(args: dict) -> tuple[Path | None, dict, dict | None]:
             f"{SERVER_NAME}.resource_scope_mismatch",
             "Resource 不属于当前工作区",
         )
-    record = finance_tables_service.PACKAGE_STORE.get(
-        workspace_id,
-        package_id,
-    )
-    canonical_uri = (
-        finance_tables_service.PACKAGE_STORE.uri(
-            workspace_id,
-            package_id,
-        )
-        + "/xlsx"
-    )
-    if record is None or uri != canonical_uri:
+    resolved = get_xlsx_package(workspace_id, package_id, uri)
+    if resolved is None:
         return None, {}, err(
             f"{SERVER_NAME}.resource_not_found",
             "Resource 不存在或不属于当前工作区",
         )
-    path = finance_tables_service.xlsx_path_from_uri(uri)
-    if path is None:
-        return None, {}, err(
-            f"{SERVER_NAME}.resource_not_found",
-            "Resource 不存在或不属于当前工作区",
-        )
+    record, path, canonical_uri = resolved
     payload = record.get("payload") or {}
     return path, {
         "source_type": "resource",

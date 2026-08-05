@@ -22,27 +22,6 @@ _OUTPUT = make_tool_output_schema(
     additional_properties=True,
     required=("resource_uris", "warnings", "blockers", "next_actions"),
 )
-_REVIEW_OUTPUT = make_tool_output_schema(
-    {
-        "full_review_required": {"const": True},
-        "review_id": {"type": ["string", "null"]},
-        "deliverable_review_id": {"type": ["string", "null"]},
-        "deliverable_review_status": {"type": "string"},
-        "deliverable_formally_deliverable": {"type": "boolean"},
-    },
-    additional_properties=True,
-    required=(
-        "resource_uris",
-        "warnings",
-        "blockers",
-        "next_actions",
-        "full_review_required",
-        "review_id",
-        "deliverable_review_id",
-        "deliverable_review_status",
-        "deliverable_formally_deliverable",
-    ),
-)
 _MONEY = {"type": "number", "minimum": 0, "description": "金额单位：万元"}
 _RATE = {"type": "number", "minimum": 0, "maximum": 1}
 _EVIDENCE_IDS = {
@@ -77,6 +56,8 @@ _SOURCE_LOCATOR_SCHEMA = {
         "locator": _STRING, "content_hash": _STRING,
         "page": {"type": "integer", "minimum": 1}, "sheet": _STRING,
         "cell_range": _STRING,
+        "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"]},
+        "reconstruction_id": _STRING,
     },
     "required": ["source_id", "locator", "content_hash"],
 }
@@ -89,7 +70,9 @@ _HISTORICAL_STATEMENT_SCHEMA = {
         "statement_type": {"type": "string", "enum": [
             "balance_sheet", "income_statement", "cash_flow",
         ]},
-        "source_format": {"type": "string", "enum": ["xlsx", "pdf", "docx", "json", "other"]},
+        "source_format": {"type": "string", "enum": ["xls", "xlsx", "pdf", "docx", "json", "other"]},
+        "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"]},
+        "reconstruction_records": {"type": "array", "items": {"type": "object"}},
         "normalized_accounts": {"type": "object", "additionalProperties": {"type": "number"}},
         "reconciliation": {
             "type": "object", "additionalProperties": False,
@@ -104,12 +87,10 @@ _HISTORICAL_STATEMENT_SCHEMA = {
             },
         },
         "source_locators": {"type": "array", "items": _SOURCE_LOCATOR_SCHEMA, "minItems": 1},
-        "manual_review_status": {"type": "string", "enum": ["pending", "approved", "rejected"]},
     },
     "required": [
         "entity_id", "period_start", "period_end", "statement_type",
-        "source_format", "normalized_accounts", "reconciliation",
-        "source_locators", "manual_review_status",
+        "source_format", "normalized_accounts", "reconciliation", "source_locators",
     ],
 }
 _ASSET_SCOPE_ITEM_SCHEMA = {
@@ -180,7 +161,6 @@ _COMMON_SPEC_PROPERTIES = {
     "invest_type": {"type": "string", "const": "asset_acquisition"},
     "selected_scenario_id": {"type": "string", "minLength": 1},
     "confirmation_status": {"type": "string", "enum": ["candidate", "confirmed"]},
-    "confirmed_by": {"type": "string"},
     "project_parties": {"type": "array", "items": _PROJECT_PARTY_SCHEMA},
     "historical_statements": {"type": "array", "items": _HISTORICAL_STATEMENT_SCHEMA},
     "decision_thresholds": {
@@ -195,6 +175,8 @@ _COMMON_SPEC_PROPERTIES = {
         "type": "object", "additionalProperties": _EVIDENCE_IDS,
         "description": "字段路径到不可变证据 ID 的绑定",
     },
+    "evidence_policy": {"type": "string", "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"]},
+    "project_fact_certified": {"type": "boolean"},
 }
 _HOTEL_OPERATION_SCHEMA = {
     "type": "object", "additionalProperties": True,
@@ -273,7 +255,6 @@ def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(SERVER_NAME, SERVER_VERSION, logger)
     read = types.ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
     write = types.ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False)
-    terminal = types.ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True, openWorldHint=False)
     base = {"workspace_id": _STRING}
     run_base = {**base, "run_id": _STRING}
     keyed = {"idempotency_key": _KEY}
@@ -281,7 +262,7 @@ def build_server() -> OfficialStdioServer:
     server.register_tool(
         "acquisition_validate_spec", "按 asset_type 校验 FinanceSpec v3 资产收购契约；酒店采用月度模型，光伏采用年度运营模型。",
         _schema({"spec": _SPEC_SCHEMA}, ["spec"]),
-        lambda a: service.validate_spec(a["spec"]), _REVIEW_OUTPUT, read,
+        lambda a: service.validate_spec(a["spec"]), _OUTPUT, read,
     )
     server.register_tool(
         "acquisition_save_spec", "保存不可变候选收购 Spec；客户端确认字段不会获得确认效力。",
@@ -343,27 +324,12 @@ def build_server() -> OfficialStdioServer:
         ), _OUTPUT, write,
     )
     server.register_tool(
-        "acquisition_review_reference", "复核 generic 或 hengli 独立参考轨；恒立价格档仅作参考。",
-        _schema({**run_base, "status": {"type": "string", "enum": ["approved", "pending", "rejected", "out_of_tolerance"]}, "diffs": {"type": "array", "items": {"type": "object"}, "default": []}, "tolerance": {"type": "number", "minimum": 0, "default": 0.01}, "note": {"type": "string", "default": ""}, "reference_hash": {"type": "string", "default": ""}, "reference_kind": {"type": "string", "enum": ["generic", "hengli"], "default": "generic"}, **keyed}, ["workspace_id", "run_id", "status", "idempotency_key"]),
-        service.review_reference, _REVIEW_OUTPUT, write,
-    )
-    server.register_tool(
         "acquisition_solve_max_price", "按目标 IRR/最低 DSCR 求解最高可接受收购价。",
         _schema({**run_base, "target_irr": {"type": ["number", "null"]}, "min_dscr": {"type": ["number", "null"]}, "lower": {"type": "number", "minimum": 0, "default": 0}, "upper": {"type": ["number", "null"]}, **keyed}, ["workspace_id", "run_id", "idempotency_key"]),
         service.solve_max_price, _OUTPUT, write,
     )
     server.register_tool(
-        "acquisition_review_business", "完成独立业务复核；与参考复核人必须职责分离。",
-        _schema({**run_base, "status": {"type": "string", "enum": ["approved", "pending", "rejected"]}, "note": {"type": "string", "default": ""}, **keyed}, ["workspace_id", "run_id", "status", "idempotency_key"]),
-        service.review_business, _OUTPUT, write,
-    )
-    server.register_tool(
-        "acquisition_approve_run", "批准通过全部治理门禁的运行；批准后不可变。",
-        _schema({**run_base, "note": {"type": "string", "default": ""}, **keyed}, ["workspace_id", "run_id", "idempotency_key"]),
-        service.approve_run, _OUTPUT, terminal,
-    )
-    server.register_tool(
-        "acquisition_generate_artifact", "从已批准 run 生成 Word、审查型 Excel、report-data 和附件索引。",
+        "acquisition_generate_artifact", "从一致性通过的 run 生成 Word、Excel、report-data 和附件索引。",
         _schema({**run_base, **keyed}, ["workspace_id", "run_id", "idempotency_key"]),
         lambda a: service.generate_artifact(
             a["workspace_id"],
@@ -372,7 +338,7 @@ def build_server() -> OfficialStdioServer:
         ), _OUTPUT, write,
     )
     server.register_tool(
-        "acquisition_get_artifact", "读取固化收购工件及一致性、发布状态。",
+        "acquisition_get_artifact", "读取固化收购工件及其内容和数值一致性状态。",
         _schema({**base, "artifact_id": _STRING}, ["workspace_id", "artifact_id"]),
         lambda a: service.get_artifact(
             a["workspace_id"],
@@ -405,11 +371,6 @@ def build_server() -> OfficialStdioServer:
             a["acquisition_tables_package_id"],
             a["idempotency_key"],
         ), _OUTPUT, write,
-    )
-    server.register_tool(
-        "acquisition_release_artifact", "在联合发布门禁通过后固化收购工件发布记录。",
-        _schema({**base, "artifact_id": _STRING, "review_id": _STRING, "note": {"type": "string", "default": ""}, **keyed}, ["workspace_id", "artifact_id", "review_id", "idempotency_key"]),
-        service.release_artifact, _OUTPUT, terminal,
     )
     server.register_resource_provider(lambda: [], _resource)
     return server

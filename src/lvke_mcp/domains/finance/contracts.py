@@ -1,4 +1,4 @@
-﻿"""Finance schema contracts (P0-1): investment dictionary + critical input elements."""
+"""Finance schema contracts (P0-1): investment dictionary + critical input elements."""
 
 from __future__ import annotations
 
@@ -48,11 +48,10 @@ def make_element(
     source_id: str = "",
     evidence_grade: str = "D",
     method: str = "",
-    review_status: str = "draft",
+    validation_status: str = "unvalidated",
     note: str = "",
     price_basis: str = "",
     as_of: str = "",
-    reviewer: str = "",
 ) -> dict[str, Any]:
     """Critical input element structure (方案 §5.2)."""
     return {
@@ -64,8 +63,7 @@ def make_element(
         "evidence_grade": evidence_grade,
         "method": method,
         "as_of": as_of,
-        "review_status": review_status,
-        "reviewer": reviewer,
+        "validation_status": validation_status,
         "note": note,
     }
 

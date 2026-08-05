@@ -5,17 +5,21 @@
 把完整响应 JSON 固化到 tests/fixtures/baseline/ 下，作为独立化版本的「外部行为」对照基准。
 
 用法：
-    .venv/bin/python mcp_servers/scripts/freeze_baseline.py [server...]
-    # 不带参数 = 冻结全部 24 个 server
+    .venv/bin/python scripts/freeze_baseline.py [server...]
+    # 不带参数 = 冻结统一 manifest 中的全部 23 个 server
 """
 
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
+
+from lvke_mcp.testing.server_manifest import SERVER_BY_NAME, SERVER_SPECS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MCP_ROOT = REPO_ROOT
@@ -23,34 +27,21 @@ PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
 
 PROTOCOL_VERSION = "2025-11-25"
 
-# 冻结的 server 集（与 mcp_servers/ 下 server.py 一一对应，_scaffold 为模板不计入）。
-SERVERS = [
-    "environmental_data",
-    "excel_bridge",
-    "finance_calc",
-    "industry_research",
-    "lvke_archive",
-    "lvke_asset_acquisition",
-    "lvke_clients",
-    "lvke_data_acquisition",
-    "lvke_data_analysis",
-    "lvke_deep_research",
-    "lvke_deliverable_review",
-    "lvke_experts",
-    "lvke_finance_model",
-    "lvke_finance_tables",
-    "lvke_knowledge_governance",
-    "lvke_project_planning",
-    "lvke_report_generation",
-    "lvke_source_files",
-    "lvke_templates",
-    "lvke_zero_material_delivery",
-    "map_geo",
-    "policy_search",
-    "statistics_cn",
-]
+# 唯一分母来自可随 wheel 安装的包内 manifest。
+SERVERS = [spec.name for spec in SERVER_SPECS]
 
 BASELINE = MCP_ROOT / "tests" / "fixtures" / "baseline"
+BASELINE_COLLECTIONS = ("tools-list", "resources-list", "contracts")
+
+
+def prune_stale_baselines() -> None:
+    expected = {f"{spec.name}.json" for spec in SERVER_SPECS}
+    for collection in BASELINE_COLLECTIONS:
+        directory = BASELINE / collection
+        directory.mkdir(parents=True, exist_ok=True)
+        for path in directory.glob("*.json"):
+            if path.name not in expected:
+                path.unlink()
 
 
 def call(proc, payload, timeout: float = 60.0):
@@ -72,19 +63,24 @@ def call(proc, payload, timeout: float = 60.0):
 
 
 def freeze_server(server: str) -> dict:
+    spec = SERVER_BY_NAME[server]
     out_dir = BASELINE / "tools-list"
     res_dir = BASELINE / "resources-list"
     ctr_dir = BASELINE / "contracts"
     for d in (out_dir, res_dir, ctr_dir):
         d.mkdir(parents=True, exist_ok=True)
 
+    env = os.environ.copy()
+    temporary_data = tempfile.TemporaryDirectory(prefix="lvke-freeze-")
+    env["LVKE_MCP_DATA_DIR"] = temporary_data.name
     proc = subprocess.Popen(
-        [PYTHON, "-m", f"lvke_mcp.servers.{server}.server"],
+        [PYTHON, "-m", spec.module],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         cwd=str(REPO_ROOT),
+        env=env,
     )
     try:
         init = call(proc, {
@@ -148,10 +144,18 @@ def freeze_server(server: str) -> dict:
         }
     finally:
         proc.kill()
+        proc.wait()
+        temporary_data.cleanup()
 
 
 def main() -> None:
     targets = sys.argv[1:] or SERVERS
+    unknown = sorted(set(targets) - set(SERVERS))
+    if unknown:
+        print(f"unknown servers: {unknown}", file=sys.stderr)
+        sys.exit(2)
+    if targets == SERVERS:
+        prune_stale_baselines()
     results = []
     for server in targets:
         try:
@@ -165,7 +169,7 @@ def main() -> None:
     manifest = {
         "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "protocol_version": PROTOCOL_VERSION,
-        "python": PYTHON,
+        "python": "installed-environment",
         "servers": results,
         "ok_count": sum(1 for r in results if r["ok"]),
         "total": len(results),

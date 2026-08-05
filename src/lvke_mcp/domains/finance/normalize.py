@@ -1,4 +1,4 @@
-﻿"""Input normalization and legacy field migration (P0-1 / 方案 §5.4)."""
+"""Input normalization and legacy field migration (P0-1 / 方案 §5.4)."""
 
 from __future__ import annotations
 
@@ -168,7 +168,7 @@ def normalize_finance_inputs(finance: dict[str, Any]) -> dict[str, Any]:
                     unit=unit,
                     method="user_or_requirement",
                     evidence_grade="C",
-                    review_status="draft",
+                    validation_status="unvalidated",
                 )
             )
 

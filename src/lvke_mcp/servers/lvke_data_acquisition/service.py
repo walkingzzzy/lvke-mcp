@@ -16,37 +16,18 @@ from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 from typing import Any
 
+from lvke_mcp.adapters.data_acquisition_repository import (
+    COLLECTION_STORE,
+    DISCOVERY_STORE,
+    SEARCH_STORE,
+    SOURCE_STORE,
+    URL_AUDIT_STORE,
+    VISUAL_CAPTURE_STORE,
+    resolve_resource as resolve_repository_resource,
+)
 from lvke_mcp.runtime.storage import (
-    JSONArtifactStore,
     paginate_resource_entries,
     utc_now,
-)
-
-SOURCE_STORE = JSONArtifactStore(
-    "data-acquisition", "source_snapshots", "src", "sources"
-)
-SEARCH_STORE = JSONArtifactStore(
-    "data-acquisition", "search_sets", "search", "search-sets"
-)
-DISCOVERY_STORE = JSONArtifactStore(
-    "data-acquisition", "discovery_sets", "discovery", "discovery-sets"
-)
-COLLECTION_STORE = JSONArtifactStore(
-    "data-acquisition", "source_collections", "collection", "collections"
-)
-URL_AUDIT_STORE = JSONArtifactStore(
-    "data-acquisition", "url_audits", "urlaudit", "url-audits"
-)
-VISUAL_CAPTURE_STORE = JSONArtifactStore(
-    "data-acquisition", "visual_captures", "vcap", "visual-captures"
-)
-_RESOURCE_STORES = (
-    (SOURCE_STORE, "source_snapshot"),
-    (SEARCH_STORE, "search_set"),
-    (DISCOVERY_STORE, "discovery_set"),
-    (COLLECTION_STORE, "source_collection"),
-    (URL_AUDIT_STORE, "url_audit"),
-    (VISUAL_CAPTURE_STORE, "visual_capture"),
 )
 
 _ALLOWED_EXTERNAL_EXTRACT_TOOLS = frozenset({
@@ -754,7 +735,7 @@ def _external_snapshot_url_block_reason(url: str) -> str | None:
     if parsed.scheme.lower() not in {"http", "https"} or not hostname:
         return "已拦截：来源 URL 必须是有效的 HTTP(S) 公网地址"
     if parsed.username or parsed.password:
-        return "已拦截：来源 URL 不得包含认证信息"
+        return "已拦截：来源 URL 不得嵌入凭据"
     if port is not None and not (1 <= port <= 65535):
         return "已拦截：来源 URL 端口无效"
     lowered = hostname.lower()
@@ -993,6 +974,9 @@ async def _trusted_tavily_extract(
         normalized["provider"] = "tavily"
         content = str(item.get("content") or item.get("raw_content") or "")
         if content:
+            # Tavily's native extract response calls the body ``raw_content``;
+            # normalize it before the common fetch path validates the payload.
+            normalized["content"] = content
             retrieved_at = utc_now()
             content_hash = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
             receipt = {
@@ -1478,16 +1462,16 @@ def capture_source_view(
         or not 0.1 <= float(scale) <= 10
     ):
         return _resource_failure("visual_capture_viewport_invalid", "viewport 尺寸或缩放比例无效")
-    from lvke_mcp.servers.lvke_source_files import service as source_files
+    from lvke_mcp.adapters import source_files_repository
 
-    source_file = source_files.get_source_file(
-        workspace_id, image_file_id
-    )
-    if not source_file.get("success"):
+    try:
+        _state, file_record = source_files_repository._require_source_record(
+            workspace_id, image_file_id
+        )
+    except source_files_repository.SourceFileError:
         return _resource_failure(
             "visual_capture_file_not_found", "截图文件不存在或不属于当前作用域"
         )
-    file_record = source_file.get("source_file") or {}
     filename = str(file_record.get("original_filename") or "")
     file_format = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     scan = file_record.get("security_scan") or {}
@@ -1640,14 +1624,7 @@ def resolve_resource(
     uri: str,
     workspace_id: str,
 ) -> dict[str, Any] | None:
-    expected = f"lvke://data-acquisition/workspaces/{workspace_id}/"
-    if not str(uri).startswith(expected):
-        return None
-    for store, _kind in _RESOURCE_STORES:
-        record = store.resolve_uri(uri)
-        if record is not None:
-            return record
-    return None
+    return resolve_repository_resource(uri, workspace_id)
 
 
 def _resource_failure(code: str, message: str) -> dict[str, Any]:

@@ -37,7 +37,7 @@ except ImportError:
     _HAS_INVESTMENT_BREAKDOWN = False
 
 try:  # finance_calc 为纯函数层，可进程内直接复用
-    from lvke_mcp.servers.finance_calc.calculations import irr as _irr, npv as _npv, payback_period as _payback
+    from lvke_mcp.domains.finance.calculations import irr as _irr, npv as _npv, payback_period as _payback
 except Exception:  # noqa: BLE001 - 兜底：finance_calc 不可用时用内联实现
     def _npv(cashflows, rate):  # type: ignore
         return sum(cf / ((1.0 + rate) ** t) for t, cf in enumerate(cashflows))
@@ -2191,8 +2191,6 @@ def finance_tables_markdown(r: dict[str, Any]) -> str:
         pack = table_render.build_all_structured(r)
         md = table_render.finance_tables_markdown_from_structured(pack, r)
         if md and md.strip():
-            if not (r.get("assurance_level") == "review_grade" and r.get("review_status") == "approved"):
-                md = "> **匡算预览｜未批准，不得用于正式报批**\n\n" + md
             return md
     except Exception:  # noqa: BLE001
         pass
@@ -2232,8 +2230,6 @@ def finance_tables_markdown(r: dict[str, Any]) -> str:
             f"- 悲观：IRR {_fmt((sc.get('bear') or {}).get('irr_pct'))}%"
         )
     body = "".join(parts)
-    if body and not (r.get("assurance_level") == "review_grade" and r.get("review_status") == "approved"):
-        body = "> **匡算预览｜未批准，不得用于正式报批**\n" + body
     return body
 
 

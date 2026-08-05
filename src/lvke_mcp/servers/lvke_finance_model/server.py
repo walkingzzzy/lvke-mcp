@@ -39,11 +39,16 @@ from mcp import types
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
 from lvke_mcp.runtime.storage import (
-    JSONArtifactStore,
     paginate_resource_entries,
     sha256_json,
 )
-from lvke_mcp.domains.review.deliverable_review_compat import full_review_requirement
+from lvke_mcp.adapters.finance_model_repository import (
+    BALANCE_SHEET_STORE,
+    BASIS_OF_ESTIMATE_STORE,
+    IDEMPOTENCY_STORE,
+    MONTE_CARLO_STORE,
+    SPEC_STORE,
+)
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.runtime.responses import err, ok
@@ -51,25 +56,12 @@ from lvke_mcp.domains.finance.parameter_resolver import (
     finance_input_schema,
     finance_spec_candidate_schema,
 )
-from lvke_mcp.servers.lvke_data_analysis.service import EVIDENCE_STORE
+from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
+from lvke_mcp.runtime.source_reconstruction import reconstruction_errors, normalize_reconstruction
 
 SERVER_NAME = "lvke-finance-model"
 SERVER_VERSION = "0.3.0"
 logger = get_logger(SERVER_NAME)
-
-SPEC_STORE = JSONArtifactStore("finance-model", "specs", "fsp", "specs")
-IDEMPOTENCY_STORE = JSONArtifactStore(
-    "finance-model", "idempotency", "fidem", "idempotency"
-)
-BALANCE_SHEET_STORE = JSONArtifactStore(
-    "finance-model", "balance-sheets", "fbs", "balance-sheets"
-)
-MONTE_CARLO_STORE = JSONArtifactStore(
-    "finance-model", "monte-carlo", "fmc", "monte-carlo"
-)
-BASIS_OF_ESTIMATE_STORE = JSONArtifactStore(
-    "finance-model", "basis-of-estimate", "fboe", "basis-of-estimate"
-)
 
 _BOE_ENTRY_SCHEMA = {
     "type": "object",
@@ -88,6 +80,7 @@ _BOE_ENTRY_SCHEMA = {
                 "revenue_driver_set",
                 "cost_driver_set",
                 "labor_plan",
+                "source_reconstructed",
                 "technical_fixture",
                 "controlled_assumption",
             ],
@@ -105,7 +98,27 @@ _BOE_ENTRY_SCHEMA = {
         },
         "evidence_eligibility": {
             "type": "string",
-            "enum": ["formal_evidence", "technical_fixture", "controlled_assumption"],
+            "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+        },
+        "reconstruction": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "reconstruction_id": {"type": "string", "minLength": 1},
+                "source_uri": {"type": "string", "pattern": r"^lvke://.+"},
+                "content_hash": {"type": "string", "pattern": r"^sha256:[0-9a-f]{64}$"},
+                "locator": {"type": "string", "minLength": 1},
+                "source_kind": {"type": "string", "enum": ["client_report", "finance_template", "historical_statement", "scenario_note"]},
+                "method": {"type": "string", "enum": ["table_extract", "formula_replay", "explicit_mapping"]},
+                "original_formula_available": {"type": "boolean"},
+                "limitations": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["reconstruction_id", "source_uri", "content_hash", "locator", "source_kind", "method", "original_formula_available", "limitations"],
+        },
+        "reconstruction_record": {
+            "type": "object",
+            "additionalProperties": True,
+            "description": "reconstruction 的兼容别名",
         },
     },
     "required": [
@@ -482,6 +495,12 @@ def _canonical_candidate_inputs(
 
 
 def _tool_prepare_spec(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import prepare_spec
+
+    return prepare_spec(args)
+
+
+def _legacy_tool_prepare_spec(args: dict) -> dict:
     wsid = _ws(args)
     if not wsid:
         return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 必填")
@@ -648,6 +667,12 @@ def _tool_prepare_spec(args: dict) -> dict:
 
 
 def _tool_confirm_spec(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import confirm_spec
+
+    return confirm_spec(args)
+
+
+def _legacy_tool_confirm_spec(args: dict) -> dict:
     wsid = _ws(args)
     spec_id = str(args.get("spec_id") or "").strip()
     if not wsid or not spec_id:
@@ -670,7 +695,6 @@ def _tool_confirm_spec(args: dict) -> dict:
         from lvke_mcp.domains.finance.spec import mark_spec_confirmed, validate_for_formal
 
         formal_candidate = mark_spec_confirmed(spec)
-        formal_candidate.pop("confirmed_by", None)
         formal_ok, formal_errors = validate_for_formal(formal_candidate)
     except Exception:  # noqa: BLE001
         return _exception_env(
@@ -788,6 +812,12 @@ def _tool_confirm_spec(args: dict) -> dict:
 
 
 def _tool_run_model(args: dict) -> dict:
+    from lvke_mcp.domains.finance.model_application import run_model
+
+    return run_model(args)
+
+
+def _legacy_tool_run_model(args: dict) -> dict:
     wsid = _ws(args)
     if not wsid:
         return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 必填")
@@ -1202,60 +1232,9 @@ def _tool_run_model(args: dict) -> dict:
 
 
 def _tool_validate_spec(args: dict) -> dict:
-    spec = args.get("spec")
-    if not isinstance(spec, dict):
-        return _err_env(f"{SERVER_NAME}.invalid_argument", "spec 必填且必须是对象")
-    try:
-        from lvke_mcp.domains.finance.spec import validate, validate_for_formal
+    from lvke_mcp.domains.finance.model_application import validate_spec
 
-        structural_ok, errors = validate(spec)
-        formal = bool(args.get("for_formal", False))
-        formal_ok, formal_errors = validate_for_formal(spec) if formal else (structural_ok, [])
-        errors = _unique_strings(errors)
-        formal_errors = _unique_strings(formal_errors)
-        valid = bool(structural_ok and (formal_ok if formal else True))
-        missing = [
-            item for item in [*errors, *formal_errors]
-            if any(word in item for word in ("缺", "missing", "尚未确认"))
-        ]
-        if missing:
-            status = "missing_inputs"
-        elif valid:
-            status = "ok"
-        else:
-            status = "blocked"
-        review_requirement = full_review_requirement()
-        return _ok_env(
-            {
-                "valid": valid,
-                "structural_valid": structural_ok,
-                "formal_valid": formal_ok if formal else None,
-                "errors": errors,
-                "formal_errors": formal_errors,
-                "missing_inputs": missing,
-                "note": "校验通过不等于已批准；缺关键输入时不得运行出 IRR。",
-                **review_requirement,
-            },
-            source=f"{SERVER_NAME}.finance_validate_spec",
-            status=status,
-            blockers=[] if valid else _unique_strings([*errors, *formal_errors]),
-            next_actions=(
-                ["按 errors/missing_inputs 修正 spec 后重新校验"]
-                if not valid or missing
-                else [
-                    "spec 可用于 finance_run_model；生成固化 run 后仍须调用统一审查"
-                ]
-            ),
-            valid=valid,
-            missing_inputs=_str_list(missing),
-            **review_requirement,
-        )
-    except Exception:  # noqa: BLE001
-        return _exception_env(
-            "finance_validate_spec failed",
-            f"{SERVER_NAME}.validate_failed",
-            "校验 FinanceSpec 失败",
-        )
+    return validate_spec(args)
 
 
 def _tool_render_tables(args: dict) -> dict:
@@ -1318,50 +1297,9 @@ def _tool_render_tables(args: dict) -> dict:
 
 
 def _tool_get_run(args: dict) -> dict:
-    wsid = _ws(args)
-    if not wsid:
-        return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 必填")
-    view = str(args.get("view") or "summary")
-    try:
-        from lvke_mcp.domains.finance import run_service
+    from lvke_mcp.domains.finance.model_application import get_run
 
-        data = run_service.get_workspace_finance_run(
-            wsid,
-            run_id=str(args.get("run_id") or ""),
-            view=view,
-        )
-        if data.get("available") and data.get("consistency_ok") is False:
-            data = dict(data)
-            data.setdefault("reason", "consistency_failed")
-        run_id = str(data.get("run_id") or "") or None
-        uri = _run_uri(wsid, run_id)
-        if uri:
-            data["resource_uri"] = uri  # 兼容旧调用方
-        no_run = data.get("available") is False and not run_id
-        consistency_failed = data.get("available") and data.get("consistency_ok") is False
-        read_status = "blocked" if (no_run or consistency_failed) else "ok"
-        read_blockers = ["尚无财务模型运行记录"] if no_run else (
-            ["finance_consistency_failed"] if consistency_failed else []
-        )
-        return _ok_env(
-            data,
-            source=f"{SERVER_NAME}.finance_get_run",
-            status=read_status,
-            resource_uris=[uri] if uri else [],
-            blockers=read_blockers,
-            next_actions=(
-                (["先调用 finance_run_model 生成 run"] if no_run else [])
-                or (["修正财务勾稽问题后重新运行；当前 run 不可作为正式候选"] if consistency_failed else [])
-            ),
-            run_id=run_id,
-            view=view,
-        )
-    except Exception:  # noqa: BLE001
-        return _exception_env(
-            "finance_get_run failed",
-            f"{SERVER_NAME}.get_failed",
-            "读取财务 run 失败",
-        )
+    return get_run(args)
 
 
 def _tool_generate_package(args: dict) -> dict:
@@ -1472,12 +1410,6 @@ def _tool_import_vendor_review(args: dict) -> dict:
             status = "blocked"
         else:
             status = "ok"
-        review_requirement = full_review_requirement(
-            wsid,
-            "finance_run",
-            run_id or "",
-        )
-        data = {**data, **review_requirement}
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_import_vendor_review",
@@ -1488,13 +1420,12 @@ def _tool_import_vendor_review(args: dict) -> dict:
                 [f"缺少必要输入：{item}" for item in missing] if missing else []
             ),
             next_actions=(
-                ["人工裁决阻断预警后再决定是否批准"] if blocking else []
+                ["修复阻断预警并重新运行确定性校验"] if blocking else []
             ),
             reference_id=data.get("reference_id"),
             review_passed=bool(data.get("review_passed")),
             run_id=run_id,
             missing_inputs=missing,
-            **review_requirement,
         )
     except FileNotFoundError:
         return _exception_env(
@@ -1539,13 +1470,9 @@ def _planning_record(
     workspace_id: str,
     object_id: str,
 ) -> dict[str, Any] | None:
-    from lvke_mcp.servers.lvke_project_planning import service as planning
+    from lvke_mcp.adapters.project_planning_repository import get_record
 
-    for store, _kind in planning._RESOURCE_STORES:
-        record = store.get(workspace_id, object_id)
-        if record is not None:
-            return record
-    return None
+    return get_record(workspace_id, object_id)
 
 
 def _required_boe_pointers(spec_payload: dict[str, Any]) -> list[str]:
@@ -1654,6 +1581,7 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             declared_eligibility = str(entry.get("evidence_eligibility") or "")
             eligible_tracks = {
                 "formal_evidence": {"real", "formal_evidence"},
+                "source_reconstructed": {"source_reconstructed"},
                 "technical_fixture": {"technical_fixture"},
                 "controlled_assumption": {"controlled_assumption"},
             }
@@ -1662,6 +1590,13 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
                     "path": f"/entries/{index}/evidence_eligibility",
                     "code": "evidence_eligibility_mismatch",
                 })
+            if declared_eligibility == "source_reconstructed":
+                reconstruction = entry.get("reconstruction") or entry.get("reconstruction_record")
+                errors = reconstruction_errors(reconstruction)
+                field_errors.extend({
+                    "path": f"/entries/{index}/reconstruction/{code.split('_required')[0] if code.endswith('_required') else 'record'}",
+                    "code": code,
+                } for code in errors)
         if not all(entry.get(field) for field in (
             "target_pointer", "unit", "period", "source_type", "source_object_id",
             "method", "selection_reason", "locator", "content_hash", "evidence_eligibility"
@@ -1715,12 +1650,14 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             replayed=True,
         )
     technical_ready = all(
-        entry.get("evidence_eligibility") in {"formal_evidence", "technical_fixture"}
+        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed", "technical_fixture"}
         for entry in entries
     )
     formal_ready = all(
-        entry.get("evidence_eligibility") == "formal_evidence" for entry in entries
+        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed"}
+        for entry in entries
     )
+    reconstructed = any(entry.get("evidence_eligibility") == "source_reconstructed" for entry in entries)
     payload = {
         "object_type": "BasisOfEstimate",
         "spec_id": spec_id,
@@ -1731,8 +1668,12 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "evidence_pack_ids": evidence_ids,
         "technical_ready": technical_ready,
         "formal_ready": formal_ready,
+        "evidence_policy": "source_reconstructed" if reconstructed else "formal_evidence",
+        "project_fact_certified": not reconstructed,
         "evidence_eligibility": (
-            "formal_evidence"
+            "source_reconstructed"
+            if reconstructed
+            else "formal_evidence"
             if formal_ready
             else "technical_fixture"
             if technical_ready
@@ -1762,7 +1703,9 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         resource_uris=[record["resource_uri"]],
         warnings=(
             []
-            if formal_ready
+            if formal_ready and not reconstructed
+            else ["本 BoE 使用 source_reconstructed，仅代表流程验收，不认证项目原始事实"]
+            if formal_ready and reconstructed
             else ["技术夹具 BoE 只能验证技术链，不得触发正式候选或正式发布"]
             if technical_ready
             else ["BoE 含 controlled_assumption，仅可用于 estimate preview"]
@@ -2209,20 +2152,10 @@ def build_server() -> OfficialStdioServer:
             {
                 "valid": {"type": "boolean"},
                 "missing_inputs": {"type": "array", "items": {"type": "string"}},
-                "full_review_required": {"const": True},
-                "review_id": {"type": ["string", "null"]},
-                "deliverable_review_id": {"type": ["string", "null"]},
-                "deliverable_review_status": {"type": "string"},
-                "deliverable_formally_deliverable": {"type": "boolean"},
             },
             success_required=[
                 "valid",
                 "missing_inputs",
-                "full_review_required",
-                "review_id",
-                "deliverable_review_id",
-                "deliverable_review_status",
-                "deliverable_formally_deliverable",
             ],
         ),
         annotations=read_closed,
@@ -2652,22 +2585,12 @@ def build_server() -> OfficialStdioServer:
                 "review_passed": {"type": "boolean"},
                 "run_id": {"type": ["string", "null"]},
                 "missing_inputs": {"type": "array", "items": {"type": "string"}},
-                "full_review_required": {"const": True},
-                "review_id": {"type": ["string", "null"]},
-                "deliverable_review_id": {"type": ["string", "null"]},
-                "deliverable_review_status": {"type": "string"},
-                "deliverable_formally_deliverable": {"type": "boolean"},
             },
             success_required=[
                 "reference_id",
                 "review_passed",
                 "run_id",
                 "missing_inputs",
-                "full_review_required",
-                "review_id",
-                "deliverable_review_id",
-                "deliverable_review_status",
-                "deliverable_formally_deliverable",
             ],
         ),
         annotations=write_deterministic,

@@ -1,0 +1,448 @@
+"""Application use cases for deterministic finance-table validation."""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from lvke_mcp.adapters.finance_model_repository import BASIS_OF_ESTIMATE_STORE
+from lvke_mcp.adapters.spreadsheets.finance_export import assess_finance_delivery_quality
+from lvke_mcp.domains.finance import gate as finance_gate
+from lvke_mcp.domains.finance.run_service import (
+    DELIVERY_TABLE_KEYS,
+    get_workspace_finance_run,
+    render_workspace_finance_tables,
+)
+
+
+def get_run(workspace_id: str, run_id: str) -> dict[str, Any]:
+    return get_workspace_finance_run(workspace_id, run_id=run_id, view="full")
+
+
+def delivery_keys() -> tuple[str, ...]:
+    return DELIVERY_TABLE_KEYS
+
+
+def structured_delivery_tables(
+    workspace_id: str,
+    run_id: str,
+    rendered: dict[str, Any],
+) -> dict[str, Any]:
+    """Project immutable run data into row/column tables without recomputation."""
+
+    try:
+        from lvke_mcp.domains.finance import table_render
+
+        structured = table_render.build_all_structured(get_run(workspace_id, run_id))
+        structured.pop("_meta", None)
+        if all(isinstance(structured.get(key), dict) for key in delivery_keys()):
+            return {key: structured[key] for key in delivery_keys()}
+    except Exception:  # noqa: BLE001
+        pass
+    return {
+        key: markdown_table_as_structured((rendered.get("tables") or {}).get(key))
+        for key in delivery_keys()
+    }
+
+
+def markdown_table_as_structured(value: Any) -> dict[str, Any]:
+    if not isinstance(value, str):
+        return {}
+    lines = [line.strip() for line in value.splitlines() if line.strip().startswith("|")]
+    if len(lines) < 3:
+        return {}
+    headers = [cell.strip() for cell in lines[0].strip("|").split("|")]
+    columns = [
+        {"key": f"column_{index + 1}", "label": header}
+        for index, header in enumerate(headers)
+    ]
+    rows: list[list[Any]] = []
+    for line in lines[2:]:
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) != len(headers):
+            continue
+        rows.append([parse_csv_scalar(cell) for cell in cells])
+    return {
+        "columns": columns,
+        "column_labels": headers,
+        "rows": rows,
+        "row_count": len(rows),
+        "source": "legacy_markdown_projection",
+    }
+
+
+def parse_csv_scalar(value: str) -> Any:
+    if value == "":
+        return ""
+    normalized = value.replace(",", "").replace("%", "")
+    try:
+        number = float(normalized)
+    except ValueError:
+        return value
+    return number / 100 if value.endswith("%") else number
+
+
+def structured_table_quality(table: Any) -> dict[str, Any]:
+    blockers: list[str] = []
+    warnings: list[str] = []
+    if not isinstance(table, dict):
+        return {
+            "valid": False,
+            "blockers": ["not_structured_table"],
+            "warnings": [],
+            "row_count": 0,
+            "column_count": 0,
+        }
+    columns = list(table.get("columns") or [])
+    rows = list(table.get("rows") or [])
+    keys = [
+        str(column.get("key") or "")
+        for column in columns
+        if isinstance(column, dict)
+    ]
+    labels = [
+        str(column.get("label") or "")
+        for column in columns
+        if isinstance(column, dict)
+    ]
+    if not columns or not keys or len(keys) != len(columns) or any(not key for key in keys):
+        blockers.append("missing_columns")
+    if len(set(keys)) != len(keys):
+        blockers.append("duplicate_column_keys")
+    if len(set(labels)) != len(labels):
+        warnings.append("duplicate_column_labels")
+    if not rows:
+        blockers.append("empty_rows")
+    nested = 0
+    bad_width = 0
+    duplicate_rows = 0
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(columns):
+            bad_width += 1
+            continue
+        if any(isinstance(value, (dict, list)) for value in row):
+            nested += 1
+        fingerprint = json.dumps(row, ensure_ascii=False, sort_keys=True, default=str)
+        if fingerprint in seen:
+            duplicate_rows += 1
+        seen.add(fingerprint)
+    if bad_width:
+        blockers.append(f"row_width_mismatch:{bad_width}")
+    if nested:
+        blockers.append(f"nested_cells:{nested}")
+    if duplicate_rows:
+        warnings.append(f"duplicate_rows:{duplicate_rows}")
+    period_indexes = [
+        index for index, key in enumerate(keys) if key in {"year", "period"}
+    ]
+    has_period_columns = any(key.startswith("period_") for key in keys)
+    if period_indexes and any(
+        not str(row[index]).strip()
+        for row in rows
+        if isinstance(row, list) and len(row) == len(columns)
+        for index in period_indexes
+    ):
+        blockers.append("missing_period_values")
+    if not period_indexes and not has_period_columns:
+        warnings.append("period_semantics_not_exposed")
+    return {
+        "valid": not blockers,
+        "blockers": blockers,
+        "warnings": warnings,
+        "row_count": len(rows),
+        "column_count": len(columns),
+        "nested_cell_count": nested,
+        "duplicate_row_count": duplicate_rows,
+    }
+
+
+def validate_render(data: dict[str, Any]) -> dict[str, Any]:
+    tables = data.get("tables") or {}
+    missing = [key for key in delivery_keys() if key not in tables]
+    manifest = data.get("table_manifest") or []
+    blockers: list[str] = []
+    warnings: list[str] = []
+    table_quality: dict[str, dict[str, Any]] = {}
+    if missing:
+        blockers.append("missing_delivery_tables")
+    if len(manifest) < len(delivery_keys()):
+        blockers.append("incomplete_table_manifest")
+    for key in delivery_keys():
+        quality = structured_table_quality(tables.get(key))
+        table_quality[key] = quality
+        if not quality["valid"]:
+            blockers.extend(
+                f"table_quality:{key}:{reason}" for reason in quality["blockers"]
+            )
+        warnings.extend(f"{key}:{warning}" for warning in quality["warnings"])
+    if data.get("missing_delivery_keys"):
+        blockers.append("renderer_missing_delivery_keys")
+    return {
+        "valid": not blockers,
+        "required_table_count": len(delivery_keys()),
+        "manifest_count": len(manifest),
+        "missing_delivery_keys": missing,
+        "blockers": blockers,
+        "warnings": (
+            [*warnings, "十三表结构、列级或期间校验未通过，禁止宣称正式交付"]
+            if blockers
+            else warnings
+        ),
+        "table_quality": table_quality,
+        "note": "表名齐全、CSV/XLSX 写出都不等于完整交付；完整性仍由跨工件门禁和结构化勾稽共同决定。",
+    }
+
+
+def formal_delivery_gate(workspace_id: str, run_id: str) -> dict[str, Any]:
+    fail_closed = {"validation_complete": False, "bound_run_id": None}
+    try:
+        result = finance_gate.assert_publish_finance_binding(
+            workspace_id,
+            expected_run_id=run_id,
+            strict=True,
+        )
+    except Exception:  # noqa: BLE001
+        return {**fail_closed, "blockers": ["finance_publish_gate_failed"]}
+    if not isinstance(result, dict):
+        return {**fail_closed, "blockers": ["finance_publish_gate_invalid"]}
+    blockers = [
+        str(item.get("code") or "finance_gate_blocker")
+        if isinstance(item, dict)
+        else str(item)
+        for item in (result.get("blockers") or [])
+    ]
+    bound = str(result.get("bound_run_id") or "")
+    ready = bool(result.get("ok")) and bound == run_id
+    if bool(result.get("ok")) and bound != run_id:
+        blockers.append("bound_run_mismatch")
+    if not ready and not blockers:
+        blockers.append("finance_publish_gate_blocked")
+    return {
+        "validation_complete": ready,
+        "blockers": blockers,
+        "bound_run_id": bound or None,
+    }
+
+
+def delivery_assessment(
+    workspace_id: str,
+    run_id: str,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    validation = validate_render(data)
+    run = get_run(workspace_id, run_id)
+    run_consistency_ok = bool(run.get("available") and run.get("consistency_ok"))
+    if not run_consistency_ok:
+        validation["blockers"] = [
+            *validation.get("blockers", []),
+            "finance_run_consistency_failed",
+        ]
+        validation["valid"] = False
+    validation["run_consistency_ok"] = run_consistency_ok
+    validation["run_quality_checks"] = list(run.get("checks") or [])
+    try:
+        workbook_assessment = assess_finance_delivery_quality(run)
+        workbook_quality = workbook_assessment.get("delivery_quality") or {}
+        semantic_checks = workbook_quality.get("semantic_checks") or {}
+        material_semantic_checks = (
+            "investment_quantity_indicator",
+            "construction_interest_reconciled",
+            "income_product_tree",
+            "working_capital_reconciled",
+            "income_formula_driven",
+            "cost_item_tree",
+            "depreciation_rollforward",
+            "supporting_schedules_formula_driven",
+            "cashflow_row_tree",
+            "cross_sheet_dependencies",
+        )
+        semantic_blockers = [
+            f"workbook_semantic:{name}"
+            for name in material_semantic_checks
+            if not bool((semantic_checks.get(name) or {}).get("ok"))
+        ]
+        if semantic_blockers:
+            validation["blockers"] = [
+                *validation.get("blockers", []),
+                *semantic_blockers,
+            ]
+            validation["valid"] = False
+        validation["workbook_delivery_quality"] = workbook_quality
+        validation["workbook_semantic_blockers"] = semantic_blockers
+    except Exception:  # noqa: BLE001
+        validation["blockers"] = [
+            *validation.get("blockers", []),
+            "workbook_semantic_audit_failed",
+        ]
+        validation["valid"] = False
+        validation["workbook_delivery_quality"] = {}
+        validation["workbook_semantic_blockers"] = ["workbook_semantic_audit_failed"]
+    validation["technical_blockers"] = list(validation.get("blockers") or [])
+    technical_validation = {
+        "valid": bool(validation["valid"]),
+        "verdict": "pass" if validation["valid"] else "fail",
+        "technical_validation_verdict": "pass" if validation["valid"] else "fail",
+        "blockers": list(validation["technical_blockers"]),
+        "warnings": list(validation.get("warnings") or []),
+        "run_consistency_ok": run_consistency_ok,
+        "run_quality_checks": list(validation.get("run_quality_checks") or []),
+        "workbook_delivery_quality": validation.get("workbook_delivery_quality") or {},
+        "workbook_semantic_blockers": list(
+            validation.get("workbook_semantic_blockers") or []
+        ),
+    }
+    gate = formal_delivery_gate(workspace_id, run_id)
+    boe_id = str(run.get("basis_of_estimate_id") or "")
+    boe_hash = str(run.get("basis_of_estimate_hash") or "")
+    boe_ready = False
+    if boe_id and boe_hash:
+        try:
+            boe_record = BASIS_OF_ESTIMATE_STORE.get(workspace_id, boe_id)
+            boe_payload = (
+                boe_record.get("payload")
+                if isinstance((boe_record or {}).get("payload"), dict)
+                else {}
+            )
+            boe_ready = bool(
+                boe_record
+                and boe_record.get("basis_hash") == boe_hash
+                and boe_payload.get("formal_ready")
+                and boe_payload.get("spec_id") == run.get("spec_id")
+            )
+        except Exception:  # noqa: BLE001
+            boe_ready = False
+    if not boe_ready:
+        gate["validation_complete"] = False
+        gate["blockers"] = [*gate["blockers"], "basis_of_estimate_required"]
+    formal_ready = bool(validation["valid"]) and bool(gate["validation_complete"])
+    validation["validation_complete"] = formal_ready
+    validation["validation_level"] = "complete" if formal_ready else "incomplete"
+    validation["gate_blockers"] = gate["blockers"]
+    validation["bound_run_id"] = gate["bound_run_id"]
+    validation["basis_of_estimate_id"] = boe_id or None
+    validation["basis_of_estimate_ready"] = boe_ready
+    validation["blockers"] = [*validation["blockers"], *gate["blockers"]]
+    formal_validation = {
+        "valid": formal_ready,
+        "verdict": "pass" if formal_ready else "blocked",
+        "blockers": list(validation["blockers"]),
+        "warnings": list(validation.get("warnings") or []),
+        "run_consistency_ok": run_consistency_ok,
+        "run_quality_checks": list(validation.get("run_quality_checks") or []),
+        "workbook_delivery_quality": validation.get("workbook_delivery_quality") or {},
+        "workbook_semantic_blockers": list(
+            validation.get("workbook_semantic_blockers") or []
+        ),
+        "bound_run_id": gate["bound_run_id"],
+        "basis_of_estimate_id": boe_id or None,
+        "basis_of_estimate_ready": boe_ready,
+        "validation_complete": formal_ready,
+    }
+    validation["technical_validation"] = technical_validation
+    validation["formal_validation"] = formal_validation
+    validation["technical_validation_verdict"] = (
+        "pass" if validation["valid"] else "fail"
+    )
+    if validation["valid"] and not formal_ready:
+        validation["warnings"] = [
+            *validation["warnings"],
+            "跨工件完整性校验未通过，不可标记为完整交付",
+        ]
+        validation["technical_validation_note"] = (
+            "13表结构完整、勾稽通过；完整交付仍需通过 run 与工件一致性校验"
+        )
+    return validation
+
+
+def validate_tables(
+    workspace_id: str,
+    run_id: str,
+    *,
+    validation_scope: str = "formal",
+) -> dict[str, Any]:
+    scope = str(validation_scope or "formal").strip().lower()
+    if scope not in {"technical", "formal"}:
+        return _failure("validation_scope_invalid", "validation_scope 仅支持 technical 或 formal")
+    if not str(run_id or "").strip():
+        return _failure("run_id_required", "缺少 run_id；十三表只消费固化 run，不做兜底选取")
+    data = render_workspace_finance_tables(
+        workspace_id,
+        run_id=run_id,
+        format="structured",
+        include_control_tables=True,
+    )
+    if not data.get("ok"):
+        return _failure(
+            str(data.get("error") or "run_unavailable"),
+            str(data.get("message") or "run 不可用于十三表"),
+        )
+    result = delivery_assessment(
+        workspace_id,
+        run_id,
+        {
+            **data,
+            "tables": structured_delivery_tables(workspace_id, run_id, data),
+        },
+    )
+    technical_success = bool(result["valid"])
+    business_success = (
+        technical_success
+        if scope == "technical"
+        else bool(technical_success and result["validation_complete"])
+    )
+    selected_blockers = (
+        list(result.get("technical_blockers") or [])
+        if scope == "technical"
+        else list(result.get("blockers") or [])
+    )
+    if not technical_success:
+        next_actions = ["回到财务模型修正输入并生成新 run_id；表服务不得重算"]
+    elif scope == "formal" and not result["validation_complete"]:
+        next_actions = [
+            "修正 gate_blockers 中的 run、manifest、表格或工件一致性问题后重新校验"
+        ]
+    elif scope == "technical":
+        next_actions = ["技术结构校验通过；该结果不代表跨工件完整性校验通过"]
+    else:
+        next_actions = ["跨工件完整性校验已通过"]
+    selected_validation = (
+        result["technical_validation"]
+        if scope == "technical"
+        else result["formal_validation"]
+    )
+    return {
+        "success": business_success,
+        "transport_success": True,
+        "system_success": True,
+        "business_success": business_success,
+        "status": "ok" if business_success else "blocked",
+        "validation_scope": scope,
+        "run_id": run_id,
+        "validation": selected_validation,
+        "technical_validation": result["technical_validation"],
+        "formal_validation": result["formal_validation"],
+        "validation_complete": bool(result["validation_complete"]),
+        "resource_uris": [],
+        "warnings": result["warnings"],
+        "blockers": selected_blockers,
+        "next_actions": next_actions,
+    }
+
+
+def _failure(code: str, message: str) -> dict[str, Any]:
+    return {
+        "success": False,
+        "transport_success": True,
+        "business_success": False,
+        "completed": False,
+        "outcome": "blocked",
+        "status": "blocked",
+        "code": code,
+        "message": message,
+        "validation_complete": False,
+        "resource_uris": [],
+        "warnings": [],
+        "blockers": [code],
+        "next_actions": [],
+    }

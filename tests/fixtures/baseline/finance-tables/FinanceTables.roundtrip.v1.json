@@ -1,0 +1,29 @@
+{
+  "schema": "finance_tables_roundtrip.v1",
+  "status": "ok",
+  "run_binding": true,
+  "table_count": 13,
+  "table_ids": [
+    "investment",
+    "interest-during-construction",
+    "working-capital",
+    "funding",
+    "income-statement",
+    "total-cost",
+    "wage",
+    "depreciation",
+    "amortization",
+    "profit-distribution",
+    "debt-service",
+    "cashflow",
+    "capital-cashflow"
+  ],
+  "csv_count": 13,
+  "csv_integrity": true,
+  "csv_hash_contract": true,
+  "xlsx_hash_contract": true,
+  "xlsx_zip_signature": true,
+  "resource_roundtrip": true,
+  "validation_complete": false,
+  "delivery_mode": "draft"
+}

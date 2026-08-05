@@ -21,7 +21,7 @@ SPEC_VERSION = "finance_spec.v2"
 LEGACY_SPEC_VERSION = "finance_spec.v1"
 LATEST_SPEC_VERSION = "finance_spec.v3"
 SUPPORTED_SPEC_VERSIONS = (LEGACY_SPEC_VERSION, SPEC_VERSION, LATEST_SPEC_VERSION)
-CONFIRMED_SOURCE_HINTS = {"confirmed_by_owner", "user_confirmed", "user_edited", "confirmed_spec"}
+CONFIRMED_SOURCE_HINTS = {"snapshot_fixed", "user_confirmed", "user_edited", "confirmed_spec"}
 SPEC_MIGRATOR_VERSIONS = {
     "v1_to_v2": "finance_spec_migrator.v1_to_v2.1",
     "v2_to_v3": "finance_spec_migrator.v2_to_v3.1",
@@ -189,8 +189,6 @@ class FinanceSpec:
 
     confirmation_status: str = "candidate"
     field_sources: dict[str, Any] = field(default_factory=dict)
-    confirmed_at: str = ""
-    confirmed_by: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -281,7 +279,6 @@ class HistoricalStatement:
     reconciliation: dict[str, Any] = field(default_factory=dict)
     anomalies: list[dict[str, Any]] = field(default_factory=list)
     source_locators: list[dict[str, Any]] = field(default_factory=list)
-    manual_review_status: str = "pending"
 
 
 @dataclass
@@ -319,8 +316,6 @@ def migrate_spec_v1_to_v2(spec: dict[str, Any]) -> dict[str, Any]:
     out.setdefault("policy_version", "")
     out.setdefault("industry_profile_version", "")
     out.setdefault("field_sources", {})
-    out.setdefault("confirmed_at", "")
-    out.setdefault("confirmed_by", "")
     return out
 
 
@@ -358,8 +353,8 @@ def migrate_spec_v2_to_v3(spec: dict[str, Any]) -> dict[str, Any]:
     # A migration never confirms facts that were absent from the source spec.
     if version != LATEST_SPEC_VERSION:
         out["confirmation_status"] = "candidate"
-        out["confirmed_at"] = ""
-        out["confirmed_by"] = ""
+    out.pop("confirmed_at", None)
+    out.pop("confirmed_by", None)
     return out
 
 
@@ -454,18 +449,15 @@ def spec_migration_diff(before: dict[str, Any], after: dict[str, Any]) -> list[d
     return rows
 
 
-def mark_spec_confirmed(
-    spec: dict[str, Any], *, confirmed_by: str = "owner", confirmed_at: str = "",
-) -> dict[str, Any]:
+def mark_spec_confirmed(spec: dict[str, Any]) -> dict[str, Any]:
     out = (
         migrate_spec_to_v3(spec)
         if isinstance(spec, dict) and spec.get("version") == LATEST_SPEC_VERSION
         else migrate_spec_v1_to_v2(spec)
     )
     out["confirmation_status"] = "confirmed"
-    out["confirmed_by"] = confirmed_by or "owner"
-    if confirmed_at:
-        out["confirmed_at"] = confirmed_at
+    out.pop("confirmed_by", None)
+    out.pop("confirmed_at", None)
     if out.get("source_hint") not in CONFIRMED_SOURCE_HINTS:
         out["source_hint"] = "confirmed_spec"
     return out
@@ -500,9 +492,6 @@ def _validate_v3_formal(spec: dict[str, Any], errors: list[str]) -> None:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
-
-    if not str(spec.get("confirmed_by") or "").strip():
-        errors.append("finance_spec.v3 正式运行缺 confirmed_by")
 
     thresholds = spec.get("decision_thresholds") or {}
     if not isinstance(thresholds, dict) or not thresholds:
@@ -679,8 +668,6 @@ def _validate_v3_formal(spec: dict[str, Any], errors: list[str]) -> None:
         for field in ("entity_id", "period_start", "period_end", "source_format", "normalized_accounts"):
             if missing(statement.get(field)):
                 errors.append(f"historical_statements[{index}] 缺 {field}")
-        if statement.get("manual_review_status") != "approved":
-            errors.append(f"historical_statements[{index}] 尚未人工批准")
         if not (statement.get("source_locators") or []):
             errors.append(f"historical_statements[{index}] 缺页码/单元格来源定位")
         reconciliation = statement.get("reconciliation") or {}
@@ -1203,8 +1190,6 @@ def _validate_v3(spec: dict[str, Any], errs: list[str]) -> None:
             continue
         if statement.get("statement_type") not in {"balance_sheet", "income_statement", "cash_flow"}:
             errs.append(f"historical_statements[{index}].statement_type 非法")
-        if statement.get("manual_review_status") not in {"pending", "approved", "rejected"}:
-            errs.append(f"historical_statements[{index}].manual_review_status 非法")
 
     thresholds = spec.get("decision_thresholds")
     if thresholds is not None:
@@ -1363,8 +1348,6 @@ FINANCE_SPEC_SCHEMA: dict[str, Any] = {
         "source_hint": {"type": "string"},
         "confirmation_status": {"type": "string", "enum": ["candidate", "confirmed"]},
         "field_sources": {"type": "object"},
-        "confirmed_at": {"type": "string"},
-        "confirmed_by": {"type": "string"},
     },
     "required": ["revenue"],
     "additionalProperties": False,

@@ -22,8 +22,8 @@ _OUTPUT = make_tool_output_schema(
         "delivery_intent": {"type": "object"},
         "delivery_run": {"type": "object"},
         "assumption_package": {"type": "object"},
-        "formal_delivery_ready": {"type": "boolean"},
-        "publish_eligibility": {"type": "boolean"},
+        "validation_complete": {"type": "boolean"},
+        "input_evidence_complete": {"type": "boolean"},
     },
     required=("resource_uris", "warnings", "blockers", "next_actions"),
 )

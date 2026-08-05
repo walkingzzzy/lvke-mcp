@@ -1267,7 +1267,7 @@ def _renderer_row_contract(key: str, body: dict[str, Any]) -> dict[str, Any]:
                             break
         checks["repay_source_parent_child_closed"] = parent_child_ok
         if not checks["confirmed_repay_sources"]:
-            gaps.append("偿债资金来源未绑定 confirmed fact_pack/已批准明细；禁止默认 75% 伪造")
+            gaps.append("偿债资金来源未绑定 confirmed fact_pack 明细；禁止默认 75% 伪造")
         if not checks["repay_source_values"]:
             gaps.append("偿债资金来源的利润/折旧/摊销年度金额不完整")
         if not checks["repay_source_covers_debt_service"]:
@@ -2971,7 +2971,7 @@ def build_all_structured(fin: dict[str, Any]) -> dict[str, Any]:
         "template_ready": reference_structure_ready,
         "reference_structure_ready": reference_structure_ready,
         # 预导出阶段没有公式覆盖/独立重算证据，禁止提前宣称 formal。
-        "formal_delivery_ready": False,
+        "validation_complete": False,
         "formal_gate_stage": "pre_export",
         "source_coverage": source_coverage.get("coverage"),
         "source_coverage_by_table": {
@@ -2994,7 +2994,7 @@ def build_all_structured(fin: dict[str, Any]) -> dict[str, Any]:
         "ineffective_tables": ineffective,
         "not_applicable_tables": not_applicable,
         "formal_vs_business_note": (
-            "reference_structure_ready 仅表示结构齐套；formal_delivery_ready 还必须在导出阶段通过"
+            "reference_structure_ready 仅表示结构齐套；validation_complete 还必须在导出阶段通过"
             "来源覆盖、公式覆盖、独立重算、delivery_grade_ceiling=formal_candidate，"
             "且仍不等于五簿 dual_track review_passed 或甲方业务闭合"
         ),

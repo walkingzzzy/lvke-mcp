@@ -31,7 +31,7 @@ ResearchRunKind = Literal[
     "continuation",
     "recertify",
     "report_regeneration",
-    "legacy_auto_approved",
+    "legacy_automatic",
 ]
 StaleFlag = Literal[
     "brief",
@@ -599,8 +599,6 @@ class BriefRevisionRef(JsonContract):
     session_id: str
     base_revision_id: str = ""
     status: Literal["proposed", "accepted", "rejected", "superseded"] = "proposed"
-    created_by: str = ""
-    accepted_by: str = ""
     created_at: str = ""
     accepted_at: str = ""
     brief_payload: dict[str, Any] = field(default_factory=dict)
@@ -614,12 +612,11 @@ class PlanRevisionRef(JsonContract):
     plan_revision_id: str
     session_id: str
     based_on_brief_revision_id: str = ""
-    status: Literal["proposed", "approved", "rejected", "superseded", "legacy_auto_approved"] = (
+    status: Literal["proposed", "accepted", "rejected", "superseded", "legacy_automatic"] = (
         "proposed"
     )
     fingerprint: str = ""
-    approved_by: str = ""
-    approved_at: str = ""
+    accepted_at: str = ""
     created_at: str = ""
     nodes: list[dict[str, Any]] = field(default_factory=list)
     augmentation_suggestions: list[dict[str, Any]] = field(default_factory=list)

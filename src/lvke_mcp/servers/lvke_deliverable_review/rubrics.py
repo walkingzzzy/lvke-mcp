@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from lvke_mcp.domains.reports import read_model as report_read_model
 from lvke_mcp.runtime.storage import JSONArtifactStore
-from lvke_mcp.servers.lvke_report_generation import service as report_service
 
 RUBRIC_VERSION = "feasibility-section.v1"
 PASS_SCORE = 4.0
@@ -129,7 +129,7 @@ def score_section(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = str(args["workspace_id"])
     revision_id = str(args["report_revision_id"])
     section_id = str(args["section_id"])
-    record, _native = report_service._resolve_revision_record(  # noqa: SLF001
+    record, _native = report_read_model.resolve_revision_record(
         workspace_id, revision_id
     )
     if record is None:
@@ -146,12 +146,12 @@ def score_section(args: dict[str, Any]) -> dict[str, Any]:
             "blockers": ["rubric_revision_not_found"],
             "next_actions": [],
         }
-    section_result = report_service.get_section(
+    section_result = report_read_model.get_section(
         workspace_id, revision_id, section_id
     )
     if section_result.get("status") != "ok":
         return section_result
-    validation = report_service.validate_section(
+    validation = report_read_model.validate_section(
         workspace_id, revision_id, section_id
     )
     content = str(section_result.get("content") or "")

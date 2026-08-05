@@ -18,6 +18,7 @@ PROVIDER_NAME = "tavily-hikari"
 SEARCH_TOOL = "tavily_search"
 EXTRACT_TOOL = "tavily_extract"
 _SERVER_ENV = "LVKE_MCP_TAVILY_SERVER"
+_CHILD_ENV = ("TAVILY_MCP_URL", "TAVILY_MCP_BEARER_TOKEN")
 _OPEN_TIMEOUT = 8.0
 _CALL_TIMEOUT = 45.0
 
@@ -39,17 +40,34 @@ async def _call_tool(name: str, arguments: dict[str, Any]) -> Any:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
-    params = StdioServerParameters(command=command[0], args=command[1:])
+    child_env = {
+        name: os.environ[name]
+        for name in _CHILD_ENV
+        if str(os.environ.get(name) or "").strip()
+    }
+    params = StdioServerParameters(
+        command=command[0],
+        args=command[1:],
+        env=child_env,
+    )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await asyncio.wait_for(session.initialize(), timeout=_OPEN_TIMEOUT)
             result = await asyncio.wait_for(
                 session.call_tool(name, arguments), timeout=_CALL_TIMEOUT
             )
-            if result.isError:
+            is_error = bool(
+                getattr(result, "isError", getattr(result, "is_error", False))
+            )
+            if is_error:
                 raise RuntimeError(f"{name} 调用失败: {result.content}")
-            if result.structuredContent is not None:
-                return result.structuredContent
+            structured = getattr(
+                result,
+                "structuredContent",
+                getattr(result, "structured_content", None),
+            )
+            if structured is not None:
+                return structured
             text = "\n".join(
                 item.text for item in (result.content or []) if hasattr(item, "text")
             )

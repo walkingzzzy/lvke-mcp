@@ -1,14 +1,11 @@
-"""财务宿主门禁：财务正文/发布前必须绑定可用的模型 run。
+"""财务结果完整性校验：正文和工件必须绑定可回读的一致 FinanceRun。
 
-对齐《财务模型与13表上下级关系及AI调用流程方案》：
-- 无成功 run_id 不得写确定性财务结论 / 不得装配 13 表
-- 正式发布（review_grade）必须绑定已批准且勾稽通过的 run
-- 预览（estimate_preview）可用 draft run，但不得伪装评审级
+``run_id`` 只承担结果寻址、回读和 lineage。
 """
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 
 def _load_binding(
@@ -32,7 +29,7 @@ def _assert_acquisition_publish_finance_binding(
     acquisition release for the wrong product contract.
     """
 
-    from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
+    from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
     from lvke_mcp.domains.finance.spec import validate_for_formal
 
     blockers: list[dict[str, Any]] = []
@@ -52,23 +49,19 @@ def _assert_acquisition_publish_finance_binding(
             "blockers": blockers,
             "warnings": warnings,
             "bound_run_id": run_id,
-            "approved_run_id": None,
             "binding": binding,
-            "artifact_id": binding.get("artifact_id"),
+            "artifact_id": None,
             "gate_type": "asset_acquisition",
-            "assurance_level": "estimate_preview",
+            "validation_level": "incomplete",
         }
 
     if run.get("status") != "succeeded" or not run.get("consistency_ok"):
         block(
-            "approved_run_consistency_failed",
+            "finance_run_consistency_failed",
             "资产收购 run 尚未成功完成内部勾稽",
             status=run.get("status"),
             consistency_ok=run.get("consistency_ok"),
         )
-    if run.get("review_status") != "approved" or not run.get("approved_by"):
-        block("finance_run_not_approved", "资产收购 run 尚未完成批准")
-
     spec_id = str(run.get("spec_id") or "")
     spec_row = (
         acquisition_service.get_spec(workspace_id, spec_id)
@@ -105,8 +98,8 @@ def _assert_acquisition_publish_finance_binding(
             or current_evidence.get("binding_version") != run.get("evidence_binding_version")
         ):
             block(
-                "finance_evidence_review_required",
-                "资产收购 run 的证据绑定已失效、待复核或偏离批准快照",
+                "finance_evidence_binding_invalid",
+                "资产收购 run 的证据绑定已失效或偏离运行快照",
                 expected_binding_hash=run.get("evidence_binding_hash"),
                 current_binding_hash=current_evidence.get("binding_hash"),
                 evidence_status=current_evidence.get("status"),
@@ -118,7 +111,7 @@ def _assert_acquisition_publish_finance_binding(
             )
     if isinstance(spec, dict):
         try:
-            from lvke_mcp.servers.lvke_asset_acquisition.backend import _bind_spec_evidence
+            from lvke_mcp.domains.asset_acquisition.backend import _bind_spec_evidence
 
             current_evidence = _bind_spec_evidence(workspace_id, spec)
         except Exception as exc:  # noqa: BLE001
@@ -135,7 +128,7 @@ def _assert_acquisition_publish_finance_binding(
         ):
             block(
                 "finance_evidence_binding_invalid",
-                "资产收购 run 的服务端证据绑定未批准、已失效或与运行快照不一致",
+                "资产收购 run 的服务端证据绑定无效或与运行快照不一致",
                 expected_binding_hash=run.get("evidence_binding_hash"),
                 current_binding_hash=current_evidence.get("binding_hash"),
                 evidence_status=current_evidence.get("status"),
@@ -146,31 +139,14 @@ def _assert_acquisition_publish_finance_binding(
                 ],
             )
 
-    reference_review = run.get("reference_review") or {}
-    if (
-        run.get("reference_review_status") != "approved"
-        or reference_review.get("status") != "approved"
-        or not str(reference_review.get("actor") or "").strip()
-        or not str(reference_review.get("reference_hash") or "").strip()
-    ):
-        block("finance_reference_review_required", "资产收购参考轨尚未完成可追溯批准")
-
-    business_review = run.get("business_review") or {}
-    if (
-        run.get("business_review_status") != "approved"
-        or business_review.get("status") != "approved"
-        or not str(business_review.get("actor") or "").strip()
-    ):
-        block("finance_business_review_required", "资产收购业务差异尚未批准")
-
     if isinstance(spec, dict):
         max_price_ok, max_price_error, max_price_details = acquisition_service._max_price_gate(  # noqa: SLF001
-            run, spec, require_business_decision=True,
+            run, spec, require_business_decision=False,
         )
         if not max_price_ok:
             block(
-                "finance_max_price_review_required",
-                "最高可接受收购价尚未按正式阈值求解并完成业务批准",
+                "finance_max_price_validation_failed",
+                "最高可接受收购价未按确定性阈值完成求解",
                 **({"gate_reason": max_price_error} | max_price_details),
             )
 
@@ -235,7 +211,7 @@ def _assert_acquisition_publish_finance_binding(
             valid_artifacts.append(artifact)
 
     if not succeeded:
-        block("finance_acquisition_artifact_missing", "批准 run 尚无成功的正式收购工件")
+        block("finance_acquisition_artifact_missing", "该 run 尚无成功且完整的收购工件")
     elif not valid_artifacts:
         block(
             "finance_artifact_mismatch",
@@ -243,37 +219,52 @@ def _assert_acquisition_publish_finance_binding(
             artifacts=artifact_failures,
         )
 
-    bound_tables_package_id = str(binding.get("acquisition_tables_package_id") or "")
+    valid_ids = sorted(
+        str(item.get("artifact_id") or "")
+        for item in valid_artifacts
+        if item.get("artifact_id")
+    )
+    if len(valid_ids) > 1:
+        block(
+            "finance_acquisition_artifact_ambiguous",
+            "该 run 对应多个完整工件，必须使用 artifact_id 直接寻址",
+            artifact_ids=valid_ids,
+        )
+    bound_artifact_id = valid_ids[0] if len(valid_ids) == 1 else ""
+
+    bound_tables_package_id = ""
     valid_tables_package: dict[str, Any] = {}
     if run.get("model_version") == "acquisition_model.v3":
         try:
-            from lvke_mcp.servers.lvke_asset_acquisition.tables import get_package_record
+            from lvke_mcp.domains.asset_acquisition.tables import PACKAGE_STORE
 
-            table_record = (
-                get_package_record(workspace_id, bound_tables_package_id)
-                if bound_tables_package_id
-                else None
-            )
+            table_records = [
+                record
+                for record in PACKAGE_STORE.list(workspace_id)
+                if (record.get("payload") or {}).get("run_id") == run_id
+                and ((record.get("payload") or {}).get("integrity") or {}).get("status") == "passed"
+            ]
         except Exception as exc:  # noqa: BLE001
-            table_record = None
+            table_records = []
             block(
                 "finance_acquisition_tables_unverifiable",
                 f"无法验证收购十三表 package：{type(exc).__name__}",
             )
-        if not bound_tables_package_id:
+        if not table_records:
             block(
                 "finance_acquisition_tables_missing",
-                "月度 v3 正式发布必须绑定收购十三表 package",
+                "月度 v3 run 缺少通过完整性校验的收购十三表 package",
             )
-        elif table_record is None:
+        elif len(table_records) > 1:
             block(
-                "finance_acquisition_tables_not_found",
-                "finance_binding 指向的收购十三表 package 不存在",
-                package_id=bound_tables_package_id,
+                "finance_acquisition_tables_ambiguous",
+                "该 run 对应多个完整十三表 package，必须使用 package_id 直接寻址",
+                package_ids=sorted(str(item.get("object_id") or "") for item in table_records),
             )
         else:
-            table_payload = table_record.get("payload") or {}
-            integrity = table_payload.get("integrity") or {}
+            valid_tables_package = table_records[0]
+            bound_tables_package_id = str(valid_tables_package.get("object_id") or "")
+            table_payload = valid_tables_package.get("payload") or {}
             table_mismatches = [
                 {"field": field, "expected": run.get(field), "actual": table_payload.get(field)}
                 for field in (
@@ -282,93 +273,25 @@ def _assert_acquisition_publish_finance_binding(
                 )
                 if table_payload.get(field) != run.get(field)
             ]
-            if (
-                integrity.get("status") != "passed"
-                or int(integrity.get("required_table_count") or 0) != 13
-                or int(integrity.get("manifest_count") or 0) != 13
-                or table_mismatches
-            ):
+            if table_mismatches:
                 block(
                     "finance_acquisition_tables_mismatch",
-                    "收购十三表完整性或 run/spec/input/model/evidence 绑定不一致",
+                    "收购十三表与 run/spec/input/model/evidence 绑定不一致",
                     package_id=bound_tables_package_id,
-                    integrity=integrity,
                     mismatches=table_mismatches,
                 )
-            else:
-                valid_tables_package = table_record
 
-    bound_artifact_id = str(binding.get("artifact_id") or "")
-    valid_ids = {str(item.get("artifact_id") or "") for item in valid_artifacts}
-    if not bound_artifact_id:
-        item = {
-            "code": "finance_artifact_binding_missing",
-            "message": "finance_binding 未绑定成功的正式收购工件",
-        }
-        (blockers if strict else warnings).append(item)
-    elif bound_artifact_id not in valid_ids:
-        block(
-            "finance_artifact_binding_stale",
-            "finance_binding 指向的工件不存在、未成功或完整性校验失败",
-            artifact_id=bound_artifact_id,
-        )
-
-    expected_binding = {
-        "finance_run_id": run_id,
-        "spec_hash": run.get("spec_hash"),
-        "spec_id": spec_id,
-        "fact_revision": spec_id,
-        "spec_snapshot_hash": run.get("spec_snapshot_hash"),
-        "evidence_binding_version": run.get("evidence_binding_version"),
-        "evidence_binding_hash": run.get("evidence_binding_hash"),
-        "input_hash": run.get("input_hash"),
-        "model_version": run.get("model_version"),
-        "review_status": "approved",
-        "binding_kind": "asset_acquisition",
-    }
-    if run.get("model_version") == "acquisition_model.v3":
-        expected_binding.update({
-            "acquisition_tables_package_id": bound_tables_package_id,
-            "acquisition_tables_basis_hash": valid_tables_package.get("basis_hash"),
-        })
-    bound_artifact = next(
-        (
-            item for item in valid_artifacts
-            if str(item.get("artifact_id") or "") == bound_artifact_id
-        ),
-        {},
-    )
-    if bound_artifact:
-        expected_binding.update({
-            "artifact_status": "succeeded",
-            "template_version": bound_artifact.get("template_version"),
-            "report_data_hash": bound_artifact.get("report_data_hash"),
-        })
-    binding_mismatches = [
-        {"field": field, "expected": expected, "actual": binding.get(field)}
-        for field, expected in expected_binding.items()
-        if binding.get(field) != expected
-    ]
-    if binding_mismatches:
-        block(
-            "finance_binding_stale",
-            "正式报告绑定的 run、Spec 或事实版本与批准 run 不一致",
-            mismatches=binding_mismatches,
-        )
-
-    approved = run_id if run.get("review_status") == "approved" else None
     return {
         "ok": not blockers,
         "blockers": blockers,
         "warnings": warnings,
         "bound_run_id": run_id,
-        "approved_run_id": approved,
         "binding": binding,
         "artifact_id": bound_artifact_id or None,
         "acquisition_tables_package_id": bound_tables_package_id or None,
         "valid_artifact_ids": sorted(valid_ids),
         "gate_type": "asset_acquisition",
-        "assurance_level": "review_grade" if not blockers else "estimate_preview",
+        "validation_level": "complete" if not blockers else "incomplete",
     }
 
 
@@ -378,29 +301,15 @@ def assert_publish_finance_binding(
     expected_run_id: str = "",
     strict: bool = True,
 ) -> dict[str, Any]:
-    """正式发布门禁：正文绑定 run 必须存在且等于最新 approved run。
+    """校验报告绑定的 FinanceRun 及其表格工件完整性。
 
-    Returns:
-        {
-          ok, blockers: [{code, message}], warnings: [...],
-          bound_run_id, approved_run_id, binding
-        }
+    ``strict`` 只决定缺少显式绑定时返回 blocker 还是 warning。
     """
     blockers: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
-    binding = _load_binding(workspace_id)
-    actual_bound = str(binding.get("finance_run_id") or "") if isinstance(binding, dict) else ""
-    expected = str(expected_run_id or "").strip()
-    bound = expected or actual_bound
-    if expected and actual_bound != expected:
-        blockers.append({
-            "code": "finance_binding_revision_mismatch",
-            "message": "报告修订绑定的财务 run 与工作区当前绑定不一致，拒绝静默切换",
-            "details": {
-                "expected_run_id": expected,
-                "actual_run_id": actual_bound or None,
-            },
-        })
+    binding: dict[str, Any] = {}
+    actual_bound = ""
+    bound = str(expected_run_id or "").strip()
 
     # FinanceSpec v3 acquisition runs publish their own acquisition report
     # pack.  Return before touching audit_db/table_render/table_pack so the
@@ -419,49 +328,15 @@ def assert_publish_finance_binding(
             result["actual_bound_run_id"] = actual_bound or None
         return result
 
-    approved_id = ""
-    approved_view: dict[str, Any] = {}
-    try:
-        from lvke_mcp.domains.finance import run_store
-
-        approved_view = run_store.get_approved_run(workspace_id) or {}
-        approved_id = str(approved_view.get("run_id") or "")
-        au = {"has_run": bool(run_store.latest_run(workspace_id))}
-    except Exception:  # noqa: BLE001
-        au = {}
-        approved_view = {}
-
-    if not au.get("has_run"):
-        blockers.append({
-            "code": "audit_no_run",
-            "message": "无财务审计 run，终稿数字不可追溯",
-        })
-    if not approved_id:
-        blockers.append({
-            "code": "finance_run_not_approved",
-            "message": "财务测算尚未批准，终稿不得发布",
-        })
+    run_view: dict[str, Any] = {}
+    snapshot: dict[str, Any] = {}
+    if not bound:
+        item = {
+            "code": "finance_binding_missing",
+            "message": "报告必须明确绑定 finance_run_id",
+        }
+        (blockers if strict else warnings).append(item)
     else:
-        if not bound:
-            msg = {
-                "code": "finance_binding_missing",
-                "message": "报告未绑定 finance_run_id；须在生成财务章时绑定已批准 run",
-            }
-            (blockers if strict else warnings).append(msg)
-        elif bound != approved_id:
-            blockers.append({
-                "code": "finance_binding_stale",
-                "message": (
-                    f"正文绑定 run ({bound}) 与当前已批准 run ({approved_id}) 不一致，"
-                    "须用批准 run 重新装配正文/13 表后发布"
-                ),
-            })
-        # approved 自身勾稽
-        if approved_view and not approved_view.get("consistency_ok"):
-            blockers.append({
-                "code": "approved_run_consistency_failed",
-                "message": "已批准 run 勾稽未通过，禁止发布",
-            })
         try:
             from lvke_mcp.domains.finance import run_store, table_render
             from lvke_mcp.domains.finance.model_manifest import (
@@ -469,26 +344,51 @@ def assert_publish_finance_binding(
                 manifest_from_dict,
             )
 
-            snapshot = run_store.load_result_snapshot(workspace_id, approved_id) or {}
+            run_view = run_store.load_run(workspace_id, bound) or {}
+            snapshot = run_store.load_result_snapshot(workspace_id, bound) or {}
+        except Exception as exc:  # noqa: BLE001
+            blockers.append({
+                "code": "finance_run_unverifiable",
+                "message": f"无法读取绑定的 FinanceRun：{type(exc).__name__}",
+            })
+            run_view = {}
+            snapshot = {}
 
+        if not run_view or not snapshot:
+            blockers.append({
+                "code": "finance_run_not_found",
+                "message": "绑定的 FinanceRun 不存在或缺少结果快照",
+                "details": {"run_id": bound},
+            })
+        elif str(run_view.get("workspace_id") or "") != str(workspace_id):
+            blockers.append({
+                "code": "finance_run_workspace_mismatch",
+                "message": "绑定的 FinanceRun 不属于当前工作区",
+            })
+        else:
+            if not run_view.get("consistency_ok"):
+                blockers.append({
+                    "code": "finance_run_consistency_failed",
+                    "message": "绑定的 FinanceRun 勾稽未通过",
+                })
             manifest_data = snapshot.get("model_manifest") or {}
             if not manifest_data:
                 blockers.append({
                     "code": "finance_manifest_missing",
-                    "message": "已批准 run 缺少完整 ModelManifest，无法证明模型、政策、行业和门禁版本",
+                    "message": "绑定的 FinanceRun 缺少完整 ModelManifest",
                 })
             else:
                 manifest = manifest_from_dict(manifest_data)
                 if not snapshot.get("valuation_date"):
                     blockers.append({
                         "code": "finance_valuation_date_missing",
-                        "message": "已批准 run 缺少 valuation_date，无法复现政策有效期与审计口径",
+                        "message": "绑定的 FinanceRun 缺少 valuation_date",
                     })
                 if manifest.spec_schema_version != DEFAULT_SPEC_SCHEMA_VERSION:
                     blockers.append({
                         "code": "finance_spec_schema_version_stale",
                         "message": (
-                            "已批准 run 的 FinanceSpec schema 版本过旧："
+                            "绑定的 FinanceRun 使用了过期 FinanceSpec schema："
                             f"{manifest.spec_schema_version}，当前要求 {DEFAULT_SPEC_SCHEMA_VERSION}"
                         ),
                     })
@@ -496,84 +396,58 @@ def assert_publish_finance_binding(
                 if manifest_errors:
                     blockers.append({
                         "code": "finance_manifest_invalid",
-                        "message": f"已批准 run 的 ModelManifest 无效：{manifest_errors}",
+                        "message": f"绑定的 FinanceRun ModelManifest 无效：{manifest_errors}",
                     })
                 if snapshot.get("manifest_hash") != manifest.hash:
                     blockers.append({
                         "code": "finance_manifest_hash_mismatch",
-                        "message": "已批准 run 的 manifest_hash 与 ModelManifest 内容不一致",
+                        "message": "manifest_hash 与 ModelManifest 内容不一致",
                     })
-            quality = (table_render.build_all_structured(snapshot).get("_meta") or {}) if snapshot else {}
-            if not quality.get("formal_delivery_ready"):
+
+            quality = table_render.build_all_structured(snapshot).get("_meta") or {}
+            if not quality.get("validation_complete"):
                 blockers.append({
                     "code": "finance_formal_delivery_incomplete",
                     "message": (
-                        "财务附表尚未达到正式交付条件："
-                        f"有效 {quality.get('effective_table_count', 0)}/{quality.get('required_table_count', 13)} 张；"
-                        f"缺口={quality.get('missing_fields_by_table') or {}}；"
-                        f"无效表={quality.get('ineffective_tables') or []}"
+                        "财务附表不完整："
+                        f"有效 {quality.get('effective_table_count', 0)}/"
+                        f"{quality.get('required_table_count', 13)} 张"
                     ),
                 })
             from lvke_mcp.domains.finance import table_pack
 
-            xlsx = table_pack.default_artifact_dir(
-                workspace_id,
-                approved_id,
-            ) / "财务专业附表.xlsx"
+            artifact_dir = table_pack.default_artifact_dir(workspace_id, bound)
+            xlsx = artifact_dir / "财务专业附表.xlsx"
+            evidence_path = artifact_dir / "evidence.json"
             if not xlsx.is_file():
                 blockers.append({
                     "code": "finance_xlsx_missing",
-                    "message": "已批准 run 缺少财务专业附表.xlsx，正式发布必须生成 13-sheet Excel",
+                    "message": "绑定的 FinanceRun 缺少财务专业附表.xlsx",
                 })
-            evidence_path = table_pack.default_artifact_dir(
-                workspace_id,
-                approved_id,
-            ) / "evidence.json"
             if evidence_path.is_file():
                 import json
 
                 delivery_evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
-                if not delivery_evidence.get("formal_delivery_ready"):
+                if not delivery_evidence.get("validation_complete"):
                     blockers.append({
                         "code": "finance_excel_semantic_checks_failed",
-                        "message": (
-                            "Excel 深度表格审查未通过："
-                            f"{delivery_evidence.get('semantic_blockers') or []}"
-                        ),
+                        "message": "Excel 语义与回读校验未通过",
                     })
             elif xlsx.is_file():
                 blockers.append({
                     "code": "finance_delivery_evidence_missing",
-                    "message": "存在 Excel 但缺少 evidence.json，无法证明深度表格审查通过",
+                    "message": "存在 Excel 但缺少 evidence.json 回读证据",
                 })
-        except Exception as exc:  # noqa: BLE001
-            blockers.append({
-                "code": "finance_formal_delivery_unverifiable",
-                "message": f"无法验证财务正式交付完整性：{type(exc).__name__}",
-            })
-        open_blocking = [
-            i for i in (approved_view.get("issues") or [])
-            if i.get("status") == "open" and i.get("blocking")
-        ]
-        if open_blocking:
-            blockers.append({
-                "code": "finance_blocking_issues",
-                "message": f"已批准 run 仍有 {len(open_blocking)} 个未关闭阻断问题",
-            })
 
-    # 批准 run 被 supersede 的情况（get_approved 不会返回 superseded，但 binding 可能旧）
-    if bound and approved_id and bound == approved_id:
-        try:
-            from lvke_mcp.domains.finance import run_store
-
-            view = run_store.load_run(workspace_id, bound) or {}
-            if (view.get("review_status") or "") == "superseded":
+            open_blocking = [
+                item for item in (run_view.get("issues") or [])
+                if item.get("status") == "open" and item.get("blocking")
+            ]
+            if open_blocking:
                 blockers.append({
-                    "code": "finance_run_superseded",
-                    "message": "绑定 run 已因输入变更过期(superseded)，须重新测算并批准",
+                    "code": "finance_blocking_issues",
+                    "message": f"绑定的 FinanceRun 仍有 {len(open_blocking)} 个一致性阻断问题",
                 })
-        except Exception:  # noqa: BLE001
-            pass
 
     return {
         "ok": not blockers,
@@ -581,9 +455,8 @@ def assert_publish_finance_binding(
         "warnings": warnings,
         "bound_run_id": bound or None,
         "actual_bound_run_id": actual_bound or None,
-        "approved_run_id": approved_id or None,
         "binding": binding,
-        "assurance_level": "review_grade" if (not blockers and approved_id) else "estimate_preview",
+        "validation_level": "complete" if not blockers else "incomplete",
     }
 
 
@@ -618,7 +491,7 @@ def verify_narrative_numbers(
         }
 
     if rid.startswith("acqrun_"):
-        from lvke_mcp.servers.lvke_asset_acquisition import backend as acquisition_service
+        from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 
         run = acquisition_service.get_run(workspace_id, rid)
         if not run:

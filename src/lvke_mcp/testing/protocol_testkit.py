@@ -1,10 +1,7 @@
-"""十一服务 MCP Server 协议合规测试的可复用 helper（方案 §13 目标模块）。
+"""24 个 MCP Server 协议合规测试的可复用 helper。
 
-从 ``tests/mcp_servers/test_protocol_compliance.py`` 收口子进程启动、
-initialize 握手报文与原始 JSON-RPC 批量交互，让协议边界断言可以对
-全部十一个 Server 参数化复用，而不是每个测试文件各写一套进程管理。
-
-本模块不 import pytest：断言留在测试内，这里只提供确定性驱动。
+集中提供子进程启动、initialize 握手报文与原始 JSON-RPC 批量交互。
+调用环境决定包的安装来源和工作目录，驱动本身不注入源码路径。
 """
 
 from __future__ import annotations
@@ -14,45 +11,18 @@ import os
 import select
 import subprocess
 import sys
+import tempfile
 import time
-from pathlib import Path
 from typing import Any
 
 from mcp.types.version import LATEST_HANDSHAKE_VERSION, LATEST_MODERN_VERSION
 
-REPO_ROOT = Path(__file__).resolve().parents[4]  # src/lvke_mcp/testing -> 仓库根
+from lvke_mcp.testing.server_manifest import SERVER_SPECS
 
-# 十一个 Codex 业务 Server 的启动模块，与注册主链保持同序。
-SIX_LAYER_MODULES: tuple[str, ...] = (
-    "lvke_mcp.servers.lvke_data_acquisition.server",
-    "lvke_mcp.servers.lvke_data_analysis.server",
-    "lvke_mcp.servers.lvke_project_planning.server",
-    "lvke_mcp.servers.lvke_source_files.server",
-    "lvke_mcp.servers.lvke_finance_model.server",
-    "lvke_mcp.servers.lvke_deep_research.server",
-    "lvke_mcp.servers.lvke_finance_tables.server",
-    "lvke_mcp.servers.lvke_report_generation.server",
-    "lvke_mcp.servers.lvke_asset_acquisition.server",
-    "lvke_mcp.servers.lvke_deliverable_review.server",
-    "lvke_mcp.servers.lvke_knowledge_governance.server",
-    "lvke_mcp.servers.lvke_zero_material_delivery.server",
-)
+SIX_LAYER_MODULES: tuple[str, ...] = tuple(spec.module for spec in SERVER_SPECS)
 
-# 每个 Server 一个"必存在且 workspace_id 必填"的探针工具，
-# 供入参 schema 边界测试构造真实（而非撞上 Unknown tool 的）失败。
 SCHEMA_PROBE_TOOLS: dict[str, str] = {
-    "lvke_mcp.servers.lvke_data_acquisition.server": "data_search",
-    "lvke_mcp.servers.lvke_data_analysis.server": "analysis_status",
-    "lvke_mcp.servers.lvke_project_planning.server": "project_context_get",
-    "lvke_mcp.servers.lvke_source_files.server": "source_file_get",
-    "lvke_mcp.servers.lvke_finance_model.server": "finance_get_run",
-    "lvke_mcp.servers.lvke_deep_research.server": "dr_status",
-    "lvke_mcp.servers.lvke_finance_tables.server": "tables_render",
-    "lvke_mcp.servers.lvke_report_generation.server": "report_status",
-    "lvke_mcp.servers.lvke_asset_acquisition.server": "acquisition_get_run",
-    "lvke_mcp.servers.lvke_deliverable_review.server": "review_get",
-    "lvke_mcp.servers.lvke_knowledge_governance.server": "knowledge_get_candidate",
-    "lvke_mcp.servers.lvke_zero_material_delivery.server": "delivery_status",
+    spec.module: spec.probe_tool for spec in SERVER_SPECS
 }
 
 
@@ -129,14 +99,14 @@ def run_raw(
     """
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(REPO_ROOT)
+    temporary_data = tempfile.TemporaryDirectory(prefix="lvke-protocol-")
+    env["LVKE_MCP_DATA_DIR"] = temporary_data.name
     process = subprocess.Popen(
         [sys.executable, "-m", module],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        cwd=REPO_ROOT,
         env=env,
     )
     assert process.stdin is not None
@@ -159,15 +129,27 @@ def run_raw(
             if not line:
                 raise RuntimeError(f"{module} closed stdout before responding")
             responses.append(json.loads(line))
-    finally:
         process.stdin.close()
-    remaining = max(0.1, deadline - time.monotonic())
-    process.wait(timeout=remaining)
-    trailing_stdout = process.stdout.read()
-    stderr = process.stderr.read()
-    if process.returncode != 0:
-        raise RuntimeError(
-            f"{module} exited with {process.returncode}: {stderr[-2000:]}"
-        )
-    responses.extend(json.loads(line) for line in trailing_stdout.splitlines() if line)
-    return responses, stderr
+        remaining = max(0.1, deadline - time.monotonic())
+        process.wait(timeout=remaining)
+        trailing_stdout = process.stdout.read()
+        stderr = process.stderr.read()
+        if process.returncode != 0:
+            raise RuntimeError(
+                f"{module} exited with {process.returncode}: {stderr[-2000:]}"
+            )
+        responses.extend(json.loads(line) for line in trailing_stdout.splitlines() if line)
+        return responses, stderr
+    except BaseException:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=2)
+        raise
+    finally:
+        if not process.stdin.closed:
+            process.stdin.close()
+        temporary_data.cleanup()
