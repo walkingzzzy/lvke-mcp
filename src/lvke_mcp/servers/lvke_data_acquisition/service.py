@@ -19,6 +19,7 @@ from typing import Any
 from lvke_mcp.adapters.data_acquisition_repository import (
     COLLECTION_STORE,
     DISCOVERY_STORE,
+    RESOURCE_STORES,
     SEARCH_STORE,
     SOURCE_STORE,
     URL_AUDIT_STORE,
@@ -1576,14 +1577,14 @@ def list_resources(
     cursor: str = "",
     limit: int = 50,
 ) -> dict[str, Any]:
-    allowed = {kind for _store, kind in _RESOURCE_STORES}
+    allowed = {kind for _store, kind in RESOURCE_STORES}
     if resource_type and resource_type not in allowed:
         return _resource_failure(
             "resource_type_invalid",
             "未知 Resource 类型过滤条件",
         )
     entries: list[dict[str, Any]] = []
-    for store, kind in _RESOURCE_STORES:
+    for store, kind in RESOURCE_STORES:
         if resource_type and kind != resource_type:
             continue
         for record in store.list(workspace_id):
@@ -1644,12 +1645,12 @@ def _resource_failure(code: str, message: str) -> dict[str, Any]:
     }
 
 
-def provider_status() -> dict[str, Any]:
-    import asyncio
-
+async def provider_status() -> dict[str, Any]:
+    # 必须 await 而不是 asyncio.run：本函数由 OfficialStdioServer 在已运行的事件
+    # 循环中调用，asyncio.run 会抛 "cannot be called from a running event loop"。
     from lvke_mcp.domains.research.providers import tavily as tavily_provider
 
-    providers = [asyncio.run(tavily_provider.provider_status())]
+    providers = [await tavily_provider.provider_status()]
     available_count = sum(1 for item in providers if item["available"])
     status = "ok" if available_count else "blocked"
     return {

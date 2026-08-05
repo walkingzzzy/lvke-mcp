@@ -15,6 +15,7 @@ from lvke_mcp.adapters.data_analysis_repository import (
     INGEST_STORE,
     NORMALIZED_COMPARE_STORE,
     PROFILE_STORE,
+    RESOURCE_STORES,
     resolve_resource as resolve_repository_resource,
 )
 from lvke_mcp.runtime.storage import (
@@ -2081,11 +2082,11 @@ def list_resources(
     cursor: str = "",
     limit: int = 50,
 ) -> dict[str, Any]:
-    allowed = {kind for _store, kind in _RESOURCE_STORES}
+    allowed = {kind for _store, kind in RESOURCE_STORES}
     if resource_type and resource_type not in allowed:
         return _missing("resource_type_invalid", "未知 Resource 类型过滤条件")
     entries = []
-    for store, kind in _RESOURCE_STORES:
+    for store, kind in RESOURCE_STORES:
         if resource_type and kind != resource_type:
             continue
         for record in store.list(workspace_id):
