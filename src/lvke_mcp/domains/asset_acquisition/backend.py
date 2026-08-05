@@ -79,9 +79,19 @@ def _is_estimate_preview_spec(spec: Mapping[str, Any]) -> bool:
     )
 
 
+# P1-018：两组必填键提成常量，让校验、诊断与 server 层输入 schema 共用一份定义。
+RECONSTRUCTION_RECORD_FIELDS = (
+    "reconstruction_id", "source_uri", "content_hash", "locator", "source_kind",
+    "method", "limitations",
+)
+PROCESS_ACCEPTANCE_BASIS_FIELDS = (
+    "field", "value", "source_ref", "locator", "content_hash", "method", "limitation",
+)
+
+
 def _valid_reconstruction_records(value: Any) -> bool:
     records = value if isinstance(value, list) else []
-    required = {"reconstruction_id", "source_uri", "content_hash", "locator", "source_kind", "method", "limitations"}
+    required = set(RECONSTRUCTION_RECORD_FIELDS)
     return bool(records) and all(
         isinstance(item, Mapping)
         and required <= set(item)
@@ -94,7 +104,7 @@ def _valid_reconstruction_records(value: Any) -> bool:
 
 def _valid_process_acceptance_basis(value: Any) -> bool:
     records = value if isinstance(value, list) else []
-    required = {"field", "value", "source_ref", "locator", "content_hash", "method", "limitation"}
+    required = set(PROCESS_ACCEPTANCE_BASIS_FIELDS)
     return bool(records) and all(
         isinstance(item, Mapping)
         and required <= set(item)
@@ -104,15 +114,79 @@ def _valid_process_acceptance_basis(value: Any) -> bool:
     )
 
 
+def _record_gaps(
+    value: Any,
+    label: str,
+    fields: tuple[str, ...],
+    *,
+    list_fields: tuple[str, ...] = (),
+) -> list[str]:
+    """Describe why a reconstruction/basis record array fails its contract.
+
+    ``list_fields`` names keys that must be arrays rather than non-empty scalars,
+    mirroring how the matching ``_valid_*`` predicate exempts them from the blank
+    check.
+    """
+
+    if not isinstance(value, list) or not value:
+        return [f"{label} 缺失或为空数组，process_acceptance 要求至少一条记录"]
+    gaps: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, Mapping):
+            gaps.append(f"{label}[{index}] 不是对象")
+            continue
+        missing = [field for field in fields if field not in item]
+        if missing:
+            gaps.append(f"{label}[{index}] 缺少必填键：{'、'.join(missing)}")
+        blank = [
+            field for field in fields
+            if field not in list_fields and field in item and item.get(field) in (None, "")
+        ]
+        if blank:
+            gaps.append(f"{label}[{index}] 以下键为空值：{'、'.join(blank)}")
+        for field in list_fields:
+            if field in item and not isinstance(item.get(field), list):
+                gaps.append(f"{label}[{index}].{field} 必须是数组")
+        content_hash = str(item.get("content_hash") or "")
+        if content_hash and not content_hash.startswith("sha256:"):
+            gaps.append(f"{label}[{index}].content_hash 必须以 sha256: 开头")
+    return gaps
+
+
+def process_acceptance_gaps(spec: Mapping[str, Any]) -> list[str]:
+    """List the unmet ``process_acceptance`` conditions, most actionable first.
+
+    ``_is_process_acceptance_spec`` is exactly ``not process_acceptance_gaps(spec)``,
+    so the gate itself is unchanged — this only names what is missing so the caller
+    knows which field to supply instead of reading an opaque error code.
+    """
+
+    gaps: list[str] = []
+    if str(spec.get("confirmation_scope") or "") != "process_acceptance":
+        gaps.append("spec.confirmation_scope 必须为 process_acceptance")
+    if str(spec.get("evidence_policy") or "") != "source_reconstructed":
+        gaps.append(
+            "spec.evidence_policy 必须为 source_reconstructed"
+            "（process_acceptance 只用于来源重建资料的流程验收）"
+        )
+    if spec.get("project_fact_certified") is not False:
+        gaps.append("spec.project_fact_certified 必须显式为 false，不认证项目事实")
+    if str(spec.get("business_decision_status") or "") != "not_selected":
+        gaps.append("spec.business_decision_status 必须为 not_selected")
+    gaps.extend(_record_gaps(
+        spec.get("reconstruction_records"), "reconstruction_records",
+        RECONSTRUCTION_RECORD_FIELDS,
+        list_fields=("limitations",),
+    ))
+    gaps.extend(_record_gaps(
+        spec.get("process_acceptance_basis"), "process_acceptance_basis",
+        PROCESS_ACCEPTANCE_BASIS_FIELDS,
+    ))
+    return gaps
+
+
 def _is_process_acceptance_spec(spec: Mapping[str, Any]) -> bool:
-    return bool(
-        str(spec.get("confirmation_scope") or "") == "process_acceptance"
-        and str(spec.get("evidence_policy") or "") == "source_reconstructed"
-        and spec.get("project_fact_certified") is False
-        and str(spec.get("business_decision_status") or "") == "not_selected"
-        and _valid_reconstruction_records(spec.get("reconstruction_records"))
-        and _valid_process_acceptance_basis(spec.get("process_acceptance_basis"))
-    )
+    return not process_acceptance_gaps(spec)
 
 
 
@@ -589,8 +663,25 @@ def confirm_saved_spec(
                 "project_fact_certified": False,
                 "business_decision_status": "not_selected",
             })
-            if not _is_process_acceptance_spec(candidate):
-                return {"ok": False, "error": "PROCESS_ACCEPTANCE_BASIS_INCOMPLETE"}
+            # P1-018：原先只回一个不透明的错误码，调用方不知道 6 项条件差哪一项。
+            # 判定不变（gaps 为空等价于原 _is_process_acceptance_spec），只把缺项列出来。
+            gaps = process_acceptance_gaps(candidate)
+            if gaps:
+                return {
+                    "ok": False,
+                    "error": "PROCESS_ACCEPTANCE_BASIS_INCOMPLETE",
+                    "message": "process_acceptance 确认所需的重建依据不完整：" + "；".join(gaps),
+                    "details": {
+                        "gaps": gaps,
+                        "required_reconstruction_record_fields": list(RECONSTRUCTION_RECORD_FIELDS),
+                        "required_process_acceptance_basis_fields": list(PROCESS_ACCEPTANCE_BASIS_FIELDS),
+                        "next_action": (
+                            "在 acquisition_save_spec 的 spec 里补全 reconstruction_records "
+                            "与 process_acceptance_basis，再调用 acquisition_confirm_spec "
+                            "并传 confirmation_scope=process_acceptance"
+                        ),
+                    },
+                }
         formal_candidate = mark_spec_confirmed(candidate)
         estimate_preview = _is_estimate_preview_spec(candidate)
         process_acceptance = _is_process_acceptance_spec(candidate)

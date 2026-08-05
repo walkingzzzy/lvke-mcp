@@ -7,6 +7,10 @@ from typing import Any, Callable
 from mcp import types
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
+from lvke_mcp.domains.asset_acquisition.backend import (
+    RECONSTRUCTION_RECORD_FIELDS,
+    PROCESS_ACCEPTANCE_BASIS_FIELDS,
+)
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.runtime.schemas import make_tool_output_schema
@@ -27,6 +31,37 @@ _RATE = {"type": "number", "minimum": 0, "maximum": 1}
 _EVIDENCE_IDS = {
     "type": "array", "items": {"type": "string", "minLength": 1},
     "uniqueItems": True,
+}
+# P1-018：process_acceptance 要求的两组记录数组，展开必填键让调用方可发现。
+# 与 backend.RECONSTRUCTION_RECORD_FIELDS / PROCESS_ACCEPTANCE_BASIS_FIELDS 同步。
+# 注意：这两个 schema 只声明字段名与类型，不设 required（非 process_acceptance
+# 场景下这些数组可选或可以部分填）。required 约束在 backend 的判定逻辑里，
+# 失败时 PROCESS_ACCEPTANCE_BASIS_INCOMPLETE 的 details.gaps 会列出缺项。
+_RECONSTRUCTION_RECORD_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "reconstruction_id": {"type": "string"},
+        "source_uri": {"type": "string"},
+        "content_hash": {"type": "string", "description": "必须以 sha256: 开头"},
+        "locator": {"type": "string"},
+        "source_kind": {"type": "string"},
+        "method": {"type": "string"},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+    },
+    "additionalProperties": True,
+}
+_PROCESS_ACCEPTANCE_BASIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "field": {"type": "string"},
+        "value": {"description": "任意类型的字段取值"},
+        "source_ref": {"type": "string"},
+        "locator": {"type": "string"},
+        "content_hash": {"type": "string", "description": "必须以 sha256: 开头"},
+        "method": {"type": "string"},
+        "limitation": {"type": "string"},
+    },
+    "additionalProperties": True,
 }
 _PROJECT_PARTY_SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -175,14 +210,36 @@ _COMMON_SPEC_PROPERTIES = {
         "type": "object", "additionalProperties": _EVIDENCE_IDS,
         "description": "字段路径到不可变证据 ID 的绑定",
     },
-    "evidence_policy": {"type": "string", "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"]},
-    "project_fact_certified": {"type": "boolean"},
-    "reconstruction_records": {"type": "array", "items": {"type": "object"}},
+    "evidence_policy": {
+        "type": "string",
+        "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+        "description": "confirmation_scope=process_acceptance 时必须为 source_reconstructed",
+    },
+    "project_fact_certified": {
+        "type": "boolean",
+        "description": "confirmation_scope=process_acceptance 时必须显式为 false",
+    },
+    "reconstruction_records": {
+        "type": "array", "items": _RECONSTRUCTION_RECORD_SCHEMA,
+        "description": (
+            "来源重建记录。confirmation_scope=process_acceptance 时至少一条，"
+            "每条七个键齐全且 content_hash 以 sha256: 开头"
+        ),
+    },
     "reconstructed_source_ids": {"type": "array", "items": _STRING},
     "unresolved_inputs": {"type": "array", "items": _STRING},
     "release_limitations": {"type": "array", "items": _STRING},
-    "business_decision_status": {"type": "string", "enum": ["not_selected", "selected"]},
-    "process_acceptance_basis": {"type": "array", "items": {"type": "object"}},
+    "business_decision_status": {
+        "type": "string", "enum": ["not_selected", "selected"],
+        "description": "confirmation_scope=process_acceptance 时必须为 not_selected",
+    },
+    "process_acceptance_basis": {
+        "type": "array", "items": _PROCESS_ACCEPTANCE_BASIS_SCHEMA,
+        "description": (
+            "流程验收逐字段依据。confirmation_scope=process_acceptance 时至少一条，"
+            "每条七个键齐全且 content_hash 以 sha256: 开头"
+        ),
+    },
 }
 _HOTEL_OPERATION_SCHEMA = {
     "type": "object", "additionalProperties": True,
