@@ -24,7 +24,12 @@
   - `lvke-cost-drivers`: 含 P2-013 成本口径说明（`engineering capacity`）
   - `lvke-market-sizing`: 含 P1-012 locator 规范（`ad hoc spacing`）
   - 11 个 skill 的 SKILL.md 已更新，2 个新增 `agents/openai.yaml`
-- **软链接保留**：52 个指向 `~/.codex/skills/*` 的软链接未清理（都有有效 SKILL.md，属历史遗留）
+- **内容一致性**：29 个 skill 的 SKILL.md 与仓库逐字节一致（SHA256 校验通过）
+- **软链接保留**：52 个指向 `~/.codex/skills/*` 的历史软链接未清理。名字与本仓库 29 个
+  skill 无交集，可安全共存。注意它们是**两跳链接**
+  （`~/.claude/skills` → `~/.codex/skills` → `hubei-lvke/skills`），
+  其中 51 个最终解析到 `/Users/mac/Desktop/工程/hubei-lvke`，
+  即这批用户级 skill 仍依赖旧仓库存在；旧仓库一旦删除会同时失效。
 
 ### ~/.codex/config.toml
 
