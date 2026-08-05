@@ -512,7 +512,13 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "accepted_limitations": accepted_limitations and not quality_passed,
         "limitations": limitations,
         "evidence_policy": evidence_policy,
-        "project_fact_certified": False if evidence_policy == "source_reconstructed" else bool(payload.get("project_fact_certified", False)),
+        # 【修复门禁泄漏】只有 review_status="passed" (完全通过，零 missing_fields、
+        # 零 conflicts、非 source_reconstructed) 才认证项目事实。
+        # accepted_with_limitations 意味着存在 missing_fields/conflicts 或
+        # source_reconstructed，都不应认证项目事实，否则绕过正式交付门禁。
+        "project_fact_certified": (
+            review_status == "passed" and evidence_policy != "source_reconstructed"
+        ),
     }
     # P0-009 修复：先推导 identity（object_id 是 payload 的确定性函数），构建并
     # 校验完整响应，最后再写 QualityReview 和 completed 包。这确保 outputSchema
