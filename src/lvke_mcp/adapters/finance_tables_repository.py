@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from lvke_mcp.runtime.storage import JSONArtifactStore, require_safe_id
-from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.runtime.workspace import deliverable_dir
 
 PACKAGE_STORE = JSONArtifactStore(
     "finance-tables", "packages", "ftp", "packages"
@@ -16,11 +16,18 @@ CSV_EXPORT_STORE = JSONArtifactStore(
 
 
 def export_root(workspace_id: str, kind: str) -> Path:
-    return (
-        workspace_root(require_safe_id(workspace_id, "workspace_id"))
-        / "mcp_objects"
-        / "finance-tables"
-        / require_safe_id(kind, "export_kind")
+    """十三表 CSV / XLSX 的落盘根目录。
+
+    交付物落到仓库 ``lvke产出/``（见 :func:`deliverable_dir`），而不是
+    ``~/.lvke``：十三表是需要随仓库留存、复核和签审的正式产出，运行时状态
+    才留在 data_root。写入与 :func:`xlsx_path_from_uri` 的反查共用本函数，
+    因此两侧自动保持一致。
+    """
+
+    return deliverable_dir(
+        require_safe_id(workspace_id, "workspace_id"),
+        "finance-tables",
+        require_safe_id(kind, "export_kind"),
     )
 
 
