@@ -845,6 +845,12 @@ class OfficialStdioServer:
             ):
                 if key in value:
                     compact[key] = value[key]
+            if value.get("type") == "array" and "items" in value:
+                compact["items"] = self._compact_public_schema(
+                    value["items"],
+                    schema_uri=schema_uri,
+                    pointer=f"{pointer}/items",
+                )
             return compact
 
         result: dict[str, Any] = {}

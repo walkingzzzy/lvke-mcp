@@ -117,6 +117,20 @@ class McpCompressionTopologyTest(unittest.TestCase):
                 )
             )
 
+        research_server = import_module(
+            "lvke_mcp.servers.lvke_deep_research.server"
+        ).build_server()
+        source_spec = research_server._tools["dr_add_sources"]  # noqa: SLF001
+        source_public = research_server._public_input_schema(  # noqa: SLF001
+            source_spec.name, source_spec.input_schema
+        )
+        source_items = source_public["properties"]["sources"]["items"]
+        self.assertEqual(source_items["type"], "object")
+        self.assertEqual(
+            source_items["x-lvke-schema-pointer"],
+            "#/properties/sources/items",
+        )
+
     def test_stable_schema_resources_and_compact_aggregate_interfaces(self) -> None:
         expected = {
             "lvke_mcp.servers.lvke_finance_model.server": {
