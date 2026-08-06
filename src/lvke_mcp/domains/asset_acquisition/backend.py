@@ -26,7 +26,7 @@ from xml.etree import ElementTree as ET
 
 from filelock import FileLock
 
-from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.runtime.workspace import data_root, deliverable_dir, workspace_root
 from lvke_mcp.domains.asset_acquisition.model import (
     INDEPENDENT_SCENARIO_FIELDS,
     AcquisitionModelError,
@@ -206,7 +206,23 @@ def _idempotency_ttl_seconds() -> int:
 def _root(
     workspace_id: str,
 ) -> Path:
+    """收购域**运行时状态**根（state.json / state.lock），留在 data_root。
+
+    工件输出不走这里，见 :func:`_artifacts_root`：状态是可重建的本地缓存，
+    工件是要随仓库留存与签审的交付物，两者分开存放。
+    """
     return workspace_root(workspace_id) / "finance_acquisition"
+
+
+def _artifacts_root(
+    workspace_id: str,
+) -> Path:
+    """收购域交付工件根（报告 MD/DOCX、财务模型 XLSX、附件索引）。
+
+    统一落到仓库 ``lvke产出/{ws}/asset-acquisition/artifacts``，与通用可研的
+    十三表和研报同一口径。
+    """
+    return deliverable_dir(workspace_id, "asset-acquisition", "artifacts")
 
 
 def _state_path(
@@ -2155,7 +2171,7 @@ def generate_artifacts(
                 return {**existing, "idempotent_replay": True}
 
     artifact_id = artifact_id or f"artifact_{uuid.uuid4().hex}"
-    artifacts_root = _root(workspace_id) / "artifacts"
+    artifacts_root = _artifacts_root(workspace_id)
     artifacts_root.mkdir(parents=True, exist_ok=True)
     staging = artifacts_root / f".{artifact_id}.staging-{uuid.uuid4().hex}"
     final_root = artifacts_root / artifact_id
@@ -2302,7 +2318,7 @@ def _recover_published_artifact(
 ) -> tuple[bool, str]:
     """Recover a pack atomically published just before a process crash."""
 
-    directory = _root(workspace_id) / "artifacts" / artifact_id
+    directory = _artifacts_root(workspace_id) / artifact_id
     index_path = directory / "附件索引.json"
     if not index_path.is_file():
         return False, "not_published"
@@ -2545,9 +2561,7 @@ def get_artifact(
         str(row.get("run_id") or ""),
     )
 
-    artifacts_root = (
-        _root(workspace_id) / "artifacts"
-    ).resolve()
+    artifacts_root = _artifacts_root(workspace_id).resolve()
     expected_directory = (artifacts_root / artifact_id).resolve()
     directory = Path(str(row.get("directory") or "")).resolve()
     try:

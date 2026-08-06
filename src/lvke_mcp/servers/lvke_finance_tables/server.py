@@ -22,6 +22,24 @@ _BASE = {
     "run_id": {"type": "string", "minLength": 1},
 }
 _TEMPLATE_VERSION = {"type": "string", "minLength": 1, "description": "可选版本钉住断言；与 run 固化模板版本不一致时报错，不做版本转换"}
+_TABLE_ID_ALIASES = {
+    "construction_interest": "interest-during-construction",
+    "working_capital": "working-capital",
+    "income_statement": "income-statement",
+    "total_cost": "total-cost",
+    "profit_distribution": "profit-distribution",
+    "debt_service": "debt-service",
+    "capital_cashflow": "capital-cashflow",
+}
+
+
+def _canonical_table_id(table_id: str) -> str:
+    return _TABLE_ID_ALIASES.get(table_id, table_id)
+
+
+def _public_table_ids() -> list[str]:
+    canonical = [item["table_id"] for item in service.table_registry()]
+    return sorted(set([*canonical, *_TABLE_ID_ALIASES]))
 
 
 def _resource(uri: str):
@@ -47,7 +65,7 @@ def _read_scoped_resource(
             "status": "blocked", "code": "resource_not_found",
             "message": "资源不存在或不属于当前工作区", "validation_complete": False,
             "resource_uris": [], "warnings": [], "blockers": ["resource_not_found"],
-            "next_actions": ["调用 tables_list_resources 获取当前工作区可读 URI"],
+            "next_actions": ["调用 lvke_list_resources(domain='finance-tables') 获取当前工作区可读 URI"],
         }
     content, mime_type = resolved
     encoded = isinstance(content, bytes)
@@ -85,33 +103,21 @@ def build_server() -> OfficialStdioServer:
     server.register_tool(
         "tables_get_table",
         "从已固化 package 按 table_id 读取单表；支持 structured、markdown、csv，不重新计算。",
-        {"type": "object", "additionalProperties": False, "properties": {**package_table_properties, "table_id": {"type": "string", "enum": [item["table_id"] for item in service.table_registry()]}, "format": {"type": "string", "enum": ["structured", "markdown", "csv"], "default": "structured"}}, "required": ["workspace_id", "finance_tables_package_id", "table_id"]},
-        lambda a: service.get_table(a["workspace_id"], a["finance_tables_package_id"], a["table_id"], a.get("format", "structured"), a.get("expected_run_id", "")),
+        {"type": "object", "additionalProperties": False, "properties": {**package_table_properties, "table_id": {"type": "string", "enum": _public_table_ids()}, "format": {"type": "string", "enum": ["structured", "markdown", "csv"], "default": "structured"}}, "required": ["workspace_id", "finance_tables_package_id", "table_id"]},
+        lambda a: service.get_table(a["workspace_id"], a["finance_tables_package_id"], _canonical_table_id(a["table_id"]), a.get("format", "structured"), a.get("expected_run_id", "")),
         _OUTPUT,
         read,
     )
     server.register_tool(
         "tables_validate_table",
         "局部校验已固化 package 中的一张表；结果不能替代整包勾稽或正式交付门禁。",
-        {"type": "object", "additionalProperties": False, "properties": {**package_table_properties, "table_id": {"type": "string", "enum": [item["table_id"] for item in service.table_registry()]}}, "required": ["workspace_id", "finance_tables_package_id", "table_id"]},
-        lambda a: service.validate_table(a["workspace_id"], a["finance_tables_package_id"], a["table_id"], a.get("expected_run_id", "")),
+        {"type": "object", "additionalProperties": False, "properties": {**package_table_properties, "table_id": {"type": "string", "enum": _public_table_ids()}}, "required": ["workspace_id", "finance_tables_package_id", "table_id"]},
+        lambda a: service.validate_table(a["workspace_id"], a["finance_tables_package_id"], _canonical_table_id(a["table_id"]), a.get("expected_run_id", "")),
         _OUTPUT,
         read,
     )
-    for table in service.table_registry():
-        table_id = table["table_id"]
-        server.register_tool(
-            table["alias_tool"],
-            f"读取{table['delivery_no']}《{table['title']}》；只消费已固化 package，不重新计算。",
-            {"type": "object", "additionalProperties": False, "properties": {**package_table_properties, "format": {"type": "string", "enum": ["structured", "markdown", "csv"], "default": "structured"}}, "required": ["workspace_id", "finance_tables_package_id"]},
-            lambda a, fixed_table_id=table_id: service.get_table(a["workspace_id"], a["finance_tables_package_id"], fixed_table_id, a.get("format", "structured"), a.get("expected_run_id", "")),
-            _OUTPUT,
-            read,
-        )
-    server.register_tool("tables_list_resources", "按显式工作区分页列举十三表 package、manifest、CSV 与 XLSX。", {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _BASE["workspace_id"], "resource_type": {"type": "string", "enum": ["package", "csv_manifest", "csv", "xlsx"]}, "cursor": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}}, "required": ["workspace_id"]}, lambda a: service.list_resources(a["workspace_id"], resource_type=a.get("resource_type", ""), cursor=a.get("cursor", ""), limit=int(a.get("limit", 50))), _OUTPUT, read)
-    server.register_tool("tables_read_resource", "在显式工作区内读取十三表 Resource；支持 uri/resource_uri 两种兼容字段，二进制内容以 base64 返回。", {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _BASE["workspace_id"], "uri": {"type": "string", "minLength": 1}, "resource_uri": {"type": "string", "minLength": 1}}, "required": ["workspace_id"], "oneOf": [{"required": ["uri"]}, {"required": ["resource_uri"]}]}, lambda a: _read_scoped_resource(a["workspace_id"], a.get("uri") or a.get("resource_uri") or ""), _OUTPUT, read)
     # Protocol-level Resource calls lack workspace identity. Dynamic access is
-    # available only through the two scoped tools above.
+    # centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

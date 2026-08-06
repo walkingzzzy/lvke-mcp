@@ -804,9 +804,9 @@ P10 恒立酒店：收购范围、收购价、历史经营、混合收入池、1
 ### 17.4 直接执行命令
 
 ```bash
-.venv/bin/python -m lvke_mcp.testing.smoke_test
-.venv/bin/python -m unittest discover -s tests/integration -p 'test_*.py' -q
-.venv/bin/python -m compileall -q src tests
+conda run -n lvke-mcp python -m lvke_mcp.testing.smoke_test
+conda run -n lvke-mcp python -m unittest discover -s tests/integration -p 'test_*.py' -q
+conda run -n lvke-mcp python -m compileall -q src tests
 python /Users/mac/.codex/skills/.system/skill-creator/scripts/quick_validate.py \
   /Users/mac/Desktop/工程/hubei-lvke/skills/project-planning/lvke-feasibility-study
 ```
@@ -1061,7 +1061,7 @@ report_get_readiness
 | 财务和十三表 | 已完成技术样本验收 | `test_finance_fixture_acceptance.py` 通过产品销售、厂房出租、墓地/存量销售、房地产、文旅和非经营性资金平衡样本；`inventory_sales` 已补齐有限存量去化与存货成本展开；正式候选仍需真实 BoE 和甲方模板资料 |
 | 9 章报告和审查矩阵 | 已完成最小串联验收 | `test_mcp_delivery_chain.py` 验证 FinanceRun -> 十三表 package -> report preparation/revision -> delivery lineage；完整 9 章正文和 review findings 仍需真实报告样本 |
 
-本次实现没有新增联网搜索 MCP，也没有开发前端、HTTP/独立后端、认证授权、权限控制或安全门禁。当前本地验证统一使用仓库 `.venv/bin/python`：协议 smoke、core golden、编译检查、Skill 校验和新增业务回归均已执行。独立性扫描结果为 `forward=0`、`internal_architecture=0`；旧扫描规则对 `reviewed_at`/`released_at` 时间字段的语义告警不属于外部调用或权限控制。
+本次实现没有新增联网搜索 MCP，也没有开发前端、HTTP/独立后端、认证授权、权限控制或安全门禁。当前本地验证统一使用 conda 环境 `lvke-mcp`（`/opt/miniconda3/envs/lvke-mcp/bin/python`）：协议 smoke、core golden、编译检查、Skill 校验和新增业务回归均已执行。独立性扫描结果为 `forward=0`、`internal_architecture=0`；旧扫描规则对 `reviewed_at`/`released_at` 时间字段的语义告警不属于外部调用或权限控制。
 
 ### 22.1 本轮新增实现与验证
 

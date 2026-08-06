@@ -1,0 +1,4 @@
+interface:
+  display_name: "绿科成本驱动"
+  short_description: "从建设规模建立可追溯的项目投资与年度运营成本驱动对象"
+  default_prompt: "使用 $lvke-cost-drivers 从已确认建设规模建立可追溯成本驱动。"

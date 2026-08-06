@@ -36,6 +36,7 @@ from typing import Any
 from filelock import FileLock
 
 from lvke_mcp.domains.reports import doc_service
+from lvke_mcp.runtime import workspace
 
 
 SCHEMA_VERSION = "deliverable_artifacts.v1"
@@ -165,7 +166,34 @@ def _require_workspace(workspace_id: str) -> Path:
 
 
 def _service_root(workspace_id: str) -> Path:
-    return _workspace_root(workspace_id) / "deliverable_artifacts"
+    """报告交付工件（DOCX/manifest/basis 快照）的落盘根目录。
+
+    与十三表导出一致，落到仓库 ``lvke产出/``（见
+    :func:`lvke_mcp.runtime.workspace.deliverable_dir`）而不是 ``~/.lvke``：
+    研报是需要随仓库留存、复核与签审的正式产出，``data_root`` 只放运行时状态。
+    ``state.json`` 与 artifacts 目录同根，因此读写两侧自动一致。
+    """
+
+    return workspace.deliverable_dir(
+        _validate_workspace_id(workspace_id),
+        "report",
+        "deliverable_artifacts",
+    )
+
+
+def _finance_artifact_root(workspace_id: str, run_id: str) -> Path:
+    """财务可读工件目录，与 ``table_pack.default_artifact_dir`` 保持同一路径。
+
+    单独包一层是为了让报告域只依赖一个入口：财务侧改路径时这里跟着变，
+    不会出现研报抓不到 XLSX 附件却静默通过的情况。
+    """
+
+    from lvke_mcp.domains.finance import table_pack
+
+    return table_pack.default_artifact_dir(
+        _validate_workspace_id(workspace_id),
+        str(run_id or "unknown"),
+    )
 
 
 def _artifacts_root(workspace_id: str) -> Path:
@@ -388,7 +416,10 @@ def _document_snapshot(workspace_id: str) -> tuple[dict[str, Any], str, dict[str
         raise DeliverableArtifactError(
             "DOCUMENT_REVISION_INVALID", "当前文档修订 id 缺失或不合法",
         )
-    report_path = root / "revisions" / revision_id / "report.md"
+    # 正文路径必须复用写入侧的同一函数（doc_service._revision_dir），
+    # 不要在这里重新拼 root / "revisions"：修订正文已迁到交付物根，
+    # 两边各自拼路径会造成写得进、读不到（DOCUMENT_REVISION_NOT_FOUND）。
+    report_path = doc_service._revision_dir(workspace_id, revision_id) / "report.md"  # noqa: SLF001
     try:
         content = report_path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
@@ -1171,14 +1202,17 @@ def _collect_support_files(
     run = finance.get("run_snapshot")
     run_id = str(finance.get("run_id") or "")
     if isinstance(run, dict) and run_id:
-        finance_root = workspace_root / "finance_artifacts" / run_id
+        # 财务可读工件已随十三表迁到交付物根（见 table_pack.default_artifact_dir），
+        # 因此包含性校验必须用该根，否则附件会被 _safe_support_source 静默丢弃。
+        finance_root = _finance_artifact_root(workspace_id, run_id)
+        finance_containment_root = finance_root.parent.parent.resolve()
         try:
             candidates = sorted(finance_root.rglob("*.xlsx")) if finance_root.is_dir() else []
         except OSError:
             candidates = []
         copied_finance_count = 0
         for source in candidates:
-            source = _safe_support_source(workspace_root, source)
+            source = _safe_support_source(finance_containment_root, source)
             if source is None or source in seen:
                 continue
             verified, reason = _verify_finance_workbook(source, run)

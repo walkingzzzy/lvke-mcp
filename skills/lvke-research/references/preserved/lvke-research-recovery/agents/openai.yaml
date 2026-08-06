@@ -1,0 +1,4 @@
+interface:
+  display_name: "绿科研究恢复"
+  short_description: "恢复中断或 partial 研究任务并执行独立的研究质量确认"
+  default_prompt: "使用 $lvke-research-recovery 恢复 partial 研究并执行独立质量确认。"

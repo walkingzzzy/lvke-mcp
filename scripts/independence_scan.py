@@ -21,7 +21,7 @@ __pycache__。
 字面量，既不计入依赖，也在 text_residue 中单独标注 data_identifier=True。
 
 用法：
-    .venv/bin/python scripts/independence_scan.py [--output quality/independence_dependency_scan.json]
+    python scripts/independence_scan.py [--output quality/independence_dependency_scan.json]
 """
 
 from __future__ import annotations

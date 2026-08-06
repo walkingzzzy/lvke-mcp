@@ -252,42 +252,6 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         write,
     )
-    server.register_tool(
-        "knowledge_list_resources",
-        "分页列举 KnowledgeCandidate、KnowledgeSnapshot、KnowledgeReview 和 KnowledgeRelease Resources。",
-        _schema(
-            {
-                "resource_type": {
-                    "type": "string",
-                    "enum": ["KnowledgeCandidate", "KnowledgeSnapshot", "KnowledgeReview", "KnowledgeRelease"],
-                },
-                "cursor": {"type": "string", "maxLength": 8192},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
-            },
-            [],
-        ),
-        service.list_resources,
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "knowledge_read_resource",
-        "在 workspace 作用域内读取知识治理 Resource 和内容哈希。",
-        _schema(
-            {
-                "uri": {
-                    "type": "string",
-                    "pattern": r"^lvke://knowledge-governance/workspaces/",
-                    "maxLength": 8192,
-                },
-            },
-            ["uri"],
-        ),
-        service.read_resource,
-        _OUTPUT,
-        read,
-    )
-
     def read_standard_resource(uri: str):
         resolved = service.resolve_resource(uri)
         if resolved is None:

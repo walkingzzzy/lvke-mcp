@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lvke-mcp"
 version = "0.1.0"
-description = "绿科 MCP 服务发行版 —— 24 个领域工具 server 的独立运行时(runtime)与领域包"
+description = "绿科 MCP 服务发行版 —— 14 个领域与参考 server 的独立运行时(runtime)与领域包"
 readme = "README.md"
 # 与根 pyproject 对齐:上界 <3.14 阻止 uv 在 Rust 后端传递依赖(pydantic-core
 # 等)尚无 cp314 wheel 的 3.14 解释器上做源码构建。

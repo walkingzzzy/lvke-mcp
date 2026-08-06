@@ -433,62 +433,8 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT_SCHEMA,
         read_open,
     )
-    server.register_tool(
-        "data_list_resources",
-        "按显式工作区分页列举采集来源及不可变过程记录。",
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "workspace_id": _WS,
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "source_snapshot",
-                        "search_set",
-                        "discovery_set",
-                        "source_collection",
-                        "url_audit",
-                        "visual_capture",
-                    ],
-                },
-                "cursor": {"type": "string"},
-                "limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 200,
-                    "default": 50,
-                },
-            },
-            "required": ["workspace_id"],
-        },
-        lambda args: service.list_resources(
-            args["workspace_id"],
-            resource_type=args.get("resource_type", ""),
-            cursor=args.get("cursor", ""),
-            limit=int(args.get("limit", 50)),
-        ),
-        _OUTPUT_SCHEMA,
-        read_open,
-    )
-    server.register_tool(
-        "data_read_resource",
-        "在显式工作区作用域内读取不可变采集 Resource。",
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "workspace_id": _WS,
-                "uri": {"type": "string", "minLength": 1},
-            },
-            "required": ["workspace_id", "uri"],
-        },
-        _read_resource,
-        _OUTPUT_SCHEMA,
-        read_open,
-    )
-    # Protocol-level Resource requests carry no workspace scope. Keep them
-    # disabled; scoped tools above are authoritative.
+    # Protocol-level Resource requests carry no workspace scope. Dynamic
+    # access is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

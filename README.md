@@ -9,7 +9,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 自有环境变量，缺省落在 `~/.lvke/`。**不读取任何 `HERMES_*` 环境变量。** 本目录内的
 业务实现是 MCP 自有的领域代码，不是 Hermes 的复用层。
 
-## 架构状态（2026-08-04）
+## 架构状态（2026-08-06）
 
 - **WP-01（独立 pyproject + runtime 骨架）已完成构建**：`mcp_servers/pyproject.toml`、
   `src/lvke_mcp/runtime/`（10 个直接搬移模块 + `config.py` / `jobs.py` 两个新模块）、
@@ -25,7 +25,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
   `forward（MCP → 外部）= 0`，即 `src/lvke_mcp` 不调用任何其他项目代码；
   新发行版只扫描和运行 `src/lvke_mcp` 自有代码，不保留旧顶层导入入口。
 
-## 核心业务工具面（十三服务）
+## 核心业务工具面（十三个领域服务）
 
 | Server | 核心对象 | 职责 |
 |---|---|---|
@@ -43,14 +43,26 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 | `lvke-feasibility-delivery` | `delivery_run_id` / `checkpoint_id` / `release_id` | 可研项目阶段编排、对象 lineage、stale、checkpoint/resume、technical/formal 校验和交付发布 |
 | `lvke-zero-material-delivery` | `delivery_run_id` / `preview_id` | 零材料受控假设与 `estimate_preview` 预览交付，不作为正式可研发布入口 |
 
-## 支撑服务（11 个）
+## 聚合参考服务
 
-`finance-calc`、`excel-bridge`、`lvke-archive`、`lvke-templates`、`lvke-clients`、
-`lvke-experts`、`policy-search`、`statistics-cn`、`industry-research`、
-`environmental-data`、`map-geo`。
+第 14 个进程 `lvke-reference` 原样路由档案、模板、客户、专家、政策、统计、
+行业、环境和地图实现。`finance-calc` 的七类纯计算由
+`lvke-finance-model.finance_calculate` 路由；`excel-bridge` 的五类工作簿检查由
+`lvke-source-files.source_inspect_workbook` 路由。旧实现模块继续作为内部库存在，
+种子数据、档案索引、公式和返回业务字段不迁移。
 
-这些服务允许在开发环境独立调用和验真，但不替代正式 `spec_id`、`run_id`、
-evidence package、tables package 或报告发布治理。
+公开面固定为 **14 个 Lvke MCP 进程、193 个工具**。完整输入/输出 schema 仍由服务端
+执行；`tools/list` 只发布紧凑输入投影，大型完整 schema 通过
+`lvke://schemas/<server>/<tool>/input` Resource 按需读取。以下稳定别名不依赖工具名：
+`finance-spec-v3`、`asset-acquisition-spec`、`review-target`、
+`review-finding-disposition`、`report-preparation`、`project-planning-candidate`，
+均位于 `lvke://schemas/` 下。85 项旧工具迁移关系见
+[`dev-docs/config/mcp-compression-migration.json`](dev-docs/config/mcp-compression-migration.json)。
+
+工作簿聚合契约为 `source_inspect_workbook(workspace_id, file_id, operation,
+sheet?, range?, options?)`；旧路径调用须先 `source_import_local_path`。地图聚合入口
+公开 `geo_query(..., limit?)`，距离矩阵的确定性模式固定为
+`haversine_with_highway_estimate`，不伪装成在线导航路线。
 
 ## 目录结构
 
@@ -66,18 +78,27 @@ mcp_servers/
 │   ├── domains/              # 领域业务层，随切片迁入
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
-│       └── <domain>/         # 24 个正式及支撑 server
+│       └── <domain>/         # 14 个公开领域与参考 server
+├── skills/                   # 16 个父 Skill；专业正文位于按需 references
 ├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```
 
 ## 构建与安装
 
+本项目使用 **conda** 管理环境（不用 venv）。环境名 `lvke-mcp`：
+
 ```bash
 cd mcp_servers
-python -m venv .venv
-.venv/bin/pip install -e .
+conda create -y -n lvke-mcp python=3.13
+conda run -n lvke-mcp python -m pip install -e .
+conda run -n lvke-mcp python -m pip install pytest
 ```
+
+> conda 环境默认会把用户级 `~/.local/lib/pythonX.Y/site-packages` 挂进
+> `sys.path` 且优先级高于环境自身，导致外部包 shadow 本项目的 exact-pin 依赖。
+> 本环境已放置 `zzz-no-user-site.pth` 将其摘除，保证与旧 venv 同等隔离；
+> 重建环境后需要重新放置，见「重建环境」。
 
 ## 单独运行一个 server（调试用）
 
@@ -85,17 +106,30 @@ scaffold（参考 server，运行后会通过 stdio 接收 JSON-RPC）：
 
 ```bash
 cd mcp_servers
-.venv/bin/lvke-mcp-scaffold
+conda run -n lvke-mcp lvke-mcp-scaffold
 # 或
-.venv/bin/python -m lvke_mcp.servers.scaffold.server
+conda run -n lvke-mcp python -m lvke_mcp.servers.scaffold.server
 ```
 
 领域 server：
 
 ```bash
-.venv/bin/python -m lvke_mcp.servers.lvke_data_acquisition.server
-.venv/bin/python -m lvke_mcp.servers.lvke_finance_model.server
+conda run -n lvke-mcp python -m lvke_mcp.servers.lvke_data_acquisition.server
+conda run -n lvke-mcp python -m lvke_mcp.servers.lvke_finance_model.server
 # 其余 server 使用 lvke_mcp.servers.<server>.server
+```
+
+## 重建环境
+
+删除并重建后，必须重新隔离 user site，否则 `~/.local` 里的包会 shadow
+本项目 exact-pin 依赖（曾导致 `starlette` 未真正装进环境）：
+
+```bash
+SP="$(conda run -n lvke-mcp python -c 'import sysconfig;print(sysconfig.get_paths()["purelib"])')"
+printf '%s\n' 'import site, sys; sys.path[:] = [p for p in sys.path if p != getattr(site, "USER_SITE", None)]' \
+  > "$SP/zzz-no-user-site.pth"
+# 自检：应输出 none
+conda run -n lvke-mcp python -c "import sys;print([p for p in sys.path if '/.local/lib/python' in p] or 'none')"
 ```
 
 ## 在客户端中启用
@@ -107,7 +141,7 @@ MCP 发行版自身不依赖任何客户端运行。任何 MCP 客户端（Codex
 
 ## 共用约定
 
-1. **响应格式**：旧工具保留 `success/data/source` 兼容包装；十一个正式服务使用明确字段，
+1. **响应格式**：内部旧 handler 保留 `success/data/source` 包装；正式服务使用明确字段，
    并至少返回 `success/status/resource_uris/warnings/blockers/next_actions`。
 2. **错误码命名**：`<server-name>.<error-tag>`，如 `mcp_lvke_archive.not_found`。
 3. **日志**：使用 stderr（避免污染 stdio 协议），统一前缀 `[mcp-<server>]`。

@@ -12,7 +12,7 @@ from typing import Any
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.runtime.workspace import deliverable_dir
 from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 from lvke_mcp.domains.reports import artifacts as report_artifacts
 from lvke_mcp.runtime.storage import (
@@ -27,12 +27,12 @@ PACKAGE_STORE = JSONArtifactStore(
 
 
 def _export_root(workspace_id: str) -> Path:
-    base = (
-        workspace_root(require_safe_id(workspace_id, "workspace_id"))
-        / "mcp_objects"
-        / "asset-acquisition"
+    """收购表包 CSV/XLSX 落盘根，统一写到仓库 ``lvke产出/``。"""
+    return deliverable_dir(
+        require_safe_id(workspace_id, "workspace_id"),
+        "asset-acquisition",
+        "exports",
     )
-    return base
 
 TABLE_DEFINITIONS: tuple[tuple[str, str], ...] = (
     ("transaction_bridge", "收购范围与交易桥接"),
@@ -865,7 +865,13 @@ def export_csv(
             + f"/csv/{key}"
         )
     result = _result(record)
-    result.update({"csv_resource_uris": uris, "csv_hashes": hashes, "resource_uris": [*result["resource_uris"], *uris]})
+    result.update({
+        "csv_resource_uris": uris,
+        "csv_hashes": hashes,
+        # 交付物落盘绝对目录：收购各表 CSV 均在此目录下。
+        "deliverable_path": str(directory),
+        "resource_uris": [*result["resource_uris"], *uris],
+    })
     return result
 
 
@@ -935,7 +941,13 @@ def export_xlsx(
     digest = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
     uri = PACKAGE_STORE.uri(workspace_id, package_id) + "/xlsx"
     result = _result(record)
-    result.update({"xlsx_resource_uri": uri, "xlsx_hash": digest, "resource_uris": [*result["resource_uris"], uri]})
+    result.update({
+        "xlsx_resource_uri": uri,
+        "xlsx_hash": digest,
+        # 交付物落盘绝对路径。
+        "deliverable_path": str(target),
+        "resource_uris": [*result["resource_uris"], uri],
+    })
     return result
 
 

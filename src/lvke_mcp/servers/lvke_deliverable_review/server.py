@@ -14,6 +14,10 @@ from lvke_mcp.servers.lvke_deliverable_review import rubrics, service
 
 SERVER_NAME = "lvke-deliverable-review"
 SERVER_VERSION = "0.1.0"
+_REVIEW_TARGET_SCHEMA_URI = "lvke://schemas/review-target"
+_REVIEW_FINDING_DISPOSITION_SCHEMA_URI = (
+    "lvke://schemas/review-finding-disposition"
+)
 logger = get_logger(SERVER_NAME)
 
 _TARGET_TYPES = [
@@ -167,6 +171,7 @@ _COMPONENT_TARGET = {
 _TARGET = {
     "oneOf": _target_variants(include_combined=True),
     "description": "按 target_type 判别的统一审查目标",
+    "x-lvke-schema-uri": _REVIEW_TARGET_SCHEMA_URI,
     "examples": [{"target_type": "report_revision", "target_id": "rrv_example"}],
 }
 _RULE_PACK_LIST = {
@@ -308,14 +313,6 @@ def build_server() -> OfficialStdioServer:
         idempotentHint=True,
         openWorldHint=False,
     )
-    terminal = types.ToolAnnotations(
-        title="固化正式审查包（需要确认）",
-        readOnlyHint=False,
-        destructiveHint=True,
-        idempotentHint=True,
-        openWorldHint=False,
-    )
-
     server.register_tool(
         "review_list_rubrics",
         "按项目上下文列出版本化章节评分 rubric、维度、权重、来源 Skill 与通过门槛。",
@@ -453,6 +450,7 @@ def build_server() -> OfficialStdioServer:
     }
     disposition_schema = {
         "type": "object",
+        "x-lvke-schema-uri": _REVIEW_FINDING_DISPOSITION_SCHEMA_URI,
         "oneOf": [
             _write_schema(
                 {
@@ -624,58 +622,20 @@ def build_server() -> OfficialStdioServer:
         _output_schema(),
         read,
     )
-    server.register_tool(
-        "review_list_resources",
-        "按显式工作区分页列举规则包、检查运行、findings、导出和校验快照。",
-        _schema(
-            {
-                "workspace_id": _SAFE_ID,
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "preparation",
-                        "review",
-                        "finding",
-                        "export",
-                        "export_file",
-                        "validation_snapshot",
-                        "rule_pack",
-                        "standards",
-                        "standard_applicability",
-                        "standard_evidence",
-                        "rubric_assessment",
-                        "rubric_comparison",
-                        "metrics",
-                    ],
-                },
-                "cursor": {"type": "string", "maxLength": 8192},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
-            },
-            ["workspace_id"],
-        ),
-        service.list_resources,
-        _output_schema(),
-        read,
+    server.register_schema_resource(
+        _REVIEW_TARGET_SCHEMA_URI,
+        _TARGET,
+        name="review-target",
+        title="Review Target",
+        description="统一交付审查目标的完整判别式 Schema。",
     )
-    server.register_tool(
-        "review_read_resource",
-        "在显式工作区作用域内读取审查 Resource；二进制导出内容以 base64 返回。",
-        _schema(
-            {
-                "workspace_id": _SAFE_ID,
-                "uri": {
-                    "type": "string",
-                    "pattern": r"^lvke://deliverable-review/workspaces/",
-                    "maxLength": 8192,
-                },
-            },
-            ["workspace_id", "uri"],
-        ),
-        service.read_resource,
-        _output_schema(),
-        read,
+    server.register_schema_resource(
+        _REVIEW_FINDING_DISPOSITION_SCHEMA_URI,
+        disposition_schema,
+        name="review-finding-disposition",
+        title="Review Finding Disposition",
+        description="finding 确认、整改、申诉、豁免申请与关闭的完整处置 Schema。",
     )
-
     server.register_resource_provider(lambda: [], _resource)
     return server
 

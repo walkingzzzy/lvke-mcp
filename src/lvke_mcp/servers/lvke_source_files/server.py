@@ -335,23 +335,41 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "source_list_resources",
-        "分页列出 SourceFile、SourceAnalysis 与 ParseJob JSON Resource。",
-        _paging_schema(),
-        lambda a: service.list_resources(
-            a["workspace_id"],
-            cursor=a.get("cursor", ""),
-            limit=int(a.get("limit", 50)),
+        "source_inspect_workbook",
+        "对已导入且完整性校验通过的工作簿执行 sheet、单元格、公式、跨表引用或依赖树检查。",
+        _schema(
+            {
+                "file_id": _ID,
+                "operation": {
+                    "type": "string",
+                    "enum": [
+                        "list_sheets", "read_cells", "read_formulas",
+                        "cross_sheet_refs", "dependency_tree",
+                    ],
+                },
+                "sheet": _STRING,
+                "range": {
+                    "type": "string",
+                    "pattern": r"^\$?[A-Za-z]{1,3}\$?[1-9][0-9]*(?::\$?[A-Za-z]{1,3}\$?[1-9][0-9]*)?$",
+                    "description": "read_cells/read_formulas 的 A1:C20 范围，或 dependency_tree 的单个根单元格。",
+                },
+                "options": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "max_rows": {"type": "integer", "minimum": 1, "maximum": 10000},
+                        "max_cols": {"type": "integer", "minimum": 1, "maximum": 1000},
+                        "max_depth": {"type": "integer", "minimum": 1, "maximum": 64},
+                    },
+                    "default": {},
+                },
+            },
+            ["file_id", "operation"],
         ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "source_read_resource",
-        "在显式 workspace 作用域内读取 source-files Resource。",
-        _schema({"uri": _STRING}, ["uri"]),
-        lambda a: service.read_resource(
-            a["workspace_id"], a["uri"]
+        lambda a: service.inspect_workbook(
+            a["workspace_id"], a["file_id"], a["operation"],
+            sheet=a.get("sheet", ""), range_ref=a.get("range", ""),
+            options=a.get("options", {}),
         ),
         _OUTPUT,
         read,

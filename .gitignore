@@ -16,8 +16,13 @@ mcp_objects/
 */data/
 */data/**
 **/review_outputs*/
-lvke产出/
 quality/
+
+# lvke产出/ 是正式交付物目录，纳入版本控制
+# 只忽略其下的临时/二进制文件，保留 CSV/JSON/MD/manifest
+lvke产出/**/_tmp/
+lvke产出/**/*.lock
+lvke产出/**/~$*
 
 # Client-specific and local assistant configuration
 .claude/

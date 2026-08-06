@@ -37,8 +37,10 @@ from typing import Any
 
 from mcp import types
 from mcp.server.lowlevel.helper_types import ReadResourceContents
+from jsonschema import Draft202012Validator
 
 from lvke_mcp.runtime.storage import (
+    JSONArtifactStore,
     paginate_resource_entries,
     sha256_json,
 )
@@ -57,12 +59,54 @@ from lvke_mcp.domains.finance.parameter_resolver import (
     finance_input_schema,
     finance_spec_candidate_schema,
 )
+from lvke_mcp.domains.finance.calculator_service import (
+    CALCULATOR_INPUT_SCHEMAS,
+    calculate as calculate_finance_operation,
+)
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
-from lvke_mcp.runtime.source_reconstruction import reconstruction_errors, normalize_reconstruction
+from lvke_mcp.runtime.source_reconstruction import reconstruction_errors
 
 SERVER_NAME = "lvke-finance-model"
 SERVER_VERSION = "0.3.0"
+_FINANCE_SPEC_SCHEMA_URI = "lvke://schemas/finance-spec-v3"
 logger = get_logger(SERVER_NAME)
+
+_CALCULATOR_TOOL_BY_OPERATION = {
+    "irr": "calc_irr",
+    "npv": "calc_npv",
+    "xirr": "calc_xirr",
+    "xnpv": "calc_xnpv",
+    "break_even": "calc_break_even",
+    "payback_period": "payback_period",
+    "sensitivity": "sensitivity_analysis",
+}
+
+
+def _tool_finance_calculate(args: dict[str, Any]) -> dict[str, Any]:
+    """Route to the existing deterministic finance-calc implementation."""
+
+    operation = str(args.get("operation") or "")
+    input_schema = CALCULATOR_INPUT_SCHEMAS.get(operation)
+    if input_schema is None:
+        return _err_env(
+            f"{SERVER_NAME}.calculator_operation_invalid",
+            "未知确定性财务计算操作",
+        )
+    inputs = args.get("inputs") if isinstance(args.get("inputs"), dict) else {}
+    error = next(Draft202012Validator(input_schema).iter_errors(inputs), None)
+    if error is not None:
+        path = ".".join(str(item) for item in error.absolute_path) or "<root>"
+        return _err_env(
+            f"{SERVER_NAME}.calculator_input_invalid",
+            f"finance_calculate.{operation} 入参无效：{path}: {error.message}",
+        )
+    result = calculate_finance_operation(operation, inputs)
+    if result is None:  # Defensive: schema/handler registries must stay aligned.
+        return _err_env(
+            f"{SERVER_NAME}.calculator_operation_invalid",
+            "未知确定性财务计算操作",
+        )
+    return result
 
 _BOE_ENTRY_SCHEMA = {
     "type": "object",
@@ -2116,6 +2160,27 @@ def build_server() -> OfficialStdioServer:
     write_nonidempotent = types.ToolAnnotations(
         readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False
     )
+    finance_spec_schema = finance_spec_candidate_schema()
+    finance_spec_schema["x-lvke-schema-uri"] = _FINANCE_SPEC_SCHEMA_URI
+    server.register_tool(
+        name="finance_calculate",
+        description="调用原 finance-calc 确定性纯函数；不创建 FinanceRun，也不替代 FinanceSpec 门禁。",
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "operation": {
+                    "type": "string",
+                    "enum": list(_CALCULATOR_TOOL_BY_OPERATION),
+                },
+                "inputs": {"type": "object"},
+            },
+            "required": ["operation", "inputs"],
+        },
+        handler=_tool_finance_calculate,
+        output_schema=None,
+        annotations=read_closed,
+    )
     fact_pack_schema = {
         "type": "object",
         "additionalProperties": True,
@@ -2243,7 +2308,7 @@ def build_server() -> OfficialStdioServer:
                 },
                 "force_refresh": {"type": "boolean", "default": False},
                 "force_flat": {"type": "boolean", "default": False},
-                "spec": finance_spec_candidate_schema(),
+                "spec": finance_spec_schema,
                 "input_revision": finance_input_schema(),
                 "evidence_pack_ids": {
                     "type": "array", "items": {"type": "string", "minLength": 1},
@@ -2305,7 +2370,7 @@ def build_server() -> OfficialStdioServer:
             "type": "object",
             "additionalProperties": False,
             "properties": {
-                "spec": finance_spec_candidate_schema(),
+                "spec": finance_spec_schema,
                 "for_formal": {"type": "boolean", "default": False},
             },
             "required": ["spec"],
@@ -2344,7 +2409,7 @@ def build_server() -> OfficialStdioServer:
                 "spec_id": {"type": "string"},
                 "basis_of_estimate_id": {"type": "string"},
                 "spec_hash": {"type": "string"},
-                "spec": finance_spec_candidate_schema(),
+                "spec": finance_spec_schema,
                 "input_revision": finance_input_schema(),
                 "input_revision_id": {"type": "integer", "minimum": 0},
                 "mode": {
@@ -2372,38 +2437,6 @@ def build_server() -> OfficialStdioServer:
             success_required=["run_id", "missing_inputs"],
         ),
         annotations=write_deterministic,
-    )
-    server.register_tool(
-        name="finance_render_tables",
-        description=(
-            "[DEPRECATED] 已迁移到 lvke-finance-tables.tables_render。"
-            "兼容期仍只从指定 run_id 渲染，不重算。"
-        ),
-        input_schema={
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "workspace_id": {"type": "string"},
-                "run_id": {"type": "string"},
-                "format": {
-                    "type": "string",
-                    "enum": ["structured", "markdown"],
-                    "default": "structured",
-                },
-                "include_control_tables": {"type": "boolean", "default": True},
-            },
-            "required": ["workspace_id", "run_id"],
-        },
-        handler=_tool_render_tables,
-        output_schema=_output_schema(
-            {
-                "run_id": {"type": ["string", "null"]},
-                "missing_delivery_keys": {"type": "array", "items": {"type": "string"}},
-            },
-            success_required=["run_id", "missing_delivery_keys"],
-            deprecated=True,
-        ),
-        annotations=read_closed,
     )
     server.register_tool(
         name="finance_get_run",
@@ -2806,6 +2839,13 @@ def build_server() -> OfficialStdioServer:
             "application/json",
         )
 
+    server.register_schema_resource(
+        _FINANCE_SPEC_SCHEMA_URI,
+        finance_spec_schema,
+        name="finance-spec-v3",
+        title="FinanceSpec v3",
+        description="财务服务端用于准备、校验和运行的完整 FinanceSpec v3 候选 Schema。",
+    )
     server.register_resource_provider(lambda: [], read_run_resource)
     return server
 

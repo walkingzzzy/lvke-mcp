@@ -39,6 +39,23 @@ _EXTERNAL_RECEIPT_SECRET_ENV = "LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET"
 _SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]{2,}")
 _SEARCH_RELEVANCE_THRESHOLD = 0.25
 _SEARCH_SLOTS = threading.BoundedSemaphore(4)
+_SEARCH_PROVIDER = "tavily-hikari"
+
+
+def _canonical_search_provider(value: Any, requested: str) -> str:
+    """Expose the configured Tavily identity instead of adapter placeholders."""
+
+    provider = str(value or "").strip().lower().replace("_", "-")
+    requested = str(requested or "").strip().lower().replace("_", "-")
+    if requested == _SEARCH_PROVIDER and provider in {
+        "",
+        "auto",
+        "unknown",
+        "configured-web-provider",
+        "tavily",
+    }:
+        return _SEARCH_PROVIDER
+    return provider or requested or "unknown"
 
 
 def _external_receipt_message(
@@ -244,19 +261,20 @@ def search(
             "title": title,
             "url": canonical_url,
             "summary": summary,
-            "provider": str(item.get("provider") or "configured-web-provider"),
+            "provider": _canonical_search_provider(item.get("provider"), provider_requested),
             "rank": int(item.get("position") or index + 1),
             "relevance": _search_relevance(query, title, summary, canonical_url),
         })
-    provider_used = str(
+    provider_used = _canonical_search_provider(
         raw.get("provider")
         or data.get("provider")
-        or next((item["provider"] for item in results if item.get("provider")), "unknown")
+        or next((item["provider"] for item in results if item.get("provider")), ""),
+        provider_requested,
     )
     fallback_reason = None
     if (
         provider_requested not in {"", "auto"}
-        and provider_used not in {"", "unknown", "configured-web-provider", provider_requested}
+        and provider_used not in {"", "unknown", provider_requested}
     ):
         fallback_reason = "configured_provider_unavailable_or_replaced"
     relevant_count = sum(
@@ -364,10 +382,9 @@ def _matches_domain_rule(hostname: str, rule: str) -> bool:
 
 
 # Feasibility-study angles used to expand a base topic into several distinct
-# search queries.  A single free web provider (ddgs) caps at ~5 results per
-# call, so reaching 30-50 candidates requires issuing multiple angled queries
-# and aggregating the de-duplicated union.  These are deterministic suffixes,
-# not LLM-generated: the expansion is reproducible and auditable.
+# search queries.  Tavily is the only search provider; reaching 30-50 distinct
+# candidates still requires multiple query angles and a de-duplicated union.
+# These deterministic suffixes are reproducible and auditable.
 _FEASIBILITY_ANGLES: tuple[str, ...] = (
     "",  # the bare topic itself
     "政策 文件",
@@ -510,7 +527,9 @@ def discover(
                     "domain": hostname,
                     "title": str(item.get("title") or ""),
                     "summary": str(item.get("summary") or ""),
-                    "provider": str(item.get("provider") or "configured-web-provider"),
+                    "provider": _canonical_search_provider(
+                        item.get("provider"), "tavily-hikari"
+                    ),
                     "rank": int(item.get("rank") or len(candidates) + 1),
                     "relevance": float(relevance) if isinstance(relevance, (int, float)) else 1.0,
                     "query": str(query),
@@ -998,7 +1017,7 @@ async def _trusted_tavily_extract(
         if not isinstance(item, dict):
             continue
         normalized = dict(item)
-        normalized["provider"] = "tavily"
+        normalized["provider"] = _SEARCH_PROVIDER
         content = str(item.get("content") or item.get("raw_content") or "")
         if content:
             # Tavily's native extract response calls the body ``raw_content``;
@@ -1007,7 +1026,7 @@ async def _trusted_tavily_extract(
             retrieved_at = utc_now()
             content_hash = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
             receipt = {
-                "provider": "tavily",
+                "provider": _SEARCH_PROVIDER,
                 "provider_tool": "tavily_extract",
                 "url": str(item.get("url") or ""),
                 "retrieved_at": retrieved_at,
@@ -1086,7 +1105,7 @@ async def fetch(
                     "code": "trusted_extract_local_config_gap",
                     "message": f"受信 Tavily 提取被本地配置阻断（{diagnosis}）；非上游 Tavily 故障",
                     "diagnosis": diagnosis,
-                    "provider": "tavily",
+                    "provider": _SEARCH_PROVIDER,
                     "retryable": False,
                     "trace_id": hashlib.sha256(f"fetch:{time.time_ns()}".encode()).hexdigest()[:24],
                     "resource_uris": [],
@@ -1108,7 +1127,7 @@ async def fetch(
                 "code": "tavily_extract_unavailable",
                 "message": f"受信 Tavily 正文提取当前不可用（{diagnosis}）",
                 "diagnosis": diagnosis,
-                "provider": "tavily",
+                "provider": _SEARCH_PROVIDER,
                 "retryable": True,
                 "retry_after": 5,
                 "trace_id": hashlib.sha256(f"fetch:{time.time_ns()}".encode()).hexdigest()[:24],
@@ -1230,7 +1249,10 @@ async def fetch(
             "content_mode": content_mode,
             "mime_type": mime_type,
             "mime_type_source": mime_type_source,
-            "provider": str(item.get("provider") or "configured-web-provider"),
+            "provider": str(
+                item.get("provider")
+                or (_SEARCH_PROVIDER if trusted_tavily else "direct_http")
+            ),
             "extraction_provider": "tavily" if trusted_tavily else "direct_http",
             "extraction_receipt": item.get("extraction_receipt"),
             "extraction_receipt_verified": bool(item.get("extraction_receipt_verified")),
@@ -1311,7 +1333,7 @@ async def fetch(
                 else ["稍后重试 Tavily，或显式选择 direct_http"]
             )
         ),
-        "provider": "tavily" if trusted_tavily else "direct_http",
+        "provider": _SEARCH_PROVIDER if trusted_tavily else "direct_http",
         "retryable": bool(failures and not succeeded),
         "retry_after": 5 if failures and not succeeded else None,
         "trace_id": hashlib.sha256(f"fetch:{time.time_ns()}".encode()).hexdigest()[:24],

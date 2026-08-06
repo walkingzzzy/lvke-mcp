@@ -446,8 +446,14 @@ def default_artifact_dir(
     workspace_id: str,
     run_id: str,
 ) -> Path:
-    """默认落盘目录：{MCP data_root}/workspaces/{id}/finance_artifacts/{run_id}/"""
-    from lvke_mcp.runtime.workspace import workspace_root
+    """默认落盘目录：``lvke产出/{id}/finance-tables/finance_artifacts/{run_id}/``
 
-    root = workspace_root(str(workspace_id)) / "finance_artifacts"
+    与十三表 CSV/XLSX 导出、研报交付工件同归 ``lvke产出/``：这些是需要随仓库
+    留存与复核的产出，``data_root`` 只放运行时状态。注意
+    ``reports/artifacts.py`` 会从本目录抓取 XLSX 附到研报包，其
+    ``_safe_support_source`` 以交付物根做包含性校验，两侧必须同步迁移。
+    """
+    from lvke_mcp.runtime.workspace import deliverable_dir
+
+    root = deliverable_dir(str(workspace_id), "finance-tables", "finance_artifacts")
     return root / str(run_id or "unknown")

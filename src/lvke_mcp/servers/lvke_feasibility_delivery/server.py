@@ -8,6 +8,7 @@ from mcp import types
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
 from lvke_mcp.runtime.logging import get_logger
+from lvke_mcp.runtime import resource_registry
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.servers.lvke_feasibility_delivery import service
 from lvke_mcp.servers.lvke_feasibility_delivery.contracts import DELIVERY_MODES, EVIDENCE_POLICIES, RELEASE_SCOPES, STAGES, STAGE_STATUSES
@@ -111,16 +112,42 @@ def build_server() -> OfficialStdioServer:
         service.release, _OUTPUT, write,
     )
     server.register_tool(
-        "feasibility_list_resources",
-        "列出当前 workspace 的交付运行、checkpoint 和 release Resource。",
-        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "resource_type": {"type": "string"}, "cursor": {"type": "string"}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}}, "required": ["workspace_id"]},
-        service.list_resources, _OUTPUT, read,
+        "lvke_list_resources",
+        "按领域和显式 workspace 分页列举原始 Lvke Resource；不转换 URI、记录或二进制。",
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": _WS,
+                "domain": {"type": "string", "enum": list(resource_registry.DOMAINS)},
+                "resource_type": {"type": "string"},
+                "cursor": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
+            },
+            "required": ["workspace_id", "domain"],
+        },
+        lambda a: resource_registry.list_resources(
+            a["workspace_id"],
+            a["domain"],
+            resource_type=a.get("resource_type", ""),
+            cursor=a.get("cursor", ""),
+            limit=int(a.get("limit", 50)),
+        ),
+        _OUTPUT,
+        read,
     )
     server.register_tool(
-        "feasibility_read_resource",
-        "在当前 workspace 读取交付 Resource。",
-        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "uri": _URI}, "required": ["workspace_id", "uri"]},
-        service.read_resource, _OUTPUT, read,
+        "lvke_read_resource",
+        "从 lvke:// URI 自动识别领域并在显式 workspace 内读取原始内容；跨工作区读取继续 fail-closed。",
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"workspace_id": _WS, "uri": _URI},
+            "required": ["workspace_id", "uri"],
+        },
+        lambda a: resource_registry.read_resource(a["workspace_id"], a["uri"]),
+        _OUTPUT,
+        read,
     )
     server.register_resource_provider(lambda: [], _read_resource)
     return server

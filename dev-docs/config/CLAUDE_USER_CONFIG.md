@@ -20,7 +20,7 @@
 
 ```json
 {
-  "command": "/Users/mac/Desktop/mcp_servers/.venv/bin/python",
+  "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
   "args": ["-m", "lvke_mcp.servers.<dir_name>.server"],
   "env": { "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke" },
   "type": "stdio"
@@ -32,7 +32,9 @@
 - **命名两套，不可互换**：条目名取自 `server.py` 里的 `SERVER_NAME`（连字符，
   如 `lvke-finance-model`）；`args` 里的模块路径用目录名（下划线，
   如 `lvke_finance_model`）。
-- **直接用仓库 venv 的解释器**，不经 `uv run`，因此不依赖工作目录。
+- **直接用 conda 环境 `lvke-mcp` 的解释器**（`/opt/miniconda3/envs/lvke-mcp/bin/python`），
+  不经 `uv run`、也不经 `conda run`，因此不依赖工作目录、不需要 activate。
+  本项目用 conda 管理环境，仓库内不再有 `.venv`。
 - **只认 `LVKE_MCP_*` 环境变量**（`MCP_INDEPENDENCE_PLAN` §6.1）。运行时读取
   `LVKE_MCP_DATA_DIR`（缺省 `~/.lvke`）、`LVKE_MCP_CONFIG_DIR`、`LVKE_MCP_TEMP_DIR`、
   `LVKE_MCP_PROFILE`（`core`/`formal`，缺省 `core`）、`LVKE_MCP_LOG_LEVEL`，
@@ -83,7 +85,7 @@ server 或 skill 增删后，按上面两节的规则重新生成即可。建议
 
 ```bash
 cd /Users/mac/Desktop/mcp_servers
-LVKE_MCP_DATA_DIR="$HOME/.lvke" .venv/bin/python - <<'PY'
+LVKE_MCP_DATA_DIR="$HOME/.lvke" /opt/miniconda3/envs/lvke-mcp/bin/python - <<'PY'
 import json, subprocess, sys
 req = {"jsonrpc":"2.0","id":1,"method":"initialize",
        "params":{"protocolVersion":"2025-06-18","capabilities":{},

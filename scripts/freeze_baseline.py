@@ -5,7 +5,7 @@
 把完整响应 JSON 固化到 tests/fixtures/baseline/ 下，作为独立化版本的「外部行为」对照基准。
 
 用法：
-    .venv/bin/python scripts/freeze_baseline.py [server...]
+    python scripts/freeze_baseline.py [server...]
     # 不带参数 = 冻结统一 manifest 中的全部 23 个 server
 """
 
@@ -23,7 +23,7 @@ from lvke_mcp.testing.server_manifest import SERVER_BY_NAME, SERVER_SPECS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MCP_ROOT = REPO_ROOT
-PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
+PYTHON = sys.executable
 
 PROTOCOL_VERSION = "2025-11-25"
 

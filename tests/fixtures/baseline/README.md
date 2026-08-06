@@ -5,7 +5,9 @@
 
 ## 冻结方式
 
-每个 server 以 `.venv/bin/python -m lvke_mcp.servers.{server}.server` 启动，依次发送：
+每个 server 以 `python -m lvke_mcp.servers.{server}.server` 启动（解释器取
+`sys.executable`，即跑 `freeze_baseline.py` 的那个环境，当前为 conda 环境 `lvke-mcp`），
+依次发送：
 
 1. `initialize`（protocolVersion = **2025-11-25**）→ `notifications/initialized`
 2. `tools/list` → `resources/list`

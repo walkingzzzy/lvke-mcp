@@ -423,63 +423,8 @@ def build_server() -> OfficialStdioServer:
         a.get("fixture_manifest"),
         a.get("reconstruction_records"),
     ), _PACK_OUTPUT, write)
-    server.register_tool(
-        "analysis_list_resources",
-        "按显式工作区分页列举分析任务及不可变结果。",
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "workspace_id": _WS,
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "task",
-                        "evidence_pack",
-                        "candidate_set",
-                        "profile",
-                        "normalized_comparison",
-                        "financial_trend",
-                        "benchmark_comparison",
-                    ],
-                },
-                "cursor": {"type": "string"},
-                "limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 200,
-                    "default": 50,
-                },
-            },
-            "required": ["workspace_id"],
-        },
-        lambda a: service.list_resources(
-            a["workspace_id"],
-            resource_type=a.get("resource_type", ""),
-            cursor=a.get("cursor", ""),
-            limit=int(a.get("limit", 50)),
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "analysis_read_resource",
-        "在显式工作区作用域内读取不可变分析 Resource。",
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "workspace_id": _WS,
-                "uri": {"type": "string", "minLength": 1},
-            },
-            "required": ["workspace_id", "uri"],
-        },
-        _read_resource,
-        _OUTPUT,
-        read,
-    )
     # Protocol-level Resource requests carry neither workspace nor identity.
-    # Keep them disabled; scoped tools above are authoritative.
+    # Dynamic access is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

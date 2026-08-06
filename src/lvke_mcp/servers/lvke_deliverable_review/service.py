@@ -25,7 +25,7 @@ from lvke_mcp.runtime.storage import (
     JSONArtifactStore, canonical_json, paginate_resource_entries, require_safe_id,
     sha256_json, utc_now,
 )
-from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.runtime.workspace import deliverable_dir, workspace_root
 from lvke_mcp.servers.lvke_deliverable_review import financial_checks, report_checks, rules
 from lvke_mcp.servers.lvke_deliverable_review.contracts import (
     DEPLOYMENT_MODES, FINDING_STATUSES, SEVERITIES, SEVERITY_ORDER,
@@ -4161,9 +4161,13 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _export_root(workspace_id: str, export_id: str) -> Path:
+    """审查导出（json/md/docx/xlsx）落盘根，统一到仓库 ``lvke产出/``。"""
     return (
-        workspace_root(require_safe_id(workspace_id, "workspace_id"))
-        / "mcp_objects" / "deliverable-review" / "export-files"
+        deliverable_dir(
+            require_safe_id(workspace_id, "workspace_id"),
+            "review",
+            "exports",
+        )
         / require_safe_id(export_id, "export_id")
     )
 

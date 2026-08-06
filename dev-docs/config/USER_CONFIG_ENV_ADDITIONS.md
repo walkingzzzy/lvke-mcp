@@ -20,7 +20,7 @@
 
 ```json
 {
-  "command": "/Users/mac/Desktop/mcp_servers/.venv/bin/python",
+  "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
   "args": ["-m", "lvke_mcp.servers.lvke_data_acquisition.server"],
   "env": {
     "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke",
@@ -40,7 +40,7 @@
 
 ```json
 {
-  "command": "/Users/mac/Desktop/mcp_servers/.venv/bin/python",
+  "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
   "args": ["-m", "lvke_mcp.servers.lvke_source_files.server"],
   "env": {
     "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke",
@@ -54,7 +54,7 @@
 
 ```json
 {
-  "command": "/Users/mac/Desktop/mcp_servers/.venv/bin/python",
+  "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
   "args": ["-m", "lvke_mcp.servers.lvke_archive.server"],
   "env": {
     "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke",
@@ -74,7 +74,7 @@
 
 ```toml
 [mcp_servers.environmental-data]
-command = "/Users/mac/Desktop/mcp_servers/.venv/bin/python"
+command = "/opt/miniconda3/envs/lvke-mcp/bin/python"
 args = ["-m", "lvke_mcp.servers.environmental_data.server"]
 type = "stdio"
 
@@ -96,7 +96,7 @@ LVKE_MCP_DATA_DIR = "/Users/mac/.lvke"
 cd /Users/mac/Desktop/mcp_servers
 LVKE_MCP_DATA_DIR="$HOME/.lvke" \
 LVKE_EXTERNAL_CORPUS_ROOT="$(pwd)/docs" \
-.venv/bin/python - <<'PY'
+/opt/miniconda3/envs/lvke-mcp/bin/python - <<'PY'
 import json, subprocess, sys
 req = {"jsonrpc":"2.0","id":1,"method":"initialize",
        "params":{"protocolVersion":"2025-06-18","capabilities":{},

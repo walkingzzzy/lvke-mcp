@@ -222,7 +222,12 @@ def _meta_path(workspace_id: str) -> Path:
 
 
 def _revisions_dir(workspace_id: str) -> Path:
-    return _workspace_root(workspace_id) / "revisions"
+    """报告修订正文（Markdown + meta）落盘目录。
+
+    正文草稿是交付物，随仓库留存；``workspace_meta / issues / finance`` 是
+    运行时元数据，仍走 :func:`_workspace_root`。
+    """
+    return runtime_workspace.deliverable_dir(workspace_id, "report", "revisions")
 
 
 def _revision_dir(workspace_id: str, revision_id: str) -> Path:
@@ -230,7 +235,8 @@ def _revision_dir(workspace_id: str, revision_id: str) -> Path:
 
 
 def _proposals_dir(workspace_id: str) -> Path:
-    return _workspace_root(workspace_id) / "agent_proposals"
+    """Agent 提案（proposed_report.md / diff.html）落盘目录。"""
+    return runtime_workspace.deliverable_dir(workspace_id, "report", "proposals")
 
 
 def _proposal_dir(workspace_id: str, proposal_id: str) -> Path:

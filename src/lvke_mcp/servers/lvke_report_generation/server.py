@@ -12,6 +12,7 @@ from lvke_mcp.domains.reports import application as service
 
 SERVER_NAME = "lvke-report-generation"
 SERVER_VERSION = "0.1.0"
+_REPORT_PREPARATION_SCHEMA_URI = "lvke://schemas/report-preparation"
 logger = get_logger(SERVER_NAME)
 _OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"]}
 _VALIDATE_OUTPUT = _OUTPUT
@@ -128,6 +129,10 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         read,
     )
+    report_preparation_schema = next(
+        spec.input_schema for spec in server.tool_specs if spec.name == "report_prepare"
+    )
+    report_preparation_schema["x-lvke-schema-uri"] = _REPORT_PREPARATION_SCHEMA_URI
     server.register_tool(
         "report_start",
         "创建绑定上游依据的 Agent 草稿会话；必须提交不可变正文快照。",
@@ -392,59 +397,15 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         read,
     )
-    server.register_tool(
-        "report_list_resources",
-        "按显式工作区分页列举准备对象、任务、修订和交付工件。",
-        _input_schema(
-            {
-                "workspace_id": _WS,
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "preparation",
-                        "job",
-                        "revision",
-                        "artifact",
-                        "artifact_file",
-                    ],
-                },
-                "cursor": {"type": "string"},
-                "limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 200,
-                    "default": 50,
-                },
-            },
-            ["workspace_id"],
-        ),
-        lambda a: service.list_resources(
-            a["workspace_id"],
-            resource_type=a.get("resource_type", ""),
-            cursor=a.get("cursor", ""),
-            limit=int(a.get("limit", 50)),
-        ),
-        _OUTPUT,
-        read,
+    server.register_schema_resource(
+        _REPORT_PREPARATION_SCHEMA_URI,
+        report_preparation_schema,
+        name="report-preparation",
+        title="Report Preparation",
+        description="报告准备阶段用于绑定 evidence、research、财务 package 与提纲的完整 Schema。",
     )
-    server.register_tool(
-        "report_read_resource",
-        "在显式工作区作用域内读取报告 Resource；二进制内容以 base64 返回。",
-        _input_schema(
-            {
-                "workspace_id": _WS,
-                "uri": {"type": "string", "minLength": 1},
-            },
-            ["workspace_id", "uri"],
-        ),
-        lambda a: _read_scoped_resource(
-            a["workspace_id"],
-            a["uri"],
-        ),
-        _OUTPUT,
-        read,
-    )
-    # Protocol-level Resource calls have no workspace identity; use scoped tools.
+    # Protocol-level Resource calls have no workspace identity. Dynamic access
+    # is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

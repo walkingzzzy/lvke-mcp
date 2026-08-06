@@ -1,0 +1,25 @@
+---
+name: lvke-delivery-guardrails
+description: Enforce Lvke delivery discipline and proposal/apply boundaries. Use whenever changing delivery code, declaring completion, applying report revisions, or deciding whether release is permitted.
+---
+
+# Lvke Delivery Guardrails
+
+## Routing
+
+Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `SKILL.md` completely before acting. Do not preload unrelated references.
+
+## Workflow
+
+1. Classify the request against the catalog.
+2. Load the minimum relevant specialist references.
+3. Apply their workflow and invariants together with the gates below.
+4. Verify the result at the risk level required by the selected references.
+
+## Gates
+
+- Do not weaken RBAC, signatures, evidence, review, or release boundaries.
+- Report blockers honestly and distinguish technical completion from formal acceptance.
+
+The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+

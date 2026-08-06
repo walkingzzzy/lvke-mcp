@@ -307,6 +307,7 @@ def _source_descriptor(source_type: str, description: str) -> dict[str, Any]:
 
 
 _MIXED_SOURCE_DESCRIPTOR = {
+    "type": "object",
     "oneOf": [
         _source_descriptor("source_snapshot", "不可变网页或项目文件快照"),
         _source_descriptor("evidence_pack", "已固化证据包"),
@@ -944,48 +945,8 @@ def build_server() -> OfficialStdioServer:
         annotations=_bundle_write,
     )
 
-    server.register_tool(
-        name="dr_list_resources",
-        description="按工作区列举已固化研究包与 artifact；不会枚举其他工作区元数据。",
-        input_schema={
-            "type": "object", "additionalProperties": False,
-            "properties": {
-                "workspace_id": _ws_schema,
-                "resource_type": {"type": "string", "maxLength": 100},
-                "cursor": {"type": "string", "maxLength": 8192},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
-            },
-            "required": ["workspace_id"],
-        },
-        handler=lambda args: _list_scoped_resources(
-            args["workspace_id"],
-            resource_type=str(args.get("resource_type") or ""),
-            cursor=str(args.get("cursor") or ""),
-            limit=int(args.get("limit") or 50),
-        ),
-        output_schema=_RESOURCE_LIST_OUTPUT,
-        annotations=_read_only,
-    )
-    server.register_tool(
-        name="dr_read_resource",
-        description="在显式工作区作用域内读取研究包 Resource；跨工作区 URI 统一按不存在处理。",
-        input_schema={
-            "type": "object", "additionalProperties": False,
-            "properties": {
-                "workspace_id": _ws_schema,
-                "uri": {"type": "string", "minLength": 1},
-            },
-            "required": ["workspace_id", "uri"],
-        },
-        handler=lambda args: _read_scoped_resource(
-            args["workspace_id"], args["uri"]
-        ),
-        output_schema=_RESOURCE_READ_OUTPUT,
-        annotations=_read_only,
-    )
-
     # Protocol-level resources/list and resources/read carry no workspace scope.
-    # Keep them empty and force dynamic access through the scoped tools above.
+    # Dynamic access is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

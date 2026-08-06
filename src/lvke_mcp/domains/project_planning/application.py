@@ -2042,7 +2042,17 @@ def get_planning_object(
     object_type: str,
     object_id: str,
 ) -> dict[str, Any]:
+    # Keep the legacy ProjectContext and MarketSizingCase response shapes while
+    # routing them through the single public planning_get_object entry point.
+    if object_type == "ProjectContext":
+        return get_project_context(workspace_id, object_id)
+    if object_type == "MarketSizingCase":
+        return get_market_case(workspace_id, object_id)
     mapping = {
+        "InputApplicability": (
+            INPUT_APPLICABILITY_STORE,
+            "input_applicability_id",
+        ),
         "RevenueDriverSet": (REVENUE_DRIVER_STORE, "revenue_driver_set_id"),
         "BuildScaleCase": (BUILD_SCALE_STORE, "build_scale_case_id"),
         "CostDriverSet": (COST_DRIVER_STORE, "cost_driver_set_id"),
@@ -2057,13 +2067,18 @@ def get_planning_object(
     record = store.get(workspace_id, object_id)
     if record is None:
         return _blocked("planning_object_not_found", "planning 对象不存在或不属于当前作用域")
+    view = (
+        _applicability_view(record)
+        if object_type == "InputApplicability"
+        else _planning_view(record, id_field)
+    )
     return _envelope(
         success=True,
         status="ok",
         resource_uris=[record["resource_uri"]],
         object_id=object_id,
         object_type=object_type,
-        planning_object=_planning_view(record, id_field),
+        planning_object=view,
         basis_hash=record["basis_hash"],
         content_hash=record["content_hash"],
     )

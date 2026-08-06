@@ -11,15 +11,15 @@ from typing import Any
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from lvke_mcp.runtime.storage import require_safe_id
-from lvke_mcp.runtime.workspace import workspace_root
+from lvke_mcp.runtime.workspace import deliverable_dir
 
 
 def _artifact_root(workspace_id: str) -> Path:
-    return (
-        workspace_root(require_safe_id(workspace_id, "workspace_id"))
-        / "mcp_objects"
-        / "zero-material-delivery"
-        / "files"
+    """零材料交付研报（MD/DOCX）落盘根，统一到仓库 ``lvke产出/``。"""
+    return deliverable_dir(
+        require_safe_id(workspace_id, "workspace_id"),
+        "zero-material-delivery",
+        "artifacts",
     )
 
 

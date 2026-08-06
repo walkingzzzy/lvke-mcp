@@ -10,15 +10,15 @@ the internal store layout.
 Contract:
 - Mirroring is **best-effort**: any failure is swallowed and never breaks the
   authoritative write.  A mirror copy is a convenience, not a source of truth.
-- Destination: ``<mirror_root>/<title>_<workspace_id>/<category>/<filename>``
-  where ``mirror_root`` = env ``LVKE_PROJECT_ARTIFACT_DIR`` or ``<cwd>/lvke产出``.
-- ``title`` is the human project name read from ``workspace_meta.json``; falls
-  back to the workspace id when unavailable.
+- Destination: ``<mirror_root>/<workspace_id>/<category>/<filename>``
+  where ``mirror_root`` = env ``LVKE_PROJECT_ARTIFACT_DIR`` or
+  ``deliverable_root()``（默认仓库 ``lvke产出/``，测试隔离时随
+  ``LVKE_MCP_DATA_DIR`` 走）。与其他域产出（finance-tables/report/…）
+  同根，避免出现第二套 ``{title}_{workspace_id}`` 布局。
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -29,13 +29,20 @@ _INVALID = re.compile(r'[/\\:*?"<>|\r\n\t]')
 
 
 def _project_mirror_root() -> Path:
-    """Root under which every project subfolder is created."""
+    """Root under which every project subfolder is created.
+
+    统一用 :func:`~lvke_mcp.runtime.workspace.deliverable_root`，
+    而不是 ``cwd()/lvke产出``：两者在生产环境等价，但测试时
+    ``LVKE_MCP_DATA_DIR`` 已对 deliverable_root 生效，cwd 版本无法被测试
+    隔离并会污染仓库（``lvke产出/ws-mirror_ws-mirror`` 即源于此）。
+    此外统一根路径后 ``mirror_file / mirror_dir`` 产出的文件自然落到
+    ``lvke产出/{workspace_id}/…`` 中，与其他域产出口径一致。
+    """
     env = os.environ.get("LVKE_PROJECT_ARTIFACT_DIR", "").strip()
     if env:
         return Path(env).expanduser()
-    # MCP servers are launched with ``uv run --directory <project>`` so the
-    # process cwd is the project root.
-    return Path.cwd() / _MIRROR_DIRNAME
+    from lvke_mcp.runtime.workspace import deliverable_root
+    return deliverable_root()
 
 
 def _sanitize(name: str) -> str:
@@ -44,23 +51,14 @@ def _sanitize(name: str) -> str:
     return cleaned[:60] or "未命名项目"
 
 
-def _workspace_title(workspace_id: str) -> str:
-    """Read the human project title from the workspace meta, id as fallback."""
-    try:
-        from lvke_mcp.runtime.workspace import workspace_root
-
-        meta_path = workspace_root(workspace_id) / "workspace_meta.json"
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        title = str(meta.get("title") or "").strip()
-        return title or workspace_id
-    except Exception:  # noqa: BLE001 - best effort, never break the caller
-        return workspace_id
-
-
 def project_dir_for(workspace_id: str) -> Path:
-    """Return ``<mirror_root>/<title>_<workspace_id>`` (not created here)."""
-    title = _sanitize(_workspace_title(workspace_id))
-    return _project_mirror_root() / f"{title}_{workspace_id}"
+    """Return ``<deliverable_root>/<workspace_id>`` (not created here).
+
+    原设计为 ``<root>/<title>_<workspace_id>``，改成纯 workspace_id 以与
+    ``deliverable_dir(workspace_id, …)`` 的目录结构对齐，并去掉对
+    workspace_meta.json 的额外读取（非阻塞但在高频导出时无谓 IO）。
+    """
+    return _project_mirror_root() / str(workspace_id)
 
 
 def mirror_file(workspace_id: str, src: str | Path, *, category: str = "") -> Path | None:

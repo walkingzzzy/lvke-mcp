@@ -399,6 +399,8 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             missing.append("annual_revenue_wan_or_revenue_driver")
         if spec is None:
             missing.append("finance_spec")
+        data["available"] = not missing
+        data["missing_inputs"] = list(missing)
         evidence_binding_hash = sha256_json(
             {
                 "evidence_pack_ids": evidence_ids,

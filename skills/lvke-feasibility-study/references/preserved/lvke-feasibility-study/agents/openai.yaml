@@ -1,0 +1,4 @@
+interface:
+  display_name: "绿科可研总编排"
+  short_description: "编排证据、规划、财务、报告和审查的完整可研业务对象链"
+  default_prompt: "使用 $lvke-feasibility-study 编排证据、规划、财务、报告与审查对象链。"

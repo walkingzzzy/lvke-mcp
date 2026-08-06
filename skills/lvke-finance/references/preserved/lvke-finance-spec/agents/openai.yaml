@@ -1,0 +1,4 @@
+interface:
+  display_name: "绿科财务规范"
+  short_description: "从已确认规划对象构建并确认可追溯的 FinanceSpec v3"
+  default_prompt: "使用 $lvke-finance-spec 从已确认规划对象构建可追溯 FinanceSpec v3。"

@@ -1,0 +1,104 @@
+{
+  "schema_version": "deliverable_manifest.v1",
+  "artifact_id": "deliverable_78f0afd6faa940f483a219595d6ece4c",
+  "workspace_id": "acc20260806",
+  "kind": "draft",
+  "template_version": "feasibility-report.v1",
+  "basis_fingerprint": "sha256:bac9291cc396b3b98c3a56457cff4948a3659cbe5034399e7ba3f6e4e2d8d6a7",
+  "document": {
+    "revision_id": "rev_3fa5c73fd69d2d72",
+    "content_hash": "sha256:643ad956192d27db748c78b883e10b4cc1248b13348a028f73f97096424a4f86",
+    "content_bytes": 8039,
+    "metadata_hash": "sha256:7fa337c6581d486a9a1b0221d7579e86e70fb004415b41743d02d8bdf84866a7"
+  },
+  "workspace_version": null,
+  "finance": {
+    "run_id": "run_853b80482be1",
+    "run_kind": "feasibility_finance",
+    "run_hash": "sha256:c73523cfaab55efd9cbeaee78b4163037dbc47e5c8768918b22c73b7e65f32ba",
+    "binding_hash": "sha256:2fcb09fa38c14e3dc812c933d3b3e61d1c638d05622575395a43d85a63fbf81d",
+    "input_hash": "sha256:5f8659496419c8078dd02f90ebfc515f673566348c022f5a359eb2ba942b66d2",
+    "spec_hash": "sha256:19a408ffbff38670d8630ef6550301e5038b966fe8f847e3c7574289210a8787",
+    "table_bundle_hash": "sha256:cf30ef697d8550c0b45808c40f2fd3d055afd8b379b38337f0a36153f9c80317",
+    "manifest_hash": "sha256:f78b244756241199c248aef792f6ce1ba91a5f483f384ae2a4754db285eeebf0",
+    "model_version": "finance_model.v2.4",
+    "template_version": "finance_tables.v3",
+    "publish_gate_hash": "sha256:90cdb576f474abef293188358d5fee4bd683d4f579de8033cea1cb72622822f9"
+  },
+  "governed_snapshots": {
+    "evidence_pack": {
+      "present": true,
+      "hash": "sha256:9dd097cb494a1b09d64c069d2f67605a88672de397a774ad83db7d14639c7e8a"
+    }
+  },
+  "appendix_file_snapshots": [],
+  "blocker_summary": {
+    "blockers": [
+      {
+        "code": "finance_reference_structure_incomplete",
+        "message": "财务附表不完整：有效 11/11 张",
+        "details": {}
+      },
+      {
+        "code": "finance_tables_package_invalid",
+        "message": "FinanceTablesPackage 未同时满足同一 run、13 表和 XLSX Resource 要求",
+        "details": {
+          "packages": [
+            {
+              "package_id": "ftp_2471b226d71efc94bde41466",
+              "reasons": [
+                "xlsx_resource_missing"
+              ]
+            },
+            {
+              "package_id": "ftp_975f3dae7f86684656d70451",
+              "reasons": [
+                "xlsx_semantic_validation_failed"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "warnings": [
+      {
+        "code": "owner_missing",
+        "message": "建设单位工商信息缺失，正文以占位表述，发布前须补充",
+        "details": {}
+      }
+    ],
+    "blocker_count": 2,
+    "warning_count": 1
+  },
+  "support_file_warnings": [],
+  "created_at": "2026-08-06T04:44:10.819241+00:00",
+  "payload_files": [
+    {
+      "name": "report.docx",
+      "role": "report_docx",
+      "sha256": "sha256:34b644296b9d8812932d9a98c713b9f96d89ecf8949a42cb5e2582b404f7e6eb",
+      "size_bytes": 16901,
+      "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    },
+    {
+      "name": "basis_snapshot.json",
+      "role": "basis_snapshot",
+      "sha256": "sha256:3981f22d0c3d21672c0b5885d3c39ac24548322f72938dd169e01b8c2296bc78",
+      "size_bytes": 26015,
+      "media_type": "application/json"
+    }
+  ],
+  "docx_font_audit": {
+    "processor_version": "docx-font-normalizer.v1",
+    "east_asia_fonts": [
+      "Heiti SC",
+      "Songti SC"
+    ],
+    "body_east_asia_font": "Songti SC",
+    "heading_east_asia_font": "Heiti SC",
+    "invalid_locale_font_count": 0,
+    "invalid_locale_fonts": [],
+    "replaced_locale_font_count": 0,
+    "content_hash": "sha256:34b644296b9d8812932d9a98c713b9f96d89ecf8949a42cb5e2582b404f7e6eb"
+  }
+}

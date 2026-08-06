@@ -173,6 +173,8 @@ def export_xlsx(
         "xlsx_resource": xlsx_uri,
         "xlsx_hash": digest,
         "xlsx_validation": export_quality,
+        # 交付物落盘绝对路径：调用方据此直接打开文件，不必反解 lvke:// URI。
+        "deliverable_path": str(path),
         "resource_uris": [*rendered.get("resource_uris", []), xlsx_uri],
         "blockers": blockers,
         "validation_complete": formal_ready,
@@ -303,6 +305,8 @@ def export_csv(
         "csv_integrity": csv_integrity,
         "csv_lineage_resource": lineage_uri,
         "csv_lineage_hash": lineage_hash,
+        # 交付物落盘绝对目录：14 个 CSV（13 表 + 血缘表）都在此目录下。
+        "deliverable_path": str(directory),
         "delivery_mode": "formal" if rendered.get("validation_complete") else "draft",
         "draft_only": not bool(rendered.get("validation_complete")),
         "resource_uris": [

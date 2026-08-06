@@ -686,6 +686,9 @@ def export_docx(
         "artifact_kind": created.get("kind"),
         "docx_font_audit": docx_font_audit,
         "validation_complete": kind == "formal_candidate",
+        # 交付物落盘绝对目录：report.docx / basis_snapshot.json / manifest.json
+        # / index.json 均在此目录下（见 artifacts._artifact_root）。
+        "deliverable_path": str(artifacts._artifact_root(workspace_id, artifact_id)),  # noqa: SLF001
         "resource_uris": [base, *file_uris],
         "project_mirror_paths": mirror_paths,
         "warnings": warnings,

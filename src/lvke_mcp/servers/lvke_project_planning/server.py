@@ -11,6 +11,9 @@ from lvke_mcp.servers.lvke_project_planning import lifecycle
 
 SERVER_NAME = "lvke-project-planning"
 SERVER_VERSION = "0.1.0"
+_PROJECT_PLANNING_CANDIDATE_SCHEMA_URI = (
+    "lvke://schemas/project-planning-candidate"
+)
 logger = get_logger(SERVER_NAME)
 
 _STRING = {"type": "string", "minLength": 1}
@@ -626,6 +629,23 @@ _OPTION = {
         "constraint_results",
     ],
 }
+_PROJECT_PLANNING_CANDIDATE_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Project Planning Candidate",
+    "description": (
+        "规划 prepare/solve 入口使用的市场、收入、规模、成本、劳动、政策或方案候选。"
+    ),
+    "x-lvke-schema-uri": _PROJECT_PLANNING_CANDIDATE_SCHEMA_URI,
+    "oneOf": [
+        _MARKET_CANDIDATE,
+        _REVENUE_CANDIDATE,
+        _BUILD_ALTERNATIVE,
+        _COST_CANDIDATE_ITEM,
+        _LABOR_REQUIREMENT,
+        _POLICY_CANDIDATE,
+        _OPTION,
+    ],
+}
 _OUTPUT = {
     "type": "object",
     "additionalProperties": True,
@@ -843,16 +863,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "planning_get_market_case",
-        "读取指定不可变 MarketSizingCase revision、选择与 lineage。",
-        _schema({"market_case_id": _STRING}, ["market_case_id"]),
-        lambda a: service.get_market_case(
-            a["workspace_id"], a["market_case_id"]
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
         "planning_prepare_revenue_drivers",
         "从已确认市场案例固化一个或多个收入驱动候选；候选不自动选择或平均。",
         _schema(
@@ -922,16 +932,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "planning_get_revenue_drivers",
-        "读取指定不可变 RevenueDriverSet 候选或确认 revision。",
-        _schema({"revenue_driver_set_id": _STRING}, ["revenue_driver_set_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "RevenueDriverSet", a["revenue_driver_set_id"]
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
         "planning_get_industry_constraints",
         "读取 ProjectContext 对应的版本化行业规划技术参数；参数不自动取得正式证据资格。",
         _schema({"project_context_id": _STRING}, ["project_context_id"]),
@@ -994,16 +994,6 @@ def build_server() -> OfficialStdioServer:
         ),
         _OUTPUT,
         write,
-    )
-    server.register_tool(
-        "planning_get_build_scale",
-        "读取指定不可变 BuildScaleCase 候选或确认 revision。",
-        _schema({"build_scale_case_id": _STRING}, ["build_scale_case_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "BuildScaleCase", a["build_scale_case_id"]
-        ),
-        _OUTPUT,
-        read,
     )
     server.register_tool(
         "planning_create_revenue_drivers",
@@ -1222,16 +1212,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "planning_get_cost_drivers",
-        "读取指定不可变 CostDriverSet 候选、计算或确认 revision。",
-        _schema({"cost_driver_set_id": _STRING}, ["cost_driver_set_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "CostDriverSet", a["cost_driver_set_id"]
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
         "planning_get_env_templates",
         "读取环保成本方案所需字段模板；模板不是项目合规结论或正式证据。",
         _schema(
@@ -1298,16 +1278,6 @@ def build_server() -> OfficialStdioServer:
         ),
         _OUTPUT,
         write,
-    )
-    server.register_tool(
-        "planning_get_labor_plan",
-        "读取指定不可变 LaborPlan 候选或确认 revision。",
-        _schema({"labor_plan_id": _STRING}, ["labor_plan_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "LaborPlan", a["labor_plan_id"]
-        ),
-        _OUTPUT,
-        read,
     )
     server.register_tool(
         "planning_prepare_policy_basis",
@@ -1403,42 +1373,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "planning_confirm_option_selection",
-        "由 Codex/人员显式选择可行方案、提交理由并列出全部未选方案，生成新的不可变确认对象。",
-        _schema(
-            {
-                "option_comparison_id": _STRING,
-                "selected_option_id": _STRING,
-                "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
-                "rejected_option_ids": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 19,
-                    "uniqueItems": True,
-                    "items": _STRING,
-                },
-                "idempotency_key": _KEY,
-            },
-            [
-                "option_comparison_id",
-                "selected_option_id",
-                "selection_reason",
-                "rejected_option_ids",
-                "idempotency_key",
-            ],
-        ),
-        lambda a: service.confirm_option_selection(
-            a["workspace_id"],
-            a["option_comparison_id"],
-            a["selected_option_id"],
-            a["selection_reason"],
-            a["rejected_option_ids"],
-            idempotency_key=a["idempotency_key"],
-        ),
-        _OUTPUT,
-        write,
-    )
-    server.register_tool(
         "planning_validate_option_comparison",
         "校验方案、指标、强制约束和至少一个可行方案。",
         _schema({"option_comparison_id": _STRING}, ["option_comparison_id"]),
@@ -1486,26 +1420,6 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
-        "planning_get_option_comparison",
-        "读取指定不可变 OptionComparison 候选或确认 revision。",
-        _schema({"option_comparison_id": _STRING}, ["option_comparison_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "OptionComparison", a["option_comparison_id"]
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "planning_get_policy_basis",
-        "读取指定不可变 PolicyBasis 候选或确认 revision。",
-        _schema({"policy_basis_id": _STRING}, ["policy_basis_id"]),
-        lambda a: service.get_planning_object(
-            a["workspace_id"], "PolicyBasis", a["policy_basis_id"]
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
         "planning_resolve_industry_skill",
         "根据不可变 ProjectContext 的 industry_code、project_type、transaction_structure 和 asset_type 返回唯一主行业 Skill。",
         _schema(
@@ -1521,17 +1435,21 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "planning_get_object",
-        "读取指定不可变 RevenueDriverSet、BuildScaleCase、CostDriverSet、LaborPlan 或 OptionComparison。",
+        "按对象类型读取指定不可变规划对象；直接委托原 JSONArtifactStore，不转换记录。",
         _schema(
             {
                 "object_type": {
                     "type": "string",
                     "enum": [
+                        "ProjectContext",
+                        "InputApplicability",
+                        "MarketSizingCase",
                         "RevenueDriverSet",
                         "BuildScaleCase",
                         "CostDriverSet",
                         "LaborPlan",
                         "OptionComparison",
+                        "PolicyBasis",
                     ],
                 },
                 "object_id": _STRING,
@@ -1542,20 +1460,6 @@ def build_server() -> OfficialStdioServer:
             a["workspace_id"],
             a["object_type"],
             a["object_id"],
-        ),
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "project_context_get",
-        "按不可变 ID 读取 ProjectContext。",
-        _schema(
-            {"project_context_id": _STRING},
-            ["project_context_id"],
-        ),
-        lambda a: service.get_project_context(
-            a["workspace_id"],
-            a["project_context_id"],
         ),
         _OUTPUT,
         read,
@@ -1583,58 +1487,15 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         read,
     )
-    server.register_tool(
-        "project_context_list_resources",
-        "分页列出 ProjectContext 与 InputApplicability Resource。",
-        _schema(
-            {
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "",
-                        "ProjectContext",
-                        "InputApplicability",
-                        "MarketSizingCase",
-                        "RevenueDriverSet",
-                        "BuildScaleCase",
-                        "CostDriverSet",
-                        "LaborPlan",
-                        "OptionComparison",
-                    ],
-                    "default": "",
-                },
-                "cursor": {"type": "string", "default": ""},
-                "limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 200,
-                    "default": 50,
-                },
-            },
-            [],
-        ),
-        lambda a: service.list_resources(
-            a["workspace_id"],
-            resource_type=a.get("resource_type", ""),
-            cursor=a.get("cursor", ""),
-            limit=int(a.get("limit", 50)),
-        ),
-        _OUTPUT,
-        read,
+    server.register_schema_resource(
+        _PROJECT_PLANNING_CANDIDATE_SCHEMA_URI,
+        _PROJECT_PLANNING_CANDIDATE_SCHEMA,
+        name="project-planning-candidate",
+        title="Project Planning Candidate",
+        description="规划领域所有候选类型的完整联合 Schema；服务端各工具仍执行其精确子 Schema。",
     )
-    server.register_tool(
-        "project_context_read_resource",
-        "在显式 workspace 作用域内读取不可变 planning Resource。",
-        _schema({"uri": _STRING}, ["uri"]),
-        lambda a: service.read_resource(
-            a["workspace_id"],
-            a["uri"],
-        ),
-        _OUTPUT,
-        read,
-    )
-    # Protocol-level resources carry no explicit workspace assertion. Scoped
-    # tools above remain authoritative until protocol auth context is available.
+    # Protocol-level resources carry no explicit workspace assertion. Dynamic
+    # access is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

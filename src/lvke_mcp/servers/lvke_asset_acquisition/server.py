@@ -2,15 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
-
 from mcp import types
 from mcp.server.lowlevel.helper_types import ReadResourceContents
 
-from lvke_mcp.domains.asset_acquisition.backend import (
-    RECONSTRUCTION_RECORD_FIELDS,
-    PROCESS_ACCEPTANCE_BASIS_FIELDS,
-)
 from lvke_mcp.runtime.logging import get_logger
 from lvke_mcp.runtime.transport import OfficialStdioServer
 from lvke_mcp.runtime.schemas import make_tool_output_schema
@@ -18,6 +12,7 @@ from lvke_mcp.servers.lvke_asset_acquisition import service
 
 SERVER_NAME = "lvke-asset-acquisition"
 SERVER_VERSION = "0.1.0"
+_ASSET_ACQUISITION_SPEC_SCHEMA_URI = "lvke://schemas/asset-acquisition-spec"
 logger = get_logger(SERVER_NAME)
 
 _STRING = {"type": "string", "minLength": 1}
@@ -293,6 +288,7 @@ _SOLAR_SPEC_SCHEMA = {
 _SPEC_SCHEMA = {
     "oneOf": [_HOTEL_SPEC_SCHEMA, _SOLAR_SPEC_SCHEMA],
     "description": "按 asset_type 判别的 FinanceSpec v3 候选；业务层继续报告正式交付缺项",
+    "x-lvke-schema-uri": _ASSET_ACQUISITION_SPEC_SCHEMA_URI,
     "examples": [{
         "version": "finance_spec.v3",
         "asset_type": "solar_power",
@@ -434,6 +430,13 @@ def build_server() -> OfficialStdioServer:
             a["acquisition_tables_package_id"],
             a["idempotency_key"],
         ), _OUTPUT, write,
+    )
+    server.register_schema_resource(
+        _ASSET_ACQUISITION_SPEC_SCHEMA_URI,
+        _SPEC_SCHEMA,
+        name="asset-acquisition-spec",
+        title="Asset Acquisition Spec",
+        description="酒店租赁与光伏资产收购服务端使用的完整判别式 Spec Schema。",
     )
     server.register_resource_provider(lambda: [], _resource)
     return server

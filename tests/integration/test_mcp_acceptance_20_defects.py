@@ -247,7 +247,7 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
 
     def test_p2_005_url_audit_fetch_documented_as_contract_gap(self) -> None:
         """P2-005: 方案文档已将 URL 审计与抓取路径差异记录为契约缺口。"""
-        plan = Path("MCP_DEFECT_FIX_PLAN.md")
+        plan = Path("dev-docs/plans/MCP_DEFECT_FIX_PLAN.md")
         self.assertTrue(plan.exists())
         content = plan.read_text()
         self.assertIn("MCP-P2-005", content)

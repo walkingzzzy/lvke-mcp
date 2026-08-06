@@ -175,51 +175,6 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         write,
     )
-    server.register_tool(
-        "delivery_list_resources",
-        "分页列举当前 workspace 的不可变零材料交付 Resources。",
-        _schema(
-            {
-                "resource_type": {
-                    "type": "string",
-                    "enum": [
-                        "DeliveryIntent",
-                        "AssumptionPackage",
-                        "DeliveryRun",
-                        "TechnicalReport",
-                        "AssumptionRegister",
-                        "GapRegister",
-                        "EvidenceManifest",
-                        "RunManifest",
-                    ],
-                },
-                "cursor": {"type": "string", "maxLength": 8192},
-                "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50},
-            },
-            [],
-        ),
-        service.list_resources,
-        _OUTPUT,
-        read,
-    )
-    server.register_tool(
-        "delivery_read_resource",
-        "在 workspace 作用域内读取零材料交付 Resource。",
-        _schema(
-            {
-                "uri": {
-                    "type": "string",
-                    "pattern": r"^lvke://(?:zero-material-delivery|finance-tables)/workspaces/",
-                    "maxLength": 8192,
-                }
-            },
-            ["uri"],
-        ),
-        service.read_resource,
-        _OUTPUT,
-        read,
-    )
-
     def list_standard_resources():
         return [
             types.Resource(

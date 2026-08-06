@@ -1,4 +1,4 @@
-"""24 个 MCP Server 协议合规测试的可复用 helper。
+"""14 个公开 MCP Server 协议合规测试的可复用 helper。
 
 集中提供子进程启动、initialize 握手报文与原始 JSON-RPC 批量交互。
 调用环境决定包的安装来源和工作目录，驱动本身不注入源码路径。

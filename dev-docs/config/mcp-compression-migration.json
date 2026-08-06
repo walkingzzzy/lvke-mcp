@@ -1,0 +1,463 @@
+{
+  "version": "lvke-mcp-compression.v1",
+  "invariants": [
+    "Only public routing changes; original business implementations remain importable internal libraries.",
+    "Existing object IDs, lvke:// URIs, workspace checks, hashes, lineage, formulas and release gates are unchanged.",
+    "Every removed public name has exactly one replacement route in this manifest."
+  ],
+  "removed_tool_count": 85,
+  "aggregate_contracts": {
+    "source_inspect_workbook": {
+      "arguments": ["workspace_id", "file_id", "operation", "sheet", "range", "options"],
+      "legacy_option_mapping": {
+        "max_rows": "options.max_rows",
+        "max_cols": "options.max_cols",
+        "cell": "range",
+        "max_depth": "options.max_depth"
+      },
+      "local_path_migration": ["source_import_local_path", "source_inspect_workbook"]
+    },
+    "geo_query": {
+      "optional_arguments": ["radius_km", "category", "limit"]
+    },
+    "geo_distance_matrix": {
+      "optional_arguments": ["mode"],
+      "supported_modes": ["haversine_with_highway_estimate"]
+    },
+    "stable_schema_resources": [
+      "lvke://schemas/finance-spec-v3",
+      "lvke://schemas/asset-acquisition-spec",
+      "lvke://schemas/review-target",
+      "lvke://schemas/review-finding-disposition",
+      "lvke://schemas/report-preparation",
+      "lvke://schemas/project-planning-candidate"
+    ]
+  },
+  "entries": [
+    {
+      "old_tool": "environmental-data.query_air_quality",
+      "replacement": "lvke-reference.reference_observe(dataset=\"air_quality\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "environmental-data.query_water_quality",
+      "replacement": "lvke-reference.reference_observe(dataset=\"water_quality\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "environmental-data.list_monitored_locations",
+      "replacement": "lvke-reference.reference_list(dataset=\"environment_locations\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "industry-research.search_report",
+      "replacement": "lvke-reference.reference_search(dataset=\"industry_reports\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "industry-research.get_report_summary",
+      "replacement": "lvke-reference.reference_get(dataset=\"industry_reports\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-clients.search_clients",
+      "replacement": "lvke-reference.reference_search(dataset=\"clients\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-clients.get_client",
+      "replacement": "lvke-reference.reference_get(dataset=\"clients\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-clients.list_history_projects",
+      "replacement": "lvke-reference.reference_list(dataset=\"client_projects\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-experts.find_experts",
+      "replacement": "lvke-reference.reference_search(dataset=\"experts\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-experts.get_expert",
+      "replacement": "lvke-reference.reference_get(dataset=\"experts\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-experts.list_specialties",
+      "replacement": "lvke-reference.reference_list(dataset=\"expert_specialties\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-templates.list_templates",
+      "replacement": "lvke-reference.reference_list(dataset=\"templates\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-templates.get_template",
+      "replacement": "lvke-reference.reference_get(dataset=\"templates\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-templates.fill_template",
+      "replacement": "lvke-reference.template_fill",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "map-geo.geocode",
+      "replacement": "lvke-reference.geo_query(operation=\"geocode\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "map-geo.nearby_pois",
+      "replacement": "lvke-reference.geo_query(operation=\"nearby_pois\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "map-geo.distance_matrix",
+      "replacement": "lvke-reference.geo_distance_matrix",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "policy-search.search_policy",
+      "replacement": "lvke-reference.reference_search(dataset=\"policies\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "policy-search.get_policy_full",
+      "replacement": "lvke-reference.reference_get(dataset=\"policies\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "policy-search.verify_policy_active",
+      "replacement": "lvke-reference.reference_verify(dataset=\"policy\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "statistics-cn.query_indicator",
+      "replacement": "lvke-reference.reference_observe(dataset=\"statistics\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "statistics-cn.list_dictionaries",
+      "replacement": "lvke-reference.reference_list(dataset=\"statistics_dictionaries\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.search_archive",
+      "replacement": "lvke-reference.reference_search(dataset=\"archive\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.get_chapter",
+      "replacement": "lvke-reference.reference_get(dataset=\"archive\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.find_similar_projects",
+      "replacement": "lvke-reference.archive_find_similar_projects",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.extract_structure",
+      "replacement": "lvke-reference.archive_extract_structure",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.compare_cases",
+      "replacement": "lvke-reference.archive_compare_cases",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-archive.get_template_paragraph",
+      "replacement": "lvke-reference.archive_get_template_paragraph",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.calc_irr",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"irr\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.calc_npv",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"npv\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.calc_xirr",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"xirr\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.calc_xnpv",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"xnpv\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.calc_break_even",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"break_even\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.payback_period",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"payback_period\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "finance-calc.sensitivity_analysis",
+      "replacement": "lvke-finance-model.finance_calculate(operation=\"sensitivity\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "excel-bridge.list_sheets",
+      "replacement": "lvke-source-files.source_inspect_workbook(operation=\"list_sheets\")",
+      "category": "cross_service_move"
+    },
+    {
+      "old_tool": "excel-bridge.read_xlsx",
+      "replacement": "lvke-source-files.source_inspect_workbook(operation=\"read_cells\", sheet=?, options={max_rows?, max_cols?})",
+      "category": "cross_service_move"
+    },
+    {
+      "old_tool": "excel-bridge.read_formulas",
+      "replacement": "lvke-source-files.source_inspect_workbook(operation=\"read_formulas\", sheet=?, options={max_rows?, max_cols?})",
+      "category": "cross_service_move"
+    },
+    {
+      "old_tool": "excel-bridge.cross_sheet_refs",
+      "replacement": "lvke-source-files.source_inspect_workbook(operation=\"cross_sheet_refs\")",
+      "category": "cross_service_move"
+    },
+    {
+      "old_tool": "excel-bridge.dependency_tree",
+      "replacement": "lvke-source-files.source_inspect_workbook(operation=\"dependency_tree\", sheet=?, range=\"A1\", options={max_depth?})",
+      "category": "cross_service_move"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_investment",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"investment\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_construction_interest",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"construction_interest\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_working_capital",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"working_capital\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_funding",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"funding\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_income_statement",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"income_statement\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_total_cost",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"total_cost\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_wage",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"wage\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_depreciation",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"depreciation\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_amortization",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"amortization\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_profit_distribution",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"profit_distribution\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_debt_service",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"debt_service\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_cashflow",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"cashflow\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_get_capital_cashflow",
+      "replacement": "lvke-finance-tables.tables_get_table(table_id=\"capital_cashflow\")",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_market_case",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"MarketSizingCase\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_revenue_drivers",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"RevenueDriverSet\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_build_scale",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"BuildScaleCase\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_cost_drivers",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"CostDriverSet\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_labor_plan",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"LaborPlan\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_option_comparison",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"OptionComparison\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_get_policy_basis",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"PolicyBasis\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.project_context_get",
+      "replacement": "lvke-project-planning.planning_get_object(object_type=\"ProjectContext\")",
+      "category": "operation_or_dataset_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.planning_confirm_option_selection",
+      "replacement": "lvke-project-planning.planning_confirm_option_comparison",
+      "category": "same_handler_alias"
+    },
+    {
+      "old_tool": "lvke-source-files.source_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"source-files\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-source-files.source_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-data-acquisition.data_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"data-acquisition\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-data-acquisition.data_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-data-analysis.analysis_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"data-analysis\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-data-analysis.analysis_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-deep-research.dr_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"deep-research\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-deep-research.dr_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-deliverable-review.review_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"deliverable-review\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-deliverable-review.review_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"finance-tables\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-finance-tables.tables_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-knowledge-governance.knowledge_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"knowledge-governance\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-knowledge-governance.knowledge_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.project_context_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"project-planning\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-project-planning.project_context_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-report-generation.report_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"report-generation\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-report-generation.report_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-zero-material-delivery.delivery_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"zero-material-delivery\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-zero-material-delivery.delivery_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-feasibility-delivery.feasibility_list_resources",
+      "replacement": "lvke-feasibility-delivery.lvke_list_resources(domain=\"feasibility-delivery\")",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-feasibility-delivery.feasibility_read_resource",
+      "replacement": "lvke-feasibility-delivery.lvke_read_resource",
+      "category": "global_resource_route"
+    },
+    {
+      "old_tool": "lvke-finance-model.finance_render_tables",
+      "replacement": "lvke-finance-tables.tables_render",
+      "category": "cross_service_move"
+    }
+  ]
+}

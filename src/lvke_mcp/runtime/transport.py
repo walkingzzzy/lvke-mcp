@@ -79,6 +79,11 @@ def _resolve_build_commit() -> str:
 _BUILD_COMMIT = _resolve_build_commit()
 _BUILD_TIME = str(os.getenv("LVKE_MCP_BUILD_TIME") or "source-checkout")
 _RUNTIME_INSTANCE = secrets.token_hex(6)
+# Keep tools/list below the hard context budget while preserving every
+# top-level argument and its scalar constraints.  Larger nested objects remain
+# available through their full immutable schema Resource.
+_PUBLIC_SCHEMA_INLINE_LIMIT = 2 * 1024
+_PUBLIC_SCHEMA_DOC_KEYS = frozenset({"description", "examples", "example", "title", "$comment"})
 
 
 def _schema_validation_message(exc: ValidationError) -> str:
@@ -161,6 +166,15 @@ class ResourceProvider:
 
 
 @dataclass(frozen=True)
+class SchemaResource:
+    uri: str
+    name: str
+    title: str
+    description: str
+    schema: dict[str, Any]
+
+
+@dataclass(frozen=True)
 class TaskAdapter:
     """Persistent domain task bridge; the transport never owns task state."""
 
@@ -179,6 +193,7 @@ class OfficialStdioServer:
         self.logger = logger
         self._tools: dict[str, ToolSpec] = {}
         self._resource_providers: list[ResourceProvider] = []
+        self._schema_resources: dict[str, SchemaResource] = {}
         self._task_adapter: TaskAdapter | None = None
         self.sdk_server = Server(
             server_name,
@@ -241,6 +256,35 @@ class OfficialStdioServer:
         """
 
         self._resource_providers.append(ResourceProvider(lister=lister, reader=reader))
+
+    def register_schema_resource(
+        self,
+        uri: str,
+        schema: dict[str, Any],
+        *,
+        name: str,
+        title: str,
+        description: str = "服务端执行的完整 JSON Schema。",
+    ) -> None:
+        """Publish a stable, read-only alias for an authoritative schema.
+
+        The schema remains the same object used by the server-side validator;
+        this registration only gives clients a durable Resource URI that does
+        not depend on a particular tool name.
+        """
+
+        if not uri.startswith("lvke://schemas/"):
+            raise ValueError("schema resource URI must start with lvke://schemas/")
+        if uri in self._schema_resources:
+            raise ValueError(f"schema resource already registered: {uri}")
+        Draft202012Validator.check_schema(schema)
+        self._schema_resources[uri] = SchemaResource(
+            uri=uri,
+            name=name,
+            title=title,
+            description=description,
+            schema=schema,
+        )
 
     @property
     def tool_specs(self) -> tuple[ToolSpec, ...]:
@@ -346,18 +390,17 @@ class OfficialStdioServer:
         ctx: ServerRequestContext,
         _params: types.PaginatedRequestParams | None,
     ) -> types.ListToolsResult:
-        include_structured = self._supports_structured_content(ctx.protocol_version)
         return types.ListToolsResult(
             tools=[
                 types.Tool(
                     name=spec.name,
                     description=spec.description,
-                    inputSchema=self._public_input_schema(spec.input_schema),
-                    outputSchema=(
-                        self._public_output_schema(spec.output_schema)
-                        if include_structured
-                        else None
-                    ),
+                    inputSchema=self._public_input_schema(spec.name, spec.input_schema),
+                    # Full output schemas remain authoritative for server-side
+                    # validation.  Repeating them in tools/list accounted for a
+                    # large part of the model context and is not required for
+                    # structuredContent support.
+                    outputSchema=None,
                     annotations=spec.annotations,
                     execution=types.ToolExecution(taskSupport=spec.task_support),
                 )
@@ -382,7 +425,27 @@ class OfficialStdioServer:
         _ctx: ServerRequestContext,
         _params: types.PaginatedRequestParams | None,
     ) -> types.ListResourcesResult:
-        resources: list[types.Resource] = []
+        resources: list[types.Resource] = [
+            types.Resource(
+                name=resource.name,
+                title=resource.title,
+                uri=resource.uri,
+                description=resource.description,
+                mimeType="application/schema+json",
+            )
+            for resource in self._schema_resources.values()
+        ]
+        resources.extend([
+            types.Resource(
+                name=f"{self.server_name}.{spec.name}.input-schema",
+                title=f"{spec.name} complete input schema",
+                uri=self._tool_schema_uri(spec.name),
+                description="服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+                mimeType="application/schema+json",
+            )
+            for spec in self._tools.values()
+            if self._schema_size(spec.input_schema) > _PUBLIC_SCHEMA_INLINE_LIMIT
+        ])
         for provider in self._resource_providers:
             listed = provider.lister()
             if inspect.isawaitable(listed):
@@ -396,6 +459,35 @@ class OfficialStdioServer:
         params: types.ReadResourceRequestParams,
     ) -> types.ReadResourceResult:
         uri_text = str(params.uri)
+        static_schema = self._schema_resources.get(uri_text)
+        if static_schema is not None:
+            return types.ReadResourceResult(
+                contents=[
+                    types.TextResourceContents(
+                        uri=uri_text,
+                        text=json.dumps(
+                            static_schema.schema,
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        mimeType="application/schema+json",
+                    )
+                ]
+            )
+        schema_name = self._tool_name_from_schema_uri(uri_text)
+        if schema_name is not None:
+            spec = self._tools.get(schema_name)
+            if spec is None:
+                raise MCPError(types.INVALID_PARAMS, "Unknown schema resource")
+            return types.ReadResourceResult(
+                contents=[
+                    types.TextResourceContents(
+                        uri=uri_text,
+                        text=json.dumps(spec.input_schema, ensure_ascii=False, indent=2),
+                        mimeType="application/schema+json",
+                    )
+                ]
+            )
         for provider in self._resource_providers:
             resolved = provider.reader(uri_text)
             if inspect.isawaitable(resolved):
@@ -685,13 +777,119 @@ class OfficialStdioServer:
         payload["coordination"] = build_coordination(payload, server_name=self.server_name)
         return payload
 
-    @staticmethod
-    def _public_input_schema(schema: dict[str, Any]) -> dict[str, Any]:
-        """Expose MCP 2's required object root without weakening branch schemas."""
+    def _tool_schema_uri(self, tool_name: str) -> str:
+        return f"lvke://schemas/{self.server_name}/{tool_name}/input"
 
-        if schema.get("type") == "object":
-            return schema
-        return {"type": "object", **schema}
+    def _tool_name_from_schema_uri(self, uri: str) -> str | None:
+        prefix = f"lvke://schemas/{self.server_name}/"
+        if not uri.startswith(prefix) or not uri.endswith("/input"):
+            return None
+        value = uri[len(prefix) : -len("/input")]
+        return value if value and "/" not in value else None
+
+    @staticmethod
+    def _schema_size(schema: dict[str, Any]) -> int:
+        return len(json.dumps(schema, ensure_ascii=False, separators=(",", ":")))
+
+    def _compact_public_schema(
+        self,
+        value: Any,
+        *,
+        schema_uri: str,
+        pointer: str = "#",
+        root: bool = False,
+    ) -> Any:
+        if isinstance(value, list):
+            return [
+                self._compact_public_schema(
+                    item,
+                    schema_uri=schema_uri,
+                    pointer=f"{pointer}/{index}",
+                )
+                for index, item in enumerate(value)
+            ]
+        if not isinstance(value, dict):
+            return value
+
+        declared_schema_uri = value.get("x-lvke-schema-uri")
+        if (
+            isinstance(declared_schema_uri, str)
+            and declared_schema_uri.startswith("lvke://schemas/")
+            and declared_schema_uri != schema_uri
+        ):
+            schema_uri = declared_schema_uri
+            pointer = "#"
+
+        size = self._schema_size(value)
+        if not root and size > _PUBLIC_SCHEMA_INLINE_LIMIT:
+            compact: dict[str, Any] = {
+                "type": value.get("type", "object"),
+                "x-lvke-schema-uri": schema_uri,
+                "x-lvke-schema-pointer": pointer,
+            }
+            for key in (
+                "default",
+                "enum",
+                "const",
+                "format",
+                "minimum",
+                "maximum",
+                "exclusiveMinimum",
+                "exclusiveMaximum",
+                "minLength",
+                "maxLength",
+                "pattern",
+                "minItems",
+                "maxItems",
+                "uniqueItems",
+            ):
+                if key in value:
+                    compact[key] = value[key]
+            return compact
+
+        result: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in _PUBLIC_SCHEMA_DOC_KEYS:
+                continue
+            escaped = str(key).replace("~", "~0").replace("/", "~1")
+            if root and key == "properties" and isinstance(item, dict):
+                # The public contract must retain every top-level argument name.
+                # Large schemas are compacted one property at a time so the
+                # properties map itself is never replaced by an opaque stub.
+                result[key] = {
+                    property_name: self._compact_public_schema(
+                        property_schema,
+                        schema_uri=schema_uri,
+                        pointer=(
+                            f"{pointer}/{escaped}/"
+                            f"{str(property_name).replace('~', '~0').replace('/', '~1')}"
+                        ),
+                    )
+                    for property_name, property_schema in item.items()
+                }
+            else:
+                result[key] = self._compact_public_schema(
+                    item,
+                    schema_uri=schema_uri,
+                    pointer=f"{pointer}/{escaped}",
+                )
+        if root and size > _PUBLIC_SCHEMA_INLINE_LIMIT:
+            result["x-lvke-schema-uri"] = schema_uri
+        return result
+
+    def _public_input_schema(
+        self,
+        tool_name: str,
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Publish a compact projection while retaining the full validator."""
+
+        rooted = schema if schema.get("type") == "object" else {"type": "object", **schema}
+        return self._compact_public_schema(
+            rooted,
+            schema_uri=self._tool_schema_uri(tool_name),
+            root=True,
+        )
 
     @staticmethod
     def _public_output_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:

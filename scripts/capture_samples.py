@@ -12,8 +12,8 @@ golden fixtures。这些文件是独立化后重新运行时可机器对照的�
   - partial/estimate_preview 必须保留其非正式语义；blocked/error 样本不能计入成功 golden。
 
 用法：
-    .venv/bin/python scripts/capture_samples.py --core-only --output /tmp/lvke-baseline
-    .venv/bin/python scripts/capture_samples.py --data-dir ~/.lvke
+    python scripts/capture_samples.py --core-only --output /tmp/lvke-baseline
+    python scripts/capture_samples.py --data-dir ~/.lvke
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MCP_ROOT = REPO_ROOT
-PYTHON = str(REPO_ROOT / ".venv" / "bin" / "python")
+PYTHON = sys.executable
 BASELINE = MCP_ROOT / "tests" / "fixtures" / "baseline"
 PROTOCOL_VERSION = "2025-11-25"
 FIXTURE_VALUATION_DATE = "2026-01-15"
