@@ -29,6 +29,24 @@ from lvke_mcp.runtime.coordination import build_coordination, coordination_schem
 ToolHandler = Callable[[dict], dict]
 
 
+def _validate_tool_input(schema: dict, instance: dict) -> str | None:
+    """校验入参是否符合 input_schema，返回错误消息（若有）。
+
+    与 transport.py 的 _schema_validation_message 功能对齐，但不依赖官方 mcp SDK。
+    """
+    try:
+        from jsonschema import Draft202012Validator
+        Draft202012Validator(schema).validate(instance)
+        return None
+    except Exception as exc:
+        # ValidationError 的 absolute_path / message / schema 可用
+        if hasattr(exc, "absolute_path") and hasattr(exc, "message"):
+            path = ".".join(str(p) for p in exc.absolute_path) or "<root>"
+            constraint = " ".join(str(exc.message).split())[:500]
+            return f"Schema validation failed at '{path}': {constraint}. 补充该字段并按工具 schema 提交."
+        return f"入参校验失败: {str(exc)[:200]}"
+
+
 @dataclass
 class ToolSpec:
     """单个工具的元数据 + 处理函数。"""
@@ -121,13 +139,27 @@ class StdioServer:
         name = params.get("name")
         arguments = params.get("arguments") or {}
 
-        def error_payload(code: str, message: str, *, trace_id: str | None = None) -> dict[str, Any]:
+        def error_payload(
+            code: str,
+            message: str,
+            *,
+            trace_id: str | None = None,
+            caller_fault: bool = False,
+        ) -> dict[str, Any]:
+            """构造错误响应。
+
+            ``caller_fault=True`` 用于入参非法这类**调用方错误**：传输与服务端
+            都是健康的，只有业务未完成。把它标成 system/transport 失败会把客户
+            端参数错误伪装成服务端故障，与本仓库 handler 层
+            ``invalid_argument`` 的既有约定（system_success/transport_success
+            均为 true）不一致，也会误导运维定位方向。
+            """
             payload: dict[str, Any] = {
                 "success": False,
                 "business_success": False,
-                "system_success": False,
-                "transport_success": False,
-                "status": "failed",
+                "system_success": bool(caller_fault),
+                "transport_success": bool(caller_fault),
+                "status": "blocked" if caller_fault else "failed",
                 "code": code,
                 "message": message,
                 "retryable": False,
@@ -151,6 +183,29 @@ class StdioServer:
                 ],
                 "isError": True,
             }
+        # NEW-P1-D 修复：在执行 handler 之前校验入参。
+        # 本模块此前只校验 output_schema（见下方），却对外声明了 input_schema
+        # （tools/list 的 inputSchema）。类型错误的入参会直接进入 handler 并
+        # 崩成 internal_error/system_success=false，把「调用方参数错误」伪装成
+        # 「服务端故障」，与官方 transport 的 -32602 行为不一致。
+        spec = self._tools[name]
+        if spec.input_schema:
+            invalid = _validate_tool_input(spec.input_schema, arguments)
+            if invalid is not None:
+                payload = error_payload(
+                    f"{self.server_name}.invalid_argument",
+                    invalid,
+                    caller_fault=True,
+                )
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(payload, ensure_ascii=False),
+                        }
+                    ],
+                    "isError": True,
+                }
         try:
             result = self._tools[name].handler(arguments)
         except Exception as exc:  # noqa: BLE001 - 包成 CallToolResult
