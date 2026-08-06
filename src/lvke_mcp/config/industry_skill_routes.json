@@ -1,5 +1,5 @@
 {
-  "schema_version": "industry-skill-routes.v1",
+  "schema_version": "industry-skill-routes.v1.1",
   "routes": [
     {
       "route_id": "hotel-acquisition",
@@ -10,6 +10,16 @@
       "transaction_structures": ["asset_acquisition", "equity_acquisition", "operation_lease"],
       "primary_skill": "lvke-industry-context",
       "auxiliary_skills": ["lvke-finance-spec", "lvke-finance-modeling"]
+    },
+    {
+      "route_id": "energy",
+      "priority": 90,
+      "industry_prefixes": ["energy", "power", "solar", "wind", "storage"],
+      "asset_types": ["solar_power"],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-industry-context",
+      "auxiliary_skills": ["lvke-market-sizing", "lvke-build-scale", "lvke-cost-drivers"]
     },
     {
       "route_id": "cultural-tourism",

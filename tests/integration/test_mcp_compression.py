@@ -39,6 +39,18 @@ def _stable_response(value: dict) -> dict:
 
 
 class McpCompressionTopologyTest(unittest.TestCase):
+    def test_solar_power_context_has_an_energy_skill_route(self) -> None:
+        manifest = json.loads(
+            Path("src/lvke_mcp/config/industry_skill_routes.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        energy = next(
+            route for route in manifest["routes"] if route["route_id"] == "energy"
+        )
+        self.assertIn("energy", energy["industry_prefixes"])
+        self.assertIn("solar_power", energy["asset_types"])
+
     def test_migration_manifest_covers_all_85_removed_names(self) -> None:
         manifest = json.loads(
             Path("dev-docs/config/mcp-compression-migration.json").read_text(encoding="utf-8")

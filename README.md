@@ -64,6 +64,8 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 sheet?, range?, options?)`；旧路径调用须先 `source_import_local_path`。地图聚合入口
 公开 `geo_query(..., limit?)`，距离矩阵的确定性模式固定为
 `haversine_with_highway_estimate`，不伪装成在线导航路线。
+规划行业路由清单显式覆盖能源前缀和 `solar_power` 资产；合法 ProjectContext
+不得因缺少 route 而回退到 generic 行业。
 
 ## 目录结构
 
