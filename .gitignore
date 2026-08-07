@@ -27,5 +27,9 @@ lvke产出/**/~$*
 # Client-specific and local assistant configuration
 .claude/
 
+# NSS/PKCS#11 module config accidentally emitted into the repo root by local
+# tooling. It carries local cert/key store paths, never project source.
+/pkcs11.txt
+
 # Original client materials and generated research corpus
 /docs/
