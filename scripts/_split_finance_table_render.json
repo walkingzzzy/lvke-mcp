@@ -1,0 +1,59 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/table_render.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_table_render",
+  "package_doc": "\"\"\"十三表渲染实现子模块；对外入口是 ``lvke_mcp.domains.finance.table_render`` 门面。\"\"\"\n",
+  "groups": {
+    "specs": {
+      "doc": "单元格格式化原语、十三表静态规格与交付顺序。",
+      "symbols": [
+        "_fmt", "_fmt_rate_pct", "_fmt_cell", "_TABLE_SPECS", "DELIVERY_ORDER"
+      ]
+    },
+    "field_source": {
+      "doc": "字段取值来源解析：确认事实域、输入修订、直填行与还款来源。",
+      "symbols": [
+        "_get_field", "_confirmed_fact_domains", "_effective_input_revision",
+        "_approved_direct_rows", "_repay_source_facts", "_source_kind",
+        "_source_value"
+      ]
+    },
+    "primitives": {
+      "doc": "行列原语：期间取值、序列、求和与末值。",
+      "symbols": [
+        "_number", "_period_value", "_series", "_sum_values", "_last_value",
+        "_item_row_period_values", "_column_values"
+      ]
+    },
+    "normalize": {
+      "doc": "行归一化、参考行树挂载与渲染行契约。",
+      "symbols": [
+        "_normalize_rows", "_attach_reference_row_trees", "_renderer_row_contract"
+      ]
+    },
+    "builders": {
+      "doc": "投资、资金筹措与营运资金三表 builder。",
+      "symbols": ["_build_investment", "_build_funding", "_build_wc", "_pack_rows"]
+    },
+    "reference": {
+      "doc": "参考矩阵与参考期间表提升。",
+      "symbols": [
+        "_reference_matrix", "_canonical_cost_label",
+        "_promote_reference_period_table"
+      ]
+    },
+    "orchestrator": {
+      "doc": "缺项评估、表适用性与十三表结构化编排入口。",
+      "symbols": [
+        "_assess_missing_fields", "_table_applicability", "build_all_structured"
+      ]
+    },
+    "markdown": {
+      "doc": "结构化表到 markdown 的渲染。",
+      "symbols": [
+        "structured_table_to_md", "render_all_markdown_from_structured",
+        "finance_tables_markdown_from_structured"
+      ]
+    }
+  }
+}

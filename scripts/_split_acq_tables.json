@@ -1,0 +1,44 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/asset_acquisition/tables.py",
+  "out_dir": "src/lvke_mcp/domains/asset_acquisition/_tables",
+  "package_doc": "\"\"\"资产收购十三表实现子模块；对外入口是 ``lvke_mcp.domains.asset_acquisition.tables`` 门面。\"\"\"\n",
+  "groups": {
+    "columns": {
+      "doc": "package store、导出根与十三表列定义；含酒店/光伏两套必填列的原地扩展。",
+      "symbols": [
+        "PACKAGE_STORE", "_export_root", "TABLE_DEFINITIONS",
+        "SOLAR_TABLE_DEFINITIONS", "TABLE_COLUMNS", "SOLAR_TABLE_COLUMNS",
+        "REQUIRED_COLUMNS", "<assign@210>", "<assign@213>", "<assign@217>",
+        "SOLAR_REQUIRED_COLUMNS", "<assign@225>", "<assign@226>", "<assign@227>",
+        "_DATE_FIELDS", "_NUMERIC_FIELDS", "_BOOLEAN_FIELDS"
+      ]
+    },
+    "rows": {
+      "doc": "行构造：表契约、标量拼接、PPA/折旧/权益行与情景行。",
+      "symbols": [
+        "_rows", "_table_contract", "_join_scalar", "_ppa_rows",
+        "_depreciation_rows", "_equity_rows", "_scenario_row", "_scenario_rows"
+      ]
+    },
+    "build": {
+      "doc": "十三表构造与完整性/勾稽校验、数据血缘。",
+      "symbols": ["_build_tables", "_check", "_integrity", "_lineage"]
+    },
+    "render": {
+      "doc": "渲染与 package 绑定。",
+      "symbols": ["render", "_bind_package", "_package"]
+    },
+    "export": {
+      "doc": "CSV / XLSX 导出与导出前置校验。",
+      "symbols": ["_ensure_exportable", "_export_cell", "export_csv", "export_xlsx"]
+    },
+    "query": {
+      "doc": "package 读取、记录读取与 Resource 解析；结果信封。",
+      "symbols": [
+        "get_package", "get_package_record", "resolve_resource", "_result",
+        "_failure", "_blocked"
+      ]
+    }
+  }
+}

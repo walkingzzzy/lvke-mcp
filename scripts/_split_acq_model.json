@@ -1,0 +1,50 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/asset_acquisition/model.py",
+  "out_dir": "src/lvke_mcp/domains/asset_acquisition/_model",
+  "package_doc": "\"\"\"资产收购模型实现子模块；对外入口是 ``lvke_mcp.domains.asset_acquisition.model`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "独立情景字段、错误类型与数值/序列/IRR 原语。",
+      "symbols": [
+        "INDEPENDENT_SCENARIO_FIELDS", "AcquisitionModelError", "_number",
+        "_series", "_safe_irr"
+      ]
+    },
+    "period_dates": {
+      "doc": "日期原语：解析、月份加减、月首月末与月度重叠天数。不叫 calendar，避免与标准库同名。",
+      "symbols": [
+        "_date", "_add_months", "_date_value", "_month_start", "_month_end",
+        "_month_overlap_days"
+      ]
+    },
+    "hotel_lease": {
+      "doc": "酒店经营与租约组合：年度租金基数、递增与合同租金。",
+      "symbols": [
+        "calculate_hotel_operation", "_lease_annual_base", "_escalation_count",
+        "_contract_rent_for_year", "calculate_lease_portfolio"
+      ]
+    },
+    "schedules": {
+      "doc": "年度与月度的债务、折旧与租金收入计划表。",
+      "symbols": [
+        "_debt_schedule", "_depreciation_schedule", "_monthly_lease_income",
+        "_monthly_debt_schedule"
+      ]
+    },
+    "monthly_engine": {
+      "doc": "酒店月度收购模型引擎。",
+      "symbols": ["_run_monthly_acquisition_model"]
+    },
+    "solar_engine": {
+      "doc": "光伏年度运营收购模型引擎。",
+      "symbols": ["_run_solar_acquisition_model"]
+    },
+    "entry": {
+      "doc": "模型入口、情景应用与最高可接受价求解。",
+      "symbols": [
+        "run_acquisition_model", "apply_scenario", "solve_max_acquisition_price"
+      ]
+    }
+  }
+}

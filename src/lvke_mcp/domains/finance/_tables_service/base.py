@@ -1,0 +1,125 @@
+"""run 加载别名、manifest/quality 别名、模板版本与交付评估原语、结果信封。"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from lvke_mcp.domains.finance import tables_application
+
+
+_load_run = tables_application.get_run
+
+
+_structured_table_manifest = tables_application.structured_table_manifest
+
+
+_structured_table_quality = tables_application.structured_table_quality
+
+
+def _require_run_id(run_id: str) -> dict[str, Any] | None:
+    """十三表只消费固化 run_id；缺 run_id 一律拒绝，绝不回退到「最新 run」。"""
+    if not str(run_id or "").strip():
+        return _failure("run_id_required", "缺少 run_id；十三表只消费固化 run，不做兜底选取")
+    return None
+
+
+def _check_template_version(template_version: str, data: dict[str, Any]) -> dict[str, Any] | None:
+    """可选 template_version 是版本钉住断言：不认识/不一致就报错，绝不静默忽略。
+
+    模板版本在 run 固化时已确定（run_service.TEMPLATE_VERSION），表服务不做版本
+    转换；调用方声明的版本只用于防止「按旧版模板口径消费新版 run」的静默漂移。
+    """
+    requested = str(template_version or "").strip()
+    if not requested:
+        return None
+    actual = str(data.get("template_version") or "")
+    if requested != actual:
+        return _failure(
+            "template_version_mismatch",
+            f"请求模板版本 {requested} 与 run 固化版本 {actual} 不一致；表服务不做版本转换，须换用匹配 run",
+        )
+    return None
+
+
+def _delivery_assessment(
+    workspace_id: str,
+    run_id: str,
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    return tables_application.delivery_assessment(workspace_id, run_id, data)
+
+
+def _delivery_keys() -> tuple[str, ...]:
+    return tables_application.delivery_keys()
+
+
+def _structured_delivery_tables(
+    workspace_id: str,
+    run_id: str,
+    rendered: dict[str, Any],
+) -> dict[str, Any]:
+    return tables_application.structured_delivery_tables(
+        workspace_id,
+        run_id,
+        rendered,
+    )
+
+
+def _scalar_csv_rows(table: Any) -> tuple[list[str], list[list[Any]]]:
+    if not isinstance(table, dict):
+        return [], []
+    columns = [column for column in (table.get("columns") or []) if isinstance(column, dict)]
+    headers = [str(column.get("label") or column.get("key") or "") for column in columns]
+    rows: list[list[Any]] = []
+    for row in table.get("rows") or []:
+        if not isinstance(row, list) or len(row) != len(columns):
+            return [], []
+        scalar = []
+        for value in row:
+            if isinstance(value, (dict, list)):
+                return [], []
+            scalar.append("" if value is None else value)
+        rows.append(scalar)
+    return headers, rows
+
+
+def _package_result(record: dict[str, Any], validation: dict[str, Any], status: str) -> dict[str, Any]:
+    payload = record.get("payload") or {}
+    business_success = status == "ok"
+    return {
+        "success": business_success,
+        "transport_success": True,
+        "business_success": business_success,
+        "completed": business_success,
+        "outcome": status,
+        "status": status,
+        "finance_tables_package_id": record["object_id"],
+        "run_id": payload.get("run_id"),
+        "table_manifest": payload.get("table_manifest") or [],
+        "validation": validation,
+        "validation_complete": bool(payload.get("validation_complete", False)),
+        "resource_uris": [record["resource_uri"]],
+        "warnings": validation.get("warnings") or [],
+        "blockers": validation.get("blockers") or [],
+        "next_actions": ["将 package_id 与同一 run_id 一起绑定到研报修订"],
+    }
+
+
+def _failure(code: str, message: str, *, system_error: bool = False) -> dict[str, Any]:
+    """Return an actionable business block without pretending MCP failed."""
+
+    return {
+        "success": False,
+        "transport_success": not system_error,
+        "business_success": False,
+        "completed": False,
+        "outcome": "failed" if system_error else "blocked",
+        "status": "failed" if system_error else "blocked",
+        "code": code,
+        "message": message,
+        "validation_complete": False,
+        "resource_uris": [],
+        "warnings": [],
+        "blockers": [code],
+        "next_actions": [],
+    }

@@ -1,0 +1,36 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/tables_service.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_tables_service",
+  "package_doc": "\"\"\"十三表服务实现子模块；对外入口是 ``lvke_mcp.domains.finance.tables_service`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "run 加载别名、manifest/quality 别名、模板版本与交付评估原语、结果信封。",
+      "symbols": [
+        "_load_run", "_structured_table_manifest", "_structured_table_quality",
+        "_require_run_id", "_check_template_version", "_delivery_assessment",
+        "_delivery_keys", "_structured_delivery_tables", "_scalar_csv_rows",
+        "_package_result", "_failure"
+      ]
+    },
+    "render": {
+      "doc": "十三表渲染与整包校验。",
+      "symbols": ["render", "validate"]
+    },
+    "export": {
+      "doc": "XLSX / CSV 导出与 CSV 导出门禁。",
+      "symbols": ["export_xlsx", "export_csv", "_validate_csv_export", "csv_path_from_uri"]
+    },
+    "query": {
+      "doc": "package 读取、表注册表与单表读取/校验。",
+      "symbols": [
+        "get_package", "table_registry", "_package_for_table", "list_tables",
+        "get_table", "validate_table"
+      ]
+    },
+    "resources": {
+      "doc": "Resource 列举与解析。",
+      "symbols": ["list_resources", "resolve_resource"]
+    }
+  }
+}
