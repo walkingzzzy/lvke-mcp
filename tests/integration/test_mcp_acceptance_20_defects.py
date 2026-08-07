@@ -221,7 +221,7 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
 
     def test_p2_019_delivery_list_resources_returns_uris(self) -> None:
         """P2-019: lvke_zero_material_delivery 的 delivery_list_resources 返回 resource_uris。"""
-        src = Path("src/lvke_mcp/servers/lvke_zero_material_delivery/service.py").read_text()
+        src = Path("src/lvke_mcp/servers/lvke_zero_material_delivery/_service/lifecycle.py").read_text()
         self.assertIn('resource_uris=[str(item["uri"]) for item in page.get("resources")', src)
 
     # ===== SKILL-P1-012: locator 归一化文档已补 =====
