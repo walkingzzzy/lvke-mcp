@@ -1,0 +1,518 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "创建不可变可研交付运行和阶段清单。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "project_context_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_mode": {
+          "type": "string",
+          "enum": [
+            "estimate_preview",
+            "review_candidate",
+            "formal_release"
+          ]
+        },
+        "evidence_policy": {
+          "type": "string",
+          "enum": [
+            "formal_evidence",
+            "source_reconstructed",
+            "technical_fixture",
+            "controlled_assumption"
+          ]
+        },
+        "release_scope": {
+          "type": "string",
+          "enum": [
+            "process_acceptance",
+            "project_delivery"
+          ]
+        },
+        "project_fact_certified": {
+          "type": "boolean"
+        },
+        "reconstructed_source_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "reconstruction_records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "unresolved_inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "release_limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_mode",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_start"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "读取指定可研交付运行快照。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_status"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "写入阶段快照；上游重开时标记所有下游为 stale。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "project",
+            "research",
+            "market",
+            "option",
+            "scale",
+            "drivers",
+            "finance_spec",
+            "finance_run",
+            "finance_tables",
+            "report",
+            "review"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "in_progress",
+            "partial",
+            "blocked",
+            "completed",
+            "stale"
+          ]
+        },
+        "input_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "output_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "basis_hash": {
+          "type": "string"
+        },
+        "stage_basis_hash": {
+          "type": "string"
+        },
+        "expected_basis_hash": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reopen": {
+          "type": "boolean",
+          "default": false
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id",
+        "stage",
+        "status",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_stage"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "根据当前阶段和 blocker 生成下一步工具调用。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_next_actions"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "保存当前交付运行恢复点。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_checkpoint"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "从交付 checkpoint 创建新的不可变运行快照。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "checkpoint_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supplemental_inputs": {
+          "type": "object"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "checkpoint_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_resume"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "按 technical 或 formal 范围校验阶段顺序、lineage 和发布条件。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "technical",
+            "formal"
+          ],
+          "default": "technical"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_validate"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "将 formal 校验通过的运行快照固化为 release。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "release_scope": {
+          "type": "string",
+          "enum": [
+            "process_acceptance",
+            "project_delivery"
+          ]
+        },
+        "release_note": {
+          "type": "string"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "feasibility_release"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "按领域和显式 workspace 分页列举原始 Lvke Resource；不转换 URI、记录或二进制。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "source-files",
+            "data-acquisition",
+            "data-analysis",
+            "deep-research",
+            "deliverable-review",
+            "feasibility-delivery",
+            "finance-tables",
+            "knowledge-governance",
+            "project-planning",
+            "report-generation",
+            "zero-material-delivery"
+          ]
+        },
+        "resource_type": {
+          "type": "string"
+        },
+        "cursor": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50
+        }
+      },
+      "required": [
+        "workspace_id",
+        "domain"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "lvke_list_resources"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "从 lvke:// URI 自动识别领域并在显式 workspace 内读取原始内容；跨工作区读取继续 fail-closed。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192
+        }
+      },
+      "required": [
+        "workspace_id",
+        "uri"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "lvke_read_resource"
+  }
+]

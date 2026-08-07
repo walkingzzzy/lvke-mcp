@@ -1,1 +1,65 @@
-[]
+[
+  {
+    "description": "规划领域所有候选类型的完整联合 Schema；服务端各工具仍执行其精确子 Schema。",
+    "mimeType": "application/schema+json",
+    "name": "project-planning-candidate",
+    "title": "Project Planning Candidate",
+    "uri": "lvke://schemas/project-planning-candidate"
+  },
+  {
+    "description": "planning_validate 服务端执行的完整判别式 JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "planning-validate",
+    "title": "Planning Validate",
+    "uri": "lvke://schemas/project-planning-validate"
+  },
+  {
+    "description": "planning_confirm 服务端执行的完整判别式 JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "planning-confirm",
+    "title": "Planning Confirm",
+    "uri": "lvke://schemas/project-planning-confirm"
+  },
+  {
+    "description": "planning_prepare 服务端执行的完整判别式 JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "planning-prepare",
+    "title": "Planning Prepare",
+    "uri": "lvke://schemas/project-planning-prepare"
+  },
+  {
+    "description": "planning_create 服务端执行的完整判别式 JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "planning-create",
+    "title": "Planning Create",
+    "uri": "lvke://schemas/project-planning-create"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_infer_labor_plan.input-schema",
+    "title": "planning_infer_labor_plan complete input schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_infer_labor_plan/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm.input-schema",
+    "title": "planning_confirm complete input schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare.input-schema",
+    "title": "planning_prepare complete input schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create.input-schema",
+    "title": "planning_create complete input schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create/input"
+  }
+]

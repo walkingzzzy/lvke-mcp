@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "description": "统一交付审查目标的完整判别式 Schema。",
+    "mimeType": "application/schema+json",
+    "name": "review-target",
+    "title": "Review Target",
+    "uri": "lvke://schemas/review-target"
+  },
+  {
+    "description": "finding 确认、整改、申诉、豁免申请与关闭的完整处置 Schema。",
+    "mimeType": "application/schema+json",
+    "name": "review-finding-disposition",
+    "title": "Review Finding Disposition",
+    "uri": "lvke://schemas/review-finding-disposition"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_prepare.input-schema",
+    "title": "review_prepare complete input schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_prepare/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_disposition_finding.input-schema",
+    "title": "review_disposition_finding complete input schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_disposition_finding/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_retest.input-schema",
+    "title": "review_retest complete input schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_retest/input"
+  }
+]

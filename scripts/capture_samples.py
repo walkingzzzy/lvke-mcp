@@ -471,7 +471,7 @@ def capture_research_package(runner: Runner, context: CoreContext) -> CoreContex
         "research-package-roundtrip",
         "research",
         "lvke_deep_research",
-        "dr_start→dr_submit→dr_get_bundle→dr_read_resource",
+        "dr_start→dr_submit→dr_get_bundle→lvke_read_resource",
         {"workspace_id": context.workspace_id},
         note="可回读 partial ResearchPackage；不冒充独立质量审计完成",
     )
@@ -521,17 +521,18 @@ def capture_research_package(runner: Runner, context: CoreContext) -> CoreContex
         ))
         resources = (bundled or {}).get("resources") or {}
         report_uri = str(resources.get("report") or "")
-        read = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "dr_read_resource",
+        read = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_read_resource",
             {"workspace_id": context.workspace_id, "uri": report_uri},
-            request_id=5,
         ))
-        listed = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "dr_list_resources",
-            {"workspace_id": context.workspace_id},
-            request_id=6,
+        listed = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_list_resources",
+            {
+                "workspace_id": context.workspace_id,
+                "domain": "deep-research",
+            },
         ))
     finally:
         proc.kill()
@@ -571,7 +572,7 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
         "finance-tables-roundtrip",
         "finance-tables",
         "lvke_finance_tables",
-        "tables_render→tables_export_csv→tables_export_xlsx→tables_read_resource",
+        "tables_render→tables_export_csv→tables_export_xlsx→lvke_read_resource",
         {"workspace_id": context.workspace_id, "run_id": context.run_id},
         note="绑定本次 FinanceRun 的十三表、CSV 和 XLSX 技术工件",
     )
@@ -608,17 +609,15 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
         ))
         csv_uris = list((csv_export or {}).get("csv_resource_uris") or [])
         xlsx_uri = str((xlsx_export or {}).get("xlsx_resource") or "")
-        csv_read = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "tables_read_resource",
+        csv_read = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_read_resource",
             {"workspace_id": context.workspace_id, "uri": csv_uris[0] if csv_uris else "missing"},
-            request_id=5,
         ))
-        xlsx_read = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "tables_read_resource",
+        xlsx_read = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_read_resource",
             {"workspace_id": context.workspace_id, "uri": xlsx_uri or "missing"},
-            request_id=6,
         ))
     finally:
         proc.kill()
@@ -749,7 +748,7 @@ def capture_report_revision(runner: Runner, context: CoreContext) -> CoreContext
         "report-revision-roundtrip",
         "report",
         "lvke_report_generation",
-        "report_prepare→report_start→report_status→report_validate→report_export_docx→report_read_resource",
+        "report_prepare→report_start→report_status→report_validate→report_export_docx→lvke_read_resource",
         {"workspace_id": context.workspace_id},
         note="绑定本次 Finance、十三表、Evidence 与 Research 对象的 partial 报告工件",
     )
@@ -822,17 +821,15 @@ def capture_report_revision(runner: Runner, context: CoreContext) -> CoreContext
             (uri for uri in ((exported or {}).get("resource_uris") or []) if "/files/" in uri and uri.endswith(".docx")),
             "",
         )
-        revision_read = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "report_read_resource",
+        revision_read = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_read_resource",
             {"workspace_id": context.workspace_id, "uri": revision_uri},
-            request_id=7,
         ))
-        docx_read = runner.inner_payload(runner.call_tool_on(
-            proc,
-            "report_read_resource",
+        docx_read = runner.inner_payload(runner.call_tool(
+            "lvke_feasibility_delivery",
+            "lvke_read_resource",
             {"workspace_id": context.workspace_id, "uri": docx_uri},
-            request_id=8,
         ))
     finally:
         proc.kill()
@@ -914,10 +911,14 @@ def run(runner: Runner) -> None:
 
     capture_finance_run(runner, CoreContext())
 
-    s = Sample("calc-irr", "finance", "finance_calc", "calc_irr",
+    s = Sample("calc-irr", "finance", "lvke_finance_model", "finance_calculate",
                {"cashflows": [-1000, 300, 400, 500, 600]})
     S(s)
-    resp = runner.call_tool("finance_calc", "calc_irr", {"cashflows": [-1000, 300, 400, 500, 600]})
+    resp = runner.call_tool(
+        "lvke_finance_model",
+        "finance_calculate",
+        {"operation": "irr", "inputs": {"cashflows": [-1000, 300, 400, 500, 600]}},
+    )
     if resp.get("ok"):
         runner.save_json(s, runner.domain_of(resp), runner.baseline / "finance" / "calc.irr.json")
     else:
@@ -939,14 +940,17 @@ def run(runner: Runner) -> None:
     runner.save_json(s, raw, runner.baseline / "finance" / "error.bad-workspace.json")
 
     # ================= finance-tables =================
-    s = Sample("tables-thirteen", "finance-tables", "lvke_finance_tables",
-               "tables_read_resource", {"workspace_id": CASE01, "uri": FTP01_URI})
+    s = Sample("tables-thirteen", "finance-tables", "lvke_feasibility_delivery",
+               "lvke_read_resource", {"workspace_id": CASE01, "uri": FTP01_URI})
     S(s)
-    resp = runner.call_tool("lvke_finance_tables", "tables_read_resource",
-                            {"workspace_id": CASE01, "uri": FTP01_URI})
+    resp = runner.call_tool(
+        "lvke_feasibility_delivery",
+        "lvke_read_resource",
+        {"workspace_id": CASE01, "uri": FTP01_URI},
+    )
     if resp.get("ok"):
         inner = runner.inner_payload(resp)
-        if inner and inner.get("status") == "ok" and inner.get("formal_delivery_ready") is True:
+        if inner and inner.get("status") == "ok" and inner.get("success") is True:
             runner.save_json(
                 s,
                 runner.domain_of(resp),
@@ -955,7 +959,7 @@ def run(runner: Runner) -> None:
         else:
             runner.record_defect(
                 s,
-                "十三表资源可读但未达到正式成功状态: "
+                "十三表资源可读但未达到成功状态: "
                 f"{json.dumps(inner, ensure_ascii=False)[:200]}",
             )
     else:
@@ -990,27 +994,33 @@ def run(runner: Runner) -> None:
     else:
         runner.record_defect(s, resp.get("error", "no-response"))
 
-    s = Sample("template-catalog", "finance-tables", "lvke_templates", "list_templates", {})
+    s = Sample("template-catalog", "finance-tables", "lvke-reference", "reference_list", {"dataset": "templates"})
     S(s)
-    resp = runner.call_tool("lvke_templates", "list_templates", {})
+    resp = runner.call_tool("lvke-reference", "reference_list", {"dataset": "templates"})
     if resp.get("ok"):
         runner.save_json(s, runner.domain_of(resp), runner.baseline / "finance-tables" / "template.catalog.json")
     else:
         runner.record_defect(s, resp.get("error", "no-response"))
 
     # ================= report =================
-    s = Sample("report-revision-partial", "report", "lvke_report_generation",
-               "report_list_resources", {"workspace_id": REPORT_WS, "resource_type": "revision"},
+    s = Sample("report-revision-partial", "report", "lvke_feasibility_delivery",
+               "lvke_list_resources", {"workspace_id": REPORT_WS, "domain": "report-generation", "resource_type": "revision"},
                note="既有 revision 经 transport 读取；read 返回 revision 对象")
     S(s)
-    listed = runner.list_resources("lvke_report_generation", "report_list_resources",
-                                   {"workspace_id": REPORT_WS, "resource_type": "revision"})
+    listed = runner.list_resources(
+        "lvke_feasibility_delivery",
+        "lvke_list_resources",
+        {"workspace_id": REPORT_WS, "domain": "report-generation", "resource_type": "revision"},
+    )
     if listed.get("ok") and listed.get("items"):
         rev = listed["items"][0]
         uri = rev.get("uri") or rev.get("resource_uri")
         if uri:
-            resp = runner.call_tool("lvke_report_generation", "report_read_resource",
-                                    {"workspace_id": REPORT_WS, "uri": uri})
+            resp = runner.call_tool(
+                "lvke_feasibility_delivery",
+                "lvke_read_resource",
+                {"workspace_id": REPORT_WS, "uri": uri},
+            )
             if resp.get("ok"):
                 runner.save_json(s, runner.domain_of(resp),
                                  runner.baseline / "report" / "ReportRevision.v1.json")
@@ -1021,20 +1031,24 @@ def run(runner: Runner) -> None:
     else:
         runner.record_defect(s, f"list 无 revision 或失败: {json.dumps(listed, ensure_ascii=False)[:200]}")
 
-    s = Sample("report-error-missing-ws", "report", "lvke_report_generation",
-               "report_list_resources", {}, note="缺 workspace_id 的错误响应")
+    s = Sample("report-error-missing-ws", "report", "lvke_feasibility_delivery",
+               "lvke_list_resources", {}, note="缺 workspace_id 的错误响应")
     S(s)
-    raw = runner.call_tool_raw("lvke_report_generation", "report_list_resources", {})
+    raw = runner.call_tool_raw("lvke_feasibility_delivery", "lvke_list_resources", {})
     runner.save_json(s, raw, runner.baseline / "report" / "error.missing-workspace.json")
 
     # ================= research (deep-research) =================
     capture_research_package(runner, CoreContext())
 
-    # research 领域的可回放成功样本：走 industry_research 研报检索 + 摘要。
-    s = Sample("research-industry-report", "research", "industry_research", "search_report",
+    # research 领域的可回放成功样本：走压缩后的 reference 搜索 + 读取。
+    s = Sample("research-industry-report", "research", "lvke-reference", "reference_search",
                {"keyword": "光伏", "limit": 3})
     S(s)
-    resp = runner.call_tool("industry_research", "search_report", {"keyword": "光伏", "limit": 3})
+    resp = runner.call_tool(
+        "lvke-reference",
+        "reference_search",
+        {"dataset": "industry_reports", "query": "光伏", "limit": 3},
+    )
     if resp.get("ok"):
         inner = runner.inner_payload(resp)
         if inner and inner.get("status") == "ok":
@@ -1043,7 +1057,11 @@ def run(runner: Runner) -> None:
             if not rid:
                 runner.record_defect(s, f"search 无结果: {json.dumps(inner, ensure_ascii=False)[:200]}")
             else:
-                resp2 = runner.call_tool("industry_research", "get_report_summary", {"report_id": rid})
+                resp2 = runner.call_tool(
+                    "lvke-reference",
+                    "reference_get",
+                    {"dataset": "industry_reports", "record_id": rid},
+                )
                 if not resp2.get("ok"):
                     runner.record_defect(s, resp2.get("error", "no-response"))
                 else:

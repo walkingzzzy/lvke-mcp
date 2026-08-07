@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "description": "报告准备阶段用于绑定 evidence、research、财务 package 与提纲的完整 Schema。",
+    "mimeType": "application/schema+json",
+    "name": "report-preparation",
+    "title": "Report Preparation",
+    "uri": "lvke://schemas/report-preparation"
+  }
+]

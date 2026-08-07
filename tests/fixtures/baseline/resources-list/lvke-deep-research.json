@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_add_sources.input-schema",
+    "title": "dr_add_sources complete input schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_add_sources/input"
+  }
+]

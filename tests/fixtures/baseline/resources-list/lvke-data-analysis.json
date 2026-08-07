@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_build_evidence_pack.input-schema",
+    "title": "analysis_build_evidence_pack complete input schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_build_evidence_pack/input"
+  }
+]

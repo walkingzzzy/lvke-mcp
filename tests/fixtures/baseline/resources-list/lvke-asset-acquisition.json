@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "description": "酒店租赁与光伏资产收购服务端使用的完整判别式 Spec Schema。",
+    "mimeType": "application/schema+json",
+    "name": "asset-acquisition-spec",
+    "title": "Asset Acquisition Spec",
+    "uri": "lvke://schemas/asset-acquisition-spec"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_validate_spec.input-schema",
+    "title": "acquisition_validate_spec complete input schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_validate_spec/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_save_spec.input-schema",
+    "title": "acquisition_save_spec complete input schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_save_spec/input"
+  }
+]

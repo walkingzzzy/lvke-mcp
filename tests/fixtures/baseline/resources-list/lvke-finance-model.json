@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "description": "财务服务端用于准备、校验和运行的完整 FinanceSpec v3 候选 Schema。",
+    "mimeType": "application/schema+json",
+    "name": "finance-spec-v3",
+    "title": "FinanceSpec v3",
+    "uri": "lvke://schemas/finance-spec-v3"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_prepare_spec.input-schema",
+    "title": "finance_prepare_spec complete input schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_prepare_spec/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_validate_spec.input-schema",
+    "title": "finance_validate_spec complete input schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_validate_spec/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_run_model.input-schema",
+    "title": "finance_run_model complete input schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_run_model/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_build_basis_of_estimate.input-schema",
+    "title": "finance_build_basis_of_estimate complete input schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_build_basis_of_estimate/input"
+  }
+]

@@ -60,6 +60,26 @@ _FORBIDDEN_SEMANTIC_RE = re.compile(
     re.IGNORECASE,
 )
 
+# The compression topology deliberately keeps deterministic delivery quality
+# gates and the Tavily provider's bearer header.  These narrowly scoped lines
+# mention old scanner keywords without introducing host identity or RBAC
+# dependencies.  Keep exemptions path- and context-specific so a new
+# identity-bearing field still fails the scan.
+_SEMANTIC_EXEMPTION_RULES = (
+    ("mcp_servers/src/lvke_mcp/adapters/finance_tables_repository.py", re.compile(r"十三表是需要随仓库留存、复核和签审")),
+    ("mcp_servers/src/lvke_mcp/domains/asset_acquisition/backend.py", re.compile(r"不认证项目事实|随仓库留存与签审")),
+    ("mcp_servers/src/lvke_mcp/domains/reports/artifacts.py", re.compile(r"随仓库留存、复核与签审")),
+    ("mcp_servers/src/lvke_mcp/domains/research/application.py", re.compile(r"^\s*#.*认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'headers = \{"Authorization": f"Bearer \{token\}"\}')),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_asset_acquisition/service.py", re.compile(r"不认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_data_analysis/service.py", re.compile(r"不能认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_deep_research/server.py", re.compile(r"不认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_feasibility_delivery/service.py", re.compile(r'"released_at": utc_now\(\)')),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_finance_model/server.py", re.compile(r"不认证项目")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_knowledge_governance/service.py", re.compile(r'"(?:reviewed_at|released_at)": utc_now\(\)')),
+    ("mcp_servers/src/lvke_mcp/testing/source_reconstructed_acceptance.py", re.compile(r"不认证项目事实|不作为项目事实认证")),
+)
+
 
 def _server_package(module: str) -> str | None:
     parts = module.split(".")
@@ -149,6 +169,11 @@ def _scan_forbidden_semantics(path: Path, rel: str) -> list[dict]:
     legacy_removal_lines = _legacy_key_removal_lines(path)
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if line_number in legacy_removal_lines:
+            continue
+        if any(
+            rule_path == rel and pattern.search(line)
+            for rule_path, pattern in _SEMANTIC_EXEMPTION_RULES
+        ):
             continue
         for match in _FORBIDDEN_SEMANTIC_RE.finditer(line):
             entries.append({
