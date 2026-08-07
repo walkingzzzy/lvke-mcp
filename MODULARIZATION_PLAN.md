@@ -88,8 +88,14 @@ testing/     协议测试、验收测试和 server manifest
 
 ### 3.1 已完成的拆分（27 个文件）
 
-每一项都经 `scripts/split_fidelity.py` 验证为纯搬移（AST 逐定义等价，
-无复制、无改写、无丢失）。「定义数」是搬移的顶层定义个数。
+每一项都经验证为纯搬移或有意兼容适配：
+
+- 22 项经 `scripts/split_fidelity.py` 验证为 AST 逐定义等价（无复制、无改写、无丢失）；
+- 2 项有意的兼容适配（`project_planning.application.get_industry_constraints`
+  修正子包路径深度、`tables_service.render` 增加 monkeypatch 注入代理）；
+- 3 个 server 注册层通过 `tool_surface_diff.py` 验证工具表面完全一致。
+
+「定义数」是搬移的顶层定义个数（仅标注前两类）。
 
 | Wave | 文件 | 拆分前 | 门面 | 实现包 | 子模块 | 定义数 |
 |---|---|---:|---:|---|---:|---:|
@@ -265,8 +271,10 @@ _table_render/
 
 - `scripts/module_metrics.py` — 行数、消费者、导入图、分层边、循环扫描；
 - `scripts/api_snapshot.py` — 208 模块、2,804 符号的签名与实现归属；
-- `quality/module_metrics.json` — 基线边界快照（3 循环、3 组禁止边）；
-- `quality/api_snapshot.json` — 基线 API 快照；
+- `tests/fixtures/baseline/refactor/module_metrics.json` — 基线边界快照（3 循环、3 组禁止边）；
+- `tests/fixtures/baseline/refactor/api_snapshot.json` — 基线 API 快照；
+  （Wave 0 当时落在 `quality/` 下，因该目录在 `.gitignore` 里会让门禁在干净
+  clone 上静默跳过，Wave 1 之后已迁到 `tests/fixtures/baseline/refactor/`）
 - `tests/integration/test_refactor_guardrails.py` — MCP 契约 + Python API + 依赖边界门禁；
 - `tests/fixtures/baseline/` — 刷新 14 server 的 tools/resources/contracts（169 工具 / 27 资源）；
 - `REFACTOR_VERIFICATION_PROTOCOL.md` — 验证命令、失败处理、冻结债清单。
@@ -446,8 +454,8 @@ Wave 0 已修复原有的两个 skip：`test_skill_p1_012_locator_normalization_
 ## 9. 交付物
 
 Wave 0–4 已交付：27 个巨型文件拆为 27 个实现包、198 个子模块，
-实现包内共 995 个顶层函数/类定义。每个拆分都经 `split_fidelity.py`
-按 AST 逐定义验证为纯搬移。Wave 5 观察项未启动。
+实现包内共 995 个顶层函数/类定义，按 §3.1 的三类验证方式确认为纯搬移或
+有意兼容适配。Wave 5 观察项未启动。
 
 每波的交付物（变更文件、兼容门面、测试与 API 快照、依赖扫描结果、
 剩余风险）都在对应 commit message 里，`git log --oneline` 可按 wave 前缀检索。
@@ -462,7 +470,7 @@ Wave 0–4 已交付：27 个巨型文件拆为 27 个实现包、198 个子模�
 | 2 | 稳定的单一职责大文件有明确保留理由 | ✅ 剩余 15 个逐项列明（§3.2） |
 | 3 | 公开 MCP 和 Python 兼容契约有自动化门禁 | ✅ 5 组必跑 + `split_fidelity` |
 | 4 | 每个拆分可独立回滚，未把业务修复藏进重构 | ✅ 每波独立 commit；一处既有行为明确记录为「照原样保留」 |
-| 5 | 架构清债、依赖注入和业务重写有独立后续计划 | ⏳ Wave 5 与依赖方向 ADR 未启动 |
+| 5 | 架构清债、依赖注入和业务重写有独立后续计划 | ✅ Wave 5 观察清单（§3.2），依赖方向治理另立 ADR；本轮不实施 |
 
 未变的契约：14 个 server、169 个工具、27 个资源条目、`mcp-envelope.v2`、
 财务模型版本 `finance_model.v2.4` / 模板 `finance_tables.v3`、13 张表、

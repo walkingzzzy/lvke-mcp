@@ -84,7 +84,7 @@ conda run -n lvke-mcp python scripts/independence_scan.py --strict
 ### `scripts/api_snapshot.py`
 
 产出 `tests/fixtures/baseline/refactor/api_snapshot.json`：当前 433 个模块、
-4,759 个公开符号的签名与实现归属（Wave 0 时为 208 / 2,804）。
+4,698 个公开符号的签名与实现归属（Wave 0 时为 208 / 2,804）。
 
 - 采集方式是**真实 import**，覆盖门面 re-export、`__getattr__` 代理和运行时注入；
   静态解析做不到这一点。

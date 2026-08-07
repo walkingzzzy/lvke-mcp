@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """工具面契约比对：拆分前后 MCP 工具的注册面必须逐字段相同。
 
-对应 MODULARIZATION_PLAN.md §10「允许切函数体的 4 处例外」。
+对应 MODULARIZATION_PLAN.md §3.1「已完成的拆分」中"3 个 server 注册层通过
+``tool_surface_diff.py`` 验证工具表面完全一致"的验证方式。
 
 ``split_fidelity.py`` 只比较**顶层**同名定义的 AST。一旦把巨型单函数的函数体
-切成内部辅助函数（``build_server`` 814 行切成 9 个 ``_register_*``），它对该
-函数就失效了——顶层定义还在，但函数体必然不同。
+切成内部辅助函数（Wave 2.3 的 ``build_server`` 814 行切成 9 个 ``_register_*``），
+它对该函数就失效了——顶层定义还在，但函数体必然不同。
 
 本脚本是那 4 处例外的补偿手段中「纯注册代码」那一类的验证方式：在两个独立
 进程里分别构建服务器，逐项比对工具面。它能抓出下面这些 ``split_fidelity``
