@@ -1,0 +1,41 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/servers/lvke_deliverable_review/financial_checks.py",
+  "out_dir": "src/lvke_mcp/servers/lvke_deliverable_review/_financial_checks",
+  "package_doc": "\"\"\"财务审查规则实现子模块；对外入口是同级 ``financial_checks`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "规则注册表、数值/容差原语、来源基准与 finding 构造。",
+      "symbols": [
+        "BUILTIN_RULES", "_minimum_capital_pct", "_number", "_tolerance",
+        "_different", "_source_basis", "_finding"
+      ]
+    },
+    "generic_statements": {
+      "doc": "通用报表期间、折旧与营运资金检查组。",
+      "symbols": [
+        "_generic_period_checks", "_generic_depreciation_checks",
+        "_generic_working_capital_checks"
+      ]
+    },
+    "generic_debt": {
+      "doc": "通用债务与偿债能力检查组。",
+      "symbols": ["_generic_debt_checks"]
+    },
+    "generic_tax_source": {
+      "doc": "通用敏感性、税务口径与财务来源绑定检查组。",
+      "symbols": [
+        "_generic_sensitivity_checks", "_generic_tax_and_source_checks",
+        "_generic_finance_source_checks"
+      ]
+    },
+    "acquisition": {
+      "doc": "资产收购专用检查组。",
+      "symbols": ["_acquisition_checks"]
+    },
+    "entry": {
+      "doc": "财务 run 审查入口；固定顺序聚合各规则组的 findings。",
+      "symbols": ["review_finance_run"]
+    }
+  }
+}

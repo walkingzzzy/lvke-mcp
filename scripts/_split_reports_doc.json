@@ -1,0 +1,73 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/reports/doc_service.py",
+  "out_dir": "src/lvke_mcp/domains/reports/_doc_service",
+  "package_doc": "\"\"\"报告文档服务实现子模块；对外入口是 ``lvke_mcp.domains.reports.doc_service`` 门面。\"\"\"\n",
+  "groups": {
+    "outline": {
+      "doc": "九章大纲静态目录：章节结构、文档种类、报告类型解析与章节标题。",
+      "symbols": [
+        "logger", "REPORT_CHAPTERS", "DEFAULT_REPORT_TYPE", "DEFAULT_DOC_KIND",
+        "DOC_KINDS", "ENABLED_DOC_KINDS", "resolve_doc_kind", "REPORT_STRUCTURES",
+        "<assign@148>", "report_structure", "report_chapter_titles",
+        "resolve_report_type"
+      ]
+    },
+    "paths": {
+      "doc": "错误类型、ID/时间原语、工作区路径布局与 JSON/文本读写。",
+      "symbols": [
+        "MISSING_MARKER", "ISSUE_SOURCES", "ISSUE_SEVERITIES", "ISSUE_STATUSES",
+        "PROPOSAL_STATUSES", "DocServiceError", "_now_iso", "_new_id",
+        "_workspace_root", "_meta_path", "_revisions_dir", "_revision_dir",
+        "_proposals_dir", "_proposal_dir", "_issues_path", "_finance_path",
+        "_read_json", "_write_json", "_write_text"
+      ]
+    },
+    "structure": {
+      "doc": "正文解析与结构校验：章节切分、锚点、单章合并、结构与一致性检查。",
+      "symbols": [
+        "default_report_markdown", "_HEADING_RE", "parse_revision_sections",
+        "_anchor_for", "_strip_leading_chapter_title",
+        "merge_single_chapter_proposal", "validate_report_structure"
+      ]
+    },
+    "workspace": {
+      "doc": "工作区与修订存储：元信息、修订保存与读取、快照与财务摘要。",
+      "symbols": [
+        "_default_meta", "_read_meta", "_write_meta", "_save_revision",
+        "ensure_workspace", "_current_revision_content", "revision_content",
+        "load_workspace_snapshot", "read_document", "finance_summary",
+        "workspace_finance_model", "list_issues", "list_revisions",
+        "workspace_report_type"
+      ]
+    },
+    "consistency": {
+      "doc": "跨工作区一致性检查：正文、财务摘要与财务模型的交叉核对。",
+      "symbols": ["consistency_check"]
+    },
+    "proposals": {
+      "doc": "Agent 提案生命周期：创建、比对、应用与财务一致性检查。",
+      "symbols": [
+        "_read_proposal", "create_agent_proposal", "diff_agent_proposal",
+        "_REVISION_SOURCE_CN", "_revision_label", "_html_diff",
+        "apply_agent_proposal", "_check_finance_consistency"
+      ]
+    },
+    "gen_tasks": {
+      "doc": "生成任务快照的存取与列举。",
+      "symbols": [
+        "_gen_task_path", "_gen_task_snapshot_path", "_gen_task_is_latest",
+        "save_gen_task", "load_gen_task", "list_gen_tasks"
+      ]
+    },
+    "docx": {
+      "doc": "docx 导出适配：pandoc 路径、图片内联与 python-docx 渲染。",
+      "symbols": [
+        "_export_docx_via_pandoc", "_DOCX_IMAGE_LINE_RE",
+        "_DOCX_APPENDIX_HEADING_RE", "_DOCX_PAGE_BREAK_MARKERS",
+        "_DOCX_MAX_IMAGE_BYTES", "_DOCX_DATA_IMAGE_TYPES", "_docx_image_bytes",
+        "_export_docx_via_python_docx", "markdown_to_docx"
+      ]
+    }
+  }
+}

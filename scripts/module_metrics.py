@@ -385,10 +385,41 @@ def check_against(baseline: dict, current: dict) -> tuple[list[str], list[str]]:
 
     base_cycles = {tuple(c) for c in baseline.get("cycles", [])}
     cur_cycles = {tuple(c) for c in current.get("cycles", [])}
-    for cycle in sorted(cur_cycles - base_cycles):
-        violations.append(f"new import cycle: {' -> '.join(cycle)}")
-    for cycle in sorted(base_cycles - cur_cycles):
-        notes.append(f"resolved import cycle: {' -> '.join(cycle)}")
+    # 环按「参与其中的模块集合」归一化后比较，而不是按节点序列精确匹配。
+    #
+    # 拆分把实现搬进 ``_impl/`` 子模块后，同一个历史环的路径必然多出子模块节点
+    # （``a -> b -> facade`` 变成 ``a -> b -> _impl.x -> _impl.y -> facade``）。
+    # 按序列比较会把它同时报成「新增环」和「已解决环」——环总数不变却门禁失败，
+    # 这是假阳性。归一化时把实现子模块折叠回其门面模块：判据变成「有没有新的
+    # **模块组**成环」，而不是「环的路径写法有没有变」。
+    def _fold(node: str) -> str:
+        # ``pkg.reports._artifacts.query`` -> ``pkg.reports.artifacts``：实现包
+        # 按约定命名为门面名加下划线前缀，因此去掉前缀就得到同级门面模块，
+        # 子模块段整段丢弃。
+        #
+        # 不能改成「截断到实现包的父包」（得到 ``pkg.reports``），那会把
+        # ``_artifacts`` 与 ``_doc_service`` 两个不同门面的环折叠成同一个 key，
+        # 真的新环就会被吞掉。
+        parts = node.split(".")
+        for index, part in enumerate(parts):
+            if part.startswith("_"):
+                return ".".join([*parts[:index], part[1:]])
+        return node
+
+    def _key(cycle: tuple[str, ...]) -> frozenset[str]:
+        return frozenset(_fold(n) for n in cycle)
+
+    base_keys = {_key(c) for c in base_cycles}
+    cur_keys = {_key(c) for c in cur_cycles}
+    reported: set[frozenset[str]] = set()
+    for cycle in sorted(cur_cycles):
+        key = _key(cycle)
+        if key not in base_keys and key not in reported:
+            reported.add(key)
+            violations.append(f"new import cycle: {' -> '.join(cycle)}")
+    for cycle in sorted(base_cycles):
+        if _key(cycle) not in cur_keys:
+            notes.append(f"resolved import cycle: {' -> '.join(cycle)}")
 
     return violations, notes
 

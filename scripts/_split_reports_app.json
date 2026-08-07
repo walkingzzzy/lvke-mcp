@@ -1,0 +1,39 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/reports/application.py",
+  "out_dir": "src/lvke_mcp/domains/reports/_service",
+  "package_doc": "\"\"\"报告编排实现子模块；对外入口是 ``lvke_mcp.domains.reports.application`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "报告编排共享基座：终态集合、read_model 别名、成功/失败信封与 section 补丁工具。",
+      "symbols": [
+        "_TASK_TERMINAL", "_HEADING_RE", "_normalize_outline", "_revision_sections",
+        "_section_content", "_section_span", "_capture_document_snapshot",
+        "_supplied_document_snapshot", "_resolve_revision_record",
+        "_resolve_target_sections", "_merge_section_patch",
+        "_materialize_local_document_snapshot", "_normalize_finance_binding",
+        "_ok", "_failure"
+      ]
+    },
+    "generation": {
+      "doc": "报告生成任务：准备、启动、状态查询与就绪度评估。",
+      "symbols": ["prepare", "start", "status", "readiness"]
+    },
+    "sections": {
+      "doc": "章节读取、校验与章节级提案。",
+      "symbols": ["validate", "list_sections", "get_section", "propose_section", "validate_section"]
+    },
+    "revisions": {
+      "doc": "全文修订提案：提出、比对与应用。",
+      "symbols": ["propose", "diff", "apply"]
+    },
+    "export": {
+      "doc": "docx 导出编排。",
+      "symbols": ["export_docx"]
+    },
+    "resources": {
+      "doc": "报告域 Resource 列举与解析。",
+      "symbols": ["list_resources", "resolve_resource"]
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/servers/lvke_deliverable_review/report_checks.py",
+  "out_dir": "src/lvke_mcp/servers/lvke_deliverable_review/_report_checks",
+  "package_doc": "\"\"\"报告审查规则实现子模块；对外入口是同级 ``report_checks`` 门面。\"\"\"\n",
+  "groups": {
+    "patterns": {
+      "doc": "规则注册表与静态模式表：数字、期间、公司、指标、路径与章节分组。",
+      "symbols": [
+        "REPORT_RULES", "COMBINED_RULES", "_NUMBER_PATTERN", "_PERIOD_PATTERN",
+        "_COMPANY_PATTERN", "_METRIC_PATTERNS", "_FINANCIAL_METRICS",
+        "_PATH_PATTERNS", "_DEFAULT_SECTION_GROUPS"
+      ]
+    },
+    "normalize": {
+      "doc": "数值与单位归一化、语义判定与近似比较原语。",
+      "symbols": [
+        "_number", "_canonical_unit", "_canonical_value", "_semantic",
+        "_metric_unit_compatible", "_semantic_near", "_period_near",
+        "_flatten_numbers", "_within_tolerance"
+      ]
+    },
+    "claims": {
+      "doc": "语义财务索引与 claim graph 构造。",
+      "symbols": [
+        "semantic_finance_index", "build_claim_graph", "_claim_run_matches"
+      ]
+    },
+    "evidence": {
+      "doc": "证据目录与 claim 证据匹配：各证据轨候选、指标、口径与位置。",
+      "symbols": [
+        "_source_timestamp", "_parse_datetime", "_evidence_catalog",
+        "_formal_evidence_candidate", "_formal_evidence_source",
+        "_technical_fixture_candidate", "_source_reconstructed_candidate",
+        "_candidate_metric", "_candidate_scope", "_candidate_location",
+        "_evidence_claims", "_candidate_matches_claim", "_claim_evidence"
+      ]
+    },
+    "structure": {
+      "doc": "章节结构、引用与正文内部一致性检查组。",
+      "symbols": [
+        "_headings", "_normalize_heading", "_required_section_findings",
+        "_reference_findings", "_internal_consistency_findings"
+      ]
+    },
+    "hotel": {
+      "doc": "酒店租赁专用检查组：金额、租期日期与租约范围。",
+      "symbols": [
+        "_MONEY_PATTERN", "_LEASE_DATE_TEXT", "_LEASE_DATE_PATTERN",
+        "_LEASE_ENTITY_PATTERN", "_candidate_text", "_candidate_context",
+        "_money_values", "_distinct_money_values", "_lease_date",
+        "_lease_end_dates", "_lease_scoped_texts", "_lease_term_flags",
+        "_hotel_findings", "_evidence_has_term"
+      ]
+    },
+    "mineral": {
+      "doc": "选矿专用检查组：合同方、数量、引用与合同值核对。",
+      "symbols": [
+        "_CONTRACT_MENTION_PATTERN", "_CONTRACT_QUANTITY_PATTERN",
+        "_contract_party_role", "_contract_candidate_field",
+        "_contract_reference", "_contract_evidence_value",
+        "_formal_contract_evidence", "_normalized_company",
+        "_report_contract_values", "_contract_value_matches", "_mineral_findings"
+      ]
+    },
+    "entry": {
+      "doc": "报告与联合交付审查入口；固定顺序聚合各规则组的 findings。",
+      "symbols": ["review_report", "review_combined"]
+    }
+  }
+}

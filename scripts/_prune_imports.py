@@ -82,8 +82,9 @@ def prune(path: Path) -> int:
     return removed
 
 
-target = Path(sys.argv[1])
-files = sorted(target.glob("*.py")) if target.is_dir() else [target]
-for f in files:
-    n = prune(f)
-    print(f"{f.name}: removed {n} import name(s)")
+if __name__ == "__main__":
+    target = Path(sys.argv[1])
+    files = sorted(target.glob("*.py")) if target.is_dir() else [target]
+    for f in files:
+        n = prune(f)
+        print(f"{f.name}: removed {n} import name(s)")

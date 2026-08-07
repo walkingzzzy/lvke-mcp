@@ -1,0 +1,77 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/reports/artifacts.py",
+  "out_dir": "src/lvke_mcp/domains/reports/_artifacts",
+  "package_doc": "\"\"\"交付物工件实现子模块；对外入口是 ``lvke_mcp.domains.reports.artifacts`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "版本常量、ID 白名单正则、错误类型与 hash/时间原语。",
+      "symbols": [
+        "SCHEMA_VERSION", "MANIFEST_SCHEMA_VERSION", "BASIS_SCHEMA_VERSION",
+        "DEFAULT_TEMPLATE_VERSION", "DRAFT_MARKER", "_SAFE_WORKSPACE_ID",
+        "_SAFE_ARTIFACT_ID", "_SHA256_EVIDENCE_HASH", "_SAFE_REVISION_ID",
+        "_SAFE_TEMPLATE_VERSION", "_SAFE_OPERATION_ID", "_LOCK",
+        "_GOVERNED_SNAPSHOTS", "_SUPPORT_SUFFIXES", "_VERIFIED_APPENDIX_STATES",
+        "DeliverableArtifactError", "_now", "_canonical_hash", "_bytes_hash",
+        "_file_hash", "_without_volatile_timestamps", "_validate_workspace_id",
+        "_validate_artifact_id", "_validate_template_version"
+      ]
+    },
+    "storage": {
+      "doc": "工作区路径布局、state 读写与原子文件落盘。",
+      "symbols": [
+        "_workspace_root", "_require_workspace", "_service_root",
+        "_finance_artifact_root", "_artifacts_root", "_artifact_root",
+        "_state_path", "_empty_state", "_strict_read_json", "_read_state",
+        "_write_json_atomic", "_write_bytes", "_write_json_file", "load", "save",
+        "bind_finance_run", "_state_guard"
+      ]
+    },
+    "snapshots": {
+      "doc": "上游依据快照：正文、证据包、JSON 对象与来源重建基准。",
+      "symbols": [
+        "_document_snapshot", "_evidence_pack_snapshot", "_json_snapshot",
+        "_source_basis_snapshot", "_fresh_readiness", "_load_finance_run"
+      ]
+    },
+    "formal_gate": {
+      "doc": "正式资格门禁：财务硬门、basis 捕获与 readiness/正式 blocker 聚合。",
+      "symbols": [
+        "_strict_finance_gate", "_capture_basis", "_basis_problem",
+        "_readiness_blockers", "_assert_formal_basis", "_marker_markdown",
+        "_draft_basis_blockers"
+      ]
+    },
+    "support_files": {
+      "doc": "附件收集与路径安全：符号链接拒绝、workbook 校验与附录清单。",
+      "symbols": [
+        "_normalize_declared_hash", "_is_relative_to", "_path_has_symlink",
+        "_verify_finance_workbook", "_safe_support_source", "_safe_filename",
+        "_appendix_path_rows", "_appendix_files_snapshot", "_copy_support_file",
+        "_collect_support_files"
+      ]
+    },
+    "directory": {
+      "doc": "工件目录构建、docx 元信息写入与落盘文件校验。",
+      "symbols": [
+        "_set_docx_metadata", "_file_entry", "_build_artifact_directory",
+        "_safe_relative_name", "_verify_files"
+      ]
+    },
+    "lifecycle": {
+      "doc": "工件创建与失效：事件追加、记录固化、草稿/正式导出与刷新。",
+      "symbols": [
+        "_basis_change_reasons", "_append_event", "_persist_new_record",
+        "_create", "create_draft_export", "create_deliverable_artifact",
+        "_invalidate_locked", "_refresh_record_locked"
+      ]
+    },
+    "query": {
+      "doc": "工件读取、列举与受控下载解析。",
+      "symbols": [
+        "get_artifact", "list_artifacts", "_resolve_artifact_download",
+        "read_artifact_download"
+      ]
+    }
+  }
+}
