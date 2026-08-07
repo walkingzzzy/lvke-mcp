@@ -22,11 +22,8 @@ from lvke_mcp.runtime.storage import (
 from lvke_mcp.domains.finance import tables_application
 
 _load_run = tables_application.get_run
-_delivery_assessment = tables_application.delivery_assessment
-_delivery_keys = tables_application.delivery_keys
-_structured_delivery_tables = tables_application.structured_delivery_tables
+_structured_table_manifest = tables_application.structured_table_manifest
 _structured_table_quality = tables_application.structured_table_quality
-_validate_render = tables_application.validate_render
 
 
 def _require_run_id(run_id: str) -> dict[str, Any] | None:
@@ -63,7 +60,16 @@ def render(
         run_id,
         data,
     )
-    validated_data = {**data, "tables": structured_tables}
+    table_manifest = _structured_table_manifest(
+        run_id,
+        str(data.get("template_version") or ""),
+        structured_tables,
+    )
+    validated_data = {
+        **data,
+        "tables": structured_tables,
+        "table_manifest": table_manifest,
+    }
     source_run = _load_run(workspace_id, run_id)
     validation = _delivery_assessment(
         workspace_id,
@@ -79,7 +85,7 @@ def render(
         "run_id": run_id,
         "template_version": data.get("template_version"),
         "table_bundle_hash": data.get("table_bundle_hash"),
-        "table_manifest": data.get("table_manifest") or [],
+        "table_manifest": table_manifest,
         "tables": structured_tables,
         "validation": validation,
         "validation_complete": bool(validation["validation_complete"]),
@@ -294,6 +300,14 @@ def export_csv(
         PACKAGE_STORE.get(workspace_id, package_id) or {},
         export_manifest,
     )
+    # 与 export_xlsx 对称：CSV 成功写出绝不单独抬升正式资格，须 package 门禁通过
+    # 且本次导出的逐文件深度审查（_validate_csv_export）也通过。
+    csv_formal_ready = bool(rendered.get("validation_complete")) and bool(
+        csv_integrity.get("valid")
+    )
+    csv_blockers = list(rendered.get("blockers") or [])
+    if rendered.get("validation_complete") and not csv_integrity.get("valid"):
+        csv_blockers.append("csv_delivery_quality_not_formal")
     return {
         **rendered,
         "csv_resource_uris": csv_uris,
@@ -307,8 +321,10 @@ def export_csv(
         "csv_lineage_hash": lineage_hash,
         # 交付物落盘绝对目录：14 个 CSV（13 表 + 血缘表）都在此目录下。
         "deliverable_path": str(directory),
-        "delivery_mode": "formal" if rendered.get("validation_complete") else "draft",
-        "draft_only": not bool(rendered.get("validation_complete")),
+        "blockers": csv_blockers,
+        "validation_complete": csv_formal_ready,
+        "delivery_mode": "formal" if csv_formal_ready else "draft",
+        "draft_only": not csv_formal_ready,
         "resource_uris": [
             *rendered.get("resource_uris", []),
             export_manifest["resource_uri"],
@@ -362,7 +378,16 @@ def get_package(
 
 
 def table_registry() -> tuple[dict[str, Any], ...]:
-    """Return the single authoritative registry used by core and alias tools."""
+    """Return the single authoritative registry used by core and alias tools.
+
+    ``alias_tool`` intentionally keeps reporting the 13 round-one tool names that
+    were retired in favour of ``tables_get_table``. It is round-one migration
+    metadata, locked by
+    ``test_mcp_compression.py::test_removed_table_aliases_are_exact_registry_routes``.
+    Renaming the field (e.g. to ``canonical_call``) changes a public response
+    shape, so it needs its own decision plus test/baseline/manifest updates --
+    never a drive-by cleanup.
+    """
 
     from lvke_mcp.domains.finance.table_render import _TABLE_SPECS
 
@@ -785,23 +810,12 @@ def _check_template_version(template_version: str, data: dict[str, Any]) -> dict
     return None
 
 
-def _formal_delivery_gate(
-    workspace_id: str,
-    run_id: str,
-) -> dict[str, Any]:
-    return tables_application.formal_delivery_gate(workspace_id, run_id)
-
-
 def _delivery_assessment(
     workspace_id: str,
     run_id: str,
     data: dict[str, Any],
 ) -> dict[str, Any]:
     return tables_application.delivery_assessment(workspace_id, run_id, data)
-
-
-def _validate_render(data: dict[str, Any]) -> dict[str, Any]:
-    return tables_application.validate_render(data)
 
 
 def _delivery_keys() -> tuple[str, ...]:

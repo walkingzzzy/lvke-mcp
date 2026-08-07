@@ -3429,6 +3429,16 @@ def _workspace_metrics_payload(
 
 
 def workspace_metrics(args: dict[str, Any] | str) -> dict[str, Any]:
+    """Shadow-mode exit metrics, deliberately NOT registered as a public tool.
+
+    The metrics payload is already reachable by MCP clients: ``resolve_resource``
+    serves ``lvke://deliverable-review/workspaces/{ws}/metrics/current`` through
+    ``lvke_read_resource`` (verified end to end). Registering a tool would add
+    public surface for data that is already available, so this stays an internal
+    entry point whose only extra capability is the optional
+    ``deployment_mode`` / ``started_after`` / ``started_before`` filtering.
+    """
+
     if isinstance(args, str):
         args = {"workspace_id": args}
     workspace_id = str(args.get("workspace_id") or "")

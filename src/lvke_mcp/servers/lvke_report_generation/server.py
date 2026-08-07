@@ -15,8 +15,33 @@ SERVER_VERSION = "0.1.0"
 _REPORT_PREPARATION_SCHEMA_URI = "lvke://schemas/report-preparation"
 logger = get_logger(SERVER_NAME)
 _OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"]}
+_PREPARATION_OUTPUT = {
+    **_OUTPUT,
+    "properties": {
+        **_OUTPUT["properties"],
+        "ready": {"type": "boolean", "description": "兼容字段；等同 draft_ready，不代表正式发布资格"},
+        "draft_ready": {"type": "boolean"},
+        "formal_ready": {"type": "boolean"},
+        "formal_blockers": {"type": "array", "items": {"type": "string"}},
+    },
+}
 _VALIDATE_OUTPUT = _OUTPUT
 _WS = {"type": "string", "minLength": 1}
+# 键名与审查侧 _project_metadata_findings 的 aliases 主名一一对应；
+# additionalProperties 保持 True 以接纳该表登记的别名（invest_type / base_date 等）。
+_PROJECT_METADATA = {
+    "type": "object",
+    "additionalProperties": True,
+    "properties": {
+        "project_type": {"type": "string", "minLength": 1},
+        "industry": {"type": "string", "minLength": 1},
+        "valuation_date": {"type": "string", "minLength": 1},
+        "currency": {"type": "string", "minLength": 1},
+        "amount_unit": {"type": "string", "minLength": 1},
+        "tax_basis": {"type": "string", "minLength": 1},
+        "forecast_period": {"type": ["integer", "string"]},
+    },
+}
 
 
 def _read_scoped_resource(workspace_id: str, uri: str) -> dict:
@@ -121,12 +146,16 @@ def build_server() -> OfficialStdioServer:
                 "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
                 "release_limitations": {"type": "array", "items": {"type": "string"}},
                 "project_context_id": {"type": "string"},
+                # 审查侧 PROJECT.METADATA.COMPLETE 从 preparation payload 读这七个字段
+                # （别名见 deliverable_review/service.py 的 _project_metadata_findings）。
+                # 不在此声明会因 additionalProperties=False 被静默丢弃，使该规则数据源恒空。
+                "project_metadata": _PROJECT_METADATA,
                 "upstream_refs": {"type": "array", "items": {"type": "string", "minLength": 1}},
             },
             ["workspace_id", "evidence_pack_ids", "research_package_ids"],
         ),
         service.prepare,
-        _OUTPUT,
+        _PREPARATION_OUTPUT,
         read,
     )
     report_preparation_schema = next(

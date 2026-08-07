@@ -1,5 +1,12 @@
 """MCP-owned job repository with idempotency reservation (§6.5).
 
+Status: intentionally reserved, not yet wired. Every one of the 169 public
+tools registers ``task_support="forbidden"`` (see
+:mod:`lvke_mcp.runtime.transport`), so no caller reaches this repository today.
+It is kept as the infrastructure for ``task_support != "forbidden"`` rather
+than deleted as dead code; decide its fate together with async task support,
+not as part of a public-surface compression pass.
+
 Job state machine: ``queued -> running -> complete | partial | failed | cancelled``.
 A ``queued`` job may also be cancelled before it starts.
 
