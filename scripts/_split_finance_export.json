@@ -1,0 +1,30 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
+  "out_dir": "src/lvke_mcp/adapters/spreadsheets/_finance_export",
+  "package_doc": "\"\"\"财务工作簿导出实现子模块；对外入口是 ``lvke_mcp.adapters.spreadsheets.finance_export`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "错误类型、必需公式族、openpyxl 依赖检查与 soffice 重算。",
+      "symbols": [
+        "logger", "FinanceExportError", "_REQUIRED_FORMULA_FAMILIES",
+        "_DELIVERY_SHEETS", "_require_openpyxl", "_recalculate_with_soffice"
+      ]
+    },
+    "sheets": {
+      "doc": "输入、年度表、指标与勾稽页写入。",
+      "symbols": [
+        "_input_rows", "_write_inputs", "_write_year_table", "_write_indicators",
+        "_write_checks"
+      ]
+    },
+    "delivery_tables": {
+      "doc": "十三表逐表写入：单一事务边界，按方案 §4 不切开函数体。",
+      "symbols": ["_write_delivery_tables"]
+    },
+    "workbook": {
+      "doc": "交付质量评估与工作簿导出入口。",
+      "symbols": ["assess_finance_delivery_quality", "export_finance_workbook"]
+    }
+  }
+}

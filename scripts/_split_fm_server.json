@@ -1,0 +1,61 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/servers/lvke_finance_model/server.py",
+  "out_dir": "src/lvke_mcp/servers/lvke_finance_model/_server",
+  "package_doc": "\"\"\"finance-model server 实现子模块；对外入口是同级 ``server`` 门面（也是 MCP 启动路径）。\"\"\"\n",
+  "keep_in_facade": ["<if@2913>"],
+  "groups": {
+    "schemas": {
+      "doc": "服务标识、schema URI、BoE/分布 JSON Schema 与弃用提示常量。",
+      "symbols": [
+        "SERVER_NAME", "SERVER_VERSION", "_FINANCE_SPEC_SCHEMA_URI", "logger",
+        "_BOE_ENTRY_SCHEMA", "_DISTRIBUTION_SCHEMA", "_STATUS_VALUES",
+        "_DEPRECATED_RENDER_HINT", "_DEPRECATED_PACKAGE_HINT", "_output_schema"
+      ]
+    },
+    "envelope": {
+      "doc": "幂等记录、URI 构造、信封与输入归一化基座。",
+      "symbols": [
+        "_idempotency_ttl_seconds", "_active_idempotency_record", "_run_uri",
+        "_spec_uri", "_finalize", "_ok_env", "_err_env", "_exception_env",
+        "_revenue_input_complete", "_ws", "_str_list", "_unique_strings",
+        "_blocking_rules", "_canonical_candidate_inputs"
+      ]
+    },
+    "calc_tools": {
+      "doc": "纯函数计算器工具与算子映射。",
+      "symbols": ["_CALCULATOR_TOOL_BY_OPERATION", "_tool_finance_calculate"]
+    },
+    "spec_tools": {
+      "doc": "spec 与 fact pack 工具入口，含 legacy 兼容实现。",
+      "symbols": [
+        "_tool_prepare_spec", "_tool_prepare_fact_pack", "_tool_confirm_fact_pack",
+        "_tool_get_fact_pack", "_legacy_tool_prepare_spec", "_tool_confirm_spec",
+        "_legacy_tool_confirm_spec", "_tool_validate_spec"
+      ]
+    },
+    "run_tools": {
+      "doc": "运行、渲染、读取、整包与甲方导入工具，含 legacy 兼容实现。",
+      "symbols": [
+        "_tool_run_model", "_legacy_tool_run_model", "_tool_render_tables",
+        "_tool_get_run", "_tool_generate_package", "_tool_import_vendor_review"
+      ]
+    },
+    "analysis_tools": {
+      "doc": "BoE、资产负债、Monte Carlo 与分析 Resource 工具；含 get_analysis 聚合入口。",
+      "symbols": [
+        "_load_consistent_run", "_planning_record", "_required_boe_pointers",
+        "_latest_formal_boe", "_tool_build_basis_of_estimate",
+        "_tool_get_basis_of_estimate", "_tool_build_balance_sheet",
+        "_tool_get_analysis", "_tool_get_balance_sheet", "_tool_run_monte_carlo",
+        "_tool_get_monte_carlo", "_tool_list_analyses",
+        "_resolve_analysis_resource", "_tool_read_analysis_resource",
+        "_GET_ANALYSIS_BRANCHES", "_install_get_analysis_aggregate"
+      ]
+    },
+    "registry": {
+      "doc": "server builder 与 stdio 启动入口。",
+      "symbols": ["build_server", "main"]
+    }
+  }
+}

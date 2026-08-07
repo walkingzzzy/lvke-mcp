@@ -56,6 +56,19 @@ def bound_names(node: ast.stmt) -> set[str]:
         return {node.target.id} if isinstance(node.target, ast.Name) else set()
     if isinstance(node, (ast.Import, ast.ImportFrom)):
         return {(a.asname or a.name).split(".")[0] for a in node.names}
+    # 顶层 try/if 块也会绑定名字（`try: from x import y / except: def y(): ...`
+    # 这类可选依赖兜底）。不递归进去的话这些名字查不到 provider，跨组引用时
+    # 既不报错也不生成组间 import —— 直接 NameError。这与脚本头记录的
+    # Wave 2.4/2.5 事故同源，所以这里必须递归。
+    if isinstance(node, (ast.Try, ast.If, ast.With)):
+        names: set[str] = set()
+        for field in ("body", "orelse", "finalbody"):
+            for child in getattr(node, field, []) or []:
+                names |= bound_names(child)
+        for handler in getattr(node, "handlers", []) or []:
+            for child in handler.body:
+                names |= bound_names(child)
+        return names
     return set()
 
 
@@ -174,6 +187,15 @@ def run(config: dict) -> None:
             if sym in owner:
                 raise SystemExit(f"symbol assigned twice: {sym}")
             owner[sym] = group
+
+    # ``keep_in_facade`` 显式列出**不搬移**的顶层节点，典型是
+    # ``if __name__ == "__main__": main()`` 这类入口样板：门面模块本身就是
+    # ``python -m`` 的启动路径，这个块搬进实现包后永不触发。必须显式声明，
+    # 不能靠「漏掉就默默不搬」——全覆盖检查是防漏搬的主要护栏。
+    keep: set[str] = set(config.get("keep_in_facade", []))
+    if unknown_keep := sorted(keep - {name for name, _, _, _ in payload}):
+        raise SystemExit(f"keep_in_facade lists unknown symbols: {unknown_keep}")
+    payload = [it for it in payload if it[0] not in keep]
 
     known = {name for name, _, _, _ in payload}
     if stray := sorted(set(owner) - known):

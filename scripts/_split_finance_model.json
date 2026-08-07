@@ -1,0 +1,63 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/finance_model.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_finance_model",
+  "package_doc": "\"\"\"确定性财务模型实现子模块；对外入口是 ``lvke_mcp.domains.finance.finance_model`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "基准利率、参数缓存、IRR/NPV/回收期计算底座与格式化原语。含两个可选依赖兜底 try 块。",
+      "symbols": [
+        "<try@33>", "<try@39>", "BENCHMARK_RATE", "DEFAULT_LOAN_RATE",
+        "_PARAMS_CACHE", "_load_finance_params", "_COST_FALLBACK", "_cost_param",
+        "_resolve_benchmark", "_f", "_fmt", "_fmt_rate_display"
+      ]
+    },
+    "tax": {
+      "doc": "税务口径：所得税表、亏损弥补与增值税留抵。",
+      "symbols": [
+        "_tax_spec_int", "_income_tax_schedule",
+        "_DEFAULT_LOSS_CARRYFORWARD_YEARS",
+        "_compute_income_tax_with_loss_carryforward",
+        "_compute_vat_with_credit_carryover"
+      ]
+    },
+    "profiles": {
+      "doc": "项目性质政策与行业参考。",
+      "symbols": ["project_nature_policy", "industry_reference"]
+    },
+    "investment": {
+      "doc": "投资明细：三段式常量、扁平投资提升、明细解析与范围分类。",
+      "symbols": [
+        "_INVEST_ENGINEERING", "_INVEST_OTHER", "_INVEST_CONTINGENCY",
+        "_FLAT_LIFT_NOTE", "_lift_flat_invest_breakdown", "_parse_invest_detail",
+        "_SCOPE_TOL", "_classify_investment_scope"
+      ]
+    },
+    "engine": {
+      "doc": "核心计算引擎：compute_financials 与依赖它重入的自定义目标、缩放重算、敏感性与情景。四者互相递归（缩放重算与自定义目标求解都要重跑主计算），是同一事务边界，按方案 §4 不拆开也不切函数体。",
+      "symbols": [
+        "compute_financials", "_CUSTOM_TARGET_INPUTS", "_apply_custom_calcs",
+        "_custom_fallback", "_rerun_scaled", "_build_sensitivity",
+        "_build_scenarios"
+      ]
+    },
+    "annual": {
+      "doc": "年度投影：建设期利息、等额本金、年度表构造与财务计划。",
+      "symbols": [
+        "_construction_interest", "_equal_principal_debt", "_build_annual",
+        "_build_financial_plan"
+      ]
+    },
+    "render": {
+      "doc": "表格与摘要渲染、必需标记与 markdown 输出。",
+      "symbols": [
+        "_render_tables", "_render_summary", "_required_markers",
+        "finance_tables_markdown", "_render_annual_tables"
+      ]
+    },
+    "checks": {
+      "doc": "勾稽一致性检查与估算依据 markdown。",
+      "symbols": ["check_consistency", "basis_of_estimate_md"]
+    }
+  }
+}

@@ -129,7 +129,8 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
 
     def test_p1_015_finance_export_blockers_have_actionable(self) -> None:
         """P1-015: working_capital_reconciled / supporting_schedules_formula_driven 的 blocker 含 actionable。"""
-        src = Path("src/lvke_mcp/adapters/spreadsheets/finance_export.py").read_text()
+        # Wave 3.7 实现搬到 _finance_export/delivery_tables.py，门面只 re-export。
+        src = Path("src/lvke_mcp/adapters/spreadsheets/_finance_export/delivery_tables.py").read_text()
         self.assertIn('"actionable": wc_actionable', src)
         self.assertIn('wc_actionable = (', src)
         # supporting_schedules 的 actionable 列出缺失表名

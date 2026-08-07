@@ -1,0 +1,100 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/asset_acquisition/backend.py",
+  "out_dir": "src/lvke_mcp/domains/asset_acquisition/_backend",
+  "package_doc": "\"\"\"资产收购后端实现子模块；对外入口是 ``lvke_mcp.domains.asset_acquisition.backend`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "全局锁、日志、恢复池、失败文案常量与数值/百分比格式化原语。",
+      "symbols": [
+        "_LOCK", "_LOG", "_RECOVERY_POOL", "_DEFAULT_IDEMPOTENCY_TTL_SECONDS",
+        "_UNTRUSTED_EVIDENCE_ASSERTION_KEYS", "_SOURCE_EVIDENCE_FAILURE_MESSAGE",
+        "_RUN_VALIDATION_FAILURE_MESSAGE", "_RUN_EXECUTION_FAILURE_MESSAGE",
+        "_ARTIFACT_GENERATION_FAILURE_MESSAGE", "_now", "_hash",
+        "_idempotency_ttl_seconds", "_num", "_pct", "_pct_ratio",
+        "_same_optional_number", "_same_number"
+      ]
+    },
+    "store": {
+      "doc": "工作区路径、state 读写与幂等/历史/issue 记录。",
+      "symbols": [
+        "_root", "_artifacts_root", "_state_path", "_state_guard", "_load",
+        "_save", "_idempotency_record", "_active_idempotency_record",
+        "_history_event", "_close_issue", "_open_issue", "_migration_binding",
+        "_workspace_ids"
+      ]
+    },
+    "evidence": {
+      "doc": "证据轨判定与绑定：预览/过程验收 spec 识别、重建记录校验与缺口、证据阻断。",
+      "symbols": [
+        "_is_estimate_preview_spec", "RECONSTRUCTION_RECORD_FIELDS",
+        "PROCESS_ACCEPTANCE_BASIS_FIELDS", "_valid_reconstruction_records",
+        "_valid_process_acceptance_basis", "_record_gaps",
+        "process_acceptance_gaps", "_is_process_acceptance_spec",
+        "_sanitize_client_evidence_claims", "_bind_spec_evidence",
+        "_evidence_error_strings", "_formal_assessment",
+        "_evidence_blocking_issues", "_current_evidence_matches_run",
+        "sanitize_spec_input", "assess_spec_evidence"
+      ]
+    },
+    "specs": {
+      "doc": "spec 保存、确认与读取；含决策阈值与最高价校验。",
+      "symbols": [
+        "_decision_thresholds", "_max_price_validation", "save_spec",
+        "confirm_saved_spec", "list_specs", "get_spec"
+      ]
+    },
+    "runs": {
+      "doc": "run 生命周期：创建、入队、执行与读取列举。",
+      "symbols": [
+        "_is_selected_scenario", "create_run", "enqueue_run",
+        "execute_queued_run", "get_run", "list_runs"
+      ]
+    },
+    "scenarios": {
+      "doc": "情景矩阵构造与读取。",
+      "symbols": [
+        "MAX_SCENARIO_MATRIX_COMBINATIONS", "create_scenario_matrix",
+        "get_scenario_matrix", "list_scenario_matrices"
+      ]
+    },
+    "max_price": {
+      "doc": "最高可接受价求解与差异阻断判定。",
+      "symbols": ["_diff_is_blocking", "max_price"]
+    },
+    "report_data": {
+      "doc": "报告数据构造与 markdown 渲染。",
+      "symbols": ["build_acquisition_report_data", "render_markdown"]
+    },
+    "xlsx": {
+      "doc": "最小 xlsx 写出与单元格/列原语。",
+      "symbols": [
+        "_file_hash", "_xlsx_col", "_xml_cell", "_sheet_xml",
+        "_write_minimal_xlsx", "_xlsx_summary_values"
+      ]
+    },
+    "artifacts": {
+      "doc": "工件生成与一致性核对：入队、执行、绑定与产出。",
+      "symbols": [
+        "enqueue_artifact", "_bind_succeeded_artifact", "execute_queued_artifact",
+        "generate_artifacts", "_check_artifact_consistency"
+      ]
+    },
+    "downloads": {
+      "doc": "工件读取与受控下载解析。",
+      "symbols": [
+        "_artifact_filename_is_safe", "_artifact_media_type", "get_artifact",
+        "list_artifacts", "_resolve_artifact_download",
+        "resolve_artifact_download", "resolve_artifact_candidate_download",
+        "_read_resolved_artifact", "read_artifact_download",
+        "read_artifact_candidate_download"
+      ]
+    },
+    "recovery": {
+      "doc": "中断任务恢复与已发布工件补齐。",
+      "symbols": [
+        "_recover_published_artifact", "recover_incomplete_acquisition_tasks"
+      ]
+    }
+  }
+}
