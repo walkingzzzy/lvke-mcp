@@ -2,8 +2,8 @@
 
 > 更新时间：2026-08-07  
 > 仓库：`/Users/mac/Desktop/mcp_servers`  
-> HEAD：`1c5a43375082708d59c73c7d175361e78630da4e`  
-> 注意：编写本文档时工作区存在未提交改动，因此本文的数字是“当前工作区观测值”，不是可复现的发布基线。开始 Wave 0 前必须重新绑定一个干净 commit。
+> 基线：Wave 0 已完成，基线绑定在 `e4f3385` 之后的 Wave 0 提交。  
+> 验证细节见 `REFACTOR_VERIFICATION_PROTOCOL.md`；本文只保留目标、判定标准与波次计划。
 
 ## 1. 目标与非目标
 
@@ -43,19 +43,19 @@
 
 ### 2.2 MCP 服务与验证基线
 
-权威服务清单位于 `src/lvke_mcp/testing/server_manifest.py`，当前为 14 个公开 server，而不是 24 个。
+权威服务清单位于 `src/lvke_mcp/testing/server_manifest.py`，当前为 14 个公开 server。
 
-当前工作区实测：
+Wave 0 验证结果（验证协议见 `REFACTOR_VERIFICATION_PROTOCOL.md`）：
 
 ```text
 conda run -n lvke-mcp python -m pytest -q tests/integration
-67 passed, 2 skipped, 59 subtests passed
+75 passed, 0 skipped, 87 subtests passed
 
 conda run -n lvke-mcp python -m lvke_mcp.testing.smoke_test
 smoke: 14/14 passed
 ```
 
-这两个结果只说明当前快照可用。Wave 0 必须在干净 commit 上重新运行并保存 JSON、环境和 commit 信息。
+14 个 server 提供 169 个工具、27 个资源条目。冻结基线位于 `tests/fixtures/baseline/`。
 
 ### 2.3 当前分层的真实边界
 
@@ -184,19 +184,34 @@ _table_render/
 
 ## 6. 波次计划
 
-### Wave 0：冻结基线和护栏（预计 1–2 人日）
+### Wave 0：冻结基线和护栏（已完成）
 
-开始条件：工作区干净、目标 commit 已记录。
+**完成标志：**
 
-产出：
+- [x] 修正并脚本化超长文件统计（`scripts/module_metrics.py`）；
+- [x] 生成模块消费者清单和导入图，包含 AST import 与字符串懒加载；
+- [x] 保存 75/0/87 的测试结果、14/14 smoke 结果、Python/依赖版本；
+- [x] 增加 API 快照：导入路径、符号、签名、工具/资源清单（`scripts/api_snapshot.py`）；
+- [x] 增加三个自动化门禁测试（`tests/integration/test_refactor_guardrails.py`）；
+- [x] 处理当前两个 baseline skip（已修复，零 skip）；
+- [x] 建立 `REFACTOR_VERIFICATION_PROTOCOL.md`，本文档只保留规则和链接。
 
-1. 修正并脚本化超长文件统计；
-2. 生成模块消费者清单和导入图，包含 AST import 与字符串懒加载；
-3. 保存 67/2/59 的测试结果、14/14 smoke 结果、Python/依赖版本；
-4. 增加 API 快照：导入路径、符号、签名、工具/资源清单；
-5. 补齐财务 vendor import、asset acquisition 场景和 planning lifecycle 的回归测试；
-6. 处理当前两个 baseline skip：优先把测试引用从旧 `.claude/skills` 路径迁移到当前 `skills/`；若暂时不能迁移，则把测试 ID、原因和失效条件写入批准清单；
-7. 建立 `REFACTOR_VERIFICATION_PROTOCOL.md`，本文只保留规则和链接。
+**交付产出：**
+
+- `scripts/module_metrics.py` — 行数、消费者、导入图、分层边、循环扫描；
+- `scripts/api_snapshot.py` — 208 模块、2,804 符号的签名与实现归属；
+- `quality/module_metrics.json` — 基线边界快照（3 循环、3 组禁止边）；
+- `quality/api_snapshot.json` — 基线 API 快照；
+- `tests/integration/test_refactor_guardrails.py` — MCP 契约 + Python API + 依赖边界门禁；
+- `tests/fixtures/baseline/` — 刷新 14 server 的 tools/resources/contracts（169 工具 / 27 资源）；
+- `REFACTOR_VERIFICATION_PROTOCOL.md` — 验证命令、失败处理、冻结债清单。
+
+**发现：**
+
+- 历史循环 3 个：`asset_acquisition ↔ finance ↔ reports`、`finance.run_service ↔ table_pack`、`runtime.resource_registry ↔ feasibility_delivery.service`。
+- 历史禁止边 3 组：`adapters → domains`（1 条）、`runtime → domains`（2 条）、`runtime → servers`（11 条懒加载）。
+- 动态模块加载检测需要识别一层间接（`def _module(name): return import_module(name)`），
+  否则会漏掉 `resource_registry` 的 24 条懒加载边。
 
 ### Wave 1：试点和低风险 server（预计 4–6 人日）
 
@@ -275,17 +290,21 @@ _table_render/
 
 ## 8. 验证协议
 
-### 必跑命令
+详见 `REFACTOR_VERIFICATION_PROTOCOL.md`。本节仅列出核心要点。
 
-使用项目约定的 conda 环境，不依赖交互式 `conda activate`：
+### 必跑命令
 
 ```bash
 conda run -n lvke-mcp python -m pytest -q tests/integration
 conda run -n lvke-mcp python -m lvke_mcp.testing.smoke_test
 conda run -n lvke-mcp python -m compileall -q src/lvke_mcp
+conda run -n lvke-mcp python scripts/module_metrics.py --check quality/module_metrics.json
+conda run -n lvke-mcp python scripts/api_snapshot.py --check quality/api_snapshot.json
+conda run -n lvke-mcp python scripts/independence_scan.py --strict
 ```
 
-若增加覆盖率或 JSON 报告，必须将插件和版本写入开发依赖，并把数值结果保存为 artifact。不要用普通文本 `diff` 代替数值比较。
+集成测试包含三个自动化护栏门禁（MCP 契约、Python API、依赖边界），
+覆盖方案 §8 原先人工检查的工具名、schema、import 路径、签名、跨层边与循环。
 
 ### 兼容性门禁
 
@@ -301,12 +320,10 @@ conda run -n lvke-mcp python -m compileall -q src/lvke_mcp
 - workspace 隔离、幂等、错误 envelope 和 stdout 纯 JSON-RPC 保持不变；
 - 变更说明包含拆分前后模块归属和未覆盖风险。
 
-当前观测到的两个 skip 均来自 `tests/integration/test_mcp_acceptance_20_defects.py`：
-
-- `test_skill_p1_012_locator_normalization_documented`：引用旧路径 `.claude/skills/lvke-market-sizing/SKILL.md`；
-- `test_skill_p2_013_cost_quantity_semantics_documented`：引用旧路径 `.claude/skills/lvke-cost-drivers/SKILL.md`。
-
-Wave 0 优先把它们迁移到当前仓库的 `skills/` 结构并恢复执行。在迁移完成前，这两个测试是唯一允许的 baseline skip；新增 skip 一律视为失败。
+Wave 0 已修复原有的两个 skip：`test_skill_p1_012_locator_normalization_documented`
+与 `test_skill_p2_013_cost_quantity_semantics_documented` 引用的 SKILL.md 已定位到
+`skills/lvke-project-planning/references/preserved/`，断言从 `skipTest` 改为
+路径存在性硬断言。**当前基线不存在批准的 skip，新增 skip/xfail 一律视为失败。**
 
 ### 失败处理
 

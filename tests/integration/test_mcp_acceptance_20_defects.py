@@ -15,6 +15,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# 压缩后 lvke-market-sizing / lvke-cost-drivers 被并入 lvke-project-planning，
+# 原 SKILL.md 保留在 references/preserved/ 下作为口径依据。
+PRESERVED_SKILLS = REPO_ROOT / "skills" / "lvke-project-planning" / "references" / "preserved"
+
 
 class McpAcceptance20DefectsTest(unittest.TestCase):
     """20 个 MCP 验收 blocker 的回归测试。"""
@@ -224,10 +228,9 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
 
     def test_skill_p1_012_locator_normalization_documented(self) -> None:
         """P1-012: MarketSizing skill 文档说明 locator 不要 ad hoc spacing。"""
-        skill_md = Path(".claude/skills/lvke-market-sizing/SKILL.md")
-        if not skill_md.exists():
-            self.skipTest("skill not in repo")
-        content = skill_md.read_text()
+        skill_md = PRESERVED_SKILLS / "lvke-market-sizing" / "SKILL.md"
+        self.assertTrue(skill_md.exists(), f"missing preserved skill: {skill_md}")
+        content = skill_md.read_text(encoding="utf-8")
         self.assertIn("ad hoc spacing", content)
         self.assertIn("locator", content)
 
@@ -235,10 +238,9 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
 
     def test_skill_p2_013_cost_quantity_semantics_documented(self) -> None:
         """P2-013: CostDrivers skill 文档说明 annual_quantity 是计算量，design_capacity 不参与。"""
-        skill_md = Path(".claude/skills/lvke-cost-drivers/SKILL.md")
-        if not skill_md.exists():
-            self.skipTest("skill not in repo")
-        content = skill_md.read_text()
+        skill_md = PRESERVED_SKILLS / "lvke-cost-drivers" / "SKILL.md"
+        self.assertTrue(skill_md.exists(), f"missing preserved skill: {skill_md}")
+        content = skill_md.read_text(encoding="utf-8")
         self.assertIn("annual_quantity", content)
         self.assertIn("design_capacity", content)
         self.assertIn("engineering capacity", content)

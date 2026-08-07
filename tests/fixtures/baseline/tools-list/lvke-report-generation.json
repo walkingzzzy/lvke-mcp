@@ -134,6 +134,42 @@
         "project_context_id": {
           "type": "string"
         },
+        "project_metadata": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "project_type": {
+              "type": "string",
+              "minLength": 1
+            },
+            "industry": {
+              "type": "string",
+              "minLength": 1
+            },
+            "valuation_date": {
+              "type": "string",
+              "minLength": 1
+            },
+            "currency": {
+              "type": "string",
+              "minLength": 1
+            },
+            "amount_unit": {
+              "type": "string",
+              "minLength": 1
+            },
+            "tax_basis": {
+              "type": "string",
+              "minLength": 1
+            },
+            "forecast_period": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          }
+        },
         "upstream_refs": {
           "type": "array",
           "items": {

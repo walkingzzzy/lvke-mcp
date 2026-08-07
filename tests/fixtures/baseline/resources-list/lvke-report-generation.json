@@ -5,5 +5,12 @@
     "name": "report-preparation",
     "title": "Report Preparation",
     "uri": "lvke://schemas/report-preparation"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_prepare.input-schema",
+    "title": "report_prepare complete input schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_prepare/input"
   }
 ]

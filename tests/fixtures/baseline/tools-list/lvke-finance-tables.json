@@ -123,7 +123,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "从同一 run_id 原生导出十三张 UTF-8 BOM CSV；只写标量单元格，不把 JSON 序列化入表。",
+    "description": "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，不把 JSON 序列化入表。",
     "execution": {
       "taskSupport": "forbidden"
     },
