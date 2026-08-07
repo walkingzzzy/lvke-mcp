@@ -88,7 +88,8 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
         from lvke_mcp.domains.research import application
 
         # 验证聚合逻辑存在——检查代码同时遍历 evidence_pack 与 citations
-        src = Path("src/lvke_mcp/domains/research/application.py").read_text()
+        # Wave 2.5 起 dr_submit 实现位于 _service/agent_lifecycle.py。
+        src = Path("src/lvke_mcp/domains/research/_service/agent_lifecycle.py").read_text()
         # P0-009 修复注释
         self.assertIn("P0-009", src)
         # 从 evidence_payloads 收集 evidence_policy

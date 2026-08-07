@@ -69,7 +69,8 @@ _SEMANTIC_EXEMPTION_RULES = (
     ("mcp_servers/src/lvke_mcp/adapters/finance_tables_repository.py", re.compile(r"十三表是需要随仓库留存、复核和签审")),
     ("mcp_servers/src/lvke_mcp/domains/asset_acquisition/backend.py", re.compile(r"不认证项目事实|随仓库留存与签审")),
     ("mcp_servers/src/lvke_mcp/domains/reports/artifacts.py", re.compile(r"随仓库留存、复核与签审")),
-    ("mcp_servers/src/lvke_mcp/domains/research/application.py", re.compile(r"^\s*#.*认证项目事实")),
+    # Wave 2.5 把 confirm_quality 搬到 _service/agent_lifecycle.py，注释随代码保留。
+    ("mcp_servers/src/lvke_mcp/domains/research/_service/agent_lifecycle.py", re.compile(r"^\s*#.*认证项目事实")),
     ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'headers = \{"Authorization": f"Bearer \{token\}"\}')),
     ("mcp_servers/src/lvke_mcp/servers/lvke_asset_acquisition/service.py", re.compile(r"不认证项目事实")),
     # Wave 1.1 把 build_evidence_pack 搬到 _service/evidence_pack.py。豁免按路径登记，

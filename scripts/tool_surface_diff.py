@@ -51,7 +51,8 @@ import json
 import importlib
 
 module = importlib.import_module({module!r})
-server = module.SERVER
+# 部分 server 门面只导出 build_server()（无模块级 SERVER 单例），两者都支持。
+server = getattr(module, "SERVER", None) or module.build_server()
 
 tools = {{}}
 for name, spec in server._tools.items():  # noqa: SLF001
