@@ -1,16 +1,59 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 import unittest
-import hashlib
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
-from lvke_mcp.servers.lvke_feasibility_delivery import service
 from lvke_mcp.adapters.project_planning_repository import PROJECT_CONTEXT_STORE, MARKET_CASE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE
+from lvke_mcp.runtime import resource_registry
+from lvke_mcp.servers.lvke_feasibility_delivery import service
 
 
 class FeasibilityDeliveryTest(unittest.TestCase):
+
+    def test_delivery_uses_runtime_registry_for_cross_domain_read_projections(self) -> None:
+        source = Path("src/lvke_mcp/servers/lvke_feasibility_delivery/service.py").read_text()
+        self.assertNotIn("lvke_mcp.servers.lvke_deliverable_review", source)
+        self.assertNotIn("lvke_mcp.servers.lvke_knowledge_governance", source)
+        review_projection = {"review_status": "ok", "target": {"target_id": "target-1"}}
+        with patch.object(
+            service.resource_registry,
+            "get_review",
+            return_value={"review": review_projection},
+        ) as review_read:
+            resolved = service._resolve_object(
+                "registry-ws",
+                "lvke://deliverable-review/workspaces/registry-ws/reviews/review-1",
+            )
+        review_read.assert_called_once_with("registry-ws", "review-1")
+        self.assertEqual(resolved["kind"], "ReviewRun")
+        self.assertEqual(resolved["payload"], review_projection)
+
+        review_service = SimpleNamespace(
+            get_review=lambda args: {"review": {"review_id": args["review_id"]}},
+        )
+        knowledge_service = SimpleNamespace(
+            get_candidate=lambda args: {"candidate_id": args["candidate_id"]},
+        )
+        with patch.object(
+            resource_registry,
+            "_module",
+            side_effect=[review_service, knowledge_service],
+        ):
+            self.assertEqual(
+                resource_registry.get_review("registry-ws", "review-2")["review"]["review_id"],
+                "review-2",
+            )
+            self.assertEqual(
+                resource_registry.get_knowledge_candidate("registry-ws", "candidate-1")["candidate_id"],
+                "candidate-1",
+            )
+
     def setUp(self) -> None:
         self.tempdir = tempfile.TemporaryDirectory(prefix="lvke-fdr-test-")
         self.previous = os.environ.get("LVKE_MCP_DATA_DIR")

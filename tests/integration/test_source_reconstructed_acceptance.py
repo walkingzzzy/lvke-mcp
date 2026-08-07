@@ -34,8 +34,10 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory(prefix="lvke-source-reconstructed-")
         self.previous = os.environ.get("LVKE_MCP_DATA_DIR")
         self.previous_golden = os.environ.get("LVKE_GOLDEN_DATA_ROOT")
+        self.previous_seal_secret = os.environ.get("LVKE_FACT_PACK_SEAL_SECRET")
         os.environ["LVKE_MCP_DATA_DIR"] = self.tempdir.name
         os.environ["LVKE_GOLDEN_DATA_ROOT"] = str(ROOT / "docs")
+        os.environ["LVKE_FACT_PACK_SEAL_SECRET"] = "source-reconstructed-acceptance-test"
 
     def tearDown(self) -> None:
         if self.previous is None:
@@ -46,6 +48,10 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             os.environ.pop("LVKE_GOLDEN_DATA_ROOT", None)
         else:
             os.environ["LVKE_GOLDEN_DATA_ROOT"] = self.previous_golden
+        if self.previous_seal_secret is None:
+            os.environ.pop("LVKE_FACT_PACK_SEAL_SECRET", None)
+        else:
+            os.environ["LVKE_FACT_PACK_SEAL_SECRET"] = self.previous_seal_secret
         self.tempdir.cleanup()
 
     def test_real_material_manifest_hashes_and_report_revisions(self) -> None:

@@ -10,9 +10,12 @@ from lvke_mcp.adapters.spreadsheets.finance_export import assess_finance_deliver
 from lvke_mcp.domains.finance import gate as finance_gate
 from lvke_mcp.domains.finance.run_service import (
     DELIVERY_TABLE_KEYS,
+    DELIVERY_TABLE_META,
+    TEMPLATE_VERSION,
     get_workspace_finance_run,
     render_workspace_finance_tables,
 )
+from lvke_mcp.runtime.storage import sha256_json
 
 
 def get_run(workspace_id: str, run_id: str) -> dict[str, Any]:
@@ -43,6 +46,42 @@ def structured_delivery_tables(
         key: markdown_table_as_structured((rendered.get("tables") or {}).get(key))
         for key in delivery_keys()
     }
+
+
+def structured_table_manifest(
+    run_id: str,
+    template_version: str,
+    tables: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Build a manifest from the exact structured package projection.
+
+    A FinanceRun may contain a legacy Markdown manifest that predates a table
+    projection (notably ``debt-service``). The package must describe the data
+    it actually stores and returns, rather than trusting that stale child
+    manifest.
+    """
+
+    meta_by_key = {
+        key: (delivery_no, title)
+        for key, delivery_no, title in DELIVERY_TABLE_META
+    }
+    manifest: list[dict[str, Any]] = []
+    for key in delivery_keys():
+        table = (tables or {}).get(key)
+        if not isinstance(table, dict):
+            continue
+        rows = table.get("rows") or []
+        delivery_no, title = meta_by_key.get(key, ("", key))
+        manifest.append({
+            "table_id": key,
+            "delivery_no": delivery_no,
+            "title": title,
+            "run_id": str(run_id or ""),
+            "template_version": str(template_version or TEMPLATE_VERSION),
+            "row_count": len(rows) if isinstance(rows, list) else 0,
+            "content_hash": sha256_json(table),
+        })
+    return manifest
 
 
 def markdown_table_as_structured(value: Any) -> dict[str, Any]:
@@ -397,12 +436,18 @@ def validate_tables(
             str(data.get("error") or "run_unavailable"),
             str(data.get("message") or "run 不可用于十三表"),
         )
+    structured_tables = structured_delivery_tables(workspace_id, run_id, data)
     result = delivery_assessment(
         workspace_id,
         run_id,
         {
             **data,
-            "tables": structured_delivery_tables(workspace_id, run_id, data),
+            "tables": structured_tables,
+            "table_manifest": structured_table_manifest(
+                run_id,
+                str(data.get("template_version") or ""),
+                structured_tables,
+            ),
         },
     )
     technical_success = bool(result["valid"])

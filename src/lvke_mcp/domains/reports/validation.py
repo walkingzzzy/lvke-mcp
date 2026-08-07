@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.adapters.report_repository import PREPARATION_STORE
@@ -100,6 +101,9 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
 
     blockers = sorted(set(blockers))
     blocked = bool(blockers)
+    # ``build_readiness`` does not know about every immutable report binding
+    # checked above. Keep both views consistent for callers of report_validate.
+    readiness = _synchronize_readiness(readiness, blockers)
     return {
         "success": not blocked,
         "transport_success": True,
@@ -128,6 +132,45 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
             else ["按 blockers 修订后重新执行 report_validate"]
         ),
     }
+
+
+def _synchronize_readiness(
+    readiness: dict[str, Any],
+    validation_blockers: list[str],
+) -> dict[str, Any]:
+    """Merge report-level blockers into the returned readiness snapshot.
+
+    This only changes the in-memory result. ``build_readiness`` is called with
+    ``persist=False``, so validation does not rewrite the cached artifact.
+    """
+
+    snapshot = deepcopy(readiness) if isinstance(readiness, dict) else {}
+    existing = list(snapshot.get("blockers") or [])
+    known_codes: set[str] = set()
+    normalized: list[Any] = []
+    for item in existing:
+        if isinstance(item, dict):
+            code = str(item.get("code") or "readiness_blocker")
+            normalized.append(item)
+        else:
+            code = str(item or "readiness_blocker")
+            normalized.append({"code": code, "message": code})
+        known_codes.add(code)
+
+    for raw_code in validation_blockers:
+        code = str(raw_code or "readiness_blocker")
+        if code not in known_codes:
+            normalized.append({
+                "code": code,
+                "message": f"报告校验阻断：{code}",
+            })
+            known_codes.add(code)
+
+    codes = sorted(known_codes)
+    snapshot["blockers"] = normalized
+    snapshot["blocking_issues"] = codes
+    snapshot["publishable"] = not codes
+    return snapshot
 
 
 def _failure(code: str, message: str) -> dict[str, Any]:

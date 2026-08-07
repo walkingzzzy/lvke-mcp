@@ -192,6 +192,7 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     outline, sections, outline_errors = _normalize_outline(args.get("outline") or [])
     blockers: list[str] = [*binding_errors, *outline_errors]
     warnings: list[str] = []
+    formal_blockers: list[str] = []
     evidence = []
     for object_id in evidence_ids:
         record = EVIDENCE_STORE.get(
@@ -215,6 +216,7 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             research_status = str(record.get("status") or "")
             if research_status == "partial":
                 warnings.append(f"{object_id}: DR 为 partial，正文必须披露研究限制")
+                formal_blockers.append(f"research_package_partial:{object_id}")
             elif research_status not in {"done", "completed", "ok"}:
                 # A package ID alone is not evidence that the corresponding DR
                 # task produced usable research artifacts.  In particular, a
@@ -274,8 +276,20 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         table_run = str((table_record.get("payload") or {}).get("run_id") or "")
         if table_run != run_id:
             blockers.append(package_mismatch)
+        table_payload = table_record.get("payload") or {}
         if binding_kind == "asset_acquisition":
-            table_payload = table_record.get("payload") or {}
+            package_formal = (
+                str(table_record.get("status") or "") == "ok"
+                and (table_payload.get("integrity") or {}).get("status") == "passed"
+            )
+        else:
+            package_formal = (
+                str(table_record.get("status") or "") == "ok"
+                and table_payload.get("validation_complete") is True
+            )
+        if not package_formal:
+            formal_blockers.append("finance_tables_package_not_formal")
+        if binding_kind == "asset_acquisition":
             integrity = table_payload.get("integrity") or {}
             if integrity.get("status") != "passed":
                 blockers.append("acquisition_tables_integrity_failed")
@@ -309,30 +323,53 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "project_metadata": dict(args.get("project_metadata") or {}),
         "upstream_refs": list(args.get("upstream_refs") or [*evidence_ids, *research_ids, run_id, tables_id]),
     }
-    status = "blocked" if blockers else ("partial" if warnings else "ok")
+    draft_ready = not blockers
+    formal_ready = draft_ready and not formal_blockers
+    status = "blocked" if blockers else ("partial" if warnings or formal_blockers else "ok")
     record = PREPARATION_STORE.put(
         workspace_id,
-        {**basis, "blockers": blockers, "warnings": warnings},
+        {
+            **basis,
+            "blockers": blockers,
+            "warnings": warnings,
+            "formal_blockers": formal_blockers,
+            "draft_ready": draft_ready,
+            "formal_ready": formal_ready,
+        },
         producer="lvke-report-generation.report_prepare",
         status=status,
         source_ids=[*evidence_ids, *research_ids, run_id, tables_id],
         basis=basis,
     )
     return {
-        "success": not blockers,
+        "success": draft_ready,
         "transport_success": True,
-        "business_success": not blockers,
-        "completed": not blockers,
+        "business_success": draft_ready,
+        "completed": draft_ready,
         "outcome": "blocked" if blockers else status,
         "status": status,
-        "ready": not blockers,
+        # Compatibility: ``ready`` means a draft session may start. It is not
+        # a formal-release signal; callers must inspect ``formal_ready`` and
+        # still run report_validate/review/release gates.
+        "ready": draft_ready,
+        "draft_ready": draft_ready,
+        "formal_ready": formal_ready,
         "report_preparation_id": record["object_id"],
         "basis_hash": record["basis_hash"],
         "generatable_sections": [] if blockers else (sections or [{"section_id": "all", "title": "all", "order": 1, "parent_section_id": None, "depth": 1}]),
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
         "blockers": blockers,
-        "next_actions": ["补齐或修复上游不可变对象后重新 report_prepare"] if blockers else ["调用 report_start 创建草稿任务"],
+        "formal_blockers": formal_blockers,
+        "next_actions": (
+            ["补齐或修复上游不可变对象后重新 report_prepare"]
+            if blockers
+            else (
+                ["当前仅可启动草稿；补齐正式财务/研究依据后重新 report_prepare"]
+                if not formal_ready
+                else ["调用 report_start 创建草稿任务"]
+            )
+        ),
     }
 
 
