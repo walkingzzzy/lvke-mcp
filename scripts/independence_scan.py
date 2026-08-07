@@ -67,8 +67,11 @@ _FORBIDDEN_SEMANTIC_RE = re.compile(
 # identity-bearing field still fails the scan.
 _SEMANTIC_EXEMPTION_RULES = (
     ("mcp_servers/src/lvke_mcp/adapters/finance_tables_repository.py", re.compile(r"十三表是需要随仓库留存、复核和签审")),
-    ("mcp_servers/src/lvke_mcp/domains/asset_acquisition/backend.py", re.compile(r"不认证项目事实|随仓库留存与签审")),
-    ("mcp_servers/src/lvke_mcp/domains/reports/artifacts.py", re.compile(r"随仓库留存、复核与签审")),
+    # Wave 3.6 把 backend 拆成 _backend/：证据轨判定进 evidence.py，存储布局注释进 store.py。
+    ("mcp_servers/src/lvke_mcp/domains/asset_acquisition/_backend/evidence.py", re.compile(r"不认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/domains/asset_acquisition/_backend/store.py", re.compile(r"随仓库留存与签审")),
+    # Wave 2.8 把 artifacts 拆成 _artifacts/：存储根注释随 storage.py 迁移。
+    ("mcp_servers/src/lvke_mcp/domains/reports/_artifacts/storage.py", re.compile(r"随仓库留存、复核与签审")),
     # Wave 2.5 把 confirm_quality 搬到 _service/agent_lifecycle.py，注释随代码保留。
     ("mcp_servers/src/lvke_mcp/domains/research/_service/agent_lifecycle.py", re.compile(r"^\s*#.*认证项目事实")),
     ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'headers = \{"Authorization": f"Bearer \{token\}"\}')),
@@ -78,7 +81,10 @@ _SEMANTIC_EXEMPTION_RULES = (
     ("mcp_servers/src/lvke_mcp/servers/lvke_data_analysis/_service/evidence_pack.py", re.compile(r"不能认证项目事实")),
     ("mcp_servers/src/lvke_mcp/servers/lvke_deep_research/_server/registration.py", re.compile(r"不认证项目事实")),
     ("mcp_servers/src/lvke_mcp/servers/lvke_feasibility_delivery/service.py", re.compile(r'"released_at": utc_now\(\)')),
-    ("mcp_servers/src/lvke_mcp/servers/lvke_finance_model/server.py", re.compile(r"不认证项目")),
+    # Wave 3.5 把 server 拆成 _server/：BoE 限制文案进 analysis_tools.py，
+    # fact pack 工具描述进 registry.py。
+    ("mcp_servers/src/lvke_mcp/servers/lvke_finance_model/_server/analysis_tools.py", re.compile(r"不认证项目")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_finance_model/_server/registry.py", re.compile(r"不认证项目")),
     ("mcp_servers/src/lvke_mcp/servers/lvke_knowledge_governance/service.py", re.compile(r'"(?:reviewed_at|released_at)": utc_now\(\)')),
     ("mcp_servers/src/lvke_mcp/testing/source_reconstructed_acceptance.py", re.compile(r"不认证项目事实|不作为项目事实认证")),
 )

@@ -1,0 +1,129 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
+  "out_dir": "src/lvke_mcp/servers/lvke_deliverable_review/_service",
+  "package_doc": "\"\"\"交付评审实现子模块；对外入口是同级 ``service`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "仓库根、四个 store、异步复审状态、信封与写入原语、URI 构造。",
+      "symbols": [
+        "REPO_ROOT", "PACKAGE_CONFIG_DIR", "PREPARATION_STORE", "EXPORT_STORE",
+        "STANDARD_APPLICABILITY_STORE", "STANDARD_EVIDENCE_STORE",
+        "_REPORT_ARTIFACT_DOMAINS", "_ASYNC_THREADS", "_ASYNC_LOCK", "_ok",
+        "_blocked", "_write", "_message", "_safe_file", "_review_uri",
+        "_metrics_uri", "_finding_uri", "_number", "_flatten_numbers",
+        "_severity", "_parse_timestamp",
+        "_review_envelope_status", "_next_actions",
+        "_finding_match_key", "_finding_coverage_rule_id",
+        "_classify_retest_operations", "_gate_difference", "_shadow_comparison"
+      ]
+    },
+    "legacy_gate": {
+      "doc": "legacy 门禁快照与 blocker 兼容层。",
+      "symbols": [
+        "_legacy_blockers", "_legacy_gate_result", "_legacy_gate_snapshot"
+      ]
+    },
+    "target_resolve": {
+      "doc": "跨域目标解析与上游绑定投影：工件文件、报告修订、收购 run 与绑定清单。",
+      "symbols": [
+        "_immutable_artifact_files", "_generic_artifact_snapshot",
+        "_acquisition_artifact_snapshot", "_string_ids",
+        "_artifact_upstream_bindings", "_linked_generic_report_revision",
+        "_resolve_report_artifact", "_combined_bindings_manifest",
+        "_resolve_target", "_acquisition_run_snapshot", "_binding_snapshot"
+      ]
+    },
+    "preparation": {
+      "doc": "审查准备：强制 findings、preparation 基准与校验记录。",
+      "symbols": [
+        "_mandatory_findings", "prepare", "_PREPARATION_BASIS_FIELDS",
+        "_preparation_basis", "_verified_preparation_record", "_standard_basis",
+        "_component_preparation", "_run_from_preparation"
+      ]
+    },
+    "finding_rules": {
+      "doc": "各规则组的 finding 生成：必需行、专业规则、既有 issue、项目元信息、收购输入、财务复算与报告。",
+      "symbols": [
+        "_required_finding_rows", "_professional_rule_finding",
+        "_existing_issue_findings", "_project_metadata_findings",
+        "_acquisition_input_findings", "_hotel_acquisition_run_findings",
+        "_finance_recalculation_findings", "_CLAIM_PATTERN", "_FINANCE_WORDS",
+        "_claim_value", "_document_from_snapshot", "_report_content",
+        "_report_evidence_packs", "_expected_report_sections", "_report_findings",
+        "_report_artifact_text", "_EXTERNAL_GAP_REASON_MARKERS",
+        "_LOCAL_IMPLEMENTATION_REASON_MARKERS", "_EXTERNAL_GAP_CATEGORIES",
+        "_LOCAL_IMPLEMENTATION_CATEGORIES", "_summarize_track_coverage"
+      ]
+    },
+    "executor": {
+      "doc": "规则执行器与审查运行：保持 finding ID、顺序、severity 与 blocker 聚合不变。",
+      "symbols": [
+        "_execute_rules", "_preparation_execution_integrity_reasons", "_run_review"
+      ]
+    },
+    "lifecycle": {
+      "doc": "审查启动、异步调度与恢复，以及 get_review。get_review 归此组是因为它在读取时会触发异步恢复（_resume_async_review_if_needed），属生命周期操作而非纯投影。",
+      "symbols": [
+        "_run_async_review", "_schedule_async_review",
+        "_resume_async_review_if_needed", "start", "get_review"
+      ]
+    },
+    "events": {
+      "doc": "项目事件投影、新鲜度判定与审查投影。",
+      "symbols": ["_project_events", "_freshness_reasons", "_project"]
+    },
+    "metrics": {
+      "doc": "workspace 指标聚合。",
+      "symbols": [
+        "_metric_rate", "_metric_percentile", "_workspace_metrics_payload",
+        "workspace_metrics"
+      ]
+    },
+    "findings_query": {
+      "doc": "findings 分页查询与单条读取。",
+      "symbols": ["list_findings", "get_finding"]
+    },
+    "disposition": {
+      "doc": "finding 处置状态机：开放校验、证据精度与复测关闭判定。",
+      "symbols": [
+        "_require_open_review", "_evidence_is_precise", "_target_version_scope",
+        "_retest_target_scope_matches", "_successful_retest_closes_finding",
+        "disposition_finding"
+      ]
+    },
+    "retest": {
+      "doc": "复测入口：操作识别、意图查找、事件追加与整改前后关联。分类原语在 base，因为 events 的事件投影也要用它们。",
+      "symbols": [
+        "_retest_operation_identity", "_find_retest_intent",
+        "_append_retest_event_once", "_retest_failure", "retest"
+      ]
+    },
+    "export": {
+      "doc": "审查导出：markdown/docx/xlsx 与导出完整性判定。",
+      "symbols": [
+        "_export_root", "_write_once_bytes", "_review_markdown", "_review_docx",
+        "_findings_xlsx", "_export_file_uri", "_export_resource_uri",
+        "_export_review_locked", "export_review",
+        "_release_export_integrity_reasons", "_export_record_integrity_reasons",
+        "_export_integrity_reasons", "latest_review_for_target"
+      ]
+    },
+    "standards": {
+      "doc": "标准适用性解析、需求列举、证据绑定与校验。",
+      "symbols": [
+        "_standard_catalog", "_standard_requirement_applicability",
+        "resolve_standards", "_standard_applicability_record",
+        "_standard_evidence_rows", "list_standard_requirements",
+        "_resolve_standard_evidence_resource", "attach_requirement_evidence",
+        "validate_standards"
+      ]
+    },
+    "resources": {
+      "doc": "Resource 列举、解析与读取。",
+      "symbols": [
+        "_resource_entry", "list_resources", "resolve_resource", "read_resource"
+      ]
+    }
+  }
+}
