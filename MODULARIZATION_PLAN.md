@@ -2,7 +2,8 @@
 
 > 更新时间：2026-08-07  
 > 仓库：`/Users/mac/Desktop/mcp_servers`  
-> 基线：Wave 0 已完成，基线绑定在 `e4f3385` 之后的 Wave 0 提交。  
+> 进度：**Wave 0–4 已完成**。超长文件 37 → 15，剩余 15 个均有保留理由（§3）。  
+> 基线绑定 `chore(refactor): 基线快照推进到 Wave 4 之后` 提交。  
 > 验证细节见 `REFACTOR_VERIFICATION_PROTOCOL.md`；本文只保留目标、判定标准与波次计划。
 
 ## 1. 目标与非目标
@@ -32,12 +33,17 @@
 
 ### 2.1 规模
 
-以 `src/lvke_mcp` 为统计范围，当前观测到：
+以 `src/lvke_mcp` 为统计范围：
 
-- 208 个 Python 文件；
-- 约 95,084 行代码；
-- 37 个文件达到 800 行；
-- 这些超长文件合计约 65,928 行。
+| 项 | Wave 0 起点 | Wave 4 完成后 |
+|---|---:|---:|
+| Python 文件 | 208 | 433 |
+| 代码行数 | 95,084 | 101,282 |
+| ≥800 行文件 | 37 | 15 |
+| 超长文件合计行数 | 65,928 | 18,190 |
+
+文件数与总行数上升是门面模式的预期代价（每个实现包一个 `__init__.py`，
+每个门面一段 re-export）。判定指标是**超长文件数与其合计行数**。
 
 “800 行”只是候选筛选条件，不是必须拆分的条件。是否拆分由职责内聚度、调用图、变更边界和可测性共同决定。
 
@@ -80,7 +86,66 @@ testing/     协议测试、验收测试和 server manifest
 
 ## 3. 超长文件清单与处理策略
 
-下表按当前工作区行数记录。`拆分`表示进入波次；`观察`表示暂不为降低行数而拆；`测试代码`表示不纳入生产模块化波次。
+### 3.1 已完成的拆分（27 个文件）
+
+每一项都经 `scripts/split_fidelity.py` 验证为纯搬移（AST 逐定义等价，
+无复制、无改写、无丢失）。「定义数」是搬移的顶层定义个数。
+
+| Wave | 文件 | 拆分前 | 门面 | 实现包 | 子模块 | 定义数 |
+|---|---|---:|---:|---|---:|---:|
+| 1.1 | `servers/lvke_data_analysis/service.py` | 2,147 | 102 | `_service/` | 12 | — |
+| 1.2 | `servers/lvke_source_files/service.py` | 1,240 | 156 | `_service/` | 10 | — |
+| 1.3 | `servers/lvke_data_acquisition/service.py` | 1,743 | 86 | `_service/` | 7 | — |
+| 1.4 | `servers/lvke_deep_research/server.py` | 1,009 | 68 | `_server/` | 4 | — |
+| 2.1 | `servers/lvke_project_planning/lifecycle.py` | 964 | 69 | `_lifecycle/` | 6 | — |
+| 2.2 | `domains/project_planning/application.py` | 2,374 | — | `_service/` | 6 | — |
+| 2.3 | `servers/lvke_project_planning/server.py` | 1,785 | 85 | `_server/` | 7 | — |
+| 2.4 | `servers/lvke_zero_material_delivery/service.py` | 1,760 | 98 | `_service/` | 7 | — |
+| 2.5 | `domains/research/application.py` | 1,429 | — | `_service/` | 7 | — |
+| 2.6 | `domains/reports/application.py` | 1,186 | 78 | `_service/` | 6 | 21 |
+| 2.7 | `domains/reports/doc_service.py` | 1,567 | 135 | `_doc_service/` | 8 | 56 |
+| 2.8 | `domains/reports/artifacts.py` | 2,177 | 146 | `_artifacts/` | 8 | 66 |
+| 2.9 | `servers/lvke_deliverable_review/financial_checks.py` | 1,741 | 43 | `_financial_checks/` | 6 | 15 |
+| 2.9 | `servers/lvke_deliverable_review/report_checks.py` | 2,035 | 107 | `_report_checks/` | 8 | 51 |
+| 3.1 | `domains/finance/table_render.py` | 3,081 | 80 | `_table_render/` | 8 | 33 |
+| 3.1 | `domains/finance/tables_service.py` | 894 | 89 | `_tables_service/` | 5 | 22 |
+| 3.2 | `domains/asset_acquisition/model.py` | 1,172 | 66 | `_model/` | 7 | 24 |
+| 3.2 | `domains/asset_acquisition/tables.py` | 1,039 | 83 | `_tables/` | 6 | 26 |
+| 3.3 | `domains/finance/fact_pack.py` | 1,491 | 85 | `_fact_pack/` | 6 | 30 |
+| 3.3 | `domains/finance/vendor_import.py` | 2,302 | 101 | `_vendor_import/` | 8 | 51 |
+| 3.3 | `domains/finance/model_application.py` | 1,333 | 72 | `_model_application/` | 4 | 25 |
+| 3.3 | `domains/finance/run_service.py` | 1,798 | 75 | `_run_service/` | 6 | 20 |
+| 3.4 | `domains/finance/finance_model.py` | 3,684 | 114 | `_finance_model/` | 8 | 32 |
+| 3.5 | `servers/lvke_finance_model/server.py` | 2,914 | 154 | `_server/` | 7 | 47 |
+| 3.6 | `domains/asset_acquisition/backend.py` | 3,352 | 171 | `_backend/` | 12 | 77 |
+| 3.7 | `adapters/spreadsheets/finance_export.py` | 2,005 | 49 | `_finance_export/` | 4 | 11 |
+| 4 | `servers/lvke_deliverable_review/service.py` | 5,240 | 218 | `_service/` | 15 | 109 |
+
+Wave 2.2 与 2.5 的门面是 `application.py` 本身（无独立门面文件行数记录）。
+
+### 3.2 剩余的 15 个超长文件（均有保留理由）
+
+| 文件 | 行数 | 保留理由 |
+|---|---:|---|
+| `testing/source_reconstructed_acceptance.py` | 1,810 | 测试代码，不纳入生产模块化波次 |
+| `domains/finance/_finance_model/engine.py` | 1,681 | `compute_financials`(1,450) 与自定义目标/缩放重算/情景互相递归，同一事务边界（§4） |
+| `adapters/spreadsheets/_finance_export/delivery_tables.py` | 1,506 | `_write_delivery_tables` 单函数逐表写入，单一事务边界 |
+| `domains/research/extractor.py` | 1,485 | Wave 5 观察项：单一 extractor，优先抽 parser/locator 纯函数 |
+| `domains/finance/reference_schema.py` | 1,459 | Wave 5 观察项：schema 高内聚 |
+| `domains/finance/spec.py` | 1,433 | Wave 5 观察项：FinanceSpec 契约高内聚，不按行数硬拆 |
+| `servers/lvke_feasibility_delivery/service.py` | 1,322 | Wave 5 观察项：主 handler |
+| `domains/finance/evidence_binding.py` | 1,182 | Wave 5 观察项 |
+| `servers/lvke_archive/storage.py` | 1,043 | Wave 5 观察项：先补存储测试 |
+| `runtime/transport.py` | 1,041 | Wave 5 观察项：协议层高风险，需先有协议回归 |
+| `domains/finance/_finance_model/annual.py` | 898 | `_build_annual`(685) 年度投影，单一事务边界 |
+| `servers/lvke_deliverable_review/rules.py` | 890 | 两个 checks 的共同下层，拆出只产生无法复用的薄 wrapper（§4） |
+| `domains/finance/_vendor_import/finance_input.py` | 826 | 甲方表到财务输入的构造链，职责单一 |
+| `domains/finance/_table_render/normalize.py` | 813 | 行归一化与渲染行契约，`_normalize_rows`(266) + `_renderer_row_contract`(308) |
+| `domains/finance/industry_scenario_factory.py` | 801 | Wave 5 观察项：场景工厂保持领域内聚 |
+
+### 3.3 原始候选清单（Wave 0 快照，留档）
+
+下表是 Wave 0 时的判断依据。`拆分`表示进入波次；`观察`表示暂不为降低行数而拆；`测试代码`表示不纳入生产模块化波次。
 
 | 文件 | 行数 | 当前判断 | 建议边界 |
 |---|---:|---|---|
@@ -213,14 +278,9 @@ _table_render/
 - 动态模块加载检测需要识别一层间接（`def _module(name): return import_module(name)`），
   否则会漏掉 `resource_registry` 的 24 条懒加载边。
 
-### Wave 1：试点和低风险 server（进行中）
+### Wave 1：试点和低风险 server（已完成）
 
-| # | 文件 | 拆分前 | 门面 | 状态 |
-|---|---|---:|---:|---|
-| 1.1 | `servers/lvke_data_analysis/service.py` | 2,147 | 102 | ✅ 已提交 |
-| 1.2 | `servers/lvke_source_files/service.py` | 1,240 | 157 | ✅ 已提交 |
-| 1.3 | `servers/lvke_data_acquisition/service.py` | 1,743 | — | 进行中 |
-| 1.4 | `servers/lvke_deep_research/server.py`（注册层） | 1,009 | 68 | ✅ 已提交 |
+四项全部完成，明细见 §3.1。
 
 **试点结论（Wave 1.1 + 1.4，commit 见 git log）：**
 
@@ -246,56 +306,79 @@ Wave 0 的三道门禁只覆盖**接口**层，查不出上面两类。`split_fi
 **路径耦合**：`scripts/independence_scan.py` 的语义豁免按**路径**登记，被豁免的
 行搬到新文件后豁免会失效。这不是放宽规则，搬移时需同步改路径。
 
-### Wave 2：编排与报告（预计 6–9 人日）
+### Wave 2：编排与报告（已完成）
 
-- `lvke_zero_material_delivery/service.py`：行业 profile、财务口径计算、跨域编排和 artifact/resource 分开；`start` 与 `confirm_assumptions` 的调用关系必须保留；
-- `domains/project_planning/application.py`、`servers/lvke_project_planning/lifecycle.py` 与 `servers/lvke_project_planning/server.py`：先定义公开 application facade，再搬移 case/validation，最后拆 server schema、dispatch 和 builder；保留 lifecycle 所需私有兼容符号；
-- `domains/research/application.py`、`domains/reports/application.py`、`domains/reports/doc_service.py`：按 lifecycle、quality、IO 边界拆；
-- `domains/reports/artifacts.py`：先拆纯 docx 样式/引用，再拆文件 IO；
-- deliverable review 的 `report_checks.py`、`financial_checks.py`、`rules.py`：按规则组拆，保留执行顺序和 finding ID。
+九项全部完成，明细见 §3.1。`rules.py`(890) 按 §4 保留：它是两个 checks 的
+共同下层，拆出只产生无法独立复用的薄 wrapper。
 
-### Wave 3：财务和收购核心（预计 12–18 人日）
+**新增通用驱动器 `scripts/module_split.py`**：配置只声明符号归属，
+组间 import 清单、未用 import 剪枝、成环检测、注释迁移全由脚本推导。
+**手写组间 import 清单是 Wave 2.4/2.5 两次 `NameError` 事故的根因。**
 
-此波只能在 Wave 0 的数值和 golden fixture 完成后执行，财务包内不并行修改同一依赖链。
+**两处门禁缺陷（都是本波撞出来的）：**
 
-推荐顺序：
+1. `module_split.referenced()` 原先把**所有**字符串常量按整词计入符号引用，
+   于是 `{"status": ...}` 的 dict 键、`data.get("start")` 的键名被当成对同名
+   函数的引用，造出假的组间依赖边和假环。Wave 2.6/2.7 的分组都曾被挡住。
+   已改为只解析注解位置的字符串。
+2. `module_metrics` 的循环比较原先按节点序列精确匹配。实现搬进 `_impl/` 后，
+   同一历史环的路径必然多出子模块节点，会被同时报成「新增环」和「已解决环」
+   ——环总数 3→3 不变却门禁失败。已改为按参与环的门面模块集合归一化，
+   并验证真新环仍被抓到、不同门面不混淆。
 
-1. `table_render.py` 与 `tables_service.py`；
-2. `asset_acquisition/model.py`、`tables.py`；
-3. `fact_pack.py`、`vendor_import.py`、`model_application.py`、`run_service.py`；
-4. `finance_model.py`；
-5. `servers/lvke_finance_model/server.py`，只拆 schema、handler、兼容路由和 builder；
-6. `asset_acquisition/backend.py`；
-7. `finance_export.py`。
+### Wave 3：财务和收购核心（已完成）
 
-每一步都必须验证 13 表、IRR、双轨、hash、审计链和 xlsx 输出，而不能只验证 import 成功。
+七组全部完成，明细见 §3.1。每一步都跑了 13 表、IRR、hash 与 xlsx 输出验证，
+不只验证 import 成功。
 
-### Wave 4：交付评审核心（预计 5–8 人日）
+**三处有意保留的大函数**（按 §4，不为降低行数切开函数体）：
+`_finance_model/engine.py`(1,681)、`_finance_model/annual.py`(898)、
+`_finance_export/delivery_tables.py`(1,506)。理由见 §3.2。
 
-目标是拆分 `servers/lvke_deliverable_review/service.py`，这是当前最大且风险最高的生产文件。必须在 Wave 2 已稳定拆出 report、financial 和 rule checks 后执行。
+**Wave 3.1 的 monkeypatch 兼容事故**：`tables_service` 的三个薄委托被测试
+`patch.object(门面, ...)` 替换，搬进实现包后 patch 静默失效，`render()` 返回
+`success=False`。正解是实现函数加仅关键字注入点 + 门面包装函数传入门面自身属性
+（实现包零反向依赖）。三条错解与完整分析见 `REFACTOR_VERIFICATION_PROTOCOL.md` §7.1。
 
-推荐顺序：
+**Wave 3.4 的两处修正**：`module_split.bound_names` 不递归 `Try`/`If`/`With`，
+导致可选依赖兜底块里定义的名字查不到归属（跨组引用直接 `NameError`）；
+`api_snapshot --check` 抓到门面漏 re-export `InvestmentBreakdown`，
+修法是照抄原模块的条件性而非无条件 import。
 
-1. 固化 review finding、disposition、retest、release 的状态机测试；
-2. 抽取 workspace metrics 和跨域对象读取投影；
-3. 抽取规则执行器，保持 finding ID、顺序、severity 和 blocker 聚合不变；
-4. 抽取 retest 与 project events；
-5. 保留原 `service.py` 作为 handler、状态机编排和兼容门面；
-6. 对九章报告、财务门禁、假材料阻断和正式发布链执行完整验收。
+### Wave 4：交付评审核心（已完成）
 
-该 Wave 不与财务核心 Wave 3 并行，因为 review service 直接消费财务、收购、报告和规划结果。
+`servers/lvke_deliverable_review/service.py` 5,240 → 门面 220，
+实现包 15 个子模块，109/109 纯搬移。分组按上面的推荐顺序而非行数。
 
-### Wave 5：谨慎观察项（按收益单独立项）
+**三处分组决定由审查状态机的真实环迫使**（改分组消不掉，只能下沉或合并）：
 
-暂不以行数为目的拆分：
+- retest 的分类原语（`_classify_retest_operations`、`_shadow_comparison`、
+  `_finding_match_key`、`_finding_coverage_rule_id`、`_gate_difference`）放
+  `base`：`events._project_events` 与 `retest` 都要用它们，留在 `retest`
+  会造成 `events → retest → events` 环；
+- `get_review` 归 `lifecycle` 而非 `events`：读取时会触发
+  `_resume_async_review_if_needed`，是生命周期操作而非纯投影，
+  留在 `events` 会造成 `events → lifecycle → events` 环；
+- `_project` 留在 `events`：它编排 `_project_events` 与 `_freshness_reasons`。
 
-- `runtime/transport.py`；
+规则执行顺序、finding ID、severity 与 blocker 聚合全部未变；
+`_ASYNC_THREADS` / `_ASYNC_LOCK` 只在 `base` 有一份，异步复审记账仍是单实例。
+
+同步了 `independence_scan.py` 的 5 条语义豁免路径（Wave 1 记录的路径耦合陷阱）。
+
+### Wave 5：谨慎观察项（未启动，按收益单独立项）
+
+以下仍不以行数为目的拆分，逐项现状见 §3.2：
+
+- `runtime/transport.py`（1,041）；
 - `runtime/resource_registry.py` 的架构迁移；
-- `servers/lvke_feasibility_delivery/service.py` 主 handler；
-- `servers/lvke_archive/storage.py`；
-- `domains/finance/spec.py`、`reference_schema.py`；
-- `domains/finance/industry_scenario_factory.py`；
-- `testing/source_reconstructed_acceptance.py`。
+- `servers/lvke_feasibility_delivery/service.py` 主 handler（1,322）；
+- `servers/lvke_archive/storage.py`（1,043）；
+- `domains/finance/spec.py`（1,433）、`reference_schema.py`（1,459）、
+  `evidence_binding.py`（1,182）；
+- `domains/research/extractor.py`（1,485）；
+- `domains/finance/industry_scenario_factory.py`（801）；
+- `testing/source_reconstructed_acceptance.py`（1,810）。
 
 这些模块先通过纯函数抽取、测试补齐或独立 ADR 解决具体痛点。
 
@@ -320,13 +403,22 @@ Wave 0 的三道门禁只覆盖**接口**层，查不出上面两类。`split_fi
 conda run -n lvke-mcp python -m pytest -q tests/integration
 conda run -n lvke-mcp python -m lvke_mcp.testing.smoke_test
 conda run -n lvke-mcp python -m compileall -q src/lvke_mcp
-conda run -n lvke-mcp python scripts/module_metrics.py --check quality/module_metrics.json
-conda run -n lvke-mcp python scripts/api_snapshot.py --check quality/api_snapshot.json
+conda run -n lvke-mcp python scripts/module_metrics.py --check tests/fixtures/baseline/refactor/module_metrics.json
+conda run -n lvke-mcp python scripts/api_snapshot.py --check tests/fixtures/baseline/refactor/api_snapshot.json
 conda run -n lvke-mcp python scripts/independence_scan.py --strict
 ```
 
+**基线在 `tests/fixtures/baseline/refactor/`，不是 `quality/`**——后者在
+`.gitignore` 里，把重构基线放那里会让门禁在干净 clone 上静默跳过。
+`api_snapshot.py` 不带 `--check` 会**覆写**基线，比较用途必须带上。
+
+每个拆分还要跑 `scripts/split_fidelity.py <搬移前 ref> <门面> <实现包>`
+验证是纯搬移（AST 逐定义等价）。
+
 集成测试包含三个自动化护栏门禁（MCP 契约、Python API、依赖边界），
 覆盖方案 §8 原先人工检查的工具名、schema、import 路径、签名、跨层边与循环。
+这三道只覆盖**接口**层；`split_fidelity.py` 补上「语义等价改写」与
+「helper 复制而非搬移」两类测试全绿的事故。
 
 ### 兼容性门禁
 
@@ -351,27 +443,33 @@ Wave 0 已修复原有的两个 skip：`test_skill_p1_012_locator_normalization_
 
 如果 baseline 本身失败，不得把“拆分前后失败数相同”视为通过。应先记录已知失败清单，或先修复 baseline，再开始拆分。遇到 import cycle、状态 identity 变化、数值差异或协议差异时，停止当前 PR，不在同一 PR 中修复业务逻辑。
 
-## 9. 交付物和估算
+## 9. 交付物
 
-Wave 0–4 预计约 28–43 人日，区间取决于财务核心和 deliverable review 状态机的测试补齐程度；Wave 5 观察项不计入本轮承诺，也不承诺把全部 37 个超长文件一次性完成。每波结束必须交付：
+Wave 0–4 已交付：27 个巨型文件拆为 27 个实现包、198 个子模块，
+实现包内共 995 个顶层函数/类定义。每个拆分都经 `split_fidelity.py`
+按 AST 逐定义验证为纯搬移。Wave 5 观察项未启动。
 
-- 变更文件和兼容门面；
-- 测试及 golden/API 快照；
-- import/依赖扫描结果；
-- 实际耗时与剩余风险；
-- 本文档的完成清单。
+每波的交付物（变更文件、兼容门面、测试与 API 快照、依赖扫描结果、
+剩余风险）都在对应 commit message 里，`git log --oneline` 可按 wave 前缀检索。
 
-建议先完成 Wave 1 试点，再用真实耗时重新估算 Wave 2–4，而不是沿用静态经验工期。
-
-## 10. 完成定义
+## 10. 完成定义与当前状态
 
 本方案完成的标志不是所有文件都低于 800 行，而是：
 
-1. 高变更、高耦合模块已经按真实职责拆开；
-2. 稳定的单一职责大文件有明确的保留理由；
-3. 公开 MCP 和 Python 兼容契约有自动化门禁；
-4. 每个拆分可独立回滚，且没有把业务修复隐藏在重构中；
-5. 架构清债、依赖注入和业务重写都有独立的后续计划。
+| # | 判据 | 状态 |
+|---|---|---|
+| 1 | 高变更、高耦合模块已按真实职责拆开 | ✅ 22 个文件，含全部 5,000/3,000 行级文件 |
+| 2 | 稳定的单一职责大文件有明确保留理由 | ✅ 剩余 15 个逐项列明（§3.2） |
+| 3 | 公开 MCP 和 Python 兼容契约有自动化门禁 | ✅ 5 组必跑 + `split_fidelity` |
+| 4 | 每个拆分可独立回滚，未把业务修复藏进重构 | ✅ 每波独立 commit；一处既有行为明确记录为「照原样保留」 |
+| 5 | 架构清债、依赖注入和业务重写有独立后续计划 | ⏳ Wave 5 与依赖方向 ADR 未启动 |
+
+未变的契约：14 个 server、169 个工具、27 个资源条目、`mcp-envelope.v2`、
+财务模型版本 `finance_model.v2.4` / 模板 `finance_tables.v3`、13 张表、
+报告九章、review finding 生命周期。
+
+未偿的债（不在本轮范围）：3 个历史循环 import 与 3 组禁止方向跨层边保持冻结，
+无新增（明细见 `REFACTOR_VERIFICATION_PROTOCOL.md` §4）。
 
 ---
 
