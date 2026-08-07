@@ -74,10 +74,17 @@ def _signature_of(value: object) -> str | None:
 
 
 def _public_names(module: object) -> list[str]:
+    """``__all__`` 与 ``dir()`` 公开名的**并集**。
+
+    只取 ``__all__`` 会在门面里造成保护空洞：门面新增 ``__all__`` 后，未列入的
+    符号会从快照里消失，此后它们真的被删掉也不会报警。并集保证「拆分前能通过
+    ``module.X`` 拿到的东西，拆分后仍必须能拿到」——这正是门面契约本身。
+    """
+    names = {name for name in dir(module) if not name.startswith("_")}
     declared = getattr(module, "__all__", None)
     if isinstance(declared, (list, tuple)):
-        return sorted(str(name) for name in declared)
-    return sorted(name for name in dir(module) if not name.startswith("_"))
+        names.update(str(name) for name in declared)
+    return sorted(names)
 
 
 def _describe(module_name: str, module: object) -> dict:

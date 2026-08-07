@@ -72,8 +72,10 @@ _SEMANTIC_EXEMPTION_RULES = (
     ("mcp_servers/src/lvke_mcp/domains/research/application.py", re.compile(r"^\s*#.*认证项目事实")),
     ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'headers = \{"Authorization": f"Bearer \{token\}"\}')),
     ("mcp_servers/src/lvke_mcp/servers/lvke_asset_acquisition/service.py", re.compile(r"不认证项目事实")),
-    ("mcp_servers/src/lvke_mcp/servers/lvke_data_analysis/service.py", re.compile(r"不能认证项目事实")),
-    ("mcp_servers/src/lvke_mcp/servers/lvke_deep_research/server.py", re.compile(r"不认证项目事实")),
+    # Wave 1.1 把 build_evidence_pack 搬到 _service/evidence_pack.py。豁免按路径登记，
+    # 所以搬移后必须跟着改路径；文本与规则完全不变。
+    ("mcp_servers/src/lvke_mcp/servers/lvke_data_analysis/_service/evidence_pack.py", re.compile(r"不能认证项目事实")),
+    ("mcp_servers/src/lvke_mcp/servers/lvke_deep_research/_server/registration.py", re.compile(r"不认证项目事实")),
     ("mcp_servers/src/lvke_mcp/servers/lvke_feasibility_delivery/service.py", re.compile(r'"released_at": utc_now\(\)')),
     ("mcp_servers/src/lvke_mcp/servers/lvke_finance_model/server.py", re.compile(r"不认证项目")),
     ("mcp_servers/src/lvke_mcp/servers/lvke_knowledge_governance/service.py", re.compile(r'"(?:reviewed_at|released_at)": utc_now\(\)')),
