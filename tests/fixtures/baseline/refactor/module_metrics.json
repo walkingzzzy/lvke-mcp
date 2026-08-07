@@ -1,13 +1,13 @@
 {
   "schema": "module_metrics.v1",
-  "generated_at": "2026-08-07T09:19:56+0000",
+  "generated_at": "2026-08-07T09:48:02+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §2/§7/§8",
   "long_threshold": 800,
   "summary": {
-    "file_count": 237,
-    "total_lines": 95635,
-    "long_file_count": 34,
-    "long_file_lines": 61532,
+    "file_count": 245,
+    "total_lines": 95804,
+    "long_file_count": 33,
+    "long_file_lines": 59789,
     "cycle_count": 3,
     "forbidden_layer_edge_count": 3
   },
@@ -26,7 +26,6 @@
     "src/lvke_mcp/domains/finance/run_service.py": 1798,
     "src/lvke_mcp/servers/lvke_project_planning/server.py": 1785,
     "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py": 1760,
-    "src/lvke_mcp/servers/lvke_data_acquisition/service.py": 1743,
     "src/lvke_mcp/servers/lvke_deliverable_review/financial_checks.py": 1741,
     "src/lvke_mcp/domains/reports/doc_service.py": 1567,
     "src/lvke_mcp/domains/finance/fact_pack.py": 1491,
@@ -186,8 +185,16 @@
     "src/lvke_mcp/servers/lvke_clients/server.py": 149,
     "src/lvke_mcp/servers/lvke_clients/storage.py": 160,
     "src/lvke_mcp/servers/lvke_data_acquisition/__init__.py": 1,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/__init__.py": 1,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py": 306,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/constants.py": 30,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/discovery.py": 247,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/resources.py": 110,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py": 305,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py": 745,
+    "src/lvke_mcp/servers/lvke_data_acquisition/_service/urls.py": 82,
     "src/lvke_mcp/servers/lvke_data_acquisition/server.py": 450,
-    "src/lvke_mcp/servers/lvke_data_acquisition/service.py": 1743,
+    "src/lvke_mcp/servers/lvke_data_acquisition/service.py": 86,
     "src/lvke_mcp/servers/lvke_data_analysis/__init__.py": 1,
     "src/lvke_mcp/servers/lvke_data_analysis/_service/__init__.py": 1,
     "src/lvke_mcp/servers/lvke_data_analysis/_service/benchmark.py": 165,
@@ -305,6 +312,9 @@
       "src/lvke_mcp/runtime/jobs.py",
       "src/lvke_mcp/runtime/resources.py",
       "src/lvke_mcp/servers/lvke_asset_acquisition/service.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/resources.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/evidence_pack.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/resources.py",
@@ -370,19 +380,6 @@
       "src/lvke_mcp/servers/lvke_finance_model/server.py",
       "tests/integration/test_source_reconstructed_acceptance.py"
     ],
-    "lvke_mcp.domains.finance.table_render": [
-      "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
-      "src/lvke_mcp/domains/finance/finance_model.py",
-      "src/lvke_mcp/domains/finance/gate.py",
-      "src/lvke_mcp/domains/finance/run_service.py",
-      "src/lvke_mcp/domains/finance/table_pack.py",
-      "src/lvke_mcp/domains/finance/tables_application.py",
-      "src/lvke_mcp/domains/finance/tables_service.py"
-    ],
-    "lvke_mcp.domains.finance.reference_schema": [
-      "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
-      "src/lvke_mcp/domains/finance/table_render.py"
-    ],
     "lvke_mcp.domains.finance.finance_model": [
       "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
       "src/lvke_mcp/domains/finance/industry_scenario_factory.py",
@@ -393,6 +390,19 @@
       "src/lvke_mcp/domains/reports/readiness.py",
       "src/lvke_mcp/servers/lvke_finance_model/server.py",
       "tests/integration/test_finance_fixture_acceptance.py"
+    ],
+    "lvke_mcp.domains.finance.reference_schema": [
+      "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
+      "src/lvke_mcp/domains/finance/table_render.py"
+    ],
+    "lvke_mcp.domains.finance.table_render": [
+      "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
+      "src/lvke_mcp/domains/finance/finance_model.py",
+      "src/lvke_mcp/domains/finance/gate.py",
+      "src/lvke_mcp/domains/finance/run_service.py",
+      "src/lvke_mcp/domains/finance/table_pack.py",
+      "src/lvke_mcp/domains/finance/tables_application.py",
+      "src/lvke_mcp/domains/finance/tables_service.py"
     ],
     "lvke_mcp.domains.finance": [
       "src/lvke_mcp/adapters/spreadsheets/finance_export.py",
@@ -486,6 +496,10 @@
       "src/lvke_mcp/servers/scaffold/server.py",
       "src/lvke_mcp/servers/statistics_cn/server.py"
     ],
+    "lvke_mcp.domains.asset_acquisition.model": [
+      "src/lvke_mcp/domains/asset_acquisition/backend.py",
+      "src/lvke_mcp/servers/lvke_asset_acquisition/service.py"
+    ],
     "lvke_mcp.domains.finance.spec": [
       "src/lvke_mcp/domains/asset_acquisition/backend.py",
       "src/lvke_mcp/domains/asset_acquisition/model.py",
@@ -498,29 +512,6 @@
       "src/lvke_mcp/servers/lvke_asset_acquisition/service.py",
       "src/lvke_mcp/servers/lvke_finance_model/server.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
-    ],
-    "lvke_mcp.domains.reports.artifacts": [
-      "src/lvke_mcp/domains/asset_acquisition/backend.py",
-      "src/lvke_mcp/domains/asset_acquisition/tables.py",
-      "src/lvke_mcp/domains/reports/application.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
-    ],
-    "lvke_mcp.domains.reports.doc_service": [
-      "src/lvke_mcp/domains/asset_acquisition/backend.py",
-      "src/lvke_mcp/domains/reports/application.py",
-      "src/lvke_mcp/domains/reports/artifacts.py",
-      "src/lvke_mcp/domains/reports/read_model.py",
-      "src/lvke_mcp/domains/reports/readiness.py",
-      "src/lvke_mcp/domains/reports/validation.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
-    ],
-    "lvke_mcp.domains.asset_acquisition.model": [
-      "src/lvke_mcp/domains/asset_acquisition/backend.py",
-      "src/lvke_mcp/servers/lvke_asset_acquisition/service.py"
-    ],
-    "lvke_mcp.domains.finance.evidence_binding": [
-      "src/lvke_mcp/domains/asset_acquisition/backend.py",
-      "tests/integration/test_source_reconstructed_acceptance.py"
     ],
     "lvke_mcp.domains.reports": [
       "src/lvke_mcp/domains/asset_acquisition/backend.py",
@@ -537,6 +528,25 @@
       "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
       "tests/integration/test_mcp_delivery_chain.py",
       "tests/integration/test_report_finance_regressions.py"
+    ],
+    "lvke_mcp.domains.reports.artifacts": [
+      "src/lvke_mcp/domains/asset_acquisition/backend.py",
+      "src/lvke_mcp/domains/asset_acquisition/tables.py",
+      "src/lvke_mcp/domains/reports/application.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
+    ],
+    "lvke_mcp.domains.finance.evidence_binding": [
+      "src/lvke_mcp/domains/asset_acquisition/backend.py",
+      "tests/integration/test_source_reconstructed_acceptance.py"
+    ],
+    "lvke_mcp.domains.reports.doc_service": [
+      "src/lvke_mcp/domains/asset_acquisition/backend.py",
+      "src/lvke_mcp/domains/reports/application.py",
+      "src/lvke_mcp/domains/reports/artifacts.py",
+      "src/lvke_mcp/domains/reports/read_model.py",
+      "src/lvke_mcp/domains/reports/readiness.py",
+      "src/lvke_mcp/domains/reports/validation.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
     ],
     "lvke_mcp.domains.finance.calculations": [
       "src/lvke_mcp/domains/asset_acquisition/model.py",
@@ -574,7 +584,7 @@
       "src/lvke_mcp/domains/finance/evidence_binding.py",
       "src/lvke_mcp/domains/finance/fact_pack.py",
       "src/lvke_mcp/domains/finance/model_application.py",
-      "src/lvke_mcp/servers/lvke_data_acquisition/service.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/ingest.py",
       "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
       "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
@@ -611,24 +621,37 @@
       "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
       "tests/integration/test_mcp_delivery_chain.py"
     ],
-    "lvke_mcp.domains.finance.contracts": [
-      "src/lvke_mcp/domains/finance/finance_model.py",
-      "src/lvke_mcp/domains/finance/normalize.py"
-    ],
     "lvke_mcp.domains.finance.feasibility_params": [
       "src/lvke_mcp/domains/finance/finance_model.py",
       "src/lvke_mcp/domains/finance/run_service.py"
     ],
-    "lvke_mcp.domains.finance.capitalization": [
+    "lvke_mcp.domains.finance.assets": [
       "src/lvke_mcp/domains/finance/finance_model.py"
+    ],
+    "lvke_mcp.domains.finance.sandbox": [
+      "src/lvke_mcp/domains/finance/finance_model.py"
+    ],
+    "lvke_mcp.domains.finance.working_capital": [
+      "src/lvke_mcp/domains/finance/finance_model.py",
+      "src/lvke_mcp/domains/finance/industry_scenario_factory.py",
+      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
+      "tests/integration/test_finance_fixture_acceptance.py"
+    ],
+    "lvke_mcp.domains.finance.debt": [
+      "src/lvke_mcp/domains/finance/finance_model.py",
+      "src/lvke_mcp/domains/finance/industry_scenario_factory.py"
     ],
     "lvke_mcp.domains.finance.normalize": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
+    "lvke_mcp.domains.finance.contracts": [
+      "src/lvke_mcp/domains/finance/finance_model.py",
+      "src/lvke_mcp/domains/finance/normalize.py"
+    ],
     "lvke_mcp.domains.finance.scenarios": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
-    "lvke_mcp.domains.finance.taxes": [
+    "lvke_mcp.domains.finance.statements": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
     "lvke_mcp.domains.finance.revenue_models": [
@@ -643,34 +666,26 @@
       "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
       "tests/integration/test_finance_fixture_acceptance.py"
     ],
-    "lvke_mcp.domains.finance.assets": [
+    "lvke_mcp.domains.finance.checks": [
+      "src/lvke_mcp/domains/finance/finance_model.py"
+    ],
+    "lvke_mcp.domains.finance.taxes": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
     "lvke_mcp.domains.finance.timeline": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
-    "lvke_mcp.domains.finance.checks": [
+    "lvke_mcp.domains.finance.capitalization": [
       "src/lvke_mcp/domains/finance/finance_model.py"
     ],
-    "lvke_mcp.domains.finance.working_capital": [
-      "src/lvke_mcp/domains/finance/finance_model.py",
-      "src/lvke_mcp/domains/finance/industry_scenario_factory.py",
-      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
-      "tests/integration/test_finance_fixture_acceptance.py"
-    ],
-    "lvke_mcp.domains.finance.statements": [
-      "src/lvke_mcp/domains/finance/finance_model.py"
-    ],
-    "lvke_mcp.domains.finance.debt": [
-      "src/lvke_mcp/domains/finance/finance_model.py",
-      "src/lvke_mcp/domains/finance/industry_scenario_factory.py"
-    ],
-    "lvke_mcp.domains.finance.sandbox": [
-      "src/lvke_mcp/domains/finance/finance_model.py"
-    ],
-    "lvke_mcp.domains.finance.model_manifest": [
+    "lvke_mcp.adapters.finance_tables_repository": [
       "src/lvke_mcp/domains/finance/gate.py",
-      "src/lvke_mcp/domains/finance/run_service.py"
+      "src/lvke_mcp/domains/finance/tables_service.py",
+      "src/lvke_mcp/domains/reports/application.py",
+      "src/lvke_mcp/servers/excel_bridge/server.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
+      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
     ],
     "lvke_mcp.adapters.spreadsheets.finance_export": [
       "src/lvke_mcp/domains/finance/gate.py",
@@ -678,13 +693,17 @@
       "src/lvke_mcp/domains/finance/tables_application.py",
       "src/lvke_mcp/domains/finance/tables_service.py"
     ],
-    "lvke_mcp.domains.finance.run_store": [
+    "lvke_mcp.domains.finance.model_manifest": [
       "src/lvke_mcp/domains/finance/gate.py",
-      "src/lvke_mcp/domains/finance/review_verdict.py",
-      "src/lvke_mcp/domains/finance/run_service.py",
-      "src/lvke_mcp/domains/finance/vendor_review.py",
-      "src/lvke_mcp/domains/reports/artifacts.py",
-      "src/lvke_mcp/domains/reports/readiness.py"
+      "src/lvke_mcp/domains/finance/run_service.py"
+    ],
+    "lvke_mcp.domains.asset_acquisition.tables": [
+      "src/lvke_mcp/domains/finance/gate.py",
+      "src/lvke_mcp/domains/reports/application.py",
+      "src/lvke_mcp/servers/lvke_asset_acquisition/service.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
+      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
     ],
     "lvke_mcp.domains.finance.run_service": [
       "src/lvke_mcp/domains/finance/gate.py",
@@ -704,22 +723,13 @@
       "tests/integration/test_finance_fixture_acceptance.py",
       "tests/integration/test_report_finance_regressions.py"
     ],
-    "lvke_mcp.domains.asset_acquisition.tables": [
+    "lvke_mcp.domains.finance.run_store": [
       "src/lvke_mcp/domains/finance/gate.py",
-      "src/lvke_mcp/domains/reports/application.py",
-      "src/lvke_mcp/servers/lvke_asset_acquisition/service.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
-      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
-    ],
-    "lvke_mcp.adapters.finance_tables_repository": [
-      "src/lvke_mcp/domains/finance/gate.py",
-      "src/lvke_mcp/domains/finance/tables_service.py",
-      "src/lvke_mcp/domains/reports/application.py",
-      "src/lvke_mcp/servers/excel_bridge/server.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
-      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
+      "src/lvke_mcp/domains/finance/review_verdict.py",
+      "src/lvke_mcp/domains/finance/run_service.py",
+      "src/lvke_mcp/domains/finance/vendor_review.py",
+      "src/lvke_mcp/domains/reports/artifacts.py",
+      "src/lvke_mcp/domains/reports/readiness.py"
     ],
     "lvke_mcp.domains.finance.reference_track": [
       "src/lvke_mcp/domains/finance/hengli_reference.py",
@@ -744,25 +754,25 @@
       "src/lvke_mcp/domains/finance/run_service.py",
       "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
     ],
-    "lvke_mcp.domains.finance.policy_registry": [
+    "lvke_mcp.domains.finance.table_pack": [
+      "src/lvke_mcp/domains/finance/run_service.py",
+      "src/lvke_mcp/domains/reports/artifacts.py"
+    ],
+    "lvke_mcp.domains.finance.scale_infer": [
+      "src/lvke_mcp/domains/finance/run_service.py"
+    ],
+    "lvke_mcp.domains.finance.spec_builder": [
       "src/lvke_mcp/domains/finance/run_service.py"
     ],
     "lvke_mcp.domains.finance.industry_registry": [
       "src/lvke_mcp/domains/finance/run_service.py"
     ],
-    "lvke_mcp.domains.finance.table_pack": [
-      "src/lvke_mcp/domains/finance/run_service.py",
-      "src/lvke_mcp/domains/reports/artifacts.py"
+    "lvke_mcp.domains.finance.policy_registry": [
+      "src/lvke_mcp/domains/finance/run_service.py"
     ],
     "lvke_mcp.domains.finance.env_templates": [
       "src/lvke_mcp/domains/finance/run_service.py",
       "src/lvke_mcp/domains/reports/doc_service.py"
-    ],
-    "lvke_mcp.domains.finance.spec_builder": [
-      "src/lvke_mcp/domains/finance/run_service.py"
-    ],
-    "lvke_mcp.domains.finance.scale_infer": [
-      "src/lvke_mcp/domains/finance/run_service.py"
     ],
     "lvke_mcp.domains.templates.catalog": [
       "src/lvke_mcp/domains/finance/run_store.py",
@@ -779,13 +789,13 @@
       "src/lvke_mcp/domains/finance/tables_service.py",
       "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
     ],
+    "lvke_mcp.domains.finance.dual_track": [
+      "src/lvke_mcp/domains/finance/vendor_review.py"
+    ],
     "lvke_mcp.domains.finance.review_verdict": [
       "src/lvke_mcp/domains/finance/vendor_review.py"
     ],
     "lvke_mcp.domains.finance.vendor_review_report": [
-      "src/lvke_mcp/domains/finance/vendor_review.py"
-    ],
-    "lvke_mcp.domains.finance.dual_track": [
       "src/lvke_mcp/domains/finance/vendor_review.py"
     ],
     "lvke_mcp.adapters.project_planning_repository": [
@@ -795,6 +805,12 @@
       "tests/integration/test_feasibility_delivery.py",
       "tests/integration/test_mcp_compression.py",
       "tests/integration/test_mcp_delivery_chain.py"
+    ],
+    "lvke_mcp.domains.reports.validation": [
+      "src/lvke_mcp/domains/reports/application.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
+      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
+      "tests/integration/test_report_finance_regressions.py"
     ],
     "lvke_mcp.adapters.research_repository": [
       "src/lvke_mcp/domains/reports/application.py",
@@ -821,22 +837,22 @@
       "src/lvke_mcp/domains/reports/validation.py",
       "src/lvke_mcp/servers/lvke_deliverable_review/rubrics.py"
     ],
-    "lvke_mcp.domains.reports.artifact_mirror": [
-      "src/lvke_mcp/domains/reports/application.py"
-    ],
     "lvke_mcp.domains.reports.docx_fonts": [
       "src/lvke_mcp/domains/reports/application.py",
       "src/lvke_mcp/domains/reports/artifacts.py",
       "src/lvke_mcp/domains/reports/doc_service.py"
     ],
-    "lvke_mcp.domains.reports.validation": [
-      "src/lvke_mcp/domains/reports/application.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py",
-      "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
-      "tests/integration/test_report_finance_regressions.py"
+    "lvke_mcp.domains.reports.artifact_mirror": [
+      "src/lvke_mcp/domains/reports/application.py"
     ],
     "lvke_mcp.adapters.data_acquisition_repository": [
       "src/lvke_mcp/domains/reports/artifacts.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/constants.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/discovery.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/resources.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/ingest.py",
       "src/lvke_mcp/servers/lvke_data_analysis/service.py",
@@ -858,16 +874,16 @@
     "lvke_mcp.domains.research.provider_executor": [
       "src/lvke_mcp/domains/research/extractor.py"
     ],
-    "lvke_mcp.domains.research.safety": [
+    "lvke_mcp.domains.research.source_normalizer": [
       "src/lvke_mcp/domains/research/extractor.py"
     ],
     "lvke_mcp.domains.research.contracts": [
       "src/lvke_mcp/domains/research/extractor.py",
       "src/lvke_mcp/domains/research/metrics.py",
       "src/lvke_mcp/domains/research/source_normalizer.py",
-      "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py"
     ],
-    "lvke_mcp.domains.research.source_normalizer": [
+    "lvke_mcp.domains.research.safety": [
       "src/lvke_mcp/domains/research/extractor.py"
     ],
     "lvke_mcp.domains.research.metrics": [
@@ -882,6 +898,61 @@
       "src/lvke_mcp/servers/lvke_source_files/_service/envelope.py",
       "src/lvke_mcp/servers/lvke_source_files/service.py"
     ],
+    "lvke_mcp.servers.lvke_source_files.service": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_source_files/server.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis.server": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "tests/integration/test_mcp_acceptance_20_defects.py"
+    ],
+    "lvke_mcp.servers.lvke_finance_tables.server": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.domains.reports.application": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_report_generation/server.py",
+      "src/lvke_mcp/servers/lvke_report_generation/service.py",
+      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
+      "tests/integration/test_mcp_delivery_chain.py",
+      "tests/integration/test_report_finance_regressions.py"
+    ],
+    "lvke_mcp.servers.lvke_knowledge_governance.service": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_knowledge_governance/server.py",
+      "tests/integration/test_knowledge_governance.py"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition.server": [
+      "src/lvke_mcp/runtime/resource_registry.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis.service": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_data_analysis/server.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
+      "tests/integration/test_mcp_acceptance_20_defects.py",
+      "tests/integration/test_source_reconstructed_acceptance.py"
+    ],
+    "lvke_mcp.servers.lvke_zero_material_delivery.service": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_zero_material_delivery/server.py",
+      "tests/integration/test_zero_material_workspace_isolation.py"
+    ],
+    "lvke_mcp.servers.lvke_report_generation.server": [
+      "src/lvke_mcp/runtime/resource_registry.py"
+    ],
+    "lvke_mcp.servers.lvke_deliverable_review.service": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "src/lvke_mcp/servers/lvke_deliverable_review/server.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
+    ],
+    "lvke_mcp.servers.lvke_deep_research.server": [
+      "src/lvke_mcp/runtime/resource_registry.py",
+      "tests/integration/test_mcp_compression.py"
+    ],
     "lvke_mcp.domains.finance.tables_service": [
       "src/lvke_mcp/runtime/resource_registry.py",
       "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
@@ -894,20 +965,6 @@
       "tests/integration/test_mcp_delivery_chain.py",
       "tests/integration/test_report_finance_regressions.py"
     ],
-    "lvke_mcp.servers.lvke_zero_material_delivery.service": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_zero_material_delivery/server.py",
-      "tests/integration/test_zero_material_workspace_isolation.py"
-    ],
-    "lvke_mcp.domains.reports.application": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_report_generation/server.py",
-      "src/lvke_mcp/servers/lvke_report_generation/service.py",
-      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
-      "tests/integration/test_mcp_delivery_chain.py",
-      "tests/integration/test_report_finance_regressions.py"
-    ],
     "lvke_mcp.servers.lvke_feasibility_delivery.service": [
       "src/lvke_mcp/runtime/resource_registry.py",
       "src/lvke_mcp/servers/lvke_feasibility_delivery/server.py",
@@ -916,54 +973,13 @@
       "tests/integration/test_mcp_delivery_chain.py",
       "tests/integration/test_source_reconstructed_acceptance.py"
     ],
-    "lvke_mcp.servers.lvke_source_files.service": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_source_files/server.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
-      "tests/integration/test_mcp_compression.py"
-    ],
-    "lvke_mcp.servers.lvke_deep_research.server": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "tests/integration/test_mcp_compression.py"
-    ],
-    "lvke_mcp.servers.lvke_project_planning.service": [
-      "src/lvke_mcp/runtime/resource_registry.py"
-    ],
-    "lvke_mcp.servers.lvke_deliverable_review.service": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_deliverable_review/server.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py"
-    ],
-    "lvke_mcp.servers.lvke_finance_tables.server": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "tests/integration/test_mcp_compression.py"
-    ],
     "lvke_mcp.servers.lvke_data_acquisition.service": [
       "src/lvke_mcp/runtime/resource_registry.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/server.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
-    "lvke_mcp.servers.lvke_data_analysis.server": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "tests/integration/test_mcp_acceptance_20_defects.py"
-    ],
-    "lvke_mcp.servers.lvke_data_acquisition.server": [
+    "lvke_mcp.servers.lvke_project_planning.service": [
       "src/lvke_mcp/runtime/resource_registry.py"
-    ],
-    "lvke_mcp.servers.lvke_report_generation.server": [
-      "src/lvke_mcp/runtime/resource_registry.py"
-    ],
-    "lvke_mcp.servers.lvke_knowledge_governance.service": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_knowledge_governance/server.py",
-      "tests/integration/test_knowledge_governance.py"
-    ],
-    "lvke_mcp.servers.lvke_data_analysis.service": [
-      "src/lvke_mcp/runtime/resource_registry.py",
-      "src/lvke_mcp/servers/lvke_data_analysis/server.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
-      "tests/integration/test_mcp_acceptance_20_defects.py",
-      "tests/integration/test_source_reconstructed_acceptance.py"
     ],
     "lvke_mcp.runtime.errors": [
       "src/lvke_mcp/runtime/transport.py"
@@ -992,25 +1008,25 @@
     "lvke_mcp.servers.lvke_archive.storage": [
       "src/lvke_mcp/servers/lvke_archive/server.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index.bm25_build": [
-      "scripts/build_archive_index.py",
+    "lvke_mcp.servers.lvke_archive.archive_index.vector_index": [
       "src/lvke_mcp/servers/lvke_archive/storage.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index.vector_index": [
+    "lvke_mcp.servers.lvke_archive.archive_index.bm25_build": [
+      "scripts/build_archive_index.py",
       "src/lvke_mcp/servers/lvke_archive/storage.py"
     ],
     "lvke_mcp.servers.lvke_asset_acquisition": [
       "src/lvke_mcp/servers/lvke_asset_acquisition/server.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
-    "lvke_mcp.servers.lvke_asset_acquisition.service": [
-      "src/lvke_mcp/servers/lvke_asset_acquisition/server.py"
-    ],
     "lvke_mcp.runtime.schemas": [
       "src/lvke_mcp/servers/lvke_asset_acquisition/server.py",
       "src/lvke_mcp/servers/lvke_deliverable_review/server.py",
       "src/lvke_mcp/servers/lvke_knowledge_governance/server.py",
       "src/lvke_mcp/servers/lvke_zero_material_delivery/server.py"
+    ],
+    "lvke_mcp.servers.lvke_asset_acquisition.service": [
+      "src/lvke_mcp/servers/lvke_asset_acquisition/server.py"
     ],
     "lvke_mcp.runtime.transport": [
       "src/lvke_mcp/servers/lvke_asset_acquisition/server.py",
@@ -1033,18 +1049,23 @@
     "lvke_mcp.servers.lvke_clients.storage": [
       "src/lvke_mcp/servers/lvke_clients/server.py"
     ],
-    "lvke_mcp.servers.lvke_data_acquisition": [
-      "src/lvke_mcp/servers/lvke_data_acquisition/server.py",
-      "tests/integration/test_mcp_acceptance_20_defects.py"
+    "lvke_mcp.domains.research.extractor": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py"
     ],
-    "lvke_mcp.domains.research.url_safety": [
+    "lvke_mcp.servers.lvke_data_acquisition._service.urls": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/discovery.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
     ],
-    "lvke_mcp.domains.research.extractor": [
+    "lvke_mcp.servers.lvke_data_acquisition._service.resources": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
     ],
     "lvke_mcp.adapters": [
-      "src/lvke_mcp/servers/lvke_data_acquisition/service.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/audit_capture.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/ingest.py",
       "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py",
       "src/lvke_mcp/servers/lvke_source_files/_service/envelope.py",
@@ -1057,10 +1078,41 @@
       "src/lvke_mcp/servers/lvke_source_files/service.py",
       "tests/integration/test_mcp_compression.py"
     ],
-    "lvke_mcp.domains.research.providers.tavily": [
+    "lvke_mcp.servers.lvke_data_acquisition._service.constants": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/discovery.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py",
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
     ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.searching": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/discovery.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
+    ],
+    "lvke_mcp.domains.research.providers.tavily": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/resources.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py"
+    ],
     "lvke_mcp.domains.research.providers": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/resources.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/searching.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py"
+    ],
+    "lvke_mcp.domains.research.url_safety": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/snapshots.py",
+      "src/lvke_mcp/servers/lvke_data_acquisition/_service/urls.py"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/server.py",
+      "tests/integration/test_mcp_acceptance_20_defects.py"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.snapshots": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture": [
+      "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.discovery": [
       "src/lvke_mcp/servers/lvke_data_acquisition/service.py"
     ],
     "lvke_mcp.servers.lvke_data_analysis._service.envelope": [
@@ -1083,14 +1135,14 @@
       "src/lvke_mcp/servers/lvke_data_analysis/_service/profile.py",
       "src/lvke_mcp/servers/lvke_data_analysis/service.py"
     ],
-    "lvke_mcp.servers.lvke_data_analysis._service.period_norm": [
-      "src/lvke_mcp/servers/lvke_data_analysis/_service/compare.py",
-      "src/lvke_mcp/servers/lvke_data_analysis/_service/trends.py",
-      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
-    ],
     "lvke_mcp.servers.lvke_data_analysis._service.unit_rules": [
       "src/lvke_mcp/servers/lvke_data_analysis/_service/compare.py",
       "src/lvke_mcp/servers/lvke_data_analysis/_service/numeric_gates.py",
+      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis._service.period_norm": [
+      "src/lvke_mcp/servers/lvke_data_analysis/_service/compare.py",
+      "src/lvke_mcp/servers/lvke_data_analysis/_service/trends.py",
       "src/lvke_mcp/servers/lvke_data_analysis/service.py"
     ],
     "lvke_mcp.domains.research.quantitative": [
@@ -1103,26 +1155,35 @@
       "tests/integration/test_mcp_acceptance_20_defects.py",
       "tests/integration/test_source_reconstructed_acceptance.py"
     ],
-    "lvke_mcp.servers.lvke_data_analysis._service.benchmark": [
-      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
-    ],
-    "lvke_mcp.servers.lvke_data_analysis._service.compare": [
-      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
-    ],
-    "lvke_mcp.servers.lvke_data_analysis._service.trends": [
-      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
-    ],
-    "lvke_mcp.servers.lvke_data_analysis._service.resources": [
-      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
-    ],
-    "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract": [
+    "lvke_mcp.servers.lvke_data_analysis._service.profile": [
       "src/lvke_mcp/servers/lvke_data_analysis/service.py"
     ],
     "lvke_mcp.servers.lvke_data_analysis._service.evidence_pack": [
       "src/lvke_mcp/servers/lvke_data_analysis/service.py"
     ],
-    "lvke_mcp.servers.lvke_data_analysis._service.profile": [
+    "lvke_mcp.servers.lvke_data_analysis._service.trends": [
       "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis._service.benchmark": [
+      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis._service.resources": [
+      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis._service.compare": [
+      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract": [
+      "src/lvke_mcp/servers/lvke_data_analysis/service.py"
+    ],
+    "lvke_mcp.domains.research": [
+      "src/lvke_mcp/servers/lvke_deep_research/_server/dispatch.py",
+      "src/lvke_mcp/servers/lvke_deep_research/_server/registration.py",
+      "src/lvke_mcp/servers/lvke_deep_research/server.py",
+      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
+      "tests/integration/test_deep_research_quality.py",
+      "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
     "lvke_mcp.servers.lvke_deep_research._server": [
       "src/lvke_mcp/servers/lvke_deep_research/_server/dispatch.py",
@@ -1138,24 +1199,15 @@
       "tests/integration/test_deep_research_quality.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
-    "lvke_mcp.domains.research": [
-      "src/lvke_mcp/servers/lvke_deep_research/_server/dispatch.py",
+    "lvke_mcp.servers.lvke_deep_research._server.dispatch": [
       "src/lvke_mcp/servers/lvke_deep_research/_server/registration.py",
-      "src/lvke_mcp/servers/lvke_deep_research/server.py",
-      "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
-      "tests/integration/test_deep_research_quality.py",
-      "tests/integration/test_mcp_acceptance_20_defects.py"
+      "src/lvke_mcp/servers/lvke_deep_research/server.py"
     ],
     "lvke_mcp.servers.lvke_deep_research._server.schemas": [
       "src/lvke_mcp/servers/lvke_deep_research/_server/registration.py"
     ],
     "lvke_mcp.servers.lvke_deep_research._server.tool_annotations": [
       "src/lvke_mcp/servers/lvke_deep_research/_server/registration.py"
-    ],
-    "lvke_mcp.servers.lvke_deep_research._server.dispatch": [
-      "src/lvke_mcp/servers/lvke_deep_research/_server/registration.py",
-      "src/lvke_mcp/servers/lvke_deep_research/server.py"
     ],
     "lvke_mcp.servers.lvke_deep_research._server.registration": [
       "src/lvke_mcp/servers/lvke_deep_research/server.py"
@@ -1182,21 +1234,14 @@
     "lvke_mcp.servers.lvke_deliverable_review.contracts": [
       "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
     ],
+    "lvke_mcp.servers.lvke_deliverable_review.report_checks": [
+      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
+    ],
     "lvke_mcp.servers.lvke_deliverable_review.financial_checks": [
       "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
     ],
     "lvke_mcp.servers.lvke_deliverable_review.store": [
       "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
-    ],
-    "lvke_mcp.servers.lvke_deliverable_review.report_checks": [
-      "src/lvke_mcp/servers/lvke_deliverable_review/service.py"
-    ],
-    "lvke_mcp.servers.lvke_feasibility_delivery": [
-      "src/lvke_mcp/servers/lvke_feasibility_delivery/server.py",
-      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
-      "tests/integration/test_feasibility_delivery.py",
-      "tests/integration/test_mcp_delivery_chain.py",
-      "tests/integration/test_source_reconstructed_acceptance.py"
     ],
     "lvke_mcp.servers.lvke_feasibility_delivery.contracts": [
       "src/lvke_mcp/servers/lvke_feasibility_delivery/server.py",
@@ -1208,8 +1253,18 @@
       "tests/integration/test_feasibility_delivery.py",
       "tests/integration/test_mcp_compression.py"
     ],
+    "lvke_mcp.servers.lvke_feasibility_delivery": [
+      "src/lvke_mcp/servers/lvke_feasibility_delivery/server.py",
+      "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
+      "tests/integration/test_feasibility_delivery.py",
+      "tests/integration/test_mcp_delivery_chain.py",
+      "tests/integration/test_source_reconstructed_acceptance.py"
+    ],
     "lvke_mcp.servers.lvke_feasibility_delivery.store": [
       "src/lvke_mcp/servers/lvke_feasibility_delivery/service.py"
+    ],
+    "lvke_mcp.domains.finance.vendor_review": [
+      "src/lvke_mcp/servers/lvke_finance_model/server.py"
     ],
     "lvke_mcp.domains.finance.model_application": [
       "src/lvke_mcp/servers/lvke_finance_model/server.py",
@@ -1220,9 +1275,6 @@
       "tests/integration/test_mcp_delivery_chain.py"
     ],
     "lvke_mcp.domains.finance.advanced_analysis": [
-      "src/lvke_mcp/servers/lvke_finance_model/server.py"
-    ],
-    "lvke_mcp.domains.finance.vendor_review": [
       "src/lvke_mcp/servers/lvke_finance_model/server.py"
     ],
     "lvke_mcp.servers.lvke_knowledge_governance": [
@@ -1246,10 +1298,10 @@
       "tests/integration/test_mcp_acceptance_20_defects.py",
       "tests/integration/test_mcp_compression.py"
     ],
-    "lvke_mcp.servers.lvke_project_planning": [
+    "lvke_mcp.servers.lvke_project_planning.lifecycle": [
       "src/lvke_mcp/servers/lvke_project_planning/server.py"
     ],
-    "lvke_mcp.servers.lvke_project_planning.lifecycle": [
+    "lvke_mcp.servers.lvke_project_planning": [
       "src/lvke_mcp/servers/lvke_project_planning/server.py"
     ],
     "lvke_mcp.servers.lvke_reference": [
@@ -1260,19 +1312,13 @@
       "src/lvke_mcp/servers/lvke_reference/server.py",
       "tests/integration/test_mcp_compression.py"
     ],
+    "lvke_mcp.servers.lvke_archive.server": [
+      "src/lvke_mcp/servers/lvke_reference/service.py"
+    ],
     "lvke_mcp.servers.lvke_clients.server": [
       "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
-    "lvke_mcp.servers.environmental_data.server": [
-      "src/lvke_mcp/servers/lvke_reference/service.py"
-    ],
-    "lvke_mcp.servers.policy_search.server": [
-      "src/lvke_mcp/servers/lvke_reference/service.py"
-    ],
-    "lvke_mcp.servers.lvke_templates.server": [
-      "src/lvke_mcp/servers/lvke_reference/service.py"
-    ],
-    "lvke_mcp.servers.lvke_archive.server": [
+    "lvke_mcp.servers.map_geo.server": [
       "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
     "lvke_mcp.servers.lvke_experts.server": [
@@ -1281,21 +1327,17 @@
     "lvke_mcp.servers.industry_research.server": [
       "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
-    "lvke_mcp.servers.map_geo.server": [
+    "lvke_mcp.servers.policy_search.server": [
+      "src/lvke_mcp/servers/lvke_reference/service.py"
+    ],
+    "lvke_mcp.servers.lvke_templates.server": [
       "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
     "lvke_mcp.servers.statistics_cn.server": [
       "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
-    "lvke_mcp.servers.lvke_source_files._service.envelope": [
-      "src/lvke_mcp/servers/lvke_source_files/_service/imports.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/listing.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/manifest.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/parse_jobs.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/resources.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/upload.py",
-      "src/lvke_mcp/servers/lvke_source_files/_service/workbook.py",
-      "src/lvke_mcp/servers/lvke_source_files/service.py"
+    "lvke_mcp.servers.environmental_data.server": [
+      "src/lvke_mcp/servers/lvke_reference/service.py"
     ],
     "lvke_mcp.servers.lvke_source_files.external_corpora": [
       "src/lvke_mcp/servers/lvke_source_files/_service/imports.py",
@@ -1315,6 +1357,16 @@
       "src/lvke_mcp/servers/lvke_source_files/_service/parse_jobs.py",
       "src/lvke_mcp/servers/lvke_source_files/_service/resources.py",
       "src/lvke_mcp/servers/lvke_source_files/_service/upload.py",
+      "src/lvke_mcp/servers/lvke_source_files/service.py"
+    ],
+    "lvke_mcp.servers.lvke_source_files._service.envelope": [
+      "src/lvke_mcp/servers/lvke_source_files/_service/imports.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/listing.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/manifest.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/parse_jobs.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/resources.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/upload.py",
+      "src/lvke_mcp/servers/lvke_source_files/_service/workbook.py",
       "src/lvke_mcp/servers/lvke_source_files/service.py"
     ],
     "lvke_mcp.servers.lvke_source_files._service.imports": [
@@ -1339,9 +1391,6 @@
       "src/lvke_mcp/testing/source_reconstructed_acceptance.py",
       "tests/integration/test_mcp_compression.py"
     ],
-    "lvke_mcp.servers.lvke_source_files._service.parse_jobs": [
-      "src/lvke_mcp/servers/lvke_source_files/service.py"
-    ],
     "lvke_mcp.servers.lvke_source_files._service.upload": [
       "src/lvke_mcp/servers/lvke_source_files/service.py"
     ],
@@ -1349,6 +1398,9 @@
       "src/lvke_mcp/servers/lvke_source_files/service.py"
     ],
     "lvke_mcp.servers.lvke_source_files._service.listing": [
+      "src/lvke_mcp/servers/lvke_source_files/service.py"
+    ],
+    "lvke_mcp.servers.lvke_source_files._service.parse_jobs": [
       "src/lvke_mcp/servers/lvke_source_files/service.py"
     ],
     "lvke_mcp.servers.lvke_source_files._service.resources": [
@@ -1371,10 +1423,10 @@
       "tests/integration/test_finance_fixture_acceptance.py",
       "tests/integration/test_mcp_delivery_chain.py"
     ],
-    "lvke_mcp.servers.lvke_zero_material_delivery.industry_profiles": [
+    "lvke_mcp.servers.lvke_zero_material_delivery.artifact_delivery": [
       "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py"
     ],
-    "lvke_mcp.servers.lvke_zero_material_delivery.artifact_delivery": [
+    "lvke_mcp.servers.lvke_zero_material_delivery.industry_profiles": [
       "src/lvke_mcp/servers/lvke_zero_material_delivery/service.py"
     ],
     "lvke_mcp.servers.map_geo.geometry": [
@@ -1396,39 +1448,39 @@
       "tests/integration/test_finance_fixture_acceptance.py",
       "tests/integration/test_source_reconstructed_acceptance.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index.metadata": [
+    "lvke_mcp.servers.lvke_archive.archive_index": [
       "scripts/build_archive_index.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
     "lvke_mcp.servers.lvke_asset_acquisition.server": [
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index": [
+    "lvke_mcp.servers.lvke_archive.archive_index.metadata": [
       "scripts/build_archive_index.py",
       "tests/integration/test_mcp_acceptance_20_defects.py"
     ],
-    "lvke_mcp.servers.finance_calc": [
-      "tests/integration/test_mcp_compression.py"
-    ],
     "lvke_mcp.servers.lvke_source_files.server": [
-      "tests/integration/test_mcp_compression.py"
-    ],
-    "lvke_mcp.servers.lvke_finance_model": [
-      "tests/integration/test_mcp_compression.py"
-    ],
-    "lvke_mcp.servers.lvke_reference.server": [
-      "tests/integration/test_mcp_compression.py"
-    ],
-    "lvke_mcp.servers.excel_bridge": [
       "tests/integration/test_mcp_compression.py"
     ],
     "lvke_mcp.servers.lvke_finance_tables": [
       "tests/integration/test_mcp_compression.py"
     ],
-    "lvke_mcp.servers.finance_calc.server": [
+    "lvke_mcp.servers.excel_bridge": [
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.servers.lvke_reference.server": [
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.servers.finance_calc": [
       "tests/integration/test_mcp_compression.py"
     ],
     "lvke_mcp.servers.excel_bridge.server": [
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.servers.lvke_finance_model": [
+      "tests/integration/test_mcp_compression.py"
+    ],
+    "lvke_mcp.servers.finance_calc.server": [
       "tests/integration/test_mcp_compression.py"
     ],
     "lvke_mcp.testing.source_reconstructed_acceptance": [
@@ -1437,13 +1489,13 @@
     "lvke_mcp.servers.lvke_zero_material_delivery.server": [
       "tests/integration/test_zero_material_workspace_isolation.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index.chunker": [
+    "lvke_mcp.servers.lvke_archive.archive_index.schema": [
       "scripts/build_archive_index.py"
     ],
     "lvke_mcp.servers.lvke_archive.archive_index.indicators": [
       "scripts/build_archive_index.py"
     ],
-    "lvke_mcp.servers.lvke_archive.archive_index.schema": [
+    "lvke_mcp.servers.lvke_archive.archive_index.chunker": [
       "scripts/build_archive_index.py"
     ]
   },
@@ -1943,13 +1995,19 @@
           "lvke_mcp.servers.excel_bridge.server"
         ],
         "lvke_mcp.servers.lvke_data_acquisition -> lvke_mcp.adapters": [
-          "lvke_mcp.servers.lvke_data_acquisition.service"
+          "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         ],
         "lvke_mcp.servers.lvke_data_acquisition -> lvke_mcp.adapters.data_acquisition_repository": [
+          "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture",
+          "lvke_mcp.servers.lvke_data_acquisition._service.constants",
+          "lvke_mcp.servers.lvke_data_acquisition._service.discovery",
+          "lvke_mcp.servers.lvke_data_acquisition._service.resources",
+          "lvke_mcp.servers.lvke_data_acquisition._service.searching",
+          "lvke_mcp.servers.lvke_data_acquisition._service.snapshots",
           "lvke_mcp.servers.lvke_data_acquisition.service"
         ],
         "lvke_mcp.servers.lvke_data_acquisition -> lvke_mcp.adapters.source_files_repository": [
-          "lvke_mcp.servers.lvke_data_acquisition.service"
+          "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         ],
         "lvke_mcp.servers.lvke_data_analysis -> lvke_mcp.adapters": [
           "lvke_mcp.servers.lvke_data_analysis._service.ingest"
@@ -2070,7 +2128,11 @@
           "lvke_mcp.servers.lvke_asset_acquisition.service"
         ],
         "lvke_mcp.servers.lvke_data_acquisition -> lvke_mcp.domains.research": [
-          "lvke_mcp.servers.lvke_data_acquisition.service"
+          "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture",
+          "lvke_mcp.servers.lvke_data_acquisition._service.resources",
+          "lvke_mcp.servers.lvke_data_acquisition._service.searching",
+          "lvke_mcp.servers.lvke_data_acquisition._service.snapshots",
+          "lvke_mcp.servers.lvke_data_acquisition._service.urls"
         ],
         "lvke_mcp.servers.lvke_data_analysis -> lvke_mcp.domains.research": [
           "lvke_mcp.servers.lvke_data_analysis._service.numeric_gates",
@@ -2172,6 +2234,9 @@
           "lvke_mcp.servers.lvke_clients.server"
         ],
         "lvke_mcp.servers.lvke_data_acquisition -> lvke_mcp.runtime": [
+          "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture",
+          "lvke_mcp.servers.lvke_data_acquisition._service.resources",
+          "lvke_mcp.servers.lvke_data_acquisition._service.snapshots",
           "lvke_mcp.servers.lvke_data_acquisition.server",
           "lvke_mcp.servers.lvke_data_acquisition.service"
         ],
@@ -2788,6 +2853,51 @@
       "lvke_mcp.runtime.stdio",
       "lvke_mcp.servers.lvke_clients.storage"
     ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture": [
+      "lvke_mcp.adapters",
+      "lvke_mcp.adapters.data_acquisition_repository",
+      "lvke_mcp.adapters.source_files_repository",
+      "lvke_mcp.domains.research.extractor",
+      "lvke_mcp.runtime.storage",
+      "lvke_mcp.servers.lvke_data_acquisition._service.resources",
+      "lvke_mcp.servers.lvke_data_acquisition._service.urls"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.constants": [
+      "lvke_mcp.adapters.data_acquisition_repository"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.discovery": [
+      "lvke_mcp.adapters.data_acquisition_repository",
+      "lvke_mcp.servers.lvke_data_acquisition._service.constants",
+      "lvke_mcp.servers.lvke_data_acquisition._service.searching",
+      "lvke_mcp.servers.lvke_data_acquisition._service.urls"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.resources": [
+      "lvke_mcp.adapters.data_acquisition_repository",
+      "lvke_mcp.domains.research.providers",
+      "lvke_mcp.domains.research.providers.tavily",
+      "lvke_mcp.runtime.storage"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.searching": [
+      "lvke_mcp.adapters.data_acquisition_repository",
+      "lvke_mcp.domains.research.providers",
+      "lvke_mcp.domains.research.providers.tavily",
+      "lvke_mcp.servers.lvke_data_acquisition._service.constants",
+      "lvke_mcp.servers.lvke_data_acquisition._service.urls"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.snapshots": [
+      "lvke_mcp.adapters.data_acquisition_repository",
+      "lvke_mcp.domains.research.contracts",
+      "lvke_mcp.domains.research.extractor",
+      "lvke_mcp.domains.research.providers",
+      "lvke_mcp.domains.research.providers.tavily",
+      "lvke_mcp.domains.research.url_safety",
+      "lvke_mcp.runtime.storage",
+      "lvke_mcp.servers.lvke_data_acquisition._service.constants",
+      "lvke_mcp.servers.lvke_data_acquisition._service.urls"
+    ],
+    "lvke_mcp.servers.lvke_data_acquisition._service.urls": [
+      "lvke_mcp.domains.research.url_safety"
+    ],
     "lvke_mcp.servers.lvke_data_acquisition.server": [
       "lvke_mcp.runtime.logging",
       "lvke_mcp.runtime.transport",
@@ -2795,15 +2905,15 @@
       "lvke_mcp.servers.lvke_data_acquisition.service"
     ],
     "lvke_mcp.servers.lvke_data_acquisition.service": [
-      "lvke_mcp.adapters",
       "lvke_mcp.adapters.data_acquisition_repository",
-      "lvke_mcp.adapters.source_files_repository",
-      "lvke_mcp.domains.research.contracts",
-      "lvke_mcp.domains.research.extractor",
-      "lvke_mcp.domains.research.providers",
-      "lvke_mcp.domains.research.providers.tavily",
-      "lvke_mcp.domains.research.url_safety",
-      "lvke_mcp.runtime.storage"
+      "lvke_mcp.runtime.storage",
+      "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture",
+      "lvke_mcp.servers.lvke_data_acquisition._service.constants",
+      "lvke_mcp.servers.lvke_data_acquisition._service.discovery",
+      "lvke_mcp.servers.lvke_data_acquisition._service.resources",
+      "lvke_mcp.servers.lvke_data_acquisition._service.searching",
+      "lvke_mcp.servers.lvke_data_acquisition._service.snapshots",
+      "lvke_mcp.servers.lvke_data_acquisition._service.urls"
     ],
     "lvke_mcp.servers.lvke_data_analysis._service.benchmark": [
       "lvke_mcp.adapters.data_analysis_repository",

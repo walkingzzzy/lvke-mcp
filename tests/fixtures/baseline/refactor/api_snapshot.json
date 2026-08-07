@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-07T09:19:59+0000",
+  "generated_at": "2026-08-07T09:47:51+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
-    "module_count": 237,
-    "symbol_count": 3048,
+    "module_count": 245,
+    "symbol_count": 3115,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -14904,6 +14904,368 @@
       "importable": true,
       "symbols": {}
     },
+    "lvke_mcp.servers.lvke_data_acquisition._service": {
+      "importable": true,
+      "symbols": {}
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "SOURCE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "URL_AUDIT_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "VISUAL_CAPTURE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "audit_urls": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', urls: 'list[str]', *, audit_mode: 'str' = 'safety', timeout_seconds: 'float' = 10.0) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
+        },
+        "capture_source_view": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, source_snapshot_id: 'str', image_file_id: 'str', url: 'str', viewport: 'dict[str, Any]', captured_at: 'str', image_content_hash: 'str' = '', page_title: 'str' = '') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
+        },
+        "datetime": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "astimezone",
+            "combine",
+            "ctime",
+            "date",
+            "day",
+            "dst",
+            "fold",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "hour",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "microsecond",
+            "min",
+            "minute",
+            "month",
+            "now",
+            "replace",
+            "resolution",
+            "second",
+            "strftime",
+            "strptime",
+            "time",
+            "timestamp",
+            "timetuple",
+            "timetz",
+            "today",
+            "toordinal",
+            "tzinfo",
+            "tzname",
+            "utcfromtimestamp",
+            "utcnow",
+            "utcoffset",
+            "utctimetuple",
+            "weekday",
+            "year"
+          ]
+        },
+        "get_url_audit": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', url_audit_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
+        },
+        "get_visual_capture": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', visual_capture_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
+        },
+        "utc_now": {
+          "kind": "callable",
+          "signature": "() -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.constants": {
+      "importable": true,
+      "symbols": {
+        "COLLECTION_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "DISCOVERY_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "RESOURCE_STORES": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 6
+        },
+        "SEARCH_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "SOURCE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "URL_AUDIT_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "VISUAL_CAPTURE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "threading": {
+          "kind": "module",
+          "target": "threading"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.discovery": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "DISCOVERY_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "discover": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', queries: 'list[str]', *, limit_per_query: 'int' = 5, domain_allowlist: 'list[str] | None' = None, domain_denylist: 'list[str] | None' = None, target_count: 'int | None' = None, auto_expand: 'bool' = False, total_timeout_seconds: 'float' = 120.0) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.discovery"
+        },
+        "search": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', query: 'str', limit: 'int' = 5, timeout_seconds: 'float | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.searching"
+        },
+        "time": {
+          "kind": "module",
+          "target": "time"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.resources": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "RESOURCE_STORES": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 6
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "list_resources": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "provider_status": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
+        },
+        "resolve_repository_resource": {
+          "kind": "callable",
+          "signature": "(uri: str, workspace_id: str) -> dict | None",
+          "defined_in": "lvke_mcp.adapters.data_acquisition_repository"
+        },
+        "resolve_resource": {
+          "kind": "callable",
+          "signature": "(uri: 'str', workspace_id: 'str') -> 'dict[str, Any] | None'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
+        },
+        "utc_now": {
+          "kind": "callable",
+          "signature": "() -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.searching": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "SEARCH_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "asyncio": {
+          "kind": "module",
+          "target": "asyncio"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "queue": {
+          "kind": "module",
+          "target": "queue"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "search": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', query: 'str', limit: 'int' = 5, timeout_seconds: 'float | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.searching"
+        },
+        "threading": {
+          "kind": "module",
+          "target": "threading"
+        },
+        "time": {
+          "kind": "module",
+          "target": "time"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.snapshots": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "COLLECTION_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "DISCOVERY_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "SOURCE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "collect": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', discovery_set_id: 'str', selected_candidate_ids: 'list[str]', *, content_mode: 'str' = 'readable') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
+        },
+        "fetch": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', urls: 'list[str]', *, content_mode: 'str' = 'readable', extraction_provider: 'str' = 'auto') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "hmac": {
+          "kind": "module",
+          "target": "hmac"
+        },
+        "import_external_snapshot": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, url: 'str', title: 'str', content: 'str', provider: 'str', provider_tool: 'str', retrieved_at: 'str', content_kind: 'str', mime_type: 'str' = 'text/markdown', extraction_receipt: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
+        },
+        "ipaddress": {
+          "kind": "module",
+          "target": "ipaddress"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "time": {
+          "kind": "module",
+          "target": "time"
+        },
+        "urlsplit": {
+          "kind": "callable",
+          "signature": "(url, scheme='', allow_fragments=True)",
+          "defined_in": "urllib.parse"
+        },
+        "utc_now": {
+          "kind": "callable",
+          "signature": "() -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_acquisition._service.urls": {
+      "importable": true,
+      "symbols": {
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "urlsplit": {
+          "kind": "callable",
+          "signature": "(url, scheme='', allow_fragments=True)",
+          "defined_in": "urllib.parse"
+        },
+        "urlunsplit": {
+          "kind": "callable",
+          "signature": "(components)",
+          "defined_in": "urllib.parse"
+        }
+      }
+    },
     "lvke_mcp.servers.lvke_data_acquisition.server": {
       "importable": true,
       "symbols": {
@@ -15010,17 +15372,17 @@
         "audit_urls": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', urls: 'list[str]', *, audit_mode: 'str' = 'safety', timeout_seconds: 'float' = 10.0) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         },
         "capture_source_view": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, source_snapshot_id: 'str', image_file_id: 'str', url: 'str', viewport: 'dict[str, Any]', captured_at: 'str', image_content_hash: 'str' = '', page_title: 'str' = '') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         },
         "collect": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', discovery_set_id: 'str', selected_candidate_ids: 'list[str]', *, content_mode: 'str' = 'readable') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
         },
         "datetime": {
           "kind": "class",
@@ -15072,22 +15434,22 @@
         "discover": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', queries: 'list[str]', *, limit_per_query: 'int' = 5, domain_allowlist: 'list[str] | None' = None, domain_denylist: 'list[str] | None' = None, target_count: 'int | None' = None, auto_expand: 'bool' = False, total_timeout_seconds: 'float' = 120.0) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.discovery"
         },
         "fetch": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', urls: 'list[str]', *, content_mode: 'str' = 'readable', extraction_provider: 'str' = 'auto') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
         },
         "get_url_audit": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', url_audit_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         },
         "get_visual_capture": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', visual_capture_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.audit_capture"
         },
         "hashlib": {
           "kind": "module",
@@ -15100,7 +15462,7 @@
         "import_external_snapshot": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, url: 'str', title: 'str', content: 'str', provider: 'str', provider_tool: 'str', retrieved_at: 'str', content_kind: 'str', mime_type: 'str' = 'text/markdown', extraction_receipt: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.snapshots"
         },
         "ipaddress": {
           "kind": "module",
@@ -15113,7 +15475,7 @@
         "list_resources": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
         },
         "os": {
           "kind": "module",
@@ -15127,7 +15489,7 @@
         "provider_status": {
           "kind": "callable",
           "signature": "() -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
         },
         "queue": {
           "kind": "module",
@@ -15145,12 +15507,12 @@
         "resolve_resource": {
           "kind": "callable",
           "signature": "(uri: 'str', workspace_id: 'str') -> 'dict[str, Any] | None'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.resources"
         },
         "search": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', query: 'str', limit: 'int' = 5, timeout_seconds: 'float | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_acquisition.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_acquisition._service.searching"
         },
         "threading": {
           "kind": "module",
