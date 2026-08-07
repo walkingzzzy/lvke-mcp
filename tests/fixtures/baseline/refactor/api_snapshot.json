@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-07T05:39:21+0000",
+  "generated_at": "2026-08-07T08:31:58+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
-    "module_count": 208,
-    "symbol_count": 2804,
+    "module_count": 226,
+    "symbol_count": 2958,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -2979,14 +2979,132 @@
     "lvke_mcp.domains.finance.evidence_binding": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
         "BINDING_VERSION": {
           "kind": "constant",
           "value_type": "str"
+        },
+        "Mapping": {
+          "kind": "_SpecialGenericAlias"
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "SOURCE_RECONSTRUCTED": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "Sequence": {
+          "kind": "_SpecialGenericAlias"
+        },
+        "annotations": {
+          "kind": "_Feature"
         },
         "bind_finance_spec_evidence": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', spec: 'Mapping[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.finance.evidence_binding"
+        },
+        "dataclass": {
+          "kind": "callable",
+          "signature": "(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False, weakref_slot=False)",
+          "defined_in": "dataclasses"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "normalize_reconstruction": {
+          "kind": "callable",
+          "signature": "(value: 'Mapping[str, Any]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.source_reconstruction"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "validate_reconstruction_records": {
+          "kind": "callable",
+          "signature": "(records: 'Any') -> 'list[dict[str, Any]]'",
+          "defined_in": "lvke_mcp.runtime.source_reconstruction"
         }
       }
     },
@@ -3801,10 +3919,33 @@
     "lvke_mcp.domains.finance.industry_scenario_factory": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "Archetype": {
+          "kind": "class",
+          "signature": "(code: 'str', name: 'str', model: 'str | None' = None, scale: 'float' = 1.0, operating: 'bool' = True, scope_note: 'str' = '') -> None",
+          "defined_in": "lvke_mcp.domains.finance.industry_scenario_factory",
+          "public_members": [
+            "model",
+            "operating",
+            "scale",
+            "scope_note"
+          ]
+        },
         "INDUSTRIES": {
           "kind": "container",
           "value_type": "tuple",
           "length": 13
+        },
+        "Industry": {
+          "kind": "class",
+          "signature": "(code: 'str', label: 'str', profile_version: 'str', default_model: 'str', construction_wan: 'float', revenue_wan: 'float', cash_cost_rate: 'float', vat_rate: 'float', build_months: 'int', operating_years: 'int', intangible_rate: 'float', unit: 'str', archetypes: 'tuple[Archetype, ...]') -> None",
+          "defined_in": "lvke_mcp.domains.finance.industry_scenario_factory",
+          "public_members": []
         },
         "MATRIX_VERSION": {
           "kind": "constant",
@@ -3814,6 +3955,18 @@
           "kind": "container",
           "value_type": "tuple",
           "length": 5
+        },
+        "Variant": {
+          "kind": "class",
+          "signature": "(code: 'str', label: 'str', project_scale: 'float', revenue_factor: 'float', cost_factor: 'float', debt_ratio: 'float', loan_rate: 'float', ramp: 'tuple[float, ...]', absorption: 'tuple[float, ...]', repayment: 'str', grace_years: 'int' = 0, risk_case: 'bool' = False) -> None",
+          "defined_in": "lvke_mcp.domains.finance.industry_scenario_factory",
+          "public_members": [
+            "grace_years",
+            "risk_case"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
         },
         "build_all_scenarios": {
           "kind": "callable",
@@ -3834,6 +3987,11 @@
           "kind": "callable",
           "signature": "(scenario: 'dict[str, Any]', *, with_analysis: 'bool' = True) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.finance.industry_scenario_factory"
+        },
+        "dataclass": {
+          "kind": "callable",
+          "signature": "(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False, weakref_slot=False)",
+          "defined_in": "dataclasses"
         },
         "list_industries": {
           "kind": "callable",
@@ -15023,6 +15181,477 @@
       "importable": true,
       "symbols": {}
     },
+    "lvke_mcp.servers.lvke_data_analysis._service": {
+      "importable": true,
+      "symbols": {}
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.benchmark": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "BENCHMARK_COMPARISON_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "Decimal": {
+          "kind": "class",
+          "signature": "(value='0', context=None)",
+          "defined_in": "decimal",
+          "public_members": [
+            "adjusted",
+            "as_integer_ratio",
+            "as_tuple",
+            "canonical",
+            "compare",
+            "compare_signal",
+            "compare_total",
+            "compare_total_mag",
+            "conjugate",
+            "copy_abs",
+            "copy_negate",
+            "copy_sign",
+            "exp",
+            "fma",
+            "from_float",
+            "imag",
+            "is_canonical",
+            "is_finite",
+            "is_infinite",
+            "is_nan",
+            "is_normal",
+            "is_qnan",
+            "is_signed",
+            "is_snan",
+            "is_subnormal",
+            "is_zero",
+            "ln",
+            "log10",
+            "logb",
+            "logical_and",
+            "logical_invert",
+            "logical_or",
+            "logical_xor",
+            "max",
+            "max_mag",
+            "min",
+            "min_mag",
+            "next_minus",
+            "next_plus",
+            "next_toward",
+            "normalize",
+            "number_class",
+            "quantize",
+            "radix",
+            "real",
+            "remainder_near",
+            "rotate",
+            "same_quantum",
+            "scaleb",
+            "shift",
+            "sqrt",
+            "to_eng_string",
+            "to_integral",
+            "to_integral_exact",
+            "to_integral_value"
+          ]
+        },
+        "InvalidOperation": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "decimal",
+          "public_members": [
+            "add_note",
+            "args",
+            "with_traceback"
+          ]
+        },
+        "ROUND_HALF_UP": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "compare_benchmark": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', subject: 'dict[str, Any]', benchmarks: 'list[dict[str, Any]]', *, attention_threshold_pct: 'float' = 15, material_threshold_pct: 'float' = 30) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.benchmark"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CANDIDATE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "extract_candidates": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', task_id: 'str', field_specs: 'list[dict[str, Any]]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.compare": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CONTROLLED_UNIT_RULES": {
+          "kind": "container",
+          "value_type": "dict",
+          "length": 10
+        },
+        "NORMALIZED_COMPARE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "compare": {
+          "kind": "callable",
+          "signature": "(observations: 'list[dict[str, Any]]', comparison_mode: 'str' = 'source_reconciliation') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.compare"
+        },
+        "normalize_compare": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', observations: 'list[dict[str, Any]]', conversion_rules: 'list[dict[str, Any]] | None' = None, *, use_controlled_unit_dictionary: 'bool' = False, comparison_mode: 'str' = 'source_reconciliation') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.compare"
+        },
+        "normalize_financial_period": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.period_norm"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.envelope": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.evidence_pack": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CANDIDATE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "EVIDENCE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "EVIDENCE_TRACKS": {
+          "kind": "container",
+          "value_type": "set",
+          "length": 4
+        },
+        "SOURCE_RECONSTRUCTED": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "build_evidence_pack": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', task_id: 'str', selected_source_ids: 'list[str] | None', fact_candidates: 'list[dict[str, Any]]', conflicts: 'list[dict[str, Any]]', expected_fields: 'list[str] | None' = None, candidate_set_id: 'str' = '', selected_candidate_ids: 'list[str] | None' = None, evidence_track: 'str' = 'real', fixture_manifest: 'dict[str, Any] | None' = None, reconstruction_records: 'list[dict[str, Any]] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.evidence_pack"
+        },
+        "datetime": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "astimezone",
+            "combine",
+            "ctime",
+            "date",
+            "day",
+            "dst",
+            "fold",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "hour",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "microsecond",
+            "min",
+            "minute",
+            "month",
+            "now",
+            "replace",
+            "resolution",
+            "second",
+            "strftime",
+            "strptime",
+            "time",
+            "timestamp",
+            "timetuple",
+            "timetz",
+            "today",
+            "toordinal",
+            "tzinfo",
+            "tzname",
+            "utcfromtimestamp",
+            "utcnow",
+            "utcoffset",
+            "utctimetuple",
+            "weekday",
+            "year"
+          ]
+        },
+        "normalize_reconstruction": {
+          "kind": "callable",
+          "signature": "(value: 'Mapping[str, Any]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.source_reconstruction"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "sha256_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "validate_reconstruction_records": {
+          "kind": "callable",
+          "signature": "(records: 'Any') -> 'list[dict[str, Any]]'",
+          "defined_in": "lvke_mcp.runtime.source_reconstruction"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.ingest": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "INGEST_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "SOURCE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "ingest": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', source_snapshot_ids: 'list[str]', file_ids: 'list[str]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
+        },
+        "query": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', task_id: 'str', query_text: 'str', limit: 'int') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "status": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', task_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.numeric_gates": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.period_norm": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "normalize_financial_period": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.period_norm"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.profile": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "PROFILE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "profile_tabular": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', task_id: 'str', file_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.profile"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.resources": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "RESOURCE_STORES": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 7
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "list_resources": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.resources"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "resolve_repository_resource": {
+          "kind": "callable",
+          "signature": "(uri: str, workspace_id: str) -> dict | None",
+          "defined_in": "lvke_mcp.adapters.data_analysis_repository"
+        },
+        "resolve_resource": {
+          "kind": "callable",
+          "signature": "(uri: 'str', workspace_id: 'str') -> 'dict[str, Any] | None'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.resources"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.trends": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "FINANCIAL_TREND_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "financial_trends": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', observations: 'list[dict[str, Any]]', methods: 'list[str] | None' = None, common_size_bases: 'dict[str, str] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.trends"
+        },
+        "normalize_financial_period": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.period_norm"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_data_analysis._service.unit_rules": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CONTROLLED_UNIT_RULES": {
+          "kind": "container",
+          "value_type": "dict",
+          "length": 10
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "controlled_unit_rules": {
+          "kind": "callable",
+          "signature": "() -> 'list[dict[str, Any]]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.unit_rules"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        }
+      }
+    },
     "lvke_mcp.servers.lvke_data_analysis.server": {
       "importable": true,
       "symbols": {
@@ -15215,28 +15844,33 @@
         "SOURCE_STORE": {
           "kind": "JSONArtifactStore"
         },
+        "_validate_fixture_manifest": {
+          "kind": "callable",
+          "signature": "(manifest: 'Any', selected: 'list[dict[str, Any]]', fact_candidates: 'list[dict[str, Any]]') -> 'tuple[dict[str, Any] | None, list[str]]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.evidence_pack"
+        },
         "annotations": {
           "kind": "_Feature"
         },
         "build_evidence_pack": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str', selected_source_ids: 'list[str] | None', fact_candidates: 'list[dict[str, Any]]', conflicts: 'list[dict[str, Any]]', expected_fields: 'list[str] | None' = None, candidate_set_id: 'str' = '', selected_candidate_ids: 'list[str] | None' = None, evidence_track: 'str' = 'real', fixture_manifest: 'dict[str, Any] | None' = None, reconstruction_records: 'list[dict[str, Any]] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.evidence_pack"
         },
         "compare": {
           "kind": "callable",
           "signature": "(observations: 'list[dict[str, Any]]', comparison_mode: 'str' = 'source_reconciliation') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.compare"
         },
         "compare_benchmark": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', subject: 'dict[str, Any]', benchmarks: 'list[dict[str, Any]]', *, attention_threshold_pct: 'float' = 15, material_threshold_pct: 'float' = 30) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.benchmark"
         },
         "controlled_unit_rules": {
           "kind": "callable",
           "signature": "() -> 'list[dict[str, Any]]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.unit_rules"
         },
         "datetime": {
           "kind": "class",
@@ -15288,32 +15922,32 @@
         "extract_candidates": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str', field_specs: 'list[dict[str, Any]]') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract"
         },
         "financial_trends": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', observations: 'list[dict[str, Any]]', methods: 'list[str] | None' = None, common_size_bases: 'dict[str, str] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.trends"
         },
         "ingest": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', source_snapshot_ids: 'list[str]', file_ids: 'list[str]') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
         },
         "list_resources": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.resources"
         },
         "normalize_compare": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', observations: 'list[dict[str, Any]]', conversion_rules: 'list[dict[str, Any]] | None' = None, *, use_controlled_unit_dictionary: 'bool' = False, comparison_mode: 'str' = 'source_reconciliation') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.compare"
         },
         "normalize_financial_period": {
           "kind": "callable",
           "signature": "(value: 'Any') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.period_norm"
         },
         "normalize_reconstruction": {
           "kind": "callable",
@@ -15328,12 +15962,12 @@
         "profile_tabular": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str', file_ids: 'list[str] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.profile"
         },
         "query": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str', query_text: 'str', limit: 'int') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
         },
         "re": {
           "kind": "module",
@@ -15347,7 +15981,7 @@
         "resolve_resource": {
           "kind": "callable",
           "signature": "(uri: 'str', workspace_id: 'str') -> 'dict[str, Any] | None'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.resources"
         },
         "sha256_json": {
           "kind": "callable",
@@ -15357,7 +15991,7 @@
         "status": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_data_analysis.service"
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.ingest"
         },
         "validate_reconstruction_records": {
           "kind": "callable",
@@ -15369,6 +16003,128 @@
     "lvke_mcp.servers.lvke_deep_research": {
       "importable": true,
       "symbols": {}
+    },
+    "lvke_mcp.servers.lvke_deep_research._server": {
+      "importable": true,
+      "symbols": {
+        "SERVER_NAME": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "SERVER_VERSION": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "get_logger": {
+          "kind": "callable",
+          "signature": "(server_name: 'str') -> 'logging.Logger'",
+          "defined_in": "lvke_mcp.runtime.logging"
+        },
+        "logger": {
+          "kind": "Logger"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_deep_research._server.annotations": {
+      "importable": true,
+      "symbols": {
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "types": {
+          "kind": "module",
+          "target": "mcp.types"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_deep_research._server.dispatch": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "SERVER_NAME": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "err": {
+          "kind": "callable",
+          "signature": "(code: 'str', message: 'str', *, detail: 'str | Mapping[str, Any] | None' = None, retryable: 'bool' = False, field_errors: 'Mapping[str, Any] | None' = None, trace_id: 'str | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.responses"
+        },
+        "logger": {
+          "kind": "Logger"
+        },
+        "ok": {
+          "kind": "callable",
+          "signature": "(data: 'Any', *, source: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.responses"
+        },
+        "package_service": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.research.application"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_deep_research._server.registration": {
+      "importable": true,
+      "symbols": {
+        "OfficialStdioServer": {
+          "kind": "class",
+          "signature": "(server_name: 'str', server_version: 'str', logger) -> 'None'",
+          "defined_in": "lvke_mcp.runtime.transport",
+          "public_members": [
+            "register_resource_provider",
+            "register_schema_resource",
+            "register_task_adapter",
+            "register_tool",
+            "run_stdio",
+            "serve_forever",
+            "streamable_http_app",
+            "tool_specs"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "package_service": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.research.application"
+        },
+        "register_all": {
+          "kind": "callable",
+          "signature": "(server: 'OfficialStdioServer') -> 'None'",
+          "defined_in": "lvke_mcp.servers.lvke_deep_research._server.registration"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_deep_research._server.schemas": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        }
+      }
     },
     "lvke_mcp.servers.lvke_deep_research.package_service": {
       "importable": true,
@@ -15720,6 +16476,11 @@
           "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.storage"
         },
+        "register_all": {
+          "kind": "callable",
+          "signature": "(server: 'OfficialStdioServer') -> 'None'",
+          "defined_in": "lvke_mcp.servers.lvke_deep_research._server.registration"
+        },
         "types": {
           "kind": "module",
           "target": "mcp.types"
@@ -15729,6 +16490,10 @@
     "lvke_mcp.servers.lvke_deliverable_review": {
       "importable": true,
       "symbols": {
+        "contracts": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.contracts"
+        },
         "disposition_finding": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -15738,6 +16503,10 @@
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_deliverable_review.service"
+        },
+        "financial_checks": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.financial_checks"
         },
         "get_finding": {
           "kind": "callable",
@@ -15774,15 +16543,31 @@
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_deliverable_review.service"
         },
+        "report_checks": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.report_checks"
+        },
         "retest": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_deliverable_review.service"
         },
+        "rules": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.rules"
+        },
+        "service": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.service"
+        },
         "start": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_deliverable_review.service"
+        },
+        "store": {
+          "kind": "module",
+          "target": "lvke_mcp.servers.lvke_deliverable_review.store"
         }
       }
     },
@@ -16120,13 +16905,43 @@
         "ASSESSMENT_STORE": {
           "kind": "JSONArtifactStore"
         },
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
         "COMPARISON_STORE": {
           "kind": "JSONArtifactStore"
+        },
+        "JSONArtifactStore": {
+          "kind": "class",
+          "signature": "(domain: 'str', kind: 'str', id_prefix: 'str', uri_segment: 'str') -> 'None'",
+          "defined_in": "lvke_mcp.runtime.storage",
+          "public_members": [
+            "get",
+            "list",
+            "preview_identity",
+            "put",
+            "resolve_uri",
+            "uri"
+          ]
+        },
+        "PASS_SCORE": {
+          "kind": "constant",
+          "value_type": "float"
         },
         "RUBRIC": {
           "kind": "container",
           "value_type": "dict",
           "length": 7
+        },
+        "RUBRIC_VERSION": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
         },
         "compare_assessments": {
           "kind": "callable",
@@ -16137,6 +16952,14 @@
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_deliverable_review.rubrics"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "report_read_model": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.reports.read_model"
         },
         "resolve_rubric_resource": {
           "kind": "callable",
@@ -17894,6 +18717,15 @@
     "lvke_mcp.servers.lvke_finance_model.service": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
         "confirm_spec": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -18271,6 +19103,69 @@
     "lvke_mcp.servers.lvke_knowledge_governance.service": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CANDIDATE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "Callable": {
+          "kind": "_CallableType"
+        },
+        "FileLock": {
+          "kind": "class",
+          "signature": "(lock_file: 'str | os.PathLike[str]', timeout: 'float' = -1, mode: 'int' = -1, thread_local: 'bool' = True, *, blocking: 'bool' = True, is_singleton: 'bool' = False, poll_interval: 'float' = 0.05, lifetime: 'float | None' = None, **kwargs: 'Any') -> 'BaseFileLock'",
+          "defined_in": "filelock._unix",
+          "public_members": [
+            "acquire",
+            "blocking",
+            "has_explicit_mode",
+            "is_locked",
+            "is_singleton",
+            "is_thread_local",
+            "lifetime",
+            "lock_counter",
+            "lock_file",
+            "mode",
+            "poll_interval",
+            "release",
+            "timeout"
+          ]
+        },
+        "IDEMPOTENCY_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "JSONArtifactStore": {
+          "kind": "class",
+          "signature": "(domain: 'str', kind: 'str', id_prefix: 'str', uri_segment: 'str') -> 'None'",
+          "defined_in": "lvke_mcp.runtime.storage",
+          "public_members": [
+            "get",
+            "list",
+            "preview_identity",
+            "put",
+            "resolve_uri",
+            "uri"
+          ]
+        },
+        "RELEASE_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "REVIEW_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "RUBRIC_ASSESSMENT_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "SNAPSHOT_STORE": {
+          "kind": "JSONArtifactStore"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
         "create_snapshot": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -18280,6 +19175,14 @@
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_knowledge_governance.service"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
         },
         "list_candidates": {
           "kind": "callable",
@@ -18291,6 +19194,11 @@
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_knowledge_governance.service"
         },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
         "publish_release": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -18300,6 +19208,11 @@
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_knowledge_governance.service"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
         },
         "resolve_resource": {
           "kind": "callable",
@@ -18311,10 +19224,25 @@
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_knowledge_governance.service"
         },
+        "sha256_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
         "submit_candidate": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_knowledge_governance.service"
+        },
+        "utc_now": {
+          "kind": "callable",
+          "signature": "() -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "workspace_root": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str') -> 'Path'",
+          "defined_in": "lvke_mcp.runtime.workspace"
         }
       }
     },
@@ -20330,10 +21258,145 @@
     "lvke_mcp.servers.lvke_zero_material_delivery.artifact_delivery": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "Document": {
+          "kind": "callable",
+          "signature": "(docx: 'str | IO[bytes] | None' = None) -> 'DocumentObject'",
+          "defined_in": "docx.api"
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "WD_ALIGN_PARAGRAPH": {
+          "kind": "class",
+          "signature": "(*values)",
+          "defined_in": "docx.enum.text",
+          "public_members": [
+            "CENTER",
+            "DISTRIBUTE",
+            "JUSTIFY",
+            "JUSTIFY_HI",
+            "JUSTIFY_LOW",
+            "JUSTIFY_MED",
+            "LEFT",
+            "RIGHT",
+            "THAI_JUSTIFY",
+            "as_integer_ratio",
+            "bit_count",
+            "bit_length",
+            "conjugate",
+            "denominator",
+            "from_bytes",
+            "imag",
+            "is_integer",
+            "numerator",
+            "real",
+            "to_bytes"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
         "build_delivery_artifacts": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', intent: 'dict[str, Any]', assumption_package: 'dict[str, Any]', source_run: 'dict[str, Any]', domain: 'dict[str, Any]', *, stores: 'dict[str, Any]', service_version: 'str', delivery_run_id: 'str' = '') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_zero_material_delivery.artifact_delivery"
+        },
+        "deliverable_dir": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', domain: 'str', kind: 'str') -> 'Path'",
+          "defined_in": "lvke_mcp.runtime.workspace"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "io": {
+          "kind": "module",
+          "target": "io"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
         },
         "resolve_report_file": {
           "kind": "callable",
@@ -20345,6 +21408,12 @@
     "lvke_mcp.servers.lvke_zero_material_delivery.industry_profiles": {
       "importable": true,
       "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
         "PROFILES": {
           "kind": "container",
           "value_type": "dict",
@@ -20353,6 +21422,9 @@
         "PROFILE_VERSION": {
           "kind": "constant",
           "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
         },
         "get_profile": {
           "kind": "callable",
