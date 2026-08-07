@@ -1,0 +1,50 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/fact_pack.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_fact_pack",
+  "package_doc": "\"\"\"Fact Pack 实现子模块；对外入口是 ``lvke_mcp.domains.finance.fact_pack`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "版本常量、域键、hash 原语与工作区路径。",
+      "symbols": [
+        "VERSION", "LEGACY_VERSION", "SEAL_VERSION", "LEGACY_SEAL_VERSION",
+        "DOMAIN_KEYS", "CORE_DOMAIN_KEYS", "POLICY_DOMAIN_KEYS",
+        "EvidenceResolver", "_now_iso", "_canonical", "_hash_material",
+        "compute_fact_pack_hash", "_mcp_data_root", "_workspace_root",
+        "_record", "_rows"
+      ]
+    },
+    "seal": {
+      "doc": "封印：密钥、账本记录与 MAC 计算/校验。",
+      "symbols": [
+        "_SEAL_LOCK", "_seal_secret", "_seal_ledger_path", "_record_seal_ledger",
+        "_ledger_has_seal", "compute_fact_pack_mac", "verify_fact_pack_seal"
+      ]
+    },
+    "completeness": {
+      "doc": "行完整性判定原语：item id、正数/非负、存货与周转分量、年份序列。",
+      "symbols": [
+        "_stable_item_id", "_rows_with_item_ids", "_positive",
+        "_nonnegative_present", "_inventory_complete",
+        "_turnover_component_complete", "_year_sequence_issues"
+      ]
+    },
+    "depth": {
+      "doc": "域深度评估与域内事实叶子/数值锚点。",
+      "symbols": [
+        "assess_domain_depth", "_domain_fact_leaves", "_domain_numeric_anchors"
+      ]
+    },
+    "evidence": {
+      "doc": "逐域证据支撑判定。",
+      "symbols": ["_values_close", "_evidence_supports_domain"]
+    },
+    "snapshot": {
+      "doc": "pack 快照构造、v0 迁移与确认后投影。",
+      "symbols": [
+        "_migrate_v0_pack", "build_fact_pack_snapshot", "_sort_year_rows",
+        "project_confirmed_fact_pack"
+      ]
+    }
+  }
+}

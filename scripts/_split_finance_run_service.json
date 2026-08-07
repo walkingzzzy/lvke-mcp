@@ -1,0 +1,42 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/run_service.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_run_service",
+  "package_doc": "\"\"\"财务 run 服务实现子模块；对外入口是 ``lvke_mcp.domains.finance.run_service`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "模型/模板版本、十三表交付键与元信息、hash 与幂等键原语、工作区读写与 manifest 解析。",
+      "symbols": [
+        "MODEL_VERSION", "TEMPLATE_VERSION", "DELIVERY_TABLE_KEYS",
+        "DELIVERY_TABLE_META", "_stable_json", "_sha256_hex",
+        "compute_input_hash", "compute_spec_hash", "compute_table_bundle_hash",
+        "compute_idempotency_key", "_resolve_valuation_date_for_mode",
+        "resolve_model_manifest", "_read_workspace_req", "_ensure_workspace",
+        "_project_brief", "_markdown_table_row_count", "_table_manifest"
+      ]
+    },
+    "spec_prepare": {
+      "doc": "spec 准备：联动成本项注入与非负成本校验。",
+      "symbols": [
+        "_inject_linked_cost_items", "prepare_workspace_finance_spec",
+        "_nonnegative_cost_issues"
+      ]
+    },
+    "run_model": {
+      "doc": "确定性模型运行事务。",
+      "symbols": ["run_workspace_finance_model"]
+    },
+    "render": {
+      "doc": "十三表渲染。",
+      "symbols": ["render_workspace_finance_tables"]
+    },
+    "query": {
+      "doc": "run 读取与审计视图。",
+      "symbols": ["get_workspace_finance_run"]
+    },
+    "package": {
+      "doc": "整包生成编排。",
+      "symbols": ["generate_workspace_finance_package"]
+    }
+  }
+}

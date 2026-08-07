@@ -1,0 +1,35 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/model_application.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_model_application",
+  "package_doc": "\"\"\"财务模型用例实现子模块；对外入口是 ``lvke_mcp.domains.finance.model_application`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "服务名、日志、workspace/URI 原语、字符串工具与幂等/信封基座。",
+      "symbols": [
+        "SERVER_NAME", "logger", "_workspace_id", "_run_uri", "_str_list",
+        "_unique_strings", "_active_idempotency_record", "_expires_at",
+        "_latest_formal_boe", "_blocking_rules", "_blocked_run", "_missing_run",
+        "_finalize", "_ok_env", "_err_env", "_exception_env"
+      ]
+    },
+    "fact_pack_cases": {
+      "doc": "Fact Pack 三个用例：准备、确认与读取。",
+      "symbols": [
+        "prepare_fact_pack", "confirm_fact_pack", "get_fact_pack",
+        "_fact_pack_result"
+      ]
+    },
+    "spec_cases": {
+      "doc": "FinanceSpec 用例：准备、确认与校验；含候选输入归一化与收入完整性。",
+      "symbols": [
+        "prepare_spec", "confirm_spec", "validate_spec",
+        "_canonical_candidate_inputs", "_revenue_input_complete"
+      ]
+    },
+    "run_cases": {
+      "doc": "模型运行与 run 读取用例。",
+      "symbols": ["run_model", "get_run"]
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "rev": "HEAD",
+  "source": "src/lvke_mcp/domains/finance/vendor_import.py",
+  "out_dir": "src/lvke_mcp/domains/finance/_vendor_import",
+  "package_doc": "\"\"\"甲方 xlsx 导入实现子模块；对外入口是 ``lvke_mcp.domains.finance.vendor_import`` 门面。\"\"\"\n",
+  "groups": {
+    "base": {
+      "doc": "版本/上限常量、错误类型与单元格坐标、数值、文本归一化原语。",
+      "symbols": [
+        "REFERENCE_PACK_VERSION", "MAX_ROWS", "MAX_COLS", "IRR_RESIDUAL_TOL_WAN",
+        "VendorImportError", "_jsonable", "_col_letter", "_CELL_RE", "_col_index",
+        "_cell_parts", "_to_float", "_norm"
+      ]
+    },
+    "sheet_read": {
+      "doc": "工作簿读取与业务类型推断：值表读取、表头文本与非空判定。",
+      "symbols": [
+        "_read_value_sheets", "_header_text", "_sheet_is_nonempty",
+        "_infer_business", "_find_mapped_sheet"
+      ]
+    },
+    "locate": {
+      "doc": "行列定位原语：行标签、期间序列、按标签取序列与合计。",
+      "symbols": [
+        "_rows", "_row_label", "_longest_period_sequence", "_period_headers",
+        "_series_for_row", "_find_row", "_series_by_label", "_total_for_row",
+        "_total_by_label", "_first_numeric_on_row", "_row_value", "_series_values"
+      ]
+    },
+    "extract_summary": {
+      "doc": "指标与敏感性摘要提取、试算利率复核。",
+      "symbols": [
+        "_review_trial_rates", "_extract_indicator_summary",
+        "_sensitivity_factor_code", "_extract_sensitivity_summary"
+      ]
+    },
+    "reference_pack": {
+      "doc": "参考数据提取与只读参考档构造。",
+      "symbols": ["_extract_reference_data", "build_reference_pack"]
+    },
+    "cleanup_scan": {
+      "doc": "僵尸公式与手工常量扫描：常量算式频次、孤立常量公式与标签定位。",
+      "symbols": [
+        "_CONST_ARITH", "_constant_formula_frequency", "_orphan_constant_formulas",
+        "_label_locators", "detect_cleanup_issues"
+      ]
+    },
+    "project_context": {
+      "doc": "项目上下文推断：贷款利率、年份序列、折旧年限/分类与成本项。",
+      "symbols": [
+        "_extract_loan_rate", "_build_period_years", "_build_years",
+        "_extract_depreciation_years", "_extract_depreciation_classes",
+        "_cost_items", "infer_vendor_project_context"
+      ]
+    },
+    "finance_input": {
+      "doc": "从甲方表构造财务输入与 spec：资金计划、建设明细、营运资金、人员与产品线。",
+      "symbols": [
+        "_funding_year_schedules", "_construction_items_from_investment_sheet",
+        "_construction_detail_from_items", "_wc_turnover_from_sheet",
+        "_full_working_capital_profile", "_investment_segment_totals",
+        "_staff_detail_from_wage_sheet", "build_finance_input_from_vendor",
+        "_product_lines_from_revenue_sheet", "build_vendor_finance_spec"
+      ]
+    }
+  }
+}

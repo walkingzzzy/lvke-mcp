@@ -1,0 +1,565 @@
+"""FinanceSpec 用例：准备、确认与校验；含候选输入归一化与收入完整性。"""
+
+from __future__ import annotations
+
+from typing import Any
+import hashlib
+import json
+
+from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
+from lvke_mcp.adapters.finance_model_repository import FACT_PACK_STORE, IDEMPOTENCY_STORE, SPEC_STORE
+from lvke_mcp.domains.finance.parameter_resolver import (
+    canonicalize_finance_inputs,
+    finance_input_schema,
+)
+from lvke_mcp.runtime.responses import ok
+from lvke_mcp.runtime.storage import sha256_json
+
+from .base import (
+    SERVER_NAME,
+    _active_idempotency_record,
+    _err_env,
+    _exception_env,
+    _expires_at,
+    _ok_env,
+    _str_list,
+    _unique_strings,
+    _workspace_id,
+)
+
+
+def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
+    workspace_id = _workspace_id(args)
+    if not workspace_id:
+        return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 必填")
+    fact_pack_id = str(args.get("fact_pack_id") or "").strip()
+    fact_pack_record: dict[str, Any] | None = None
+    fact_pack_payload: dict[str, Any] = {}
+    fact_pack: dict[str, Any] = {}
+    if fact_pack_id:
+        fact_pack_record = FACT_PACK_STORE.get(workspace_id, fact_pack_id)
+        if fact_pack_record is None:
+            return _err_env(
+                f"{SERVER_NAME}.fact_pack_not_found",
+                f"未找到同工作区 Finance Fact Pack：{fact_pack_id}",
+                status="blocked",
+                blockers=["fact_pack_not_found"],
+            )
+        fact_pack_payload = (
+            fact_pack_record.get("payload")
+            if isinstance(fact_pack_record.get("payload"), dict)
+            else {}
+        )
+        fact_pack = (
+            fact_pack_payload.get("fact_pack")
+            if isinstance(fact_pack_payload.get("fact_pack"), dict)
+            else {}
+        )
+        from lvke_mcp.domains.finance.fact_pack import verify_fact_pack_seal
+
+        seal = verify_fact_pack_seal(fact_pack, workspace_id=workspace_id)
+        fact_pack_errors = list(seal.get("issues") or [])
+        if fact_pack_payload.get("confirmation_status") != "confirmed":
+            fact_pack_errors.append("finance_fact_pack 未 confirmed")
+        if fact_pack.get("delivery_grade_ceiling") != "formal_candidate":
+            fact_pack_errors.append("finance_fact_pack 未达到 formal_candidate")
+        if not bool((fact_pack.get("depth_assessment") or {}).get("ok")):
+            fact_pack_errors.append("finance_fact_pack 深度评估未通过")
+        if fact_pack_errors:
+            return _ok_env(
+                {
+                    "available": False,
+                    "fact_pack_id": fact_pack_id,
+                    "fact_pack_errors": list(dict.fromkeys(fact_pack_errors)),
+                },
+                source=f"{SERVER_NAME}.finance_prepare_spec",
+                status="blocked",
+                blockers=["confirmed_formal_candidate_fact_pack_required"],
+                next_actions=["确认同工作区 Fact Pack 并达到 formal_candidate 后重试"],
+                fact_pack_id=fact_pack_id,
+                fact_pack_hash=fact_pack.get("fact_pack_hash"),
+            )
+    evidence_ids = _str_list(args.get("evidence_pack_ids"))
+    evidence_records = []
+    for evidence_id in evidence_ids:
+        record = EVIDENCE_STORE.get(workspace_id, evidence_id)
+        if record is None:
+            return _err_env(
+                f"{SERVER_NAME}.evidence_pack_not_found",
+                f"未找到 evidence pack：{evidence_id}",
+                status="blocked",
+                blockers=[f"evidence_pack_not_found:{evidence_id}"],
+            )
+        evidence_records.append(record)
+    try:
+        from lvke_mcp.domains.finance import run_service
+
+        supplied_spec = args.get("spec") if isinstance(args.get("spec"), dict) else None
+        if supplied_spec is not None:
+            supplied_spec = dict(supplied_spec)
+            revenue = supplied_spec.get("revenue")
+            if isinstance(revenue, dict) and str(revenue.get("model") or "") == "tourism":
+                from lvke_mcp.domains.finance.revenue_models import normalize_tourism_revenue
+
+                normalized_revenue, revenue_errors = normalize_tourism_revenue(revenue)
+                if revenue_errors:
+                    return _ok_env(
+                        {"available": False, "missing_inputs": []},
+                        source=f"{SERVER_NAME}.finance_prepare_spec",
+                        status="blocked",
+                        blockers=["revenue_component_conflict"],
+                        field_errors=revenue_errors,
+                        next_actions=["修正文旅收入组件与兼容别名冲突后重试"],
+                    )
+                supplied_spec["revenue"] = normalized_revenue
+        data = run_service.prepare_workspace_finance_spec(
+            workspace_id,
+            strategy=str(args.get("strategy") or "propose_from_project"),
+            force_refresh=bool(args.get("force_refresh") or False),
+            force_flat=bool(args.get("force_flat", supplied_spec is None)),
+        )
+        if supplied_spec is not None:
+            data["spec"] = supplied_spec
+            data["spec_hash"] = run_service.compute_spec_hash(supplied_spec)
+            data["force_flat"] = False
+        normalized_inputs, adoption, rejected = _canonical_candidate_inputs(
+            supplied_spec,
+            args.get("input_revision") if isinstance(args.get("input_revision"), dict) else None,
+            data.get("input_revision") if isinstance(data.get("input_revision"), dict) else {},
+        )
+        if rejected:
+            return _ok_env(
+                {
+                    "available": False,
+                    "missing_inputs": [],
+                    "input_rejections": rejected,
+                    "input_adoption_ledger": adoption,
+                },
+                source=f"{SERVER_NAME}.finance_prepare_spec",
+                status="blocked",
+                blockers=["candidate_input_invalid"],
+                field_errors=[
+                    {
+                        "path": str(item.get("path") or f"/input_revision/{item.get('input') or 'unknown'}"),
+                        "code": str(item.get("reason") or "candidate_input_invalid"),
+                        "input": item.get("input"),
+                        **({"conflicts_with": item.get("conflicts_with")} if item.get("conflicts_with") else {}),
+                    }
+                    for item in rejected
+                ],
+                next_actions=["修正未知、冲突或非法的 input_revision 字段后重试"],
+            )
+        if fact_pack:
+            normalized_inputs["finance_fact_pack"] = json.loads(
+                json.dumps(fact_pack, ensure_ascii=False)
+            )
+            adoption.append({
+                "input": "fact_pack_id",
+                "effective": "finance_fact_pack",
+                "raw_value": fact_pack_id,
+                "effective_value": fact_pack.get("fact_pack_hash"),
+                "status": "resolved_confirmed_object",
+                "source": "finance_fact_pack_store",
+            })
+        data["input_revision"] = normalized_inputs
+        data["input_adoption_ledger"] = adoption
+        data["input_hash"] = run_service.compute_input_hash(
+            normalized_inputs,
+            invest_type=str(data.get("invest_type") or normalized_inputs.get("invest_type") or ""),
+            build_period_months=data.get("build_period_months") or normalized_inputs.get("build_period_months"),
+            industry=str(data.get("industry") or normalized_inputs.get("industry") or ""),
+        )
+        missing = [] if normalized_inputs.get("total_investment_wan") else ["total_investment_wan"]
+        spec = data.get("spec") if isinstance(data.get("spec"), dict) else None
+        if not _revenue_input_complete(spec or supplied_spec, normalized_inputs):
+            missing.append("annual_revenue_wan_or_revenue_driver")
+        if spec is None:
+            missing.append("finance_spec")
+        data["available"] = not missing
+        data["missing_inputs"] = list(missing)
+        evidence_binding_hash = sha256_json(
+            {
+                "evidence_pack_ids": evidence_ids,
+                "evidence_basis_hashes": [record.get("basis_hash") for record in evidence_records],
+                "fact_pack_id": fact_pack_id or None,
+                "fact_pack_basis_hash": (
+                    fact_pack_record.get("basis_hash") if fact_pack_record else None
+                ),
+                "fact_pack_content_hash": (
+                    fact_pack_record.get("content_hash") if fact_pack_record else None
+                ),
+                "fact_pack_hash": fact_pack.get("fact_pack_hash") or None,
+            }
+        )
+        spec_record = None
+        if spec is not None:
+            reconstruction_records = [
+                item
+                for record in evidence_records
+                for item in ((record.get("payload") or {}).get("reconstruction_records") or [])
+                if isinstance(item, dict)
+            ]
+            evidence_policies = {
+                str((record.get("payload") or {}).get("evidence_policy") or "")
+                for record in evidence_records
+                if str((record.get("payload") or {}).get("evidence_policy") or "")
+            }
+            fact_pack_policy = str(fact_pack_payload.get("evidence_policy") or "")
+            if fact_pack_policy:
+                evidence_policies.add(fact_pack_policy)
+            evidence_policy = "source_reconstructed" if "source_reconstructed" in evidence_policies else (sorted(evidence_policies)[0] if evidence_policies else "formal_evidence")
+            reconstruction_records.extend(
+                item
+                for item in (fact_pack_payload.get("reconstruction_records") or [])
+                if isinstance(item, dict)
+            )
+            unique_reconstruction_records = {
+                sha256_json(item): item for item in reconstruction_records
+            }
+            reconstruction_records = list(unique_reconstruction_records.values())
+            reconstructed_source_ids = list(dict.fromkeys([
+                *[
+                    str(item.get("reconstruction_id") or item.get("source_id") or "")
+                    for item in reconstruction_records
+                ],
+                *_str_list(fact_pack_payload.get("reconstructed_source_ids")),
+            ]))
+            reconstructed_source_ids = [item for item in reconstructed_source_ids if item]
+            unresolved_inputs = list(dict.fromkeys([
+                *_str_list(args.get("unresolved_inputs")),
+                *_str_list(fact_pack_payload.get("unresolved_inputs")),
+            ]))
+            release_limitations = list(dict.fromkeys([
+                *_str_list(args.get("release_limitations")),
+                *_str_list(fact_pack_payload.get("release_limitations")),
+            ]))
+            parent_object_ids = [*evidence_ids, *([fact_pack_id] if fact_pack_id else [])]
+            spec_record = SPEC_STORE.put(
+                workspace_id,
+                {
+                    "spec": spec,
+                    "spec_hash": data.get("spec_hash"),
+                    "input_revision": normalized_inputs,
+                    "input_hash": data.get("input_hash"),
+                    "input_revision_id": data.get("input_revision_id"),
+                    "confirmation_status": "candidate",
+                    "evidence_pack_ids": evidence_ids,
+                    "fact_pack_id": fact_pack_id or None,
+                    "fact_pack_hash": fact_pack.get("fact_pack_hash") or None,
+                    "fact_pack_content_hash": (
+                        fact_pack_record.get("content_hash") if fact_pack_record else None
+                    ),
+                    "fact_pack_basis_hash": (
+                        fact_pack_record.get("basis_hash") if fact_pack_record else None
+                    ),
+                    "evidence_binding_hash": evidence_binding_hash,
+                    "evidence_policy": evidence_policy,
+                    "project_fact_certified": (
+                        False
+                        if evidence_policy == "source_reconstructed"
+                        else bool(fact_pack_payload.get("project_fact_certified", True))
+                    ),
+                    "reconstruction_records": reconstruction_records,
+                    "reconstructed_source_ids": reconstructed_source_ids,
+                    "unresolved_inputs": unresolved_inputs,
+                    "release_limitations": release_limitations,
+                    "parent_object_ids": parent_object_ids,
+                },
+                producer=f"{SERVER_NAME}.finance_prepare_spec",
+                status="missing_inputs" if missing else "ok",
+                source_ids=parent_object_ids,
+                basis={
+                    "spec_hash": data.get("spec_hash"),
+                    "input_hash": data.get("input_hash"),
+                    "evidence_binding_hash": evidence_binding_hash,
+                    "fact_pack_basis_hash": (
+                        fact_pack_record.get("basis_hash") if fact_pack_record else None
+                    ),
+                    "fact_pack_hash": fact_pack.get("fact_pack_hash") or None,
+                },
+            )
+            data["spec_id"] = spec_record["object_id"]
+            data["evidence_binding_hash"] = evidence_binding_hash
+            data["fact_pack_id"] = fact_pack_id or None
+            data["fact_pack_hash"] = fact_pack.get("fact_pack_hash") or None
+        return _ok_env(
+            data,
+            source=f"{SERVER_NAME}.finance_prepare_spec",
+            status="missing_inputs" if missing else "ok",
+            warnings=_str_list(data.get("warnings")),
+            blockers=[f"缺少关键输入：{item}" for item in missing],
+            next_actions=(
+                ["补齐缺失输入后重新调用 finance_prepare_spec"]
+                if missing
+                else ["调用 finance_confirm_spec 确认候选 Spec，再调用 finance_run_model"]
+            ),
+            resource_uris=[spec_record["resource_uri"]] if spec_record else [],
+            spec_id=spec_record["object_id"] if spec_record else None,
+            spec_hash=data.get("spec_hash"),
+            evidence_binding_hash=evidence_binding_hash,
+            fact_pack_id=fact_pack_id or None,
+            fact_pack_hash=fact_pack.get("fact_pack_hash") or None,
+            missing_inputs=missing,
+            assumptions_to_confirm=_str_list(data.get("assumptions_to_confirm")),
+            input_hash=data.get("input_hash"),
+            input_revision_id=data.get("input_revision_id"),
+        )
+    except Exception:  # noqa: BLE001
+        return _exception_env(
+            "finance_prepare_spec failed",
+            f"{SERVER_NAME}.prepare_failed",
+            "准备 FinanceSpec 失败",
+        )
+
+
+def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
+    workspace_id = _workspace_id(args)
+    spec_id = str(args.get("spec_id") or "").strip()
+    if not workspace_id or not spec_id:
+        return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 与 spec_id 必填")
+    source = SPEC_STORE.get(workspace_id, spec_id)
+    if source is None:
+        return _err_env(f"{SERVER_NAME}.spec_not_found", "未找到候选 FinanceSpec", status="blocked")
+    payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
+    spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else None
+    if spec is None:
+        return _err_env(f"{SERVER_NAME}.spec_invalid", "候选 FinanceSpec 快照无效", status="blocked")
+    input_revision = payload.get("input_revision") if isinstance(payload.get("input_revision"), dict) else {}
+    missing = [] if input_revision.get("total_investment_wan") else ["total_investment_wan"]
+    if not _revenue_input_complete(spec, input_revision):
+        missing.append("annual_revenue_wan_or_revenue_driver")
+    from lvke_mcp.domains.finance.spec import mark_spec_confirmed, validate_for_formal
+
+    confirmed = mark_spec_confirmed(spec)
+    formal_ok, formal_errors = validate_for_formal(confirmed)
+    if missing or not formal_ok:
+        return _ok_env(
+            {
+                "spec_id": spec_id,
+                "valid": False,
+                "missing_inputs": missing,
+                "validation_errors": formal_errors,
+            },
+            source=f"{SERVER_NAME}.finance_confirm_spec",
+            status="blocked",
+            blockers=[*(f"missing_input:{item}" for item in missing), *formal_errors],
+            next_actions=["修正候选 Spec 或补齐输入后重新 prepare，再确认新候选"],
+        )
+    key = str(args.get("idempotency_key") or "").strip()
+    if not key:
+        return _err_env(
+            f"{SERVER_NAME}.idempotency_key_required",
+            "finance_confirm_spec 写操作必须提供 idempotency_key",
+            status="blocked",
+        )
+    note = str(args.get("note") or "")
+    fingerprint = sha256_json(
+        {"spec_id": spec_id, "spec_content_hash": source.get("content_hash"), "note": note}
+    )
+    key_hash = "sha256:" + hashlib.sha256(key.encode("utf-8")).hexdigest()
+    prior = _active_idempotency_record(workspace_id, key_hash, "finance_confirm_spec")
+    if prior is not None:
+        saved = prior.get("payload") or {}
+        if saved.get("content_fingerprint") != fingerprint:
+            return _err_env(
+                f"{SERVER_NAME}.idempotency_conflict",
+                "同一 idempotency_key 已绑定不同 FinanceSpec 确认请求",
+                status="blocked",
+                replayed=False,
+                reused=False,
+            )
+        replay = json.loads(json.dumps(saved.get("result") or {}))
+        replay.update({"replayed": True, "reused": True})
+        return replay
+    from lvke_mcp.domains.finance.run_service import compute_spec_hash
+
+    record = SPEC_STORE.put(
+        workspace_id,
+        {
+            **payload,
+            "spec": confirmed,
+            "spec_hash": compute_spec_hash(confirmed),
+            "confirmation_status": "confirmed",
+            "parent_spec_id": spec_id,
+            "confirmation": {"note": note},
+            "parent_object_ids": list(dict.fromkeys([
+                spec_id,
+                *_str_list(payload.get("evidence_pack_ids")),
+                *([str(payload.get("fact_pack_id"))] if payload.get("fact_pack_id") else []),
+            ])),
+        },
+        producer=f"{SERVER_NAME}.finance_confirm_spec",
+        status="ok",
+        source_ids=[
+            spec_id,
+            *_str_list(payload.get("evidence_pack_ids")),
+            *([str(payload.get("fact_pack_id"))] if payload.get("fact_pack_id") else []),
+        ],
+        basis={
+            "parent_spec_id": spec_id,
+            "spec_hash": compute_spec_hash(confirmed),
+            "fact_pack_basis_hash": payload.get("fact_pack_basis_hash"),
+            "fact_pack_hash": payload.get("fact_pack_hash"),
+            "note": note,
+        },
+    )
+    expires_at = _expires_at()
+    result = _ok_env(
+        {"spec_id": record["object_id"], "parent_spec_id": spec_id, "spec_hash": record["payload"]["spec_hash"]},
+        source=f"{SERVER_NAME}.finance_confirm_spec",
+        status="ok",
+        resource_uris=[record["resource_uri"]],
+        next_actions=["调用 finance_run_model，传入已确认 spec_id"],
+        spec_id=record["object_id"],
+        spec_hash=record["payload"]["spec_hash"],
+        content_fingerprint=fingerprint,
+        replayed=False,
+        reused=False,
+        idempotency_expires_at=expires_at,
+    )
+    IDEMPOTENCY_STORE.put(
+        workspace_id,
+        {"operation": "finance_confirm_spec", "key_hash": key_hash, "content_fingerprint": fingerprint, "expires_at": expires_at, "result": result},
+        producer=f"{SERVER_NAME}.finance_confirm_spec",
+        source_ids=[record["object_id"]],
+        basis={"operation": "finance_confirm_spec", "key_hash": key_hash, "content_fingerprint": fingerprint},
+    )
+    return result
+
+
+def validate_spec(args: dict[str, Any]) -> dict[str, Any]:
+    spec = args.get("spec")
+    if not isinstance(spec, dict):
+        return _err_env(f"{SERVER_NAME}.invalid_argument", "spec 必填且必须是对象")
+    try:
+        from lvke_mcp.domains.finance.spec import validate, validate_for_formal
+
+        structural_ok, errors = validate(spec)
+        formal = bool(args.get("for_formal", False))
+        formal_ok, formal_errors = validate_for_formal(spec) if formal else (structural_ok, [])
+        errors = _unique_strings(errors)
+        formal_errors = _unique_strings(formal_errors)
+        valid = bool(structural_ok and (formal_ok if formal else True))
+        missing = [
+            item
+            for item in [*errors, *formal_errors]
+            if any(word in item for word in ("缺", "missing", "尚未确认"))
+        ]
+        status = "missing_inputs" if missing else ("ok" if valid else "blocked")
+        return _ok_env(
+            {
+                "valid": valid,
+                "structural_valid": structural_ok,
+                "formal_valid": formal_ok if formal else None,
+                "errors": errors,
+                "formal_errors": formal_errors,
+                "missing_inputs": missing,
+                "note": "缺关键输入时不得运行出 IRR；校验状态由结构、输入与一致性检查决定。",
+            },
+            source=f"{SERVER_NAME}.finance_validate_spec",
+            status=status,
+            blockers=[] if valid else _unique_strings([*errors, *formal_errors]),
+            next_actions=(
+                ["按 errors/missing_inputs 修正 spec 后重新校验"]
+                if not valid or missing
+                else ["spec 可用于 finance_run_model；生成固化 run 后仍须调用统一审查"]
+            ),
+            valid=valid,
+            missing_inputs=_str_list(missing),
+        )
+    except Exception:  # noqa: BLE001
+        return _exception_env(
+            "finance_validate_spec failed",
+            f"{SERVER_NAME}.validate_failed",
+            "校验 FinanceSpec 失败",
+        )
+
+
+def _canonical_candidate_inputs(
+    supplied_spec: dict[str, Any] | None,
+    explicit_revision: dict[str, Any] | None,
+    workspace_revision: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    spec_inputs: dict[str, Any] = {}
+    if isinstance(supplied_spec, dict):
+        nested = supplied_spec.get("finance_inputs")
+        if isinstance(nested, dict):
+            spec_inputs.update(nested)
+        for key in set(finance_input_schema().get("properties") or {}):
+            if key in supplied_spec:
+                if key in spec_inputs and spec_inputs[key] != supplied_spec[key]:
+                    return {}, [], [{
+                        "input": key,
+                        "reason": "candidate_input_conflict",
+                        "path": f"/spec/{key}",
+                        "conflicts_with": f"/spec/finance_inputs/{key}",
+                    }]
+                spec_inputs[key] = supplied_spec[key]
+    merged = dict(workspace_revision or {})
+    adoption: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    normalized_sources = []
+    for source_name, values in (
+        ("candidate_spec", spec_inputs),
+        ("explicit_input_revision", explicit_revision or {}),
+    ):
+        normalized, ledger, errors = canonicalize_finance_inputs(values)
+        adoption.extend({**item, "source": source_name} for item in ledger)
+        rejected.extend({**item, "source": source_name} for item in errors)
+        normalized_sources.append(normalized)
+    for key in sorted(set(normalized_sources[0]) & set(normalized_sources[1])):
+        if normalized_sources[0][key] != normalized_sources[1][key]:
+            rejected.append({
+                "input": key,
+                "reason": "candidate_input_conflict",
+                "source": "candidate_spec_vs_explicit_input_revision",
+                "path": f"/input_revision/{key}",
+                "conflicts_with": f"/spec/finance_inputs/{key}",
+            })
+    for normalized in normalized_sources:
+        merged.update(normalized)
+    normalized, ledger, errors = canonicalize_finance_inputs(merged)
+    adoption.extend({**item, "source": "effective"} for item in ledger)
+    rejected.extend({**item, "source": "effective"} for item in errors)
+    return normalized, adoption, rejected
+
+
+def _revenue_input_complete(
+    spec: dict[str, Any] | None,
+    input_revision: dict[str, Any] | None,
+) -> bool:
+    revision = input_revision if isinstance(input_revision, dict) else {}
+    annual = revision.get("annual_revenue_wan")
+    if isinstance(annual, (int, float)) and annual > 0:
+        return True
+    candidate = spec if isinstance(spec, dict) else {}
+    revenue = candidate.get("revenue")
+    if not isinstance(revenue, dict) and isinstance(candidate.get("finance_inputs"), dict):
+        revenue = candidate["finance_inputs"].get("revenue")
+    if not isinstance(revenue, dict):
+        return False
+    model = str(revenue.get("model") or "")
+    if model == "product_sales":
+        products = revenue.get("products")
+        return isinstance(products, list) and bool(products) and all(
+            isinstance(item, dict)
+            and float(item.get("capacity") or 0) > 0
+            and float(item.get("price_per_unit") or 0) > 0
+            for item in products
+        )
+    if model == "property_sales":
+        return float(revenue.get("saleable_area") or 0) > 0 and float(
+            revenue.get("price_per_sqm") or 0
+        ) > 0
+    if model == "tourism":
+        visitors = float(revenue.get("annual_visitors") or 0)
+        spend = max(
+            float(revenue.get("spend_per_visitor") or 0),
+            float(revenue.get("ticket_price_yuan") or 0)
+            + float(revenue.get("secondary_spend_yuan") or 0),
+        )
+        return visitors > 0 and spend > 0
+    series = revision.get("revenue_by_year")
+    return isinstance(series, list) and any(
+        isinstance(value, (int, float)) and value > 0 for value in series
+    )
