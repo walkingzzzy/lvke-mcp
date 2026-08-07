@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-07T08:31:58+0000",
+  "generated_at": "2026-08-07T09:19:59+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
-    "module_count": 226,
-    "symbol_count": 2958,
+    "module_count": 237,
+    "symbol_count": 3048,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -16028,18 +16028,6 @@
         }
       }
     },
-    "lvke_mcp.servers.lvke_deep_research._server.annotations": {
-      "importable": true,
-      "symbols": {
-        "annotations": {
-          "kind": "_Feature"
-        },
-        "types": {
-          "kind": "module",
-          "target": "mcp.types"
-        }
-      }
-    },
     "lvke_mcp.servers.lvke_deep_research._server.dispatch": {
       "importable": true,
       "symbols": {
@@ -16123,6 +16111,18 @@
         },
         "annotations": {
           "kind": "_Feature"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_deep_research._server.tool_annotations": {
+      "importable": true,
+      "symbols": {
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "types": {
+          "kind": "module",
+          "target": "mcp.types"
         }
       }
     },
@@ -20322,6 +20322,830 @@
       "importable": true,
       "symbols": {}
     },
+    "lvke_mcp.servers.lvke_source_files._service": {
+      "importable": true,
+      "symbols": {}
+    },
+    "lvke_mcp.servers.lvke_source_files._service.constants": {
+      "importable": true,
+      "symbols": {
+        "CHUNK_LIMIT": {
+          "kind": "constant",
+          "value_type": "int"
+        },
+        "DIRECT_CONTENT_LIMIT": {
+          "kind": "constant",
+          "value_type": "int"
+        },
+        "DOMAIN": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "SESSION_TTL": {
+          "kind": "timedelta"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "timedelta": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "days",
+            "max",
+            "microseconds",
+            "min",
+            "resolution",
+            "seconds",
+            "total_seconds"
+          ]
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.envelope": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "build_coordination": {
+          "kind": "callable",
+          "signature": "(result: 'dict[str, Any]', *, server_name: 'str | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.coordination"
+        },
+        "datetime": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "astimezone",
+            "combine",
+            "ctime",
+            "date",
+            "day",
+            "dst",
+            "fold",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "hour",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "microsecond",
+            "min",
+            "minute",
+            "month",
+            "now",
+            "replace",
+            "resolution",
+            "second",
+            "strftime",
+            "strptime",
+            "time",
+            "timestamp",
+            "timetuple",
+            "timetz",
+            "today",
+            "toordinal",
+            "tzinfo",
+            "tzname",
+            "utcfromtimestamp",
+            "utcnow",
+            "utcoffset",
+            "utctimetuple",
+            "weekday",
+            "year"
+          ]
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        },
+        "timezone": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "dst",
+            "fromutc",
+            "max",
+            "min",
+            "tzname",
+            "utc",
+            "utcoffset"
+          ]
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.imports": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "DIRECT_CONTENT_LIMIT": {
+          "kind": "constant",
+          "value_type": "int"
+        },
+        "ExternalCorpusError": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora",
+          "public_members": [
+            "add_note",
+            "args",
+            "with_traceback"
+          ]
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "base64": {
+          "kind": "module",
+          "target": "base64"
+        },
+        "binascii": {
+          "kind": "module",
+          "target": "binascii"
+        },
+        "configured_import_roots": {
+          "kind": "callable",
+          "signature": "() -> 'tuple[Path, ...]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora"
+        },
+        "import_content": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, original_filename: 'str', declared_mime: 'str', content_base64: 'str', idempotency_key: 'str', expected_sha256: 'str' = '', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
+        },
+        "import_local_path": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, local_path: 'str', original_filename: 'str', declared_mime: 'str', idempotency_key: 'str', expected_sha256: 'str' = '', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "resolve_external_corpus": {
+          "kind": "callable",
+          "signature": "(project_name: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
+        },
+        "resolve_project_corpora": {
+          "kind": "callable",
+          "signature": "(project_name: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora"
+        },
+        "shutil": {
+          "kind": "module",
+          "target": "shutil"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        },
+        "stat": {
+          "kind": "module",
+          "target": "stat"
+        },
+        "uuid": {
+          "kind": "module",
+          "target": "uuid"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.listing": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "get_source_file": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', file_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.listing"
+        },
+        "list_source_files": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.listing"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.manifest": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "datetime": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "astimezone",
+            "combine",
+            "ctime",
+            "date",
+            "day",
+            "dst",
+            "fold",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "hour",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "microsecond",
+            "min",
+            "minute",
+            "month",
+            "now",
+            "replace",
+            "resolution",
+            "second",
+            "strftime",
+            "strptime",
+            "time",
+            "timestamp",
+            "timetuple",
+            "timetz",
+            "today",
+            "toordinal",
+            "tzinfo",
+            "tzname",
+            "utcfromtimestamp",
+            "utcnow",
+            "utcoffset",
+            "utctimetuple",
+            "weekday",
+            "year"
+          ]
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.parse_jobs": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "parse_cancel": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', job_id: 'str', *, idempotency_key: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
+        },
+        "parse_retry": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', job_id: 'str', *, idempotency_key: 'str', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
+        },
+        "parse_status": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', job_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        },
+        "uuid": {
+          "kind": "module",
+          "target": "uuid"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.paths": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "DOMAIN": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "FileLock": {
+          "kind": "class",
+          "signature": "(lock_file: 'str | os.PathLike[str]', timeout: 'float' = -1, mode: 'int' = -1, thread_local: 'bool' = True, *, blocking: 'bool' = True, is_singleton: 'bool' = False, poll_interval: 'float' = 0.05, lifetime: 'float | None' = None, **kwargs: 'Any') -> 'BaseFileLock'",
+          "defined_in": "filelock._unix",
+          "public_members": [
+            "acquire",
+            "blocking",
+            "has_explicit_mode",
+            "is_locked",
+            "is_singleton",
+            "is_thread_local",
+            "lifetime",
+            "lock_counter",
+            "lock_file",
+            "mode",
+            "poll_interval",
+            "release",
+            "timeout"
+          ]
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "uuid": {
+          "kind": "module",
+          "target": "uuid"
+        },
+        "workspace_root": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str') -> 'Path'",
+          "defined_in": "lvke_mcp.runtime.workspace"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.resources": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "DOMAIN": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "list_resources": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.resources"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "read_resource": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', uri: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.resources"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "sha256_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.upload": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "CHUNK_LIMIT": {
+          "kind": "constant",
+          "value_type": "int"
+        },
+        "SESSION_TTL": {
+          "kind": "timedelta"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "canonical_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "datetime": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "astimezone",
+            "combine",
+            "ctime",
+            "date",
+            "day",
+            "dst",
+            "fold",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "hour",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "microsecond",
+            "min",
+            "minute",
+            "month",
+            "now",
+            "replace",
+            "resolution",
+            "second",
+            "strftime",
+            "strptime",
+            "time",
+            "timestamp",
+            "timetuple",
+            "timetz",
+            "today",
+            "toordinal",
+            "tzinfo",
+            "tzname",
+            "utcfromtimestamp",
+            "utcnow",
+            "utcoffset",
+            "utctimetuple",
+            "weekday",
+            "year"
+          ]
+        },
+        "hashlib": {
+          "kind": "module",
+          "target": "hashlib"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "sha256_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        },
+        "upload_abort": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', upload_id: 'str', *, idempotency_key: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
+        },
+        "upload_begin": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, original_filename: 'str', declared_mime: 'str', total_size: 'int', expected_sha256: 'str', idempotency_key: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
+        },
+        "upload_chunk": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', upload_id: 'str', *, offset_bytes: 'int', content_base64: 'str', idempotency_key: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
+        },
+        "upload_commit": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', upload_id: 'str', *, idempotency_key: 'str', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
+        },
+        "upload_status": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', upload_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
+        }
+      }
+    },
+    "lvke_mcp.servers.lvke_source_files._service.workbook": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "inspect_path": {
+          "kind": "callable",
+          "signature": "(path: 'Path', operation: 'str', *, sheet: 'str' = '', cell: 'str' = '', max_rows: 'int | None' = None, max_cols: 'int | None' = None, max_depth: 'int | None' = None) -> 'dict[str, Any] | None'",
+          "defined_in": "lvke_mcp.adapters.workbook_inspection"
+        },
+        "inspect_workbook": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', file_id: 'str', operation: 'str', *, sheet: 'str' = '', range_ref: 'str' = '', options: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.workbook"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        },
+        "source_api": {
+          "kind": "module",
+          "target": "lvke_mcp.adapters.source_files_repository"
+        }
+      }
+    },
     "lvke_mcp.servers.lvke_source_files.external_corpora": {
       "importable": true,
       "symbols": {
@@ -20737,7 +21561,7 @@
         "get_source_file": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', file_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.listing"
         },
         "hashlib": {
           "kind": "module",
@@ -20746,12 +21570,12 @@
         "import_content": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, original_filename: 'str', declared_mime: 'str', content_base64: 'str', idempotency_key: 'str', expected_sha256: 'str' = '', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
         },
         "import_local_path": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, local_path: 'str', original_filename: 'str', declared_mime: 'str', idempotency_key: 'str', expected_sha256: 'str' = '', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
         },
         "inspect_path": {
           "kind": "callable",
@@ -20761,7 +21585,7 @@
         "inspect_workbook": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', file_id: 'str', operation: 'str', *, sheet: 'str' = '', range_ref: 'str' = '', options: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.workbook"
         },
         "json": {
           "kind": "module",
@@ -20770,12 +21594,12 @@
         "list_resources": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.resources"
         },
         "list_source_files": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.listing"
         },
         "os": {
           "kind": "module",
@@ -20789,17 +21613,17 @@
         "parse_cancel": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', job_id: 'str', *, idempotency_key: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
         },
         "parse_retry": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', job_id: 'str', *, idempotency_key: 'str', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
         },
         "parse_status": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', job_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.parse_jobs"
         },
         "re": {
           "kind": "module",
@@ -20808,7 +21632,7 @@
         "read_resource": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', uri: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.resources"
         },
         "require_safe_id": {
           "kind": "callable",
@@ -20818,7 +21642,7 @@
         "resolve_external_corpus": {
           "kind": "callable",
           "signature": "(project_name: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.imports"
         },
         "resolve_project_corpora": {
           "kind": "callable",
@@ -20873,27 +21697,27 @@
         "upload_abort": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', upload_id: 'str', *, idempotency_key: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
         },
         "upload_begin": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, original_filename: 'str', declared_mime: 'str', total_size: 'int', expected_sha256: 'str', idempotency_key: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
         },
         "upload_chunk": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', upload_id: 'str', *, offset_bytes: 'int', content_base64: 'str', idempotency_key: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
         },
         "upload_commit": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', upload_id: 'str', *, idempotency_key: 'str', parse_immediately: 'bool' = True) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
         },
         "upload_status": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', upload_id: 'str') -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_source_files.service"
+          "defined_in": "lvke_mcp.servers.lvke_source_files._service.upload"
         },
         "uuid": {
           "kind": "module",

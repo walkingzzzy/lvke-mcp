@@ -21,7 +21,7 @@ from .schemas import (
     _RESUME_OUTPUT,
     _MIXED_SOURCE_DESCRIPTOR,
 )
-from .annotations import _read_only, _agent_write, _cancel, _bundle_write
+from .tool_annotations import _read_only, _agent_write, _cancel, _bundle_write
 from .dispatch import _tool_dr_start, _tool_dr_status, _tool_dr_cancel, _tool_dr_get_report, _tool_dr_get_evidence
 
 

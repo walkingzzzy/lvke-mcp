@@ -213,16 +213,38 @@ _table_render/
 - 动态模块加载检测需要识别一层间接（`def _module(name): return import_module(name)`），
   否则会漏掉 `resource_registry` 的 24 条懒加载边。
 
-### Wave 1：试点和低风险 server（预计 4–6 人日）
+### Wave 1：试点和低风险 server（进行中）
 
-顺序：
+| # | 文件 | 拆分前 | 门面 | 状态 |
+|---|---|---:|---:|---|
+| 1.1 | `servers/lvke_data_analysis/service.py` | 2,147 | 102 | ✅ 已提交 |
+| 1.2 | `servers/lvke_source_files/service.py` | 1,240 | 157 | ✅ 已提交 |
+| 1.3 | `servers/lvke_data_acquisition/service.py` | 1,743 | — | 进行中 |
+| 1.4 | `servers/lvke_deep_research/server.py`（注册层） | 1,009 | 68 | ✅ 已提交 |
 
-1. `servers/lvke_data_analysis/service.py`：先抽 `_numeric_text_measure`、受控单位/静态目录、候选提取和 evidence pack；
-2. `servers/lvke_source_files/service.py`：抽 chunk/upload、workbook inspection 和 external corpus；
-3. `servers/lvke_data_acquisition/service.py`：抽 provider、discovery、snapshot import；
-4. `servers/lvke_deep_research/server.py`：只拆 schema/注册/dispatch，不改变工具实现。
+**试点结论（Wave 1.1 + 1.4，commit 见 git log）：**
 
-每个文件独立 PR。试点 PR 通过后才复制门面模板。
+门面模板已验证可用：实现包 `_service/` 或 `_server/`，原文件保留为门面并
+显式 re-export 全部符号（含 `re`、`datetime` 这类附带 import——消费者用
+`from ... import service` 后按 `service.X` 取属性，属性访问必须继续可用）。
+
+**试点暴露的两类「测试全绿的拆分事故」，已加门禁 `scripts/split_fidelity.py`：**
+
+1. **语义等价改写**：`query()` 里 `r"[\w一-鿿]+"` 被写成 `r"[\w一-鿿]+"`。
+   对 `re` 完全等价，75 个测试全过，三道 Wave 0 门禁也全过——但这是重写而非
+   搬移，diff 从此不可复核。
+2. **helper 复制而非搬移**：`_locator_text` 同时出现在两个子模块。两份都能用，
+   没有任何门禁失败，但从此存在两份会各自漂移的实现。
+
+Wave 0 的三道门禁只覆盖**接口**层，查不出上面两类。`split_fidelity.py` 按 AST
+比较搬移前后的定义，把「纯搬移」变成可自动验证的条件。
+
+**另修正 `scripts/api_snapshot.py`**：公开符号改取 `__all__` 与 `dir()` 的**并集**。
+只取 `__all__` 会造成保护空洞——门面新增 `__all__` 后未列入的符号会从快照消失，
+此后真被删掉也不会报警。
+
+**路径耦合**：`scripts/independence_scan.py` 的语义豁免按**路径**登记，被豁免的
+行搬到新文件后豁免会失效。这不是放宽规则，搬移时需同步改路径。
 
 ### Wave 2：编排与报告（预计 6–9 人日）
 
