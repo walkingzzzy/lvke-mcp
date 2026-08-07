@@ -185,3 +185,22 @@ def read_resource(workspace_id: str, uri: str) -> dict[str, Any]:
         return server._read_scoped_resource(workspace_id, uri)  # noqa: SLF001
     service = _module("lvke_mcp.servers.lvke_zero_material_delivery.service")
     return service.read_resource({"workspace_id": workspace_id, "uri": uri})
+
+
+def get_review(workspace_id: str, review_id: str) -> dict[str, Any]:
+    """Read the existing deliverable-review projection through the registry.
+
+    The registry is the shared runtime boundary for compressed MCP processes.
+    It preserves the review service's envelope and freshness checks while
+    keeping aggregate services independent from another MCP server package.
+    """
+
+    service = _module("lvke_mcp.servers.lvke_deliverable_review.service")
+    return service.get_review({"workspace_id": workspace_id, "review_id": review_id})
+
+
+def get_knowledge_candidate(workspace_id: str, candidate_id: str) -> dict[str, Any]:
+    """Read the existing knowledge-governance candidate projection."""
+
+    service = _module("lvke_mcp.servers.lvke_knowledge_governance.service")
+    return service.get_candidate({"workspace_id": workspace_id, "candidate_id": candidate_id})

@@ -287,19 +287,19 @@ Deep Research MCP 不调用内置 LLM。`partial` 可以通过 `dr_continue` 续
 ### 阶段4.75：市场、收入、规模、成本与定员规划
 
 ```
-planning_prepare_market_case → planning_compare_market_cases
-  → planning_validate_market_case → planning_confirm_market_case
-  → planning_prepare_policy_basis → planning_confirm_policy_basis
-  → planning_prepare_option_comparison → planning_validate_option_comparison
-  → planning_score_option_comparison → planning_confirm_option_comparison
-  → planning_prepare_revenue_drivers → planning_compare_revenue_candidates
-  → planning_validate_revenue_drivers → planning_confirm_revenue_drivers
+planning_prepare(object_kind=market_case) → planning_compare(object_kind=market_case)
+  → planning_validate(object_kind=market_case) → planning_confirm(object_kind=market_case)
+  → planning_prepare(object_kind=policy_basis) → planning_confirm(object_kind=policy_basis)
+  → planning_prepare(object_kind=option_comparison) → planning_validate(object_kind=option_comparison)
+  → planning_score_option_comparison → planning_confirm(object_kind=option_comparison)
+  → planning_prepare(object_kind=revenue_drivers) → planning_compare(object_kind=revenue_drivers)
+  → planning_validate(object_kind=revenue_drivers) → planning_confirm(object_kind=revenue_drivers)
   → planning_get_industry_constraints → planning_solve_build_scale
-  → planning_validate_build_scale → planning_confirm_build_scale
-  → planning_prepare_cost_drivers → planning_calculate_cost_drivers
-  → planning_validate_cost_drivers → planning_confirm_cost_drivers
-  → planning_infer_labor_plan → planning_validate_labor_plan
-  → planning_confirm_labor_plan
+  → planning_validate(object_kind=build_scale) → planning_confirm(object_kind=build_scale)
+  → planning_prepare(object_kind=cost_drivers) → planning_calculate_cost_drivers
+  → planning_validate(object_kind=cost_drivers) → planning_confirm(object_kind=cost_drivers)
+  → planning_infer_labor_plan → planning_validate(object_kind=labor_plan)
+  → planning_confirm(object_kind=labor_plan)
 ```
 
 - 市场规模至少使用两条证据支持的独立路径；由 Codex 选择，不取平均。

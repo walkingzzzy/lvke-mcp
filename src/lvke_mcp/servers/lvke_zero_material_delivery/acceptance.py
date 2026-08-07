@@ -260,9 +260,10 @@ def _run() -> dict[str, Any]:
     assert wrong_workspace.get("code") == "resource_scope_mismatch"
 
     cancelled = _call(
-        "delivery_cancel",
+        "delivery_transition",
         {
             "workspace_id": WORKSPACE,
+            "operation": "cancel",
             "delivery_run_id": confirmed_run["delivery_run_id"],
             "reason": "acceptance cancellation",
             "idempotency_key": "cancel-v1",
@@ -279,9 +280,10 @@ def _run() -> dict[str, Any]:
     )
     assert blocked_start.get("code") == "delivery_run_cancelled"
     resumed = _call(
-        "delivery_resume",
+        "delivery_transition",
         {
             "workspace_id": WORKSPACE,
+            "operation": "resume",
             "delivery_run_id": cancelled_run_id,
             "reason": "acceptance resume",
             "idempotency_key": "resume-v1",

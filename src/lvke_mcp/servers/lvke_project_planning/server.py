@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 from mcp import types
 
 from lvke_mcp.runtime.logging import get_logger
@@ -14,6 +16,12 @@ SERVER_VERSION = "0.1.0"
 _PROJECT_PLANNING_CANDIDATE_SCHEMA_URI = (
     "lvke://schemas/project-planning-candidate"
 )
+_ROUND2_SCHEMA_URIS = {
+    "planning_validate": "lvke://schemas/project-planning-validate",
+    "planning_confirm": "lvke://schemas/project-planning-confirm",
+    "planning_prepare": "lvke://schemas/project-planning-prepare",
+    "planning_create": "lvke://schemas/project-planning-create",
+}
 logger = get_logger(SERVER_NAME)
 
 _STRING = {"type": "string", "minLength": 1}
@@ -690,6 +698,263 @@ def _schema(properties: dict, required: list[str]) -> dict:
             **properties,
         },
         "required": ["workspace_id", *required],
+    }
+
+
+_VALIDATE_BRANCHES = {
+    "market_case": ("planning_validate_market_case", "market_case_id"),
+    "revenue_drivers": ("planning_validate_revenue_drivers", "revenue_driver_set_id"),
+    "build_scale": ("planning_validate_build_scale", "build_scale_case_id"),
+    "cost_drivers": ("planning_validate_cost_drivers", "cost_driver_set_id"),
+    "labor_plan": ("planning_validate_labor_plan", "labor_plan_id"),
+    "option_comparison": ("planning_validate_option_comparison", "option_comparison_id"),
+}
+_COMPARE_BRANCHES = {
+    "market_case": ("planning_compare_market_cases", "market_case_id"),
+    "revenue_drivers": ("planning_compare_revenue_candidates", "revenue_driver_set_id"),
+}
+_CONFIRM_BRANCHES = {
+    "market_case": ("planning_confirm_market_case", "market_case_id"),
+    "revenue_drivers": ("planning_confirm_revenue_drivers", "revenue_driver_set_id"),
+    "build_scale": ("planning_confirm_build_scale", "build_scale_case_id"),
+    "cost_drivers": ("planning_confirm_cost_drivers", "cost_driver_set_id"),
+    "labor_plan": ("planning_confirm_labor_plan", "labor_plan_id"),
+    "policy_basis": ("planning_confirm_policy_basis", "policy_basis_id"),
+    "option_comparison": ("planning_confirm_option_comparison", "option_comparison_id"),
+}
+# These are deliberately explicit.  In particular, option_comparison has a
+# historical operation/producer name that cannot be reconstructed from kind.
+CONFIRM_OPERATION_BY_KIND = {
+    "market_case": "planning_confirm_market_case",
+    "revenue_drivers": "planning_confirm_revenue_drivers",
+    "build_scale": "planning_confirm_build_scale",
+    "cost_drivers": "planning_confirm_cost_drivers",
+    "labor_plan": "planning_confirm_labor_plan",
+    "policy_basis": "planning_confirm_policy_basis",
+    "option_comparison": "planning_confirm_option_selection",
+}
+_PREPARE_BRANCHES = {
+    "market_case": "planning_prepare_market_case",
+    "revenue_drivers": "planning_prepare_revenue_drivers",
+    "cost_drivers": "planning_prepare_cost_drivers",
+    "policy_basis": "planning_prepare_policy_basis",
+    "option_comparison": "planning_prepare_option_comparison",
+}
+PREPARE_OPERATION_BY_KIND = dict(_PREPARE_BRANCHES)
+_CREATE_BRANCHES = {
+    "revenue_drivers": "planning_create_revenue_drivers",
+    "build_scale": "planning_create_build_scale",
+    "cost_drivers": "planning_create_cost_drivers",
+    "labor_plan": "planning_create_labor_plan",
+}
+CREATE_OPERATION_BY_KIND = dict(_CREATE_BRANCHES)
+
+
+def _branch_payload_schema(input_schema: dict, excluded: set[str]) -> dict:
+    """Return the strict branch-only portion of a legacy tool schema."""
+
+    properties = {
+        key: copy.deepcopy(value)
+        for key, value in input_schema.get("properties", {}).items()
+        if key not in excluded
+    }
+    required = [
+        key for key in input_schema.get("required", []) if key not in excluded
+    ]
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": properties,
+        "required": required,
+    }
+
+
+def _discriminated_payload_schema(
+    discriminator: str,
+    branch_specs: dict[str, object],
+    *,
+    common_properties: dict,
+    common_required: list[str],
+    excluded_by_kind: dict[str, set[str]],
+) -> dict:
+    schema = _schema(
+        {
+            discriminator: {"type": "string", "enum": list(branch_specs)},
+            **common_properties,
+            "payload": {"type": "object"},
+        },
+        [discriminator, *common_required, "payload"],
+    )
+    schema["allOf"] = [
+        {
+            "if": {
+                "properties": {discriminator: {"const": kind}},
+                "required": [discriminator],
+            },
+            "then": {
+                "properties": {
+                    "payload": _branch_payload_schema(
+                        spec.input_schema, excluded_by_kind[kind]
+                    )
+                }
+            },
+        }
+        for kind, spec in branch_specs.items()
+    ]
+    return schema
+
+
+def _install_round2_aggregates(
+    server: OfficialStdioServer,
+    read: types.ToolAnnotations,
+    write: types.ToolAnnotations,
+) -> dict[str, dict]:
+    """Install the eight round-two routes and remove their legacy public names."""
+
+    legacy_names = {
+        *(name for name, _field in _VALIDATE_BRANCHES.values()),
+        *(name for name, _field in _COMPARE_BRANCHES.values()),
+        *(name for name, _field in _CONFIRM_BRANCHES.values()),
+        *_PREPARE_BRANCHES.values(),
+        *_CREATE_BRANCHES.values(),
+    }
+    legacy = {name: server._tools[name] for name in legacy_names}  # noqa: SLF001
+    server._round2_legacy_specs = legacy  # type: ignore[attr-defined]  # noqa: SLF001
+
+    def dispatch_target(args: dict, branches: dict[str, tuple[str, str]], key: str):
+        legacy_name, id_field = branches[str(args[key])]
+        return legacy[legacy_name].handler(
+            {"workspace_id": args["workspace_id"], id_field: args["target_id"]}
+        )
+
+    validate_schema = _schema(
+        {
+            "object_kind": {"type": "string", "enum": list(_VALIDATE_BRANCHES)},
+            "target_id": _STRING,
+        },
+        ["object_kind", "target_id"],
+    )
+    server.register_tool(
+        "planning_validate",
+        "按对象类型校验规划对象，保留各类型原有证据、算术和完整性门禁。",
+        validate_schema,
+        lambda a: dispatch_target(a, _VALIDATE_BRANCHES, "object_kind"),
+        _OUTPUT,
+        read,
+    )
+
+    compare_schema = _schema(
+        {
+            "object_kind": {"type": "string", "enum": list(_COMPARE_BRANCHES)},
+            "target_id": _STRING,
+        },
+        ["object_kind", "target_id"],
+    )
+    server.register_tool(
+        "planning_compare",
+        "按对象类型比较规划候选；不合并候选、不隐式选择或计算平均值。",
+        compare_schema,
+        lambda a: dispatch_target(a, _COMPARE_BRANCHES, "object_kind"),
+        _OUTPUT,
+        read,
+    )
+
+    confirm_specs = {
+        kind: legacy[name] for kind, (name, _field) in _CONFIRM_BRANCHES.items()
+    }
+    confirm_schema = _discriminated_payload_schema(
+        "object_kind",
+        confirm_specs,
+        common_properties={"target_id": _STRING, "idempotency_key": _KEY},
+        common_required=["target_id", "idempotency_key"],
+        excluded_by_kind={
+            kind: {"workspace_id", id_field, "idempotency_key"}
+            for kind, (_name, id_field) in _CONFIRM_BRANCHES.items()
+        },
+    )
+
+    def dispatch_confirm(args: dict):
+        kind = str(args["object_kind"])
+        legacy_name, id_field = _CONFIRM_BRANCHES[kind]
+        mapped = {
+            "workspace_id": args["workspace_id"],
+            id_field: args["target_id"],
+            "idempotency_key": args["idempotency_key"],
+            **dict(args["payload"]),
+        }
+        return legacy[legacy_name].handler(mapped)
+
+    server.register_tool(
+        "planning_confirm",
+        "按对象类型执行显式确认；选择、舍弃清单与确认理由按分支严格校验。",
+        confirm_schema,
+        dispatch_confirm,
+        _OUTPUT,
+        write,
+    )
+
+    def install_payload_tool(
+        public_name: str,
+        branches: dict[str, str],
+        operation_map: dict[str, str],
+        description: str,
+    ) -> dict:
+        branch_specs = {kind: legacy[name] for kind, name in branches.items()}
+        schema = _discriminated_payload_schema(
+            "object_kind",
+            branch_specs,
+            common_properties={
+                "project_context_id": _STRING,
+                "idempotency_key": _KEY,
+            },
+            common_required=["project_context_id", "idempotency_key"],
+            excluded_by_kind={
+                kind: {"workspace_id", "project_context_id", "idempotency_key"}
+                for kind in branches
+            },
+        )
+
+        def dispatch(args: dict):
+            kind = str(args["object_kind"])
+            # Resolve through an explicit map so historical idempotency operation
+            # namespaces never depend on mechanical name construction.
+            legacy_name = branches[kind]
+            assert operation_map[kind]
+            return legacy[legacy_name].handler(
+                {
+                    "workspace_id": args["workspace_id"],
+                    "project_context_id": args["project_context_id"],
+                    "idempotency_key": args["idempotency_key"],
+                    **dict(args["payload"]),
+                }
+            )
+
+        server.register_tool(
+            public_name, description, schema, dispatch, _OUTPUT, write
+        )
+        return schema
+
+    prepare_schema = install_payload_tool(
+        "planning_prepare",
+        _PREPARE_BRANCHES,
+        PREPARE_OPERATION_BY_KIND,
+        "按对象类型固化规划候选；各类候选与上游对象字段执行完整分支约束。",
+    )
+    create_schema = install_payload_tool(
+        "planning_create",
+        _CREATE_BRANCHES,
+        CREATE_OPERATION_BY_KIND,
+        "按对象类型直接创建不可变规划对象；不补默认业务事实或放宽原门禁。",
+    )
+
+    for name in legacy_names:
+        server._tools.pop(name)  # noqa: SLF001
+
+    return {
+        "planning_validate": validate_schema,
+        "planning_confirm": confirm_schema,
+        "planning_prepare": prepare_schema,
+        "planning_create": create_schema,
     }
 
 
@@ -1487,6 +1752,7 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         read,
     )
+    round2_schemas = _install_round2_aggregates(server, read, write)
     server.register_schema_resource(
         _PROJECT_PLANNING_CANDIDATE_SCHEMA_URI,
         _PROJECT_PLANNING_CANDIDATE_SCHEMA,
@@ -1494,6 +1760,14 @@ def build_server() -> OfficialStdioServer:
         title="Project Planning Candidate",
         description="规划领域所有候选类型的完整联合 Schema；服务端各工具仍执行其精确子 Schema。",
     )
+    for tool_name, schema in round2_schemas.items():
+        server.register_schema_resource(
+            _ROUND2_SCHEMA_URIS[tool_name],
+            schema,
+            name=tool_name.replace("_", "-"),
+            title=tool_name.replace("_", " ").title(),
+            description=f"{tool_name} 服务端执行的完整判别式 JSON Schema。",
+        )
     # Protocol-level resources carry no explicit workspace assertion. Dynamic
     # access is centralized in lvke-feasibility-delivery.
     server.register_resource_provider(lambda: [], lambda _uri: None)

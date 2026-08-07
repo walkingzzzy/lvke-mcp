@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from filelock import FileLock
 
+from lvke_mcp.runtime import resource_registry
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -417,13 +418,30 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-_NEXT_TOOLS: dict[str, list[str]] = {
+_NEXT_TOOLS: dict[str, list[Any]] = {
     "project": ["project_context_create", "project_context_validate"],
     "research": ["dr_prepare", "dr_start", "data_discover", "data_fetch", "analysis_build_evidence_pack"],
-    "market": ["planning_prepare_market_case", "planning_validate_market_case", "planning_confirm_market_case"],
-    "option": ["planning_prepare_option_comparison", "planning_score_option_comparison", "planning_confirm_option_comparison"],
-    "scale": ["planning_solve_build_scale", "planning_validate_build_scale", "planning_confirm_build_scale"],
-    "drivers": ["planning_create_cost_drivers", "planning_create_labor_plan", "planning_create_revenue_drivers"],
+    "market": [
+        {"tool": "planning_prepare", "arguments": {"object_kind": "market_case"}},
+        {"tool": "planning_validate", "arguments": {"object_kind": "market_case"}},
+        {"tool": "planning_confirm", "arguments": {"object_kind": "market_case"}},
+    ],
+    "option": [
+        {"tool": "planning_prepare", "arguments": {"object_kind": "option_comparison"}},
+        "planning_score_option_comparison",
+        {"tool": "planning_validate", "arguments": {"object_kind": "option_comparison"}},
+        {"tool": "planning_confirm", "arguments": {"object_kind": "option_comparison"}},
+    ],
+    "scale": [
+        "planning_solve_build_scale",
+        {"tool": "planning_validate", "arguments": {"object_kind": "build_scale"}},
+        {"tool": "planning_confirm", "arguments": {"object_kind": "build_scale"}},
+    ],
+    "drivers": [
+        {"tool": "planning_create", "arguments": {"object_kind": "cost_drivers"}},
+        {"tool": "planning_create", "arguments": {"object_kind": "labor_plan"}},
+        {"tool": "planning_create", "arguments": {"object_kind": "revenue_drivers"}},
+    ],
     "finance_spec": ["finance_prepare_spec", "finance_validate_spec", "finance_build_basis_of_estimate", "finance_confirm_spec"],
     "finance_run": ["finance_run_model", "finance_get_run"],
     "finance_tables": ["tables_render", "tables_validate", "tables_export_xlsx"],
@@ -460,8 +478,11 @@ def next_actions(args: dict[str, Any]) -> dict[str, Any]:
             tool = str(item)
             reason = "完成当前阶段或处理当前缺口"
             arguments = {"workspace_id": workspace_id}
+        arguments.setdefault("workspace_id", workspace_id)
         if output_refs:
-            if stage_name == "finance_spec" and tool == "finance_validate_spec":
+            if tool in {"planning_validate", "planning_compare", "planning_confirm"}:
+                arguments["target_id"] = output_refs[0]
+            elif stage_name == "finance_spec" and tool == "finance_validate_spec":
                 arguments["spec_id"] = output_refs[0]
             elif stage_name == "finance_run" and tool == "finance_get_run":
                 arguments["run_id"] = output_refs[0]
@@ -732,9 +753,7 @@ def _resolve_object(workspace_id: str, reference: str) -> dict[str, Any] | None:
     if ref.startswith(review_prefix):
         review_ref = ref.removeprefix(review_prefix).split("/", 1)[0]
     try:
-        from lvke_mcp.servers.lvke_deliverable_review import service as review_service
-
-        review = review_service.get_review({"workspace_id": workspace_id, "review_id": review_ref})
+        review = resource_registry.get_review(workspace_id, review_ref)
         if isinstance(review.get("review"), dict):
             projected = review["review"]
             return {
@@ -1069,9 +1088,8 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
     knowledge_ids = list(run.get("knowledge_candidate_ids") or [])
     if knowledge_ids:
         try:
-            from lvke_mcp.servers.lvke_knowledge_governance import service as knowledge_service
             for candidate_id in knowledge_ids:
-                result = knowledge_service.get_candidate({"workspace_id": workspace_id, "candidate_id": candidate_id})
+                result = resource_registry.get_knowledge_candidate(workspace_id, candidate_id)
                 reviews = list(result.get("reviews") or [])
                 releases = list(result.get("releases") or [])
                 accepted = any(str((row.get("decision") or (row.get("payload") or {}).get("decision") or "")) == "accepted" for row in reviews if isinstance(row, dict))

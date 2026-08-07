@@ -782,6 +782,11 @@ def prepare_market_case(
                 field_errors={item["path"]: item for item in binding_errors},
                 next_actions=["使用 EvidencePack 中相同 source、hash、locator 和 track 重建候选"],
             )
+        next_actions = [
+            "调用 planning_compare(object_kind=\"market_case\") 比较路径偏差",
+            "调用 planning_validate(object_kind=\"market_case\") 检查证据与口径",
+            "由 Codex 明确选择后调用 planning_confirm(object_kind=\"market_case\")",
+        ]
         payload = {
             "object_type": "MarketSizingCase",
             "project_context_id": project_context_id,
@@ -796,11 +801,6 @@ def prepare_market_case(
             "selection": None,
             "warnings": [],
             "blockers": [],
-            "next_actions": [
-                "调用 planning_compare_market_cases 比较路径偏差",
-                "调用 planning_validate_market_case 检查证据与口径",
-                "由 Codex 明确选择后调用 planning_confirm_market_case",
-            ],
         }
         record = MARKET_CASE_STORE.put(
             workspace_id,
@@ -818,7 +818,7 @@ def prepare_market_case(
             success=True,
             status="ok",
             resource_uris=[record["resource_uri"]],
-            next_actions=payload["next_actions"],
+            next_actions=next_actions,
             market_case_id=record["object_id"],
             object_id=record["object_id"],
             market_case=_market_view(record),
@@ -963,7 +963,7 @@ def confirm_market_case(
             return _blocked(
                 "market_case_invalid",
                 "市场案例校验未通过，不能确认",
-                next_actions=["调用 planning_validate_market_case 查看 field_errors"],
+                next_actions=["调用 planning_validate(object_kind=\"market_case\") 查看 field_errors"],
             )
         by_id = {
             str(item.get("candidate_id") or ""): item

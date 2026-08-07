@@ -97,8 +97,8 @@ class McpCompressionTopologyTest(unittest.TestCase):
             )
             self.assertTrue(all("outputSchema" not in item for item in tools))
         self.assertEqual(len(SERVER_SPECS), 14)
-        self.assertEqual(total_tools, 193)
-        self.assertLessEqual(total_chars, 180_000)
+        self.assertEqual(total_tools, 169)
+        self.assertLess(total_chars, 160_630)
 
     def test_compact_schema_keeps_top_level_and_full_internal_validation(self) -> None:
         from lvke_mcp.servers.lvke_finance_model import server as finance_server

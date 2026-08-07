@@ -41,6 +41,63 @@ def _schema(properties: dict, required: list[str]) -> dict:
     }
 
 
+_TRANSITION_BRANCHES = {
+    "cancel": "delivery_cancel",
+    "resume": "delivery_resume",
+}
+
+
+def _install_transition_aggregate(
+    server: OfficialStdioServer,
+    annotations: types.ToolAnnotations,
+) -> None:
+    legacy = {
+        name: server._tools[name]  # noqa: SLF001
+        for name in _TRANSITION_BRANCHES.values()
+    }
+    server._round2_legacy_specs = legacy  # type: ignore[attr-defined]  # noqa: SLF001
+    schema = _schema(
+        {
+            "operation": {"type": "string", "enum": list(_TRANSITION_BRANCHES)},
+            "delivery_run_id": _SAFE_ID,
+            "reason": _TEXT,
+            "idempotency_key": _KEY,
+        },
+        ["operation", "delivery_run_id", "idempotency_key"],
+    )
+    schema["allOf"] = [
+        {
+            "if": {
+                "properties": {"operation": {"const": "cancel"}},
+                "required": ["operation"],
+            },
+            "then": {"required": ["reason"]},
+        }
+    ]
+
+    def dispatch(args: dict) -> dict:
+        operation = str(args["operation"])
+        mapped = {
+            "workspace_id": args["workspace_id"],
+            "delivery_run_id": args["delivery_run_id"],
+            "idempotency_key": args["idempotency_key"],
+        }
+        if "reason" in args:
+            mapped["reason"] = args["reason"]
+        return legacy[_TRANSITION_BRANCHES[operation]].handler(mapped)
+
+    server.register_tool(
+        "delivery_transition",
+        "取消 DeliveryRun 或从已取消运行创建恢复快照；操作分支保留原状态门禁。",
+        schema,
+        dispatch,
+        _OUTPUT,
+        annotations,
+    )
+    for name in legacy:
+        server._tools.pop(name)  # noqa: SLF001
+
+
 def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(SERVER_NAME, SERVER_VERSION, logger)
     read = types.ToolAnnotations(
@@ -175,15 +232,7 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         write,
     )
-    def list_standard_resources():
-        return [
-            types.Resource(
-                uri=item["uri"],
-                name=item["name"],
-                mimeType=item["mime_type"],
-            )
-            for item in service.standard_resource_entries()
-        ]
+    _install_transition_aggregate(server, write)
 
     def read_standard_resource(uri: str):
         resolved = service.resolve_resource(uri)
@@ -192,7 +241,11 @@ def build_server() -> OfficialStdioServer:
         content, mime_type = resolved
         return ReadResourceContents(content, mime_type)
 
-    server.register_resource_provider(list_standard_resources, read_standard_resource)
+    # 协议层 lister 拿不到 workspace 身份，因此**无法**按租户过滤：任何非空实现
+    # 都会把别的 workspace 的对象 URI 暴露给当前客户端。与其余 12 个 server 一致
+    # 留空，工作区内的枚举走 lvke_list_resources(domain=...) → service.list_resources，
+    # 那条路径有显式 workspace_id 并逐条校验归属。
+    server.register_resource_provider(lambda: [], read_standard_resource)
     return server
 
 

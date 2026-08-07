@@ -1,0 +1,98 @@
+{
+  "version": "lvke-mcp-compression.v2",
+  "invariants": [
+    "Only public routing changes; original business implementations remain importable internal libraries.",
+    "Existing object IDs, lvke:// URIs, workspace checks, hashes, lineage, formulas and release gates are unchanged.",
+    "Every removed public name has exactly one replacement route in this manifest.",
+    "Use root oneOf only when every compact branch is at most 2048 characters; otherwise use a flat discriminator with allOf/if-then."
+  ],
+  "removed_tool_count": 32,
+  "added_aggregate_tool_count": 8,
+  "net_tool_count_change": -24,
+  "aggregate_contracts": {
+    "planning_validate": {
+      "arguments": ["workspace_id", "object_kind", "target_id"],
+      "discriminator": "object_kind",
+      "kinds": ["market_case", "revenue_drivers", "build_scale", "cost_drivers", "labor_plan", "option_comparison"],
+      "schema_resource": "lvke://schemas/project-planning-validate"
+    },
+    "finance_get_analysis": {
+      "arguments": ["workspace_id", "kind", "target_id"],
+      "discriminator": "kind",
+      "kinds": ["balance_sheet", "monte_carlo", "basis_of_estimate", "fact_pack"]
+    },
+    "planning_compare": {
+      "arguments": ["workspace_id", "object_kind", "target_id"],
+      "discriminator": "object_kind",
+      "kinds": ["market_case", "revenue_drivers"]
+    },
+    "source_task_status": {
+      "arguments": ["workspace_id", "task_kind", "target_id"],
+      "discriminator": "task_kind",
+      "kinds": ["parse", "upload"]
+    },
+    "delivery_transition": {
+      "arguments": ["workspace_id", "operation", "delivery_run_id", "reason", "idempotency_key"],
+      "discriminator": "operation",
+      "operations": ["cancel", "resume"]
+    },
+    "planning_confirm": {
+      "arguments": ["workspace_id", "object_kind", "target_id", "idempotency_key", "payload"],
+      "discriminator": "object_kind",
+      "kinds": ["market_case", "revenue_drivers", "build_scale", "cost_drivers", "labor_plan", "policy_basis", "option_comparison"],
+      "schema_resource": "lvke://schemas/project-planning-confirm"
+    },
+    "planning_prepare": {
+      "arguments": ["workspace_id", "object_kind", "project_context_id", "idempotency_key", "payload"],
+      "discriminator": "object_kind",
+      "kinds": ["market_case", "revenue_drivers", "cost_drivers", "policy_basis", "option_comparison"],
+      "schema_resource": "lvke://schemas/project-planning-prepare"
+    },
+    "planning_create": {
+      "arguments": ["workspace_id", "object_kind", "project_context_id", "idempotency_key", "payload"],
+      "discriminator": "object_kind",
+      "kinds": ["revenue_drivers", "build_scale", "cost_drivers", "labor_plan"],
+      "schema_resource": "lvke://schemas/project-planning-create"
+    }
+  },
+  "entries": [
+    {"old_tool":"lvke-project-planning.planning_validate_market_case","replacement":"lvke-project-planning.planning_validate(object_kind=\"market_case\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_validate_revenue_drivers","replacement":"lvke-project-planning.planning_validate(object_kind=\"revenue_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_validate_build_scale","replacement":"lvke-project-planning.planning_validate(object_kind=\"build_scale\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_validate_cost_drivers","replacement":"lvke-project-planning.planning_validate(object_kind=\"cost_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_validate_labor_plan","replacement":"lvke-project-planning.planning_validate(object_kind=\"labor_plan\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_validate_option_comparison","replacement":"lvke-project-planning.planning_validate(object_kind=\"option_comparison\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-finance-model.finance_get_balance_sheet","replacement":"lvke-finance-model.finance_get_analysis(kind=\"balance_sheet\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-finance-model.finance_get_monte_carlo","replacement":"lvke-finance-model.finance_get_analysis(kind=\"monte_carlo\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-finance-model.finance_get_basis_of_estimate","replacement":"lvke-finance-model.finance_get_analysis(kind=\"basis_of_estimate\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-finance-model.finance_get_fact_pack","replacement":"lvke-finance-model.finance_get_analysis(kind=\"fact_pack\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_compare_market_cases","replacement":"lvke-project-planning.planning_compare(object_kind=\"market_case\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_compare_revenue_candidates","replacement":"lvke-project-planning.planning_compare(object_kind=\"revenue_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-source-files.source_parse_status","replacement":"lvke-source-files.source_task_status(task_kind=\"parse\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-source-files.source_upload_status","replacement":"lvke-source-files.source_task_status(task_kind=\"upload\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-zero-material-delivery.delivery_cancel","replacement":"lvke-zero-material-delivery.delivery_transition(operation=\"cancel\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-zero-material-delivery.delivery_resume","replacement":"lvke-zero-material-delivery.delivery_transition(operation=\"resume\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_market_case","replacement":"lvke-project-planning.planning_confirm(object_kind=\"market_case\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_revenue_drivers","replacement":"lvke-project-planning.planning_confirm(object_kind=\"revenue_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_build_scale","replacement":"lvke-project-planning.planning_confirm(object_kind=\"build_scale\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_cost_drivers","replacement":"lvke-project-planning.planning_confirm(object_kind=\"cost_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_labor_plan","replacement":"lvke-project-planning.planning_confirm(object_kind=\"labor_plan\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_policy_basis","replacement":"lvke-project-planning.planning_confirm(object_kind=\"policy_basis\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_confirm_option_comparison","replacement":"lvke-project-planning.planning_confirm(object_kind=\"option_comparison\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_prepare_market_case","replacement":"lvke-project-planning.planning_prepare(object_kind=\"market_case\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_prepare_revenue_drivers","replacement":"lvke-project-planning.planning_prepare(object_kind=\"revenue_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_prepare_cost_drivers","replacement":"lvke-project-planning.planning_prepare(object_kind=\"cost_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_prepare_policy_basis","replacement":"lvke-project-planning.planning_prepare(object_kind=\"policy_basis\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_prepare_option_comparison","replacement":"lvke-project-planning.planning_prepare(object_kind=\"option_comparison\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_create_revenue_drivers","replacement":"lvke-project-planning.planning_create(object_kind=\"revenue_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_create_build_scale","replacement":"lvke-project-planning.planning_create(object_kind=\"build_scale\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_create_cost_drivers","replacement":"lvke-project-planning.planning_create(object_kind=\"cost_drivers\")","category":"operation_or_dataset_route"},
+    {"old_tool":"lvke-project-planning.planning_create_labor_plan","replacement":"lvke-project-planning.planning_create(object_kind=\"labor_plan\")","category":"operation_or_dataset_route"}
+  ],
+  "stable_schema_resources": [
+    "lvke://schemas/project-planning-validate",
+    "lvke://schemas/project-planning-confirm",
+    "lvke://schemas/project-planning-prepare",
+    "lvke://schemas/project-planning-create"
+  ]
+}

@@ -80,6 +80,57 @@ def _paging_schema(extra: dict | None = None) -> dict:
     )
 
 
+_TASK_STATUS_BRANCHES = {
+    "parse": ("source_parse_status", "job_id", r"^job_"),
+    "upload": ("source_upload_status", "upload_id", r"^ups_"),
+}
+
+
+def _install_task_status_aggregate(
+    server: OfficialStdioServer,
+    annotations: types.ToolAnnotations,
+) -> None:
+    legacy = {
+        name: server._tools[name]  # noqa: SLF001
+        for name, _id_field, _prefix in _TASK_STATUS_BRANCHES.values()
+    }
+    server._round2_legacy_specs = legacy  # type: ignore[attr-defined]  # noqa: SLF001
+    schema = _schema(
+        {
+            "task_kind": {"type": "string", "enum": list(_TASK_STATUS_BRANCHES)},
+            "target_id": _ID,
+        },
+        ["task_kind", "target_id"],
+    )
+    schema["allOf"] = [
+        {
+            "if": {
+                "properties": {"task_kind": {"const": kind}},
+                "required": ["task_kind"],
+            },
+            "then": {"properties": {"target_id": {**_ID, "pattern": prefix}}},
+        }
+        for kind, (_name, _id_field, prefix) in _TASK_STATUS_BRANCHES.items()
+    ]
+
+    def dispatch(args: dict) -> dict:
+        legacy_name, id_field, _prefix = _TASK_STATUS_BRANCHES[str(args["task_kind"])]
+        return legacy[legacy_name].handler(
+            {"workspace_id": args["workspace_id"], id_field: args["target_id"]}
+        )
+
+    server.register_tool(
+        "source_task_status",
+        "按任务类型读取上传或解析状态；任务类型必须与对象 ID 命名空间一致。",
+        schema,
+        dispatch,
+        _OUTPUT,
+        annotations,
+    )
+    for name in legacy:
+        server._tools.pop(name)  # noqa: SLF001
+
+
 def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(SERVER_NAME, SERVER_VERSION, logger)
     read = types.ToolAnnotations(
@@ -374,6 +425,7 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         read,
     )
+    _install_task_status_aggregate(server, read)
     server.register_resource_provider(lambda: [], lambda _uri: None)
     return server
 

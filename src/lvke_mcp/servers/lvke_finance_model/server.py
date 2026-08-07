@@ -2144,6 +2144,59 @@ def _tool_read_analysis_resource(args: dict) -> dict:
     )
 
 
+_GET_ANALYSIS_BRANCHES = {
+    "balance_sheet": ("finance_get_balance_sheet", "balance_sheet_id"),
+    "monte_carlo": ("finance_get_monte_carlo", "monte_carlo_id"),
+    "basis_of_estimate": ("finance_get_basis_of_estimate", "basis_of_estimate_id"),
+    "fact_pack": ("finance_get_fact_pack", "fact_pack_id"),
+}
+
+
+def _install_get_analysis_aggregate(
+    server: OfficialStdioServer,
+    annotations: types.ToolAnnotations,
+) -> None:
+    legacy = {
+        name: server._tools[name]  # noqa: SLF001
+        for name, _id_field in _GET_ANALYSIS_BRANCHES.values()
+    }
+    server._round2_legacy_specs = legacy  # type: ignore[attr-defined]  # noqa: SLF001
+    first = next(iter(legacy.values()))
+    workspace_schema = first.input_schema["properties"]["workspace_id"]
+    id_schema = first.input_schema["properties"][
+        next(iter(_GET_ANALYSIS_BRANCHES.values()))[1]
+    ]
+    output_properties: dict = {}
+    for spec in legacy.values():
+        output_properties.update(spec.output_schema.get("properties", {}))
+
+    def dispatch(args: dict) -> dict:
+        legacy_name, id_field = _GET_ANALYSIS_BRANCHES[str(args["kind"])]
+        return legacy[legacy_name].handler(
+            {"workspace_id": args["workspace_id"], id_field: args["target_id"]}
+        )
+
+    server.register_tool(
+        name="finance_get_analysis",
+        description="按分析类型读取已固化财务分析对象，不重算、不改变正式资格。",
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": workspace_schema,
+                "kind": {"type": "string", "enum": list(_GET_ANALYSIS_BRANCHES)},
+                "target_id": id_schema,
+            },
+            "required": ["workspace_id", "kind", "target_id"],
+        },
+        handler=dispatch,
+        output_schema=_output_schema(output_properties),
+        annotations=annotations,
+    )
+    for name in legacy:
+        server._tools.pop(name)  # noqa: SLF001
+
+
 def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(
         server_name=SERVER_NAME,
@@ -2839,6 +2892,7 @@ def build_server() -> OfficialStdioServer:
             "application/json",
         )
 
+    _install_get_analysis_aggregate(server, read_closed)
     server.register_schema_resource(
         _FINANCE_SPEC_SCHEMA_URI,
         finance_spec_schema,

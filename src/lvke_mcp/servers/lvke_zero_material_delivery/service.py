@@ -1219,7 +1219,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         if run["stage"] == "cancelled":
             return _blocked(
                 "delivery_run_cancelled",
-                "该运行已取消，须先调用 delivery_resume 创建恢复快照",
+                "该运行已取消，须调用 delivery_transition(operation=\"resume\") 创建恢复快照",
             )
         intent_record = INTENT_STORE.get(
             workspace_id,
@@ -1725,59 +1725,6 @@ def read_resource(args: dict[str, Any]) -> dict[str, Any]:
         content_hash=str(loaded.get("content_hash") or ""),
         resource=loaded,
     )
-
-
-def standard_resource_entries() -> list[dict[str, str]]:
-    """List persisted resources visible for the workspace scope."""
-
-    workspaces_root = workspace_root(".").parent
-    if not workspaces_root.is_dir():
-        return []
-    entries: dict[str, dict[str, str]] = {}
-    for workspace in sorted(workspaces_root.iterdir(), key=lambda item: item.name):
-        if not workspace.is_dir() or not re.fullmatch(
-            r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", workspace.name
-        ):
-            continue
-        workspace_id = workspace.name
-        for store, object_type, _id_field in _RESOURCE_STORES:
-            for record in store.list(workspace_id):
-                uri = str(record["resource_uri"])
-                entries[uri] = {
-                    "uri": uri,
-                    "name": f"{object_type} {record['object_id']}",
-                    "mime_type": "application/json",
-                }
-                if object_type == "TechnicalReport":
-                    for filename, mime_type in (
-                        ("report.md", "text/markdown; charset=utf-8"),
-                        (
-                            "report.docx",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        ),
-                    ):
-                        file_uri = f"{uri}/files/{filename}"
-                        if resolve_resource(file_uri) is not None:
-                            entries[file_uri] = {
-                                "uri": file_uri,
-                                "name": f"{record['object_id']} {filename}",
-                                "mime_type": mime_type,
-                            }
-        for run_record in RUN_STORE.list(workspace_id):
-            for uri in (run_record.get("payload") or {}).get("artifact_uris") or []:
-                uri = str(uri)
-                if not uri.startswith("lvke://finance-tables/workspaces/"):
-                    continue
-                resolved = resolve_resource(uri)
-                if resolved is None:
-                    continue
-                _content, mime_type = resolved
-                entries[uri] = {
-                    "uri": uri,
-                    "name": uri.rsplit("/", 1)[-1],
-                    "mime_type": mime_type,
-                }
-    return [entries[uri] for uri in sorted(entries)]
 
 
 def resolve_resource(

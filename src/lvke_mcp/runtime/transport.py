@@ -34,7 +34,7 @@ from mcp.types.version import (
 )
 
 from lvke_mcp.runtime.errors import error_call_result, protocol_error_response
-from lvke_mcp.runtime.coordination import build_coordination, coordination_schema
+from lvke_mcp.runtime.coordination import build_coordination
 
 
 def _audit_hash(value: Any) -> str:
@@ -896,32 +896,6 @@ class OfficialStdioServer:
             schema_uri=self._tool_schema_uri(tool_name),
             root=True,
         )
-
-    @staticmethod
-    def _public_output_schema(schema: dict[str, Any] | None) -> dict[str, Any] | None:
-        """Advertise the coordination contract without breaking legacy schemas."""
-
-        if schema is None:
-            return None
-        public = dict(schema)
-        properties = dict(public.get("properties") or {})
-        properties["coordination"] = coordination_schema()
-        properties.update({
-            "started_at": {"type": "string", "format": "date-time"},
-            "finished_at": {"type": "string", "format": "date-time"},
-            "duration_ms": {"type": "number", "minimum": 0},
-            "input_hash": {"type": ["string", "null"]},
-            "basis_hash": {"type": ["string", "null"]},
-            "content_hash": {"type": ["string", "null"]},
-            "lineage": {"type": "object", "additionalProperties": True},
-            "trace_id": {"type": "string", "minLength": 1},
-        })
-        public["properties"] = properties
-        # Existing handlers are validated before runtime metadata is attached;
-        # allowing the additive field keeps old strict schemas compatible.
-        if public.get("additionalProperties") is False:
-            public["additionalProperties"] = True
-        return public
 
     def _error_result(
         self,
