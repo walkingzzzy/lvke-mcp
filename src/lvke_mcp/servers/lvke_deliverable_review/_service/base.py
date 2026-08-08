@@ -14,7 +14,7 @@ from lvke_mcp.servers.lvke_deliverable_review.contracts import require_write_con
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 PACKAGE_CONFIG_DIR = REPO_ROOT / "config"
