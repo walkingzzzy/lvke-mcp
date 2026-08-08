@@ -33,6 +33,20 @@ def get_industry_constraints(
         "化工": ("chemical", "化工"),
         "电子": ("electronics", "electronic", "电子"),
         "机械": ("machinery", "mechanical", "机械"),
+        "酒店": ("hotel", "hospitality", "酒店", "宾馆"),
+        "能源": ("energy", "power", "solar", "wind", "storage", "能源", "电力", "光伏", "风电", "储能"),
+        "文旅": ("cultural", "tourism", "travel", "文旅", "旅游"),
+        "房地产": ("real_estate", "real estate", "property", "housing", "房地产", "地产"),
+        "基础设施": (
+            "infrastructure", "municipal", "基础设施", "市政",
+            # 城市轨道交通按用地/建筑口径归入基础设施：本表参数为容积率、
+            # 绿地率、建筑密度、层高与人员密度，属通用用地口径而非轨道工艺
+            # 参数，因此复用现有取值，不为轨道另行编造数值。
+            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
+            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
+        ),
+        "公共服务": ("public_service", "public service", "government", "公共服务"),
+        "矿产加工": ("mineral", "mineral_processing", "mining", "ore", "矿产", "选矿"),
     }
     selected_key = next(
         (label for label, tokens in aliases.items() if any(token in industry for token in tokens)),

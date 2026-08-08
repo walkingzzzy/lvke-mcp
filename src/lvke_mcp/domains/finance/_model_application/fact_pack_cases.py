@@ -17,6 +17,61 @@ from .base import (
 )
 
 
+def _build_evidence_resolver(candidate: dict[str, Any]):
+    """Select the evidence resolver a candidate's policy requires.
+
+    prepare 此前无条件使用默认权威解析器，只有 confirm 才在
+    source_reconstructed 下切换到重建解析器，导致同一份 candidate 在两个
+    阶段走不同解析路径、匹配叶子数不一致（prepare 为 0、confirm 为 1）。
+    两处统一调用本函数，保证 prepare 的预览与 confirm 的判定同源。
+    """
+    policy = str(candidate.get("evidence_policy") or "formal_evidence")
+    if policy != "source_reconstructed":
+        return None
+    records = [
+        dict(row) for row in candidate.get("reconstruction_records") or []
+        if isinstance(row, dict)
+    ]
+    by_binding: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in records:
+        locator = str(row.get("locator") or "")
+        source_uri = str(row.get("source_uri") or "")
+        tail = source_uri.rsplit("/", 1)[-1]
+        by_binding[(tail, locator)] = row
+
+    def resolve_reconstruction(
+        requested_workspace_id: str,
+        *,
+        source_id: str,
+        evidence_id: str = "",
+        locator: str = "",
+    ) -> dict[str, Any]:
+        del evidence_id
+        from lvke_mcp.adapters.source_files_repository import (
+            resolve_reconstructed_evidence_binding,
+        )
+
+        reconstruction = by_binding.get((str(source_id), str(locator)))
+        if reconstruction is None:
+            return {
+                "source_id": source_id,
+                "locator": locator,
+                "evidence_grade": "B",
+                "review_status": "missing",
+                "authoritative": True,
+                "binding_ok": False,
+                "issues": ["来源重建记录不存在或 locator 不匹配"],
+            }
+        return resolve_reconstructed_evidence_binding(
+            requested_workspace_id,
+            source_id=source_id,
+            locator=locator,
+            reconstruction_record=reconstruction,
+        )
+
+    return resolve_reconstruction
+
+
 def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = _workspace_id(args)
     candidate = args.get("fact_pack") if isinstance(args.get("fact_pack"), dict) else None
@@ -55,7 +110,12 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
                 status="blocked",
             )
         return _fact_pack_result(record, replayed=True)
-    snapshot = build_fact_pack_snapshot(candidate, workspace_id=workspace_id, confirm=False)
+    snapshot = build_fact_pack_snapshot(
+        candidate,
+        workspace_id=workspace_id,
+        confirm=False,
+        evidence_resolver=_build_evidence_resolver(candidate),
+    )
     record = FACT_PACK_STORE.put(
         workspace_id,
         {
@@ -112,43 +172,8 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             )
         return _fact_pack_result(record, replayed=True)
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
-    resolver = None
-    if policy == "source_reconstructed":
-        records = [dict(row) for row in candidate.get("reconstruction_records") or [] if isinstance(row, dict)]
-        by_binding = {
-            (str(row.get("source_uri") or "").rsplit("/", 1)[-1], str(row.get("locator") or "")): row
-            for row in records
-        }
-
-        def resolve_reconstruction(
-            requested_workspace_id: str,
-            *,
-            source_id: str,
-            evidence_id: str = "",
-            locator: str = "",
-        ) -> dict[str, Any]:
-            del evidence_id
-            from lvke_mcp.adapters.source_files_repository import resolve_reconstructed_evidence_binding
-
-            reconstruction = by_binding.get((str(source_id), str(locator)))
-            if reconstruction is None:
-                return {
-                    "source_id": source_id,
-                    "locator": locator,
-                    "evidence_grade": "B",
-                    "review_status": "missing",
-                    "authoritative": True,
-                    "binding_ok": False,
-                    "issues": ["来源重建记录不存在或 locator 不匹配"],
-                }
-            return resolve_reconstructed_evidence_binding(
-                requested_workspace_id,
-                source_id=source_id,
-                locator=locator,
-                reconstruction_record=reconstruction,
-            )
-
-        resolver = resolve_reconstruction
+    # 与 prepare 共用同一解析器构造，避免两阶段解析路径分叉。
+    resolver = _build_evidence_resolver(candidate)
     from lvke_mcp.domains.finance.fact_pack import build_fact_pack_snapshot
 
     confirmed = build_fact_pack_snapshot(

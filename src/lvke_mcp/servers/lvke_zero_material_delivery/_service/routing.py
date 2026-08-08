@@ -25,7 +25,12 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
             route
             for route in _ROUTE_RULES
             if explicit
-            and explicit in {str(route["code"]).lower(), str(route["label"]).lower()}
+            and (
+                explicit in {str(route["code"]).lower(), str(route["label"]).lower()}
+                # 显式行业也可用路由关键词指定（如 urban_rail_transit），
+                # 否则调用方必须先知道内部 code 才能选中路由。
+                or explicit in {str(keyword).lower() for keyword in route["keywords"]}
+            )
         ),
         None,
     )

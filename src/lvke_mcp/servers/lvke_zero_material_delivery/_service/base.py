@@ -103,8 +103,18 @@ _ROUTE_RULES: tuple[dict[str, Any], ...] = (
     {
         "code": "park_infrastructure",
         "label": "园区与基础设施",
-        "keywords": ("园区", "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车"),
-        "strong_keywords": ("产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车"),
+        "keywords": (
+            "园区", "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车",
+            # 城市轨道交通归入基础设施路由：本路由只决定 Skill 与 factory
+            # 走向，不承载轨道专属工艺参数。
+            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
+            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
+        ),
+        "strong_keywords": (
+            "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车",
+            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
+            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
+        ),
         "factory_industry": "construction_real_estate",
     },
     {

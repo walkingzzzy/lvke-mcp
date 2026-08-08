@@ -54,7 +54,19 @@ def _resolve_build_commit() -> str:
     if configured:
         return configured
     try:
-        git_dir = Path(__file__).resolve().parents[2] / ".git"
+        # 向上搜索而不写死层数：源码树是 src/lvke_mcp/runtime/（.git 在
+        # 第 3 层），安装布局层数不同，写死会静默退化为 unknown。
+        here = Path(__file__).resolve()
+        git_dir = next(
+            (
+                candidate / ".git"
+                for candidate in here.parents
+                if (candidate / ".git").exists()
+            ),
+            None,
+        )
+        if git_dir is None:
+            return "unknown"
         if git_dir.is_file():
             marker = git_dir.read_text(encoding="utf-8").strip()
             if marker.startswith("gitdir:"):

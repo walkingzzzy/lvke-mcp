@@ -50,10 +50,38 @@ def _load_acquisition_snapshot(workspace_id: str, source_id: str) -> dict[str, A
     return record
 
 
+def _decode_serialized_locator(locator: str) -> tuple[str, str] | None:
+    """Decode a JSON-serialized locator row into ``(kind, text)``.
+
+    调用方常把整行 locator 结构序列化后回传；返回 None 表示不是
+    JSON 对象形态，交由其余匹配策略处理。
+    """
+    text = str(locator or "").strip()
+    if not text.startswith("{") or not text.endswith("}"):
+        return None
+    try:
+        value = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    kind = str(value.get("kind") or "").strip()
+    body = str(value.get("text") or "").strip()
+    if not kind and not body:
+        return None
+    return kind, body
+
+
 def _acquisition_snapshot_uris(workspace_id: str, source_id: str) -> tuple[str, ...]:
-    """Accepted evidence ``source_uri`` spellings for one source id."""
+    """Accepted evidence ``source_uri`` spellings for one source id.
+
+    同一份来源可由三种合法地址指称：source-files 的原件、data-acquisition
+    的公网快照，以及 source-files 的解析投影（analyses）。逐值血缘实际读的
+    正是解析投影，因此调用方引用 analyses 地址是正当的，不应被拒绝。
+    """
     return (
         f"lvke://source-files/workspaces/{workspace_id}/files/{source_id}",
+        f"lvke://source-files/workspaces/{workspace_id}/analyses/{source_id}",
         f"lvke://data-acquisition/workspaces/{workspace_id}/sources/{source_id}",
     )
 
@@ -333,6 +361,28 @@ def resolve_authoritative_evidence_binding(
                 ),
                 None,
             )
+        if target is None and locator:
+            # 调用方可能回传序列化的 locator 行（如
+            # '{"text":"...","kind":"document_text"}'）。解出 kind/text 后
+            # 按同一规则重新定位，不要求调用方先了解内部规范地址。
+            decoded = _decode_serialized_locator(locator)
+            if decoded:
+                kind, text = decoded
+                target = next(
+                    (
+                        row for row in candidates
+                        if (not kind or str(row.get("kind") or "") == kind)
+                        and (not text or text in str(row.get("text") or ""))
+                    ),
+                    None,
+                )
+                if target is not None:
+                    # 已按 kind/text 实际命中权威行，规范地址即该行自身；
+                    # 标记为已核实，避免下游再拿原始序列化串做字面比对。
+                    canonical = str(target.get("locator") or "")
+                    target = {**target, "locator": canonical, "evidence_id": canonical}
+                    locator = canonical
+                    evidence_id = canonical if evidence_id else evidence_id
         if target is None and locator:
             # 调用方常直接引用正文片段而非规范地址；只要该片段能在已固化
             # 正文中真实命中，就按承载它的 locator 行绑定，并保留原引用串。
