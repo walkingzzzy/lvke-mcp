@@ -26,7 +26,22 @@ _REPORT_VALUES = {"feasibility_study", "investment_decision"}
 
 
 class ExternalCorpusError(RuntimeError):
-    """Raised when the external corpus catalog cannot be trusted."""
+    """Raised when the external corpus catalog cannot be trusted.
+
+    Args:
+        message: Human-readable error description
+        reason: Machine-readable failure category for diagnostics
+            - "root_not_configured": LVKE_EXTERNAL_CORPUS_ROOT not set
+            - "root_not_found": root path does not exist
+            - "manifest_invalid": manifest unreadable or schema error
+            - "corpus_missing": corpus directory or marker file missing
+            - "project_not_registered": project name not in manifest
+            - "project_ambiguous": project name matches multiple routes
+    """
+
+    def __init__(self, message: str, reason: str = ""):
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -59,7 +74,7 @@ def _manifest_path() -> Path:
     try:
         return path.resolve(strict=True)
     except OSError as exc:
-        raise ExternalCorpusError("external corpus manifest does not exist") from exc
+        raise ExternalCorpusError("external corpus manifest does not exist", reason="manifest_invalid") from exc
 
 
 def _load_manifest() -> dict[str, Any]:
@@ -67,9 +82,9 @@ def _load_manifest() -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ExternalCorpusError("external corpus manifest is unreadable") from exc
+        raise ExternalCorpusError("external corpus manifest is unreadable", reason="manifest_invalid") from exc
     if not isinstance(payload, dict) or payload.get("schema_version") != "external-corpora.v1":
-        raise ExternalCorpusError("external corpus manifest schema_version is invalid")
+        raise ExternalCorpusError("external corpus manifest schema_version is invalid", reason="manifest_invalid")
     corpora = payload.get("corpora")
     projects = payload.get("projects")
     if not isinstance(corpora, list) or not corpora or not isinstance(projects, list) or not projects:
@@ -80,14 +95,14 @@ def _load_manifest() -> dict[str, Any]:
 def _external_root() -> Path:
     configured = str(os.getenv("LVKE_EXTERNAL_CORPUS_ROOT") or "").strip()
     if not configured:
-        raise ExternalCorpusError("LVKE_EXTERNAL_CORPUS_ROOT is not configured")
+        raise ExternalCorpusError("LVKE_EXTERNAL_CORPUS_ROOT is not configured", reason="root_not_configured")
     path = Path(configured).expanduser()
     if not path.is_absolute():
         path = CONFIG_DIR / path
     try:
         resolved = path.resolve(strict=True)
     except OSError as exc:
-        raise ExternalCorpusError("LVKE_EXTERNAL_CORPUS_ROOT does not exist") from exc
+        raise ExternalCorpusError("LVKE_EXTERNAL_CORPUS_ROOT does not exist", reason="root_not_found") from exc
     if not resolved.is_dir():
         raise ExternalCorpusError("LVKE_EXTERNAL_CORPUS_ROOT is not a directory")
     return resolved
@@ -126,7 +141,7 @@ def resolve_all_corpora() -> tuple[ResolvedCorpus, ...]:
         try:
             corpus_path = (root / relative).resolve(strict=True)
         except OSError as exc:
-            raise ExternalCorpusError(f"corpus directory is missing: {corpus_id}") from exc
+            raise ExternalCorpusError(f"corpus directory is missing: {corpus_id}", reason="corpus_missing") from exc
         if not corpus_path.is_dir() or (corpus_path != root and root not in corpus_path.parents):
             raise ExternalCorpusError(f"corpus directory escapes root: {corpus_id}")
         markers = _string_list(item.get("marker_files"), f"{corpus_id}.marker_files")
@@ -135,7 +150,7 @@ def resolve_all_corpora() -> tuple[ResolvedCorpus, ...]:
             try:
                 marker_path = (corpus_path / marker_relative).resolve(strict=True)
             except OSError as exc:
-                raise ExternalCorpusError(f"corpus marker is missing: {corpus_id}/{marker}") from exc
+                raise ExternalCorpusError(f"corpus marker is missing: {corpus_id}/{marker}", reason="corpus_missing") from exc
             if not marker_path.is_file() or corpus_path not in marker_path.parents:
                 raise ExternalCorpusError(f"corpus marker is unsafe: {corpus_id}/{marker}")
         resolved.append(
@@ -167,16 +182,26 @@ def configured_import_roots() -> tuple[Path, ...]:
             try:
                 path = Path(value).expanduser().resolve(strict=True)
             except OSError as exc:
-                raise ExternalCorpusError("LVKE_SOURCE_IMPORT_ROOTS contains a missing path") from exc
+                raise ExternalCorpusError(
+                    "LVKE_SOURCE_IMPORT_ROOTS contains a missing path",
+                    reason="import_roots_invalid",
+                ) from exc
             if not path.is_dir():
-                raise ExternalCorpusError("LVKE_SOURCE_IMPORT_ROOTS must contain directories")
+                raise ExternalCorpusError(
+                    "LVKE_SOURCE_IMPORT_ROOTS must contain directories",
+                    reason="import_roots_invalid",
+                )
             if path == CONFIG_DIR:
                 raise ExternalCorpusError(
-                    "MCP configuration directory cannot be used as a source import root"
+                    "MCP configuration directory cannot be used as a source import root",
+                    reason="import_roots_invalid",
                 )
             roots.append(path)
         if not roots:
-            raise ExternalCorpusError("LVKE_SOURCE_IMPORT_ROOTS contains no usable directory")
+            raise ExternalCorpusError(
+                "LVKE_SOURCE_IMPORT_ROOTS contains no usable directory",
+                reason="import_roots_invalid",
+            )
         return tuple(dict.fromkeys(roots))
     return tuple(item.path for item in resolve_all_corpora())
 
@@ -199,9 +224,9 @@ def resolve_project_corpora(project_name: str) -> dict[str, Any]:
         if any(_normalized_project_name(alias) in needle or needle in _normalized_project_name(alias) for alias in aliases):
             matches.append(project)
     if not matches:
-        raise ExternalCorpusError("project materials are not registered in external corpus manifest")
+        raise ExternalCorpusError("project materials are not registered in external corpus manifest", reason="project_not_registered")
     if len(matches) != 1:
-        raise ExternalCorpusError("project name matches multiple corpus routes")
+        raise ExternalCorpusError("project name matches multiple corpus routes", reason="project_ambiguous")
     project = matches[0]
     route = str(project.get("finance_route") or "")
     report_type = str(project.get("report_type") or "")

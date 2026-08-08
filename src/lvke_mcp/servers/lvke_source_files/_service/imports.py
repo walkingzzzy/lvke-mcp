@@ -171,17 +171,42 @@ def _configured_import_roots() -> list[Path]:
 def resolve_external_corpus(project_name: str) -> dict[str, Any]:
     """Resolve one registered project without importing or mutating source data."""
 
+    _NEXT_ACTIONS: dict[str, list[str]] = {
+        "root_not_configured": [
+            "配置环境变量 LVKE_EXTERNAL_CORPUS_ROOT 指向外部语料根目录",
+        ],
+        "root_not_found": [
+            "检查 LVKE_EXTERNAL_CORPUS_ROOT 路径是否存在并已挂载",
+        ],
+        "manifest_invalid": [
+            "检查 config/external_corpora.v1.json 文件完整性，确认 schema_version 正确",
+        ],
+        "corpus_missing": [
+            "检查 LVKE_EXTERNAL_CORPUS_ROOT 下的语料目录和 marker 文件是否存在",
+        ],
+        "project_not_registered": [
+            "如需走语料登记路径：将项目名称和别名加入 config/external_corpora.v1.json",
+            "如需直接导入本地文件（推荐）：改用 source_import_local_path，"
+            "只需设置 LVKE_SOURCE_IMPORT_ROOTS 指向资料目录，无需登记项目名称",
+        ],
+        "project_ambiguous": [
+            "项目名称匹配了多条路由，请在 config/external_corpora.v1.json 中消除别名冲突",
+        ],
+    }
+
     try:
         resolved = resolve_project_corpora(project_name)
     except ExternalCorpusError as exc:
-        return _blocked(
+        reason = getattr(exc, "reason", "") or "unknown"
+        result = _blocked(
             "external_corpus_unavailable",
             str(exc),
-            next_actions=[
+            next_actions=_NEXT_ACTIONS.get(reason, [
                 "配置 LVKE_EXTERNAL_CORPUS_ROOT 并核对 config/external_corpora.v1.json",
-                "使用包含已登记项目名称的一句话指令",
-            ],
+            ]),
         )
+        result["detail"] = reason
+        return result
     return _envelope(
         success=True,
         status="ok",
@@ -202,13 +227,18 @@ def _resolve_local_source(local_path: str) -> tuple[Path | None, dict[str, Any] 
     try:
         roots = _configured_import_roots()
     except ExternalCorpusError as exc:
-        return None, _blocked(
+        reason = getattr(exc, "reason", "") or "unknown"
+        result = _blocked(
             "external_corpus_unavailable",
             str(exc),
             next_actions=[
                 "配置 LVKE_SOURCE_IMPORT_ROOTS，或配置 LVKE_EXTERNAL_CORPUS_ROOT 并修复资料 marker",
+            ] if reason == "import_roots_invalid" else [
+                "配置 LVKE_SOURCE_IMPORT_ROOTS 或 LVKE_EXTERNAL_CORPUS_ROOT",
             ],
         )
+        result["detail"] = reason
+        return None, result
     if not roots:
         return None, _blocked(
             "local_import_roots_unconfigured",
