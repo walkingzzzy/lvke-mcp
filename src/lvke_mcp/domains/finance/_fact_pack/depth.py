@@ -194,21 +194,37 @@ def assess_domain_depth(domains: dict[str, Any]) -> dict[str, Any]:
     }
 
     distribution = _record(domains.get("distribution_policy"))
+    _statutory_ok = (
+        distribution.get("statutory_reserve_rate") is not None
+        or distribution.get("statutory_reserve_confirmed_zero") is True
+    )
+    _arbitrary_ok = (
+        distribution.get("arbitrary_reserve_confirmed_zero") is True
+        or distribution.get("arbitrary_reserve_rate") is not None
+    )
+    _investor_ok = (
+        distribution.get("investor_distribution_confirmed_zero") is True
+        or distribution.get("investor_distribution_rate") is not None
+        or isinstance(distribution.get("investor_distribution_schedule_wan"), list)
+    )
+    _retained_ok = bool(str(distribution.get("retained_profit_policy") or "").strip())
+    _distribution_missing = [
+        label
+        for label, passed in (
+            ("statutory_reserve_rate|statutory_reserve_confirmed_zero", _statutory_ok),
+            ("arbitrary_reserve_rate|arbitrary_reserve_confirmed_zero", _arbitrary_ok),
+            (
+                "investor_distribution_rate|investor_distribution_confirmed_zero"
+                "|investor_distribution_schedule_wan",
+                _investor_ok,
+            ),
+            ("retained_profit_policy", _retained_ok),
+        )
+        if not passed
+    ]
     checks["distribution_policy"] = {
-        "ok": bool(
-            distribution.get("statutory_reserve_rate") is not None
-            or distribution.get("statutory_reserve_confirmed_zero") is True
-            and (
-                distribution.get("arbitrary_reserve_confirmed_zero") is True
-                or distribution.get("arbitrary_reserve_rate") is not None
-            )
-            and (
-                distribution.get("investor_distribution_confirmed_zero") is True
-                or distribution.get("investor_distribution_rate") is not None
-                or isinstance(distribution.get("investor_distribution_schedule_wan"), list)
-            )
-            and str(distribution.get("retained_profit_policy") or "").strip()
-        ),
+        "ok": not _distribution_missing,
+        "missing_fields": _distribution_missing,
         "required": "法定/任意公积金、投资方分配与留存政策（零值须显式确认）",
     }
 
@@ -216,27 +232,33 @@ def assess_domain_depth(domains: dict[str, Any]) -> dict[str, Any]:
     behavior_items = _record(behavior.get("items") or behavior)
     behavior_items.pop("confirmed", None)
     cost_names = set(valid_costs)
-    behavior_ok = bool(cost_names) and cost_names.issubset(set(behavior_items))
-    if behavior_ok:
-        for name in cost_names:
-            rule = behavior_items.get(name)
-            if isinstance(rule, str):
-                kind = rule.lower()
-                rule = {"type": kind}
-            else:
-                rule = _record(rule)
-                kind = str(rule.get("type") or rule.get("behavior") or "").lower()
-            if kind not in {"fixed", "variable", "mixed"}:
-                behavior_ok = False
-                break
-            if kind == "mixed" and not (
-                _nonnegative_present(rule.get("variable_share"))
-                and str(rule.get("driver_fact_path") or "").strip()
-            ):
-                behavior_ok = False
-                break
+    uncovered_costs = sorted(cost_names - set(behavior_items))
+    behavior_issues: list[str] = []
+    if not cost_names:
+        behavior_issues.append("cost_items 为空，无成本项可分类")
+    for name in sorted(cost_names - set(uncovered_costs)):
+        rule = behavior_items.get(name)
+        if isinstance(rule, str):
+            kind = rule.lower()
+            rule = {"type": kind}
+        else:
+            rule = _record(rule)
+            kind = str(rule.get("type") or rule.get("behavior") or "").lower()
+        if kind not in {"fixed", "variable", "mixed"}:
+            behavior_issues.append(f"{name}.type 必须为 fixed/variable/mixed（当前 {kind or '空'}）")
+            continue
+        if kind == "mixed":
+            if not _nonnegative_present(rule.get("variable_share")):
+                behavior_issues.append(f"{name}.variable_share 缺失或为负")
+            if not str(rule.get("driver_fact_path") or "").strip():
+                behavior_issues.append(f"{name}.driver_fact_path 缺失")
+    behavior_confirmed = behavior.get("confirmed") is True
+    if not behavior_confirmed:
+        behavior_issues.append("cost_behavior.confirmed 未显式置为 true")
     checks["cost_behavior"] = {
-        "ok": behavior_ok and behavior.get("confirmed") is True,
+        "ok": not uncovered_costs and not behavior_issues,
+        "uncovered_costs": uncovered_costs,
+        "missing_fields": behavior_issues,
         "required": "每个成本项确认 fixed/variable/mixed；mixed 含比例和驱动 fact_path",
     }
 
@@ -257,14 +279,47 @@ def assess_domain_depth(domains: dict[str, Any]) -> dict[str, Any]:
     }
 
     passed = sum(1 for item in checks.values() if item.get("ok"))
+    missing_domains = [key for key in DOMAIN_KEYS if not checks[key].get("ok")]
     return {
         "ok": passed == len(DOMAIN_KEYS),
         "coverage": round(passed / len(DOMAIN_KEYS), 4),
         "passed": passed,
         "required": len(DOMAIN_KEYS),
         "by_domain": checks,
-        "missing_domains": [key for key in DOMAIN_KEYS if not checks[key].get("ok")],
+        "missing_domains": missing_domains,
+        "missing_detail": [_domain_failure_detail(key, checks[key]) for key in missing_domains],
     }
+
+
+_DOMAIN_DIAGNOSTIC_KEYS = (
+    "missing_fields",
+    "detail_count",
+    "quantity_indicator_pairs",
+    "draw_count",
+    "repay_source_count",
+    "year_issues",
+    "balance_issues",
+    "unclassified",
+    "uncovered_costs",
+)
+
+
+def _domain_failure_detail(domain: str, check: dict[str, Any]) -> dict[str, Any]:
+    """Preserve the per-field diagnostics a domain check already computed.
+
+    深度检查内部已算出 draw_count/year_issues/missing_fields 等定位信息，
+    此前在汇总时被压成裸域名。这里原样透出，使调用方能知道缺哪个字段，
+    而不是只看到“域未通过”。
+    """
+    detail: dict[str, Any] = {
+        "domain": domain,
+        "required": check.get("required"),
+    }
+    for key in _DOMAIN_DIAGNOSTIC_KEYS:
+        value = check.get(key)
+        if value not in (None, "", [], {}):
+            detail[key] = value
+    return detail
 
 
 def _domain_fact_leaves(domain: str, value: Any) -> list[dict[str, Any]]:

@@ -13,6 +13,7 @@ from .base import _failure
 
 from .agent_lifecycle import (
     agent_status,
+    select_task_package,
 )
 
 from .checkpoints import (
@@ -25,13 +26,9 @@ def bundle(workspace_id: str, task_id: str) -> dict[str, Any]:
     if agent is not None:
         if agent.get("status") == "cancelled":
             return _failure("task_cancelled", "研究会话已取消，不能生成研究包")
-        packages = [
-            record for record in PACKAGE_STORE.list(workspace_id)
-            if task_id in (record.get("source_ids") or [])
-        ]
-        if not packages:
+        record = select_task_package(workspace_id, task_id)
+        if record is None:
             return _failure("task_not_terminal", "Agent 尚未提交研究发现；先调用 dr_submit")
-        record = packages[-1]
         payload = record.get("payload") or {}
         base = record["resource_uri"]
         resources = {name: f"{base}/{name}" for name in payload.get("artifact_names") or []}

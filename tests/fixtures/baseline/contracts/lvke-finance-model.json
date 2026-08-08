@@ -74,7 +74,58 @@
             "evidence": {
               "type": "array",
               "items": {
-                "type": "object"
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  },
+                  "fact_path": {
+                    "type": "string"
+                  },
+                  "source_id": {
+                    "type": "string"
+                  },
+                  "source_snapshot_id": {
+                    "type": "string"
+                  },
+                  "file_id": {
+                    "type": "string"
+                  },
+                  "evidence_id": {
+                    "type": "string"
+                  },
+                  "locator": {
+                    "type": "string"
+                  },
+                  "page_or_cell": {
+                    "type": "string"
+                  },
+                  "claimed_value": {},
+                  "value": {},
+                  "amount_wan": {},
+                  "unit": {
+                    "type": "string"
+                  },
+                  "period": {
+                    "type": "string"
+                  },
+                  "year": {
+                    "type": "string"
+                  },
+                  "evidence_grade": {
+                    "type": "string"
+                  },
+                  "grade": {
+                    "type": "string"
+                  },
+                  "review_status": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
               }
             },
             "reconstruction_records": {
@@ -114,7 +165,8 @@
         "idempotency_key"
       ],
       "type": "object",
-      "additionalProperties": false
+      "additionalProperties": false,
+      "x-lvke-schema-uri": "lvke://schemas/lvke-finance-model/finance_prepare_fact_pack/input"
     },
     "outputSchema": null,
     "annotations": {

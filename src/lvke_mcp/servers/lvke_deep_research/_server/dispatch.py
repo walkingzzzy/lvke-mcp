@@ -192,7 +192,20 @@ def _tool_dr_get_report(args: dict) -> dict:
                 str(bundled.get("research_package_id") or ""),
             )
             artifacts = ((record or {}).get("payload") or {}).get("agent_artifacts") or {}
-            return _ok_env({"task_id": task_id, "report_md": artifacts.get("report", ""), "citation_audit": artifacts.get("citation_audit"), "quality": artifacts.get("quality"), "note": "Agent 撰写的 partial 研究；财务数字不得取自本报告。"}, source=f"{SERVER_NAME}.dr_get_report", status="partial", warnings=list(((record or {}).get("payload") or {}).get("limitations") or []))
+            # status 此前硬编码为 partial：即使 dr_confirm_quality 已固化 completed
+            # 修订，本工具仍报 partial，与 dr_get_bundle 互相矛盾。改为沿用 bundle
+            # 选出的同一 package 的真实状态。
+            package_status = str(
+                bundled.get("status")
+                or (record or {}).get("status")
+                or "partial"
+            )
+            note = (
+                "Agent 撰写的研究报告；财务数字不得取自本报告。"
+                if package_status in {"completed", "done"}
+                else "Agent 撰写的 partial 研究；财务数字不得取自本报告。"
+            )
+            return _ok_env({"task_id": task_id, "report_md": artifacts.get("report", ""), "citation_audit": artifacts.get("citation_audit"), "quality": artifacts.get("quality"), "note": note}, source=f"{SERVER_NAME}.dr_get_report", status=package_status, warnings=list(((record or {}).get("payload") or {}).get("limitations") or []))
         return _err_env(
             f"{SERVER_NAME}.task_not_found",
             "未找到 MCP 自有研究任务",
@@ -224,7 +237,13 @@ def _tool_dr_get_evidence(args: dict) -> dict:
                 str(bundled.get("research_package_id") or ""),
             )
             artifacts = ((record or {}).get("payload") or {}).get("agent_artifacts") or {}
-            return _ok_env({"task_id": task_id, "evidence_graph": artifacts.get("evidence"), "sources": artifacts.get("sources"), "references": artifacts.get("sources")}, source=f"{SERVER_NAME}.dr_get_evidence", status="partial")
+            # 同 dr_get_report：不再硬编码 partial，沿用同一 package 的真实状态。
+            package_status = str(
+                bundled.get("status")
+                or (record or {}).get("status")
+                or "partial"
+            )
+            return _ok_env({"task_id": task_id, "evidence_graph": artifacts.get("evidence"), "sources": artifacts.get("sources"), "references": artifacts.get("sources")}, source=f"{SERVER_NAME}.dr_get_evidence", status=package_status)
         return _err_env(
             f"{SERVER_NAME}.task_not_found",
             "未找到 MCP 自有研究任务",

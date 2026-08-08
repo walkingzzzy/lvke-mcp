@@ -38,6 +38,31 @@ from .seal import (
 )
 
 
+_EVIDENCE_ROW_FIELDS = frozenset({
+    # 事实定位
+    "domain", "fact_path",
+    # 来源标识（三选一，语义等价）
+    "source_id", "source_snapshot_id", "file_id",
+    # 证据定位
+    "evidence_id", "locator", "page_or_cell",
+    # 调用方申报值（非权威，仅作候选）
+    "claimed_value", "value", "amount_wan", "unit", "period", "year",
+    # 调用方申报的评级/复核状态（非权威）
+    "evidence_grade", "grade", "review_status", "status",
+})
+
+
+def _domain_from_fact_path(fact_path: str) -> str:
+    """Derive the owning domain from a fact_path's leading segment.
+
+    fact_path 形如 ``construction_items[0].quantity`` 或
+    ``debt_schedule.draws[year=1].draw_wan``，首段即域名。仅在调用方
+    未显式给出 domain 时用于补全，推断不出时返回空串并由调用点报错。
+    """
+    head = str(fact_path or "").strip().split(".", 1)[0].split("[", 1)[0].strip()
+    return head if head in DOMAIN_KEYS else ""
+
+
 def _migrate_v0_pack(raw_pack: dict[str, Any]) -> dict[str, Any]:
     """Normalize a v0 pack into an explicit v1 draft without confirming it."""
     raw = copy.deepcopy(raw_pack)
@@ -132,16 +157,64 @@ def build_fact_pack_snapshot(
         resolver = resolve_authoritative_evidence_binding
 
     evidence: list[dict[str, Any]] = []
-    for client_row in raw.get("evidence") or []:
+    rejected_evidence: list[dict[str, Any]] = []
+    for index, client_row in enumerate(raw.get("evidence") or []):
         if not isinstance(client_row, dict):
+            rejected_evidence.append({
+                "index": index,
+                "reason": "evidence 行必须是对象",
+                "field": "evidence",
+            })
             continue
+        fact_path = str(client_row.get("fact_path") or "").strip()
         domain = str(client_row.get("domain") or "").strip()
+        if not domain and fact_path:
+            # 只给 fact_path 的行此前被静默丢弃。fact_path 的首段就是域名，
+            # 能推断则推断，推断不出再报错，不再无声吞掉整行。
+            domain = _domain_from_fact_path(fact_path)
         if domain not in DOMAIN_KEYS:
+            rejected_evidence.append({
+                "index": index,
+                "field": "domain",
+                "fact_path": fact_path,
+                "value": str(client_row.get("domain") or ""),
+                "reason": (
+                    "domain 缺失且无法从 fact_path 推断"
+                    if not str(client_row.get("domain") or "").strip()
+                    else "domain 不在受支持的域列表中"
+                ),
+                "allowed": list(DOMAIN_KEYS),
+            })
             continue
-        source_id = str(client_row.get("source_id") or client_row.get("file_id") or "").strip()
+        # source_snapshot_id 是 data-acquisition 侧的自然命名，此前既不被读取
+        # 也不报错，整行会以"缺 source_id"的形式静默失败。这里显式接受为别名。
+        source_id = str(
+            client_row.get("source_id")
+            or client_row.get("source_snapshot_id")
+            or client_row.get("file_id")
+            or ""
+        ).strip()
         evidence_id = str(client_row.get("evidence_id") or "").strip()
         locator = str(client_row.get("locator") or client_row.get("page_or_cell") or "").strip()
-        fact_path = str(client_row.get("fact_path") or "").strip()
+        unknown_fields = sorted(set(client_row) - _EVIDENCE_ROW_FIELDS)
+        if unknown_fields:
+            rejected_evidence.append({
+                "index": index,
+                "field": unknown_fields[0],
+                "fact_path": fact_path,
+                "unknown_fields": unknown_fields,
+                "reason": "evidence 行包含未知字段；请改用受支持字段，不做静默忽略",
+                "allowed": sorted(_EVIDENCE_ROW_FIELDS),
+            })
+            continue
+        if not source_id:
+            rejected_evidence.append({
+                "index": index,
+                "field": "source_id",
+                "fact_path": fact_path,
+                "reason": "缺少来源标识；可用 source_id、source_snapshot_id 或 file_id",
+            })
+            continue
         binding = resolver(
             workspace_id,
             source_id=source_id,
@@ -212,6 +285,10 @@ def build_fact_pack_snapshot(
         for key, item in binding_by_domain.items()
         if depth["by_domain"][key].get("ok") and not item.get("ok")
     )
+    missing.extend(
+        f"evidence_row[{item['index']}]:{item['field']}:{item['reason']}"
+        for item in rejected_evidence
+    )
     result: dict[str, Any] = {
         "version": VERSION,
         "project_id": str(raw.get("project_id") or workspace_id),
@@ -220,6 +297,7 @@ def build_fact_pack_snapshot(
         "confirmation_status": "confirmed" if confirmed else "draft",
         "domains": domains,
         "evidence": evidence,
+        "rejected_evidence": rejected_evidence,
         "domain_coverage": depth.get("coverage"),
         "source_coverage": source_coverage,
         "depth_assessment": depth,

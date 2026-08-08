@@ -20,6 +20,33 @@ from .planning import (
 )
 
 
+_PACKAGE_STATUS_RANK = {"completed": 2, "partial": 1}
+
+
+def select_task_package(workspace_id: str, task_id: str) -> dict[str, Any] | None:
+    """Select the head research package for a task.
+
+    ``PACKAGE_STORE.list`` 按文件名排序，而文件名是内容哈希，因此
+    ``packages[-1]`` 取到的是哈希序末位而非最新修订——同一任务同时存在
+    dr_submit 的 partial 与 dr_confirm_quality 的 completed 时，会随机
+    返回其中一个。这里显式按 (status 优先级, created_at) 选头，使确认后的
+    completed 修订稳定胜出。
+    """
+    packages = [
+        record for record in PACKAGE_STORE.list(workspace_id)
+        if task_id in (record.get("source_ids") or [])
+    ]
+    if not packages:
+        return None
+    return max(
+        packages,
+        key=lambda record: (
+            _PACKAGE_STATUS_RANK.get(str(record.get("status") or "").strip(), 0),
+            str(record.get("created_at") or ""),
+        ),
+    )
+
+
 def _cancel_transition(
     workspace_id: str,
     task_id: str,
@@ -236,11 +263,7 @@ def agent_status(
             "is_terminal": True,
             "note": "研究会话已取消，不能提交、续研或生成研究包。",
         }
-    packages = [
-        record for record in PACKAGE_STORE.list(workspace_id)
-        if task_id in (record.get("source_ids") or [])
-    ]
-    package = packages[-1] if packages else None
+    package = select_task_package(workspace_id, task_id)
     status = str(package.get("status") or "partial") if package else "agent_collecting"
     return {
         "task_id": task_id,

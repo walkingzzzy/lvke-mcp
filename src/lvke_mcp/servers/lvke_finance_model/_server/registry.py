@@ -109,7 +109,53 @@ def build_server() -> OfficialStdioServer:
             },
             "project_fact_certified": {"type": "boolean"},
             "domains": {"type": "object"},
-            "evidence": {"type": "array", "items": {"type": "object"}},
+            "evidence": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "description": (
+                        "逐值血缘行。未知字段返回字段级 validation_error，不静默忽略。"
+                        "来源标识三选一：source_id / source_snapshot_id / file_id。"
+                        "claimed_* 与 evidence_grade 等仅为调用方申报值，权威值由服务端解析来源后回填。"
+                    ),
+                    "properties": {
+                        "domain": {
+                            "type": "string",
+                            "description": "所属财务域；省略时从 fact_path 首段推断，推断不出则报错",
+                        },
+                        "fact_path": {
+                            "type": "string",
+                            "description": "事实指针，如 funding.debt_draw[0].draw_wan",
+                        },
+                        "source_id": {"type": "string", "description": "来源标识；与下两者等价"},
+                        "source_snapshot_id": {
+                            "type": "string",
+                            "description": "data-acquisition 侧 SourceSnapshot id（src_*）",
+                        },
+                        "file_id": {
+                            "type": "string",
+                            "description": "source-files 侧已导入文件 id（src_*）",
+                        },
+                        "evidence_id": {"type": "string"},
+                        "locator": {
+                            "type": "string",
+                            "description": "正文内可校验定位串；必须在来源正文中真实命中",
+                        },
+                        "page_or_cell": {"type": "string", "description": "locator 的等价别名"},
+                        "claimed_value": {"description": "调用方申报数值（非权威）"},
+                        "value": {"description": "claimed_value 的别名"},
+                        "amount_wan": {"description": "claimed_value 的别名，单位万元"},
+                        "unit": {"type": "string"},
+                        "period": {"type": "string"},
+                        "year": {"type": "string", "description": "period 的别名"},
+                        "evidence_grade": {"type": "string", "description": "调用方申报评级（非权威）"},
+                        "grade": {"type": "string", "description": "evidence_grade 的别名"},
+                        "review_status": {"type": "string", "description": "调用方申报复核状态（非权威）"},
+                        "status": {"type": "string", "description": "review_status 的别名"},
+                    },
+                },
+            },
             "reconstruction_records": {"type": "array", "items": {"type": "object"}},
             "unresolved_inputs": {"type": "array", "items": {"type": "string"}},
             "release_limitations": {"type": "array", "items": {"type": "string"}},

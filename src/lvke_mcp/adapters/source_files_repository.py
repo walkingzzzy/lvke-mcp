@@ -28,6 +28,36 @@ def _root(workspace_id: str) -> Path:
     return workspace_root(workspace_id) / "source-files"
 
 
+def _load_acquisition_snapshot(workspace_id: str, source_id: str) -> dict[str, Any] | None:
+    """Look up a data-acquisition SourceSnapshot for cross-domain evidence binding.
+
+    source-files 与 data-acquisition 各自铸造 ``src_<24hex>``（前者哈希上传字节，
+    后者哈希 payload JSON），前缀撞车但命名空间不相交。财务证据绑定先查本域
+    state["files"]，未命中时按本函数回落到快照存储，避免把公开来源误判为不存在。
+    """
+    try:
+        from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
+    except ImportError:  # pragma: no cover - data-acquisition 未安装时保持 fail-closed
+        return None
+    try:
+        record = SOURCE_STORE.get(workspace_id, source_id)
+    except (ValueError, OSError):
+        return None
+    if not isinstance(record, dict):
+        return None
+    if str(record.get("workspace_id") or "") != workspace_id:
+        return None
+    return record
+
+
+def _acquisition_snapshot_uris(workspace_id: str, source_id: str) -> tuple[str, ...]:
+    """Accepted evidence ``source_uri`` spellings for one source id."""
+    return (
+        f"lvke://source-files/workspaces/{workspace_id}/files/{source_id}",
+        f"lvke://data-acquisition/workspaces/{workspace_id}/sources/{source_id}",
+    )
+
+
 def _state_path(workspace_id: str) -> Path:
     return _root(workspace_id) / "state.json"
 
@@ -216,10 +246,78 @@ def resolve_authoritative_evidence_binding(
         state = _load_state(workspace_id)
         record = (state.get("files") or {}).get(source_id)
         if not isinstance(record, dict) or str(record.get("workspace_id") or "") != workspace_id:
-            base["issues"] = ["source 不存在或不属于当前工作区"]
-            return base
+            # 跨域兜底：data_fetch 快照存放在独立 JSONArtifactStore，
+            # 与本域 state["files"] 完全不相交。命中快照存储时按候选证据绑定，
+            # 不自动取得正式证据资格（formal_use_allowed 决定证据等级）。
+            snapshot = _load_acquisition_snapshot(workspace_id, source_id)
+            if snapshot is None:
+                base["issues"] = [
+                    "source 不存在或不属于当前工作区（本域 source-files 与 data-acquisition 快照均未命中）"
+                ]
+                return base
+            payload = snapshot.get("payload") or {}
+            formal_allowed = payload.get("formal_use_allowed") is True
+            content_hash = str(
+                payload.get("content_hash")
+                or payload.get("external_content_hash")
+                or snapshot.get("content_hash")
+                or ""
+            )
+            if content_hash:
+                content_hash = "sha256:" + str(content_hash).removeprefix("sha256:")
+            snapshot_issues: list[str] = []
+            if not formal_allowed:
+                snapshot_issues.append("快照未标记 formal_use_allowed，仅作候选证据，不可作为正式财务输入")
+            if not content_hash:
+                snapshot_issues.append("快照缺少 content_hash，无法固定证据版本")
+            # 网页快照没有 analysis locator 表，改为按正文实证 locator：
+            # locator 必须能在已固化正文中定位，否则 fail-closed。
+            content_text = payload.get("content")
+            content_text = content_text if isinstance(content_text, str) else ""
+            reviewed_value = None
+            if locator:
+                if content_text and locator in content_text:
+                    reviewed_value = locator
+                else:
+                    snapshot_issues.append("locator 未能在快照正文中定位")
+            elif not evidence_id:
+                snapshot_issues.append("快照绑定需提供 locator")
+            kind = "web_snapshot"
+            grade = "A" if formal_allowed else "B"
+            binding_ok = not snapshot_issues
+            return {
+                "source_id": source_id,
+                "file_id": source_id,
+                "evidence_id": evidence_id,
+                "locator": locator,
+                "kind": kind,
+                "evidence_grade": grade,
+                "validation_status": "passed" if binding_ok else "failed",
+                "value": reviewed_value,
+                "formal_use_decision": "allowed" if formal_allowed else "candidate_only",
+                "source_sha256": content_hash,
+                "source_version": snapshot.get("schema_version"),
+                "source_format": payload.get("mime_type"),
+                "source_uri": snapshot.get("resource_uri") or "",
+                "source_domain": "data-acquisition",
+                "authoritative": True,
+                "binding_ok": binding_ok,
+                "issues": snapshot_issues,
+            }
         analysis = _load_analysis(workspace_id, source_id)
-        candidates = [row for row in analysis.get("locators") or [] if isinstance(row, dict)]
+        if not isinstance(analysis, dict):
+            base["issues"] = ["source 尚未解析，无法绑定证据；先完成解析后重试"]
+            return {
+                **base,
+                "source_sha256": record.get("sha256"),
+                "source_version": record.get("version"),
+                "source_format": record.get("declared_mime"),
+            }
+        # 存量 analysis 由旧解析器写入，只有 kind/text 而无 locator/evidence_id。
+        # 读取时按同一规则补齐，使既有工作区无需重新解析即可绑定。
+        candidates = _with_canonical_locators(
+            [row for row in analysis.get("locators") or [] if isinstance(row, dict)]
+        )
         target = next(
             (
                 row for row in candidates
@@ -235,10 +333,28 @@ def resolve_authoritative_evidence_binding(
                 ),
                 None,
             )
+        if target is None and locator:
+            # 调用方常直接引用正文片段而非规范地址；只要该片段能在已固化
+            # 正文中真实命中，就按承载它的 locator 行绑定，并保留原引用串。
+            target = next(
+                (
+                    row for row in candidates
+                    if locator in str(row.get("text") or "")
+                ),
+                None,
+            )
+            if target is not None:
+                target = {**target, "locator": locator, "evidence_id": locator}
         if target is None:
-            base["issues"] = ["evidence locator 不存在"]
+            available = sorted({str(row.get("locator") or "") for row in candidates if row.get("locator")})
+            base["issues"] = [
+                "evidence locator 不存在（可用 locator："
+                + ("、".join(available[:8]) if available else "无")
+                + "；也可直接引用正文中真实存在的片段）"
+            ]
             return {
                 **base,
+                "available_locators": available,
                 "source_sha256": record.get("sha256"),
                 "source_version": record.get("version"),
                 "source_format": record.get("declared_mime"),
@@ -337,9 +453,14 @@ def resolve_reconstructed_evidence_binding(
     if errors:
         base["issues"] = errors
         return base
-    expected_uri = f"lvke://source-files/workspaces/{workspace_id}/files/{source_id}"
-    if str(reconstruction_record.get("source_uri") or "") != expected_uri:
-        base["issues"] = ["source_uri 与 Source Snapshot 不一致"]
+    expected_uris = _acquisition_snapshot_uris(workspace_id, source_id)
+    declared_uri = str(reconstruction_record.get("source_uri") or "")
+    if declared_uri not in expected_uris:
+        base["issues"] = [
+            "source_uri 与 Source Snapshot 不一致（应为 "
+            + " 或 ".join(expected_uris)
+            + "）"
+        ]
         return base
     if str(reconstruction_record.get("locator") or "") != locator:
         base["issues"] = ["locator 与来源重建记录不一致"]
@@ -348,8 +469,41 @@ def resolve_reconstructed_evidence_binding(
         state = _load_state(workspace_id)
         record = (state.get("files") or {}).get(source_id)
         if not isinstance(record, dict) or str(record.get("workspace_id") or "") != workspace_id:
-            base["issues"] = ["source 不存在或不属于当前工作区"]
-            return base
+            # 跨域兜底：来源重建同样可指向 data-acquisition 快照。
+            snapshot = _load_acquisition_snapshot(workspace_id, source_id)
+            if snapshot is None:
+                base["issues"] = [
+                    "source 不存在或不属于当前工作区（本域 source-files 与 data-acquisition 快照均未命中）"
+                ]
+                return base
+            payload = snapshot.get("payload") or {}
+            snapshot_hash = str(
+                payload.get("content_hash")
+                or payload.get("external_content_hash")
+                or snapshot.get("content_hash")
+                or ""
+            )
+            snapshot_hash = "sha256:" + snapshot_hash.removeprefix("sha256:") if snapshot_hash else ""
+            declared_hash = str(reconstruction_record.get("content_hash") or "")
+            if not snapshot_hash or snapshot_hash != declared_hash:
+                base["issues"] = ["来源重建 hash 与 Source Snapshot 不一致"]
+                return {**base, "source_sha256": snapshot_hash}
+            return {
+                **base,
+                "evidence_grade": "B",
+                "validation_status": "passed",
+                "binding_ok": True,
+                "allow_claimed_value": True,
+                "source_sha256": snapshot_hash,
+                "source_version": snapshot.get("schema_version"),
+                "source_format": payload.get("mime_type"),
+                "source_uri": snapshot.get("resource_uri") or "",
+                "source_domain": "data-acquisition",
+                "reconstruction_id": reconstruction_record.get("reconstruction_id"),
+                "reconstruction_method": reconstruction_record.get("method"),
+                "source_kind": reconstruction_record.get("source_kind"),
+                "issues": [],
+            }
         source_path = Path(str(record.get("path") or ""))
         recorded_hash = "sha256:" + str(record.get("sha256") or "").removeprefix("sha256:")
         if recorded_hash != str(reconstruction_record.get("content_hash") or ""):
@@ -383,21 +537,114 @@ def resolve_reconstructed_evidence_binding(
         }
 
 
+_TEXT_SUFFIXES = frozenset({".md", ".txt", ".json", ".jsonl", ".html"})
+_PDF_TEXT_BUDGET = 2_000_000
+
+
+def _is_pdf(mime: str, path: Path) -> bool:
+    return mime.lower().strip() == "application/pdf" or path.suffix.lower() == ".pdf"
+
+
+def _parse_pdf_pages(data: bytes) -> tuple[list[dict[str, Any]], str]:
+    """Build page-anchored locators for a text-layer PDF.
+
+    Returns ``(locators, degraded_reason)``.  A non-empty ``degraded_reason``
+    means no quotable text was recovered, and the caller must NOT report the
+    parse as fully succeeded: a scanned PDF needs OCR, and silently returning
+    zero locators with ``extract_status=succeeded`` would let an empty document
+    reach evidence selection while looking usable.
+    """
+
+    from lvke_mcp.adapters.pdf_text import extract_pdf_pages
+
+    pages, degraded = extract_pdf_pages(data)
+    if degraded and not pages:
+        # 完全没有可引用文本（无文本层 / 打不开 / 缺库）。
+        return [], degraded
+    locators: list[dict[str, Any]] = []
+    budget = _PDF_TEXT_BUDGET
+    for page in pages:
+        text = str(page.get("text") or "").strip()
+        if not text or budget <= 0:
+            continue
+        text = text[:budget]
+        budget -= len(text)
+        locators.append(
+            {
+                "kind": "pdf_page",
+                "page": int(page.get("page") or 0),
+                "text": text,
+                "start_offset": page.get("start_offset"),
+                "end_offset": page.get("end_offset"),
+            }
+        )
+    if not locators:
+        # Text layer absent (scanned scan-only PDF) — honest, not "succeeded".
+        return [], "pdf_no_text_layer"
+    # 有 locator 但缺中文标签：保留可引用文本，同时把降级原因透传给上层，
+    # 由它决定 extract_status/ocr_status，绝不静默当作成功。
+    return locators, degraded
+
+
+def _canonical_locator(row: dict[str, Any]) -> str:
+    """Canonical, quotable address for one analysis locator row.
+
+    解析器此前只写 ``kind``/``text``，而财务证据绑定按 ``row["locator"]``
+    匹配，两侧键名不重合，导致任何已上传文件的逐值绑定都必然报
+    "evidence locator 不存在"。这里统一铸造稳定地址：
+    ``document_text`` → ``document_text``；``pdf_page`` → ``pdf_page:<页码>``。
+    """
+    kind = str(row.get("kind") or "").strip()
+    if kind == "pdf_page":
+        return f"pdf_page:{int(row.get('page') or 0)}"
+    return kind or "document_text"
+
+
+def _with_canonical_locators(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Attach canonical locator/evidence_id to freshly parsed locator rows."""
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        item = dict(row)
+        canonical = _canonical_locator(item)
+        item.setdefault("locator", canonical)
+        item.setdefault("evidence_id", canonical)
+        out.append(item)
+    return out
+
+
 def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     data = path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
     text = ""
-    if mime.startswith("text/") or path.suffix.lower() in {".md", ".txt", ".json", ".jsonl", ".html"}:
+    locators: list[dict[str, Any]] = []
+    degraded_reason = ""
+    ocr_status = "not_required"
+    if mime.startswith("text/") or path.suffix.lower() in _TEXT_SUFFIXES:
         text = data.decode("utf-8", errors="replace")[:200_000]
-    return {
+        locators = [{"kind": "document_text", "text": text}] if text.strip() else []
+    elif _is_pdf(mime, path):
+        locators, degraded_reason = _parse_pdf_pages(data)
+        text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
+        # 两种降级都需要 OCR 才能补齐：一种连数字都没有，一种有数字但没有标签。
+        if degraded_reason in {"pdf_no_text_layer", "pdf_text_layer_lacks_labels"}:
+            ocr_status = "needs_ocr"
+    analysis: dict[str, Any] = {
         "file_id": path.parent.name,
         "sha256": digest,
         "mime_type": mime,
         "size_bytes": len(data),
         "text_preview": text,
+        "locators": _with_canonical_locators(locators),
+        "page_count": sum(1 for item in locators if item.get("kind") == "pdf_page"),
+        "ocr_status": ocr_status,
         "parser": "mcp-source-parser.v1",
         "created_at": _now(),
     }
+    if degraded_reason:
+        analysis["degraded_reason"] = degraded_reason
+    return analysis
 
 
 def _mime_matches(data: bytes, declared_mime: str) -> bool:
@@ -481,8 +728,29 @@ def parse_source_file(workspace_id: str, job_id: str) -> dict[str, Any]:
             analysis = _parse_bytes(path, str(record.get("declared_mime") or "application/octet-stream"))
             analysis["file_id"] = record["file_id"]
             state["analyses"][record["file_id"]] = analysis
-            job.update({"status": "succeeded", "progress": 100, "finished_at": _now()})
-            record.update({"status": "succeeded", "extract_status": "succeeded", "deterministic_status": "succeeded", "updated_at": _now()})
+            degraded_reason = str(analysis.get("degraded_reason") or "")
+            if degraded_reason:
+                # No quotable text recovered.  Reporting `succeeded` here would
+                # let an empty document pass as formally usable downstream, so
+                # the degraded outcome stays visible on both job and record.
+                job.update({
+                    "status": "partial", "progress": 100, "finished_at": _now(),
+                    "degraded_reason": degraded_reason,
+                })
+                record.update({
+                    "status": "partial", "extract_status": "partial",
+                    "deterministic_status": "partial",
+                    "ocr_status": str(analysis.get("ocr_status") or "pending"),
+                    "degraded_reason": degraded_reason, "updated_at": _now(),
+                })
+            else:
+                job.update({"status": "succeeded", "progress": 100, "finished_at": _now()})
+                record.update({
+                    "status": "succeeded", "extract_status": "succeeded",
+                    "deterministic_status": "succeeded",
+                    "ocr_status": str(analysis.get("ocr_status") or "not_required"),
+                    "updated_at": _now(),
+                })
         except (OSError, UnicodeError, ValueError) as exc:
             job.update({"status": "failed", "progress": 100, "finished_at": _now(), "error": type(exc).__name__})
             record.update({"status": "failed", "extract_status": "failed", "updated_at": _now()})

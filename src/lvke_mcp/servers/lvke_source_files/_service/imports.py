@@ -64,6 +64,9 @@ def _public_record(record: dict[str, Any]) -> dict[str, Any]:
         "upload_identity_hash",
         "worker_token",
         "_worker_control",
+        # 服务器绝对路径属于内部布局，工具说明已承诺不外泄；
+        # 调用方要定位内容一律走 resource_uri，不需要文件系统路径。
+        "path",
     ):
         visible.pop(key, None)
     return visible

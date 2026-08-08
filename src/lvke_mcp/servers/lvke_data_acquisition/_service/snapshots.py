@@ -16,9 +16,9 @@ from lvke_mcp.runtime.storage import utc_now
 
 from .constants import (
     _ALLOWED_EXTERNAL_EXTRACT_TOOLS,
-    _EXTERNAL_RECEIPT_SECRET_ENV,
     _SEARCH_PROVIDER,
     DISCOVERY_STORE,
+    external_receipt_secret,
 )
 from .urls import _secret_block_reason
 
@@ -287,7 +287,7 @@ def import_external_snapshot(
         }
     receipt_verified = False
     if receipt:
-        secret = os.getenv(_EXTERNAL_RECEIPT_SECRET_ENV, "").encode("utf-8")
+        secret = external_receipt_secret()
         supplied_signature = str(receipt.get("signature") or "").strip().lower()
         if secret and supplied_signature:
             expected_signature = "hmac-sha256:" + hmac.new(
@@ -387,7 +387,30 @@ async def _network_safety_decision(url: str) -> tuple[str | None, dict[str, Any]
         "cloud_metadata"
     ):
         return "已拦截：URL 指向云 metadata 端点，无条件拒绝", decision
-    return "已拦截：URL 指向私网/内部网络地址或无法安全解析", decision
+    if str(decision.get("code") or "") == "proxy_fake_ip_resolution":
+        # 把根因摆在 message 里：粗粒度的「指向私网」会让排查方向系统性跑偏。
+        detail = str(decision.get("detail") or "")
+        return f"已拦截：{detail or '目标域名解析到代理 fake-ip 段（198.18.0.0/15）'}", decision
+    detail = str(decision.get("detail") or "")
+    suffix = f"（{detail}）" if detail else ""
+    return f"已拦截：URL 指向私网/内部网络地址或无法安全解析{suffix}", decision
+
+
+def _blocked_next_actions(snapshots: list[dict[str, Any]]) -> list[str]:
+    """Surface the security gate's own remediation instead of a generic hint."""
+
+    actions: list[str] = []
+    for item in snapshots:
+        if item.get("status") != "blocked":
+            continue
+        decision = item.get("security_decision")
+        if not isinstance(decision, dict):
+            continue
+        for step in decision.get("remediation") or []:
+            text = str(step).strip()
+            if text and text not in actions:
+                actions.append(text)
+    return actions or ["移除 URL 中携带的密钥或改用公网可达地址后重试"]
 
 
 async def _trusted_tavily_extract(
@@ -402,7 +425,7 @@ async def _trusted_tavily_extract(
     第三方故障，让运维查错方向跑偏（NEW-P1-A）。
     """
 
-    secret = os.getenv(_EXTERNAL_RECEIPT_SECRET_ENV, "").encode("utf-8")
+    secret = external_receipt_secret()
     if not secret:
         # 本地配置缺口：尚未发起任何网络调用，不能归因于 Tavily。
         return [], "receipt_secret_unconfigured"
@@ -493,8 +516,8 @@ async def fetch(
     used_direct_fallback = False
     trusted_tavily = False
     results: list[dict[str, Any]] = []
+    diagnosis: str | None = None
     if checked_urls:
-        diagnosis: str | None = None
         if extraction_provider in {"auto", "tavily"}:
             results, diagnosis = await _trusted_tavily_extract(checked_urls, output_format)
             trusted_tavily = bool(results)
@@ -624,8 +647,13 @@ async def fetch(
     failures = 0
     provider_blocked = 0
     inferred_mime = "text/html" if content_mode == "raw" else "text/markdown"
+    # Provider 可能只回传部分 URL（如 404 链接被 Tavily 整条省略），
+    # 未回传的 URL 此前不会进入本循环，导致批量响应缺少其逐项结果、
+    # 来源缺失不可审计。这里先记录已回传集合，循环后与 checked_urls 对账。
+    reported_urls: set[str] = set()
     for item in results:
         url = str(item.get("url") or "")
+        reported_urls.add(url)
         error = str(item.get("error") or "")
         content = str(item.get("content") or "")
         if error or not content:
@@ -692,6 +720,21 @@ async def fetch(
                 "formal_use_allowed": payload["formal_use_allowed"],
             }
         )
+    blocked_urls = {str(item.get("url") or "") for item in blocked_snapshots}
+    for url_text in checked_urls:
+        if url_text in reported_urls or url_text in blocked_urls:
+            continue
+        failures += 1
+        snapshots.append({
+            "url": url_text,
+            "status": "failed",
+            "code": "provider_omitted_url",
+            "message": (
+                "提取服务未返回该 URL 的任何结果"
+                + (f"（诊断：{diagnosis}）" if diagnosis else "")
+                + "；常见原因为链接已失效（HTTP 404）或被源站拒绝"
+            ),
+        })
     blocked = len(blocked_snapshots) + provider_blocked
     succeeded = len(snapshots) - failures - blocked
     if succeeded and not failures and not blocked:
@@ -733,7 +776,9 @@ async def fetch(
             ["将 source_snapshot_id 交给 analysis_ingest"]
             if succeeded
             else (
-                ["移除 URL 中携带的密钥或改用公网可达地址后重试"]
+                # 拦截时优先回传安全门给出的针对性 remediation（如代理 fake-ip
+                # 场景要改走受信提取），而不是笼统的「改用公网可达地址」。
+                _blocked_next_actions(snapshots)
                 if blocked
                 else ["稍后重试 Tavily，或显式选择 direct_http"]
             )
