@@ -512,7 +512,9 @@ def resolve_reconstructed_evidence_binding(
             + "）"
         ]
         return base
-    if str(reconstruction_record.get("locator") or "") != locator:
+    # 入参 locator 已 strip，重建记录侧此前用原值比对：正文带结尾换行时
+    # 两侧不等，报"locator 与来源重建记录不一致"。两侧统一规范化。
+    if str(reconstruction_record.get("locator") or "").strip() != locator:
         base["issues"] = ["locator 与来源重建记录不一致"]
         return base
     with _state_guard(workspace_id):

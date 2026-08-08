@@ -57,6 +57,17 @@ def _build_assumption_package(intent: dict[str, Any]) -> dict[str, Any]:
     route = dict(intent["industry"])
     profile = get_profile(str(route["industry_code"]))
     scenarios = build_industry_scenarios(str(route["factory_industry"]))
+    # 路由可显式指定原型；缺省时沿用行业首个原型。不显式指定会让
+    # 轨道交通落到 transport_logistics 的首个原型（收费公路），
+    # 与项目性质不符。
+    wanted_archetype = str(route.get("factory_archetype") or "").strip()
+    if wanted_archetype:
+        narrowed = [
+            item for item in scenarios
+            if str(item.get("archetype_id") or item.get("archetype") or "") == wanted_archetype
+        ]
+        if narrowed:
+            scenarios = narrowed
     base = next(item for item in scenarios if item["variant_id"] == "base")
     low = next(item for item in scenarios if item["variant_id"] == "small_low_debt")
     high = next(item for item in scenarios if item["variant_id"] == "large_high_leverage")

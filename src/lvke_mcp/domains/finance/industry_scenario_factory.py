@@ -127,6 +127,11 @@ INDUSTRIES: tuple[Industry, ...] = (
         60000, 14000, 0.43, 0.09, 24, 18, 0.01, "万吨",
         (
             _a("toll_road", "收费公路改扩建", model="gov_payment", scale=1.45),
+            # 城市轨道交通：票款通常不足以覆盖成本，依赖政府补贴，
+            # 故与收费公路同用 gov_payment 模型。scale 相对收费公路取
+            # 较高倍数以反映单位里程投资强度，属结构性口径而非线路实测
+            # 参数；正式交付仍须以批复或可比项目证据替换。
+            _a("urban_rail", "城市轨道交通线路", model="gov_payment", scale=1.85),
             _a("port_terminal", "港口码头工程", scale=1.35),
             _a("logistics_park", "综合物流园", scale=0.88),
             _a("cold_chain", "冷链物流中心", scale=0.76),

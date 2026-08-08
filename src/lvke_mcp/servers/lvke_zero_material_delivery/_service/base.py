@@ -101,20 +101,28 @@ _ROUTE_RULES: tuple[dict[str, Any], ...] = (
         "factory_industry": "energy_utilities",
     },
     {
-        "code": "park_infrastructure",
-        "label": "园区与基础设施",
+        "code": "urban_rail_transit",
+        "label": "城市轨道交通",
+        # 轨道交通此前被并入 park_infrastructure，其 factory_industry 为
+        # construction_real_estate，默认原型是"住宅开发项目"、收入模型
+        # property_sales——对轨道项目是明确错误的语义。改为独立路由并指向
+        # transport_logistics（收费公路等 gov_payment 型交通基础设施）。
         "keywords": (
-            "园区", "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车",
-            # 城市轨道交通归入基础设施路由：本路由只决定 Skill 与 factory
-            # 走向，不承载轨道专属工艺参数。
-            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
-            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
+            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车", "城市轨道",
+            "urban_rail_transit", "rail_transit", "urban_rail", "metro", "subway",
         ),
         "strong_keywords": (
-            "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车",
-            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
-            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
+            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车", "城市轨道",
+            "urban_rail_transit", "rail_transit", "urban_rail", "metro", "subway",
         ),
+        "factory_industry": "transport_logistics",
+        "factory_archetype": "urban_rail",
+    },
+    {
+        "code": "park_infrastructure",
+        "label": "园区与基础设施",
+        "keywords": ("园区", "产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车"),
+        "strong_keywords": ("产业园", "基础设施", "市政", "道路", "物流园", "城市更新", "停车"),
         "factory_industry": "construction_real_estate",
     },
     {

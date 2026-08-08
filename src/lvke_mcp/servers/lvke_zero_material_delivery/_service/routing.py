@@ -62,6 +62,7 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
             "industry_code": explicit_route["code"],
             "industry_label": explicit_route["label"],
             "factory_industry": explicit_route["factory_industry"],
+            "factory_archetype": explicit_route.get("factory_archetype", ""),
             "matched_keywords": matched,
             "confidence": min(0.95, 0.58 + 0.08 * len(matched)),
             "explicit_selection": True,
@@ -119,6 +120,7 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
         "industry_code": route["code"],
         "industry_label": route["label"],
         "factory_industry": route["factory_industry"],
+        "factory_archetype": route.get("factory_archetype", ""),
         "matched_keywords": matched,
         "confidence": min(0.95, 0.58 + 0.08 * len(matched)),
     }

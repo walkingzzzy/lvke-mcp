@@ -37,14 +37,7 @@ def get_industry_constraints(
         "能源": ("energy", "power", "solar", "wind", "storage", "能源", "电力", "光伏", "风电", "储能"),
         "文旅": ("cultural", "tourism", "travel", "文旅", "旅游"),
         "房地产": ("real_estate", "real estate", "property", "housing", "房地产", "地产"),
-        "基础设施": (
-            "infrastructure", "municipal", "基础设施", "市政",
-            # 城市轨道交通按用地/建筑口径归入基础设施：本表参数为容积率、
-            # 绿地率、建筑密度、层高与人员密度，属通用用地口径而非轨道工艺
-            # 参数，因此复用现有取值，不为轨道另行编造数值。
-            "urban_rail_transit", "rail_transit", "urban_rail", "metro",
-            "轨道", "地铁", "轻轨", "市域铁路", "有轨电车",
-        ),
+        "基础设施": ("infrastructure", "municipal", "基础设施", "市政"),
         "公共服务": ("public_service", "public service", "government", "公共服务"),
         "矿产加工": ("mineral", "mineral_processing", "mining", "ore", "矿产", "选矿"),
     }
@@ -53,12 +46,28 @@ def get_industry_constraints(
         "",
     )
     if not selected_key:
+        # 线性交通工程（轨道、铁路、公路）的规模由线路长度、车站数、敷设
+        # 方式、车辆段决定，本表的容积率/建筑密度/厂房占比等用地口径参数
+        # 对其无意义。宁可诚实报缺，也不返回语义错误的通用参数。
+        linear_transport = any(
+            token in industry
+            for token in (
+                "urban_rail", "rail_transit", "railway", "metro", "subway", "highway",
+                "轨道", "地铁", "轻轨", "市域铁路", "有轨电车", "铁路", "公路",
+            )
+        )
+        next_actions = ["提供地方规划证据或显式 technical_fixture 约束后进入规模求解"]
+        if linear_transport:
+            next_actions = [
+                "线性交通工程的规模参数（线路长度、车站数、敷设方式、车辆段规模）"
+                "不在本表用地口径内，需以工可批复或线网规划证据显式提供",
+            ]
         return service._envelope(
             success=False,
             status="missing_inputs",
             code="industry_constraints_not_available",
             blockers=["industry_specific_constraints_required"],
-            next_actions=["提供地方规划证据或显式 technical_fixture 约束后进入规模求解"],
+            next_actions=next_actions,
             project_context_id=project_context_id,
             industry_code=project.get("industry_code"),
             matched_industry_key=None,
