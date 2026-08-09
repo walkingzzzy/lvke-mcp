@@ -297,6 +297,41 @@ class HistoricalStatement:
     source_locators: list[dict[str, Any]] = field(default_factory=list)
 
 
+GENERIC_FINANCE_KIND = "generic_feasibility"
+ACQUISITION_FINANCE_KIND = "asset_acquisition"
+FINANCE_KINDS = (GENERIC_FINANCE_KIND, ACQUISITION_FINANCE_KIND)
+ACQUISITION_ASSET_TYPES = frozenset({"hotel_lease", "solar_power"})
+
+
+def infer_finance_kind(spec: dict[str, Any]) -> str:
+    """Resolve whether a v3 spec is an acquisition or a generic feasibility run.
+
+    v3 此前仅凭 ``version`` 判定为资产收购，并把 ``asset_type`` 默认成
+    ``hotel_lease``，导致城市轨道等通用可研 spec 在 confirm 阶段被要求客房、
+    ADR、租赁单元、买卖双方与历史三表。判别改为显式 ``finance_kind``；
+    存量 spec 缺该字段时，只在确有收购语义（asset_type/transaction/
+    收购域数据）时才推断为收购，否则一律按通用可研处理。
+    """
+
+    if not isinstance(spec, dict):
+        return GENERIC_FINANCE_KIND
+    declared = str(spec.get("finance_kind") or "").strip()
+    if declared in FINANCE_KINDS:
+        return declared
+    asset_type = str(spec.get("asset_type") or "").strip()
+    if asset_type in ACQUISITION_ASSET_TYPES:
+        return ACQUISITION_FINANCE_KIND
+    for key in ("transaction", "hotel_operation", "solar_operation", "lease_portfolio"):
+        value = spec.get(key)
+        if isinstance(value, dict) and any(
+            item not in (None, "", [], {}) for item in value.values()
+        ):
+            return ACQUISITION_FINANCE_KIND
+        if isinstance(value, list) and value:
+            return ACQUISITION_FINANCE_KIND
+    return GENERIC_FINANCE_KIND
+
+
 @dataclass
 class FinanceSpecV3(FinanceSpec):
     """FinanceSpec v3 asset-acquisition extension.
@@ -350,7 +385,11 @@ def migrate_spec_v2_to_v3(spec: dict[str, Any]) -> dict[str, Any]:
         return dict(spec)
     out = dict(source)
     out["version"] = LATEST_SPEC_VERSION
-    for key, default in (
+    # 先按来源语义定 finance_kind，再决定是否注入收购域默认值：
+    # 通用可研 spec 不应被塞进 asset_type/hotel_operation 等收购骨架。
+    finance_kind = infer_finance_kind(source)
+    out["finance_kind"] = finance_kind
+    acquisition_defaults = (
         ("asset_type", "hotel_lease"),
         ("project_parties", []),
         ("hotel_operation", {}),
@@ -358,6 +397,11 @@ def migrate_spec_v2_to_v3(spec: dict[str, Any]) -> dict[str, Any]:
         ("lease_portfolio", {"units": []}),
         ("transaction", {}),
         ("historical_statements", []),
+    )
+    if finance_kind == ACQUISITION_FINANCE_KIND:
+        for key, default in acquisition_defaults:
+            out.setdefault(key, default)
+    for key, default in (
         ("financing", {}),
         ("scenario_dimensions", {}),
         ("decision_thresholds", {}),
@@ -498,7 +542,12 @@ def validate_for_formal(spec: dict[str, Any]) -> tuple[bool, list[str]]:
         errors.append("FinanceSpec 缺 selected_scenario_id")
     if out.get("custom"):
         errors.append("正式交付禁止执行 FinanceSpec.custom 动态代码")
-    if out.get("version") == LATEST_SPEC_VERSION:
+    # 仅凭 version==v3 判定收购会把通用可研 spec 送进酒店校验器；
+    # 判别以 finance_kind 为准。
+    if (
+        out.get("version") == LATEST_SPEC_VERSION
+        and infer_finance_kind(out) == ACQUISITION_FINANCE_KIND
+    ):
         _validate_v3_formal(out, errors)
     return (ok and not errors), errors
 
@@ -1086,7 +1135,9 @@ def validate(spec: dict[str, Any]) -> tuple[bool, list[str]]:
             if v is not None and not (0.0 <= _f(v, 0.0) <= 1.0):
                 errs.append(f"cost.{k} 越界（应在 0~1）")
 
-    if version == LATEST_SPEC_VERSION:
+    # 结构校验同样按 finance_kind 分流：通用可研 v3 没有收购域字段，
+    # 不应被 asset_type/project_parties 等收购结构校验拦下。
+    if version == LATEST_SPEC_VERSION and infer_finance_kind(spec) == ACQUISITION_FINANCE_KIND:
         _validate_v3(spec, errs)
 
     return (not errs), errs
@@ -1386,6 +1437,15 @@ FINANCE_SPEC_V3_SCHEMA: dict[str, Any] = {
     "properties": {
         **FINANCE_SPEC_SCHEMA["properties"],
         "version": {"type": "string", "const": LATEST_SPEC_VERSION},
+        "finance_kind": {
+            "type": "string",
+            "enum": list(FINANCE_KINDS),
+            "description": (
+                "显式判别：generic_feasibility 为通用可研，asset_acquisition 为资产收购。"
+                "缺省时按 asset_type/transaction 等收购语义推断，无收购语义则视为通用可研。"
+                "通用可研不校验 asset_type、project_parties、hotel_operation 等收购域字段。"
+            ),
+        },
         "asset_type": {"type": "string", "enum": ["hotel_lease", "solar_power"]},
         "project_parties": {
             "type": "array",
