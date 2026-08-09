@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -35,6 +36,24 @@ PUBLISHED_SKILLS = (
 )
 
 
+def _rewrite_skill_links(content: str) -> str:
+    """Rename only the nested SKILL.md links, never a sibling Skill's top-level one.
+
+    Nested SKILL.md files are renamed to REFERENCE.md, but每个 Skill 的顶层
+    SKILL.md 保持原名。此前这里无条件替换全部 "SKILL.md" 字样，于是跨 Skill 的
+    ``../../lvke-finance/SKILL.md`` 也被改成 REFERENCE.md —— 目标文件并不存在，
+    城轨 catalog 的全部转派链接因此在插件树里断掉。
+    """
+
+    # 只改路径中出现 preserved/ 的 SKILL.md 引用（那些文件确实被改名了）。
+    # 跨 Skill 的顶层引用不含 preserved/，原样保留。
+    return re.sub(
+        r"(?P<path>[^\s)\]]*preserved/[^\s)\]]*)SKILL\.md",
+        lambda match: match.group("path") + "REFERENCE.md",
+        content,
+    )
+
+
 def _ignore_preserved_extras(_directory: str, names: list[str]) -> set[str]:
     return {"self-improvement"} if "self-improvement" in names else set()
 
@@ -61,11 +80,9 @@ def build() -> None:
 
         for markdown in destination.rglob("*.md"):
             content = markdown.read_text(encoding="utf-8")
-            if "SKILL.md" in content:
-                markdown.write_text(
-                    content.replace("SKILL.md", "REFERENCE.md"),
-                    encoding="utf-8",
-                )
+            rewritten = _rewrite_skill_links(content)
+            if rewritten != content:
+                markdown.write_text(rewritten, encoding="utf-8")
 
     # 插件安装时注入统一构建元数据；不写则 14 个服务启动即报
     # build_metadata_incomplete，而不是退化成 source-checkout 占位串。

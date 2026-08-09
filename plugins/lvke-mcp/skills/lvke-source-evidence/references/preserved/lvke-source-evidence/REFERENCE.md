@@ -16,7 +16,9 @@ description: >
 ```text
 `source_import_content` / `source_upload_*` → 不可变 SourceFileSnapshot
   → 格式、MIME、文件大小和容器完整性校验
-  → `source_parse_start` / `source_parse_status`
+  → 解析随导入自动排队（`parse_immediately`），状态用
+    `source_task_status(task_kind='parse', target_id=<job_id>)` 读取，
+    失败或 partial 用 `source_parse_retry` / `source_parse_cancel` 处置
   → 页/格 evidence（OCR 低置信度标记）
   → 事实候选复核与 EvidencePack
   → 正式工件绑定 source/evidence lineage

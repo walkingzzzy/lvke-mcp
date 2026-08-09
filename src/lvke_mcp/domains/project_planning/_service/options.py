@@ -162,6 +162,10 @@ def prepare_option_comparison(
                 field_errors.append({
                     "path": f"/options/{option_index}/values",
                     "code": "option_values_incomplete",
+                    "missing_criterion_ids": sorted(set(criterion_ids) - set(values)),
+                    "unexpected_criterion_ids": sorted(set(values) - set(criterion_ids)),
+                    "expected_criterion_ids": list(criterion_ids),
+                    "resolution": "为每个评价指标提供且仅提供一个数值",
                 })
             for criterion_id, value in values.items():
                 if criterion_id in criteria_by_id and _decimal(value) is None:
@@ -171,10 +175,22 @@ def prepare_option_comparison(
                     })
             results = option.get("constraint_results")
             results = results if isinstance(results, dict) else {}
-            if set(results) != constraint_set or any(not isinstance(value, bool) for value in results.values()):
+            non_boolean = sorted(
+                key for key, value in results.items() if not isinstance(value, bool)
+            )
+            if set(results) != constraint_set or non_boolean:
+                # 缺哪些键、多哪些键、哪些键不是布尔，三者都已算出；只回一个 code
+                # 会让调用方在 20 个约束里盲猜。
                 field_errors.append({
                     "path": f"/options/{option_index}/constraint_results",
                     "code": "option_constraint_results_incomplete",
+                    "missing_constraint_ids": sorted(constraint_set - set(results)),
+                    "unexpected_constraint_ids": sorted(set(results) - constraint_set),
+                    "non_boolean_constraint_ids": non_boolean,
+                    "expected_constraint_ids": sorted(constraint_set),
+                    "resolution": (
+                        "为每个 mandatory_constraint 提供且仅提供一个布尔结果"
+                    ),
                 })
         field_errors.extend(_validate_option_evidence(options, set(criterion_ids)))
         if field_errors:

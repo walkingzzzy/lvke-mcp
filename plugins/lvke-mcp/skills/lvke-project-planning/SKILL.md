@@ -7,7 +7,7 @@ description: Create, validate, compare, confirm, and read immutable Lvke plannin
 
 ## Routing
 
-Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `REFERENCE.md` completely before acting. Do not preload unrelated references.
+Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `SKILL.md` completely before acting. Do not preload unrelated references.
 
 ## Workflow
 

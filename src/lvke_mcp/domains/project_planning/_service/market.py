@@ -123,11 +123,26 @@ def _validate_market_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 Decimal("0.000001"), rounding=ROUND_HALF_UP
             )
             if target is not None and abs(target - computed) > Decimal("0.000001"):
+                # 修正依据已经算出来了：不返回 expected/observed，调用方只知道"不一致"，
+                # 却不知道该改 target_volume 还是改 market_size/target_share。
                 errors.append(
                     {
                         "path": f"{prefix}/target_volume",
                         "code": "market_target_volume_inconsistent",
-                        "message": "target_volume 与 market_size × target_share 不一致",
+                        "message": (
+                            f"target_volume 与 market_size × target_share 不一致："
+                            f"应为 {computed}，实际 {target}"
+                        ),
+                        "observed": str(target),
+                        "expected": str(computed),
+                        "computed_from": {
+                            "market_size": str(market_size),
+                            "target_share": str(share),
+                        },
+                        "resolution": (
+                            f"将 target_volume 改为 {computed}，"
+                            "或修正 market_size/target_share 使乘积成立"
+                        ),
                     }
                 )
         bindings = [
@@ -243,10 +258,29 @@ def _resolve_market_evidence_track(
             }
             known_locators = source_locators | candidate_locators.get(source_id, set())
             if not locator or locator not in known_locators:
+                # 可解析的 locator 集合已在手上；不返回它，调用方只能逐个试。
+                # 数量可能很大，因此截断并同时给出总数，不假装列全。
+                available = sorted(known_locators)
                 errors.append({
                     "path": f"{prefix}/locator",
                     "code": "evidence_binding_locator_mismatch",
-                    "message": "证据 locator 未在 EvidencePack 固化来源中解析到",
+                    "message": (
+                        "证据 locator 未在 EvidencePack 固化来源中解析到"
+                        + (
+                            f"；该来源共有 {len(available)} 个可解析 locator"
+                            if available
+                            else "；该来源在 EvidencePack 中没有任何可解析 locator"
+                        )
+                    ),
+                    "observed": str(binding.get("locator") or ""),
+                    "source_id": source_id,
+                    "available_locator_count": len(available),
+                    "available_locators": available[:20],
+                    "available_locators_truncated": len(available) > 20,
+                    "resolution": (
+                        "改用该来源已固化的 locator，或先用 analysis_extract_candidates "
+                        "把该 locator 固化进 EvidencePack"
+                    ),
                 })
             binding_track = str(binding.get("evidence_track") or "")
             if not binding_track:

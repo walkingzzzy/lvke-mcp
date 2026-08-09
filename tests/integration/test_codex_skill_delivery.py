@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import unittest
 from importlib import import_module
 from pathlib import Path
@@ -36,6 +37,16 @@ PUBLISHED_SKILLS = {
 }
 
 
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tests" / "support"))
+from build_codex_plugin import _rewrite_skill_links  # noqa: E402
+from markdown_links import (  # noqa: E402
+    broken_local_links,
+    count_local_links,
+    local_links,
+)
+
+
 class CodexSkillDeliveryTest(unittest.TestCase):
     def test_catalogs_are_relative_and_resolve_inside_each_skill(self) -> None:
         for catalog in sorted((ROOT / "skills").glob("*/references/catalog.md")):
@@ -47,6 +58,77 @@ class CodexSkillDeliveryTest(unittest.TestCase):
                 with self.subTest(catalog=catalog, link=link):
                     self.assertFalse(Path(link).is_absolute())
                     self.assertTrue((catalog.parent / link).is_file())
+
+    def test_every_local_link_in_the_source_tree_resolves(self) -> None:
+        """任何本地链接都必须解析到真实文件，不限于 .md 内联链接。
+
+        上一版守门正则是 ``\\]\\(([^)#]+\\.md)\\)``，只认"以 .md 结尾、不含 # 的内联
+        链接"，于是三类真实死链从不求值：``foo.md#section``（带锚点）、
+        ``[t][ref]`` + ``[ref]: path``（引用式），以及 .csv/.png 等非 md 本地资源。
+        现在改用统一的 Markdown 链接提取器，代码围栏与行内代码里的示例路径不参与判定。
+        """
+
+        root = ROOT / "skills"
+        self.assertTrue(count_local_links(root), "no local links were checked")
+        broken = broken_local_links(root, relative_to=ROOT)
+        self.assertEqual([], broken, "broken local links:\n" + "\n".join(broken))
+
+    def test_link_extractor_sees_anchors_reference_style_and_non_md(self) -> None:
+        """提取器本身必须覆盖旧正则漏掉的三类形式。
+
+        不验证这一点，"改用解析器"就只是换了个写法：真正的回归风险是解析器仍然
+        漏掉同样三类链接，而上面那条测试照样全绿。
+        """
+
+        with TemporaryDirectory() as temp_dir:
+            document = Path(temp_dir) / "doc.md"
+            document.write_text(
+                "\n".join(
+                    [
+                        "[anchored](target.md#section)",
+                        "[ref-style][label]",
+                        "[asset](data/table.csv)",
+                        "![img](assets/x.png)",
+                        "[external](https://example.com/a.md)",
+                        "[in-page](#heading)",
+                        "`[code](never-linted.md)`",
+                        "```",
+                        "[fenced](also-never-linted.md)",
+                        "```",
+                        "",
+                        "[label]: nested/other.md",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            found = {(link.path_part, link.anchor) for link in local_links(document)}
+
+        self.assertEqual(
+            found,
+            {
+                ("target.md", "section"),
+                ("nested/other.md", ""),
+                ("data/table.csv", ""),
+                ("assets/x.png", ""),
+            },
+        )
+
+    def test_plugin_tree_keeps_cross_skill_links_resolvable(self) -> None:
+        """插件树里跨 Skill 的顶层链接必须仍然指向 SKILL.md。
+
+        构建器把嵌套 SKILL.md 改名为 REFERENCE.md，但顶层不改名。此前它无条件替换
+        全部 "SKILL.md" 字样，于是 ``../../lvke-finance/SKILL.md`` 也被改写，
+        插件侧城轨 catalog 的 5 条转派链接全部断掉。
+        """
+
+        plugin_skills = ROOT / "plugins" / "lvke-mcp" / "skills"
+        if not plugin_skills.is_dir():
+            self.skipTest("plugin tree not built")
+        self.assertTrue(
+            count_local_links(plugin_skills), "no local links checked in plugin tree"
+        )
+        broken = broken_local_links(plugin_skills, relative_to=ROOT)
+        self.assertEqual([], broken, "broken plugin links:\n" + "\n".join(broken))
 
     def test_plugin_publishes_only_non_frontend_codex_skills(self) -> None:
         plugin_root = ROOT / "plugins" / "lvke-mcp"
@@ -106,8 +188,11 @@ class CodexSkillDeliveryTest(unittest.TestCase):
                 for relative, source_path in source_files.items():
                     plugin_path = plugin_root / relative
                     if source_path.suffix == ".md":
-                        expected = source_path.read_text(encoding="utf-8").replace(
-                            "SKILL.md", "REFERENCE.md"
+                        # 复用构建器本身的改写函数，而不是在测试里复制一份规则。
+                        # 此前两边各写一遍无条件 replace()，于是测试验证的是
+                        # "构建器与测试同错"，对跨 Skill 链接被误改完全免疫。
+                        expected = _rewrite_skill_links(
+                            source_path.read_text(encoding="utf-8")
                         )
                         self.assertEqual(plugin_path.read_text(encoding="utf-8"), expected)
                     else:

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from lvke_mcp.runtime.skill_inventory import resolve_skill_inventory
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     sha256_json,
@@ -48,6 +49,26 @@ _REQUIRED_CONTEXT_FIELDS = (
     "evidence_track",
 )
 _INDUSTRY_SKILL_ROUTES = Path(__file__).resolve().parents[3] / "config" / "industry_skill_routes.json"
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+# 离线校验时用于解析 reference_path 的 Skill 根。运行时资格不看这些路径。
+_OFFLINE_SKILL_ROOTS = (
+    _REPO_ROOT / "skills",
+    _REPO_ROOT / "plugins" / "lvke-mcp" / "skills",
+)
+
+
+def _reference_exists(carrier_skill: str, reference_path: str) -> bool:
+    """Resolve a carrier-relative reference path under the offline Skill roots."""
+
+    if not carrier_skill or not reference_path:
+        return False
+    candidate = Path(reference_path)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        return False
+    for root in _OFFLINE_SKILL_ROOTS:
+        if (root / carrier_skill / candidate).is_file():
+            return True
+    return False
 
 
 def resolve_industry_skill(
@@ -90,38 +111,194 @@ def resolve_industry_skill(
         if transactions and transaction not in transactions:
             continue
         matches.append(route)
+    # 未命中与歧义两种阻断也必须带 manifest lineage：否则同样无法审计是哪一版
+    # manifest 判定了未命中。
+    manifest_lineage = {
+        "project_context_id": record["object_id"],
+        "project_context_basis_hash": record["basis_hash"],
+        "route_manifest_version": str(manifest.get("schema_version") or ""),
+        "route_manifest_hash": sha256_json(manifest),
+    }
     if not matches:
-        return _blocked(
-            "industry_skill_route_not_found",
-            "没有与 ProjectContext 匹配的行业 Skill；禁止静默使用通用行业默认值",
+        return _envelope(
+            success=False,
+            status="blocked",
+            code="industry_skill_route_not_found",
+            message="没有与 ProjectContext 匹配的行业 Skill；禁止静默使用通用行业默认值",
+            blockers=["industry_skill_route_not_found"],
             next_actions=["补充或修订 industry_code/asset_type 后重新解析"],
+            project_context_id=record["object_id"],
+            resolved_context={
+                "industry_code": industry,
+                "project_type": project_type,
+                "transaction_structure": transaction,
+                "asset_type": asset_type,
+            },
+            route_manifest_version=str(manifest.get("schema_version") or ""),
+            route_manifest_hash=sha256_json(manifest),
+            lineage=manifest_lineage,
         )
     top_priority = max(int(item.get("priority") or 0) for item in matches)
     selected = [item for item in matches if int(item.get("priority") or 0) == top_priority]
     if len(selected) != 1:
-        return _blocked(
-            "industry_skill_route_ambiguous",
-            "ProjectContext 同时命中多个同优先级行业 Skill",
+        return _envelope(
+            success=False,
+            status="blocked",
+            code="industry_skill_route_ambiguous",
+            message="ProjectContext 同时命中多个同优先级行业 Skill",
+            blockers=["industry_skill_route_ambiguous"],
             next_actions=["修订路由 manifest 或 ProjectContext，确保唯一主 Skill"],
+            project_context_id=record["object_id"],
+            ambiguous_route_ids=sorted(
+                str(item.get("route_id") or "") for item in selected
+            ),
+            route_manifest_version=str(manifest.get("schema_version") or ""),
+            route_manifest_hash=sha256_json(manifest),
+            lineage=manifest_lineage,
         )
     route = selected[0]
     manifest_hash = sha256_json(manifest)
+    primary_skill = str(route.get("primary_skill") or "")
+    auxiliary_skills = [str(item) for item in route.get("auxiliary_skills") or []]
+    # 行业口径的真实承载：通用编排 Skill 只协调阶段，不含行业内容，所以不能用它
+    # 顶替行业参考。每条 industry_reference 给出 carrier_skill（可加载的顶层 Skill）
+    # 与 reference_path（该 Skill 内真实存在的参考文件），调用方可机器解析后直接读。
+    industry_references: list[dict[str, Any]] = []
+    unresolved_references: list[str] = []
+    for item in route.get("industry_references") or []:
+        if not isinstance(item, dict):
+            continue
+        carrier = str(item.get("carrier_skill") or "")
+        reference_path = str(item.get("reference_path") or "")
+        capability = str(item.get("capability") or "")
+        resolved = _reference_exists(carrier, reference_path)
+        industry_references.append(
+            {
+                "capability": capability,
+                "carrier_skill": carrier,
+                "reference_path": reference_path,
+                "reference_resolved": resolved,
+            }
+        )
+        if not resolved:
+            unresolved_references.append(f"{carrier}/{reference_path}")
+
+    # manifest 里的名字不等于宿主真的加载了那个 Skill。运行时资格只承认宿主声明的
+    # inventory；宿主没声明时如实报 source=unavailable，不用磁盘冒充运行时状态。
+    inventory = resolve_skill_inventory()
+    inventory_source = str(inventory["source"])
+    installed: set[str] = set(inventory["names"])
+    # 路由 lineage 在所有分支都必须返回：manifest 变更后没有版本与 hash 就无法审计
+    # 是哪一版产生了当前结论。
+    lineage = {
+        "project_context_id": record["object_id"],
+        "project_context_basis_hash": record["basis_hash"],
+        "route_id": str(route.get("route_id") or ""),
+        "route_manifest_version": str(manifest.get("schema_version") or ""),
+        "route_manifest_hash": manifest_hash,
+        "skill_inventory_source": inventory_source,
+    }
+    resolved_context = {
+        "industry_code": industry,
+        "project_type": project_type,
+        "transaction_structure": transaction,
+        "asset_type": asset_type,
+    }
+
+    missing_primary = bool(primary_skill) and primary_skill not in installed
+    missing_auxiliary = sorted(
+        name for name in auxiliary_skills if name not in installed
+    )
+    missing_carriers = sorted(
+        {
+            str(item["carrier_skill"])
+            for item in industry_references
+            if item["carrier_skill"] and item["carrier_skill"] not in installed
+        }
+    )
+    if missing_primary:
+        # 用 _envelope 而非 _blocked：后者只收 code/message/next_actions，
+        # 而调用方需要知道是哪条 manifest 版本的哪条路由、缺哪些 Skill 才能修。
+        return _envelope(
+            success=False,
+            status="blocked",
+            code="industry_skill_not_installed",
+            message=f"路由命中的主 Skill 未安装：{primary_skill}",
+            blockers=["industry_skill_not_installed"],
+            next_actions=[
+                "安装缺失的行业 Skill，或修订 industry_skill_routes.json 指向已安装 Skill",
+            ],
+            project_context_id=record["object_id"],
+            project_context_basis_hash=record["basis_hash"],
+            resolved_context=resolved_context,
+            route_id=str(route.get("route_id") or ""),
+            primary_skill=primary_skill,
+            auxiliary_skills=auxiliary_skills,
+            industry_references=industry_references,
+            unresolved_industry_references=unresolved_references,
+            missing_skills=[primary_skill, *missing_auxiliary],
+            skill_inventory_source=inventory_source,
+            route_manifest_version=str(manifest.get("schema_version") or ""),
+            route_manifest_hash=manifest_hash,
+            lineage=lineage,
+        )
+    # 资格判定是不对称的：磁盘上没有 → 一定加载不了，可据此阻断；磁盘上有 →
+    # 只说明仓库里写了它，不证明当前宿主任务加载了它。因此 disk_offline 下即使全部
+    # 命中也不给 ok，如实降级为 partial 并说明如何取得运行时资格。
+    unverified = inventory_source != "host_declared"
+    degraded = bool(
+        missing_auxiliary or missing_carriers or unresolved_references or unverified
+    )
+    warnings = [
+        *(f"auxiliary_skill_not_installed:{name}" for name in missing_auxiliary),
+        *(f"industry_reference_carrier_not_installed:{name}" for name in missing_carriers),
+        *(f"industry_reference_unresolved:{item}" for item in unresolved_references),
+        *(["skill_loadability_unverified"] if unverified else []),
+    ]
+    next_actions: list[str] = []
+    if missing_auxiliary or missing_carriers:
+        next_actions.append(
+            "缺失的 Skill 无法加载，不得据此认为已取得对应行业口径；"
+            "补装 Skill 或改用已安装 Skill 的口径"
+        )
+    if unresolved_references:
+        next_actions.append(
+            "行业参考文件未解析到，修订 industry_skill_routes.json 的 reference_path "
+            "或补齐该参考文件；不得用通用编排 Skill 顶替行业口径"
+        )
+    if unverified:
+        next_actions.append(
+            "宿主未声明已加载 Skill 清单，本响应只证明仓库内存在这些 Skill，"
+            "不证明当前任务已加载；设置 LVKE_MCP_SKILL_INVENTORY 或 "
+            "LVKE_MCP_SKILL_INVENTORY_FILE 后重新解析才能取得运行时资格"
+        )
     return _envelope(
-        success=True,
-        status="ok",
+        success=not degraded,
+        status="partial" if degraded else "ok",
+        code="skill_loadability_unverified" if unverified else "",
+        message=(
+            "路由已解析，但宿主未声明 Skill 清单，Skill 可加载性未经运行时校验"
+            if unverified
+            else ""
+        ),
         project_context_id=record["object_id"],
         project_context_basis_hash=record["basis_hash"],
-        resolved_context={
-            "industry_code": industry,
-            "project_type": project_type,
-            "transaction_structure": transaction,
-            "asset_type": asset_type,
-        },
+        resolved_context=resolved_context,
         route_id=str(route.get("route_id") or ""),
-        primary_skill=str(route.get("primary_skill") or ""),
-        auxiliary_skills=[str(item) for item in route.get("auxiliary_skills") or []],
+        primary_skill=primary_skill,
+        auxiliary_skills=auxiliary_skills,
+        industry_references=industry_references,
+        unresolved_industry_references=unresolved_references,
+        installed_auxiliary_skills=[
+            name for name in auxiliary_skills if name in installed
+        ],
+        missing_skills=missing_auxiliary,
+        skill_inventory_source=inventory_source,
         route_manifest_version=str(manifest.get("schema_version") or ""),
         route_manifest_hash=manifest_hash,
+        lineage=lineage,
+        warnings=warnings,
+        next_actions=next_actions,
     )
 
 

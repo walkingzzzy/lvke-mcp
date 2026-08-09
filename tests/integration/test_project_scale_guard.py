@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import unittest
 
+from lvke_mcp.domains.finance.scale_reconciliation import check_finance_run_scale
 from lvke_mcp.servers.lvke_zero_material_delivery._service import intake, lifecycle
 from lvke_mcp.servers.lvke_zero_material_delivery._service.scale_guard import (
     check_project_scale,
@@ -134,6 +135,126 @@ class ScaleGuardDeliveryChainTest(unittest.TestCase):
         self.assertIn("project_scale_inconsistent", blockers)
         # 口径差不得报成漂移：假设包投资额不含建设期利息，InputRevision 含。
         self.assertNotIn("input_revision_scale_drift", blockers)
+
+
+class SharedScaleGateTest(unittest.TestCase):
+    """尺度对账必须是共享门禁，正式 finance_run_model 也要走。
+
+    此前该判定只存在于零材料交付链：``finance_run_model`` 做完缺字段检查就直接建
+    run，完全不做尺度对账。同一个"50 公里线路配通用单体投资种子"的错误在零材料链
+    被拦住，在正式链畅通无阻，而城轨 Skill 明确要求这种情况必须阻断且不得创建
+    FinanceRun。
+    """
+
+    def test_formal_path_blocks_rail_seed_investment(self) -> None:
+        result = check_finance_run_scale(
+            {
+                "revenue": {"model": "rail_transit"},
+                "route_length_km": 50,
+                "station_count": 25,
+            },
+            {
+                "total_investment_wan": 116_000.0,
+                "build_period_months": 60,
+                "loan_ratio": 0.6,
+                "capital_own_ratio": 0.4,
+                "calc_period_years": 30,
+            },
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("project_scale_inconsistent", _codes(result))
+        self.assertIn("total_investment_wan", _fields(result))
+
+    def test_rail_model_alone_triggers_the_gate_without_industry_code(self) -> None:
+        """``revenue.model="rail_transit"`` 已显式声明轨道口径。
+
+        不据此推断行业，缺 industry_code 的 spec 会整条跳过轨道对账 —— 而
+        FinanceSpec 本身并不要求填 industry_code。
+        """
+
+        result = check_finance_run_scale(
+            {"revenue": {"model": "rail_transit"}, "route_length_km": 50},
+            {"total_investment_wan": 116_000.0},
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("total_investment_wan", _fields(result))
+
+    def test_formal_path_passes_credible_rail_investment(self) -> None:
+        result = check_finance_run_scale(
+            {
+                "revenue": {"model": "rail_transit"},
+                "route_length_km": 50,
+                "station_count": 25,
+            },
+            {
+                "total_investment_wan": 3_000_000.0,
+                "build_period_months": 60,
+                "loan_ratio": 0.6,
+                "capital_own_ratio": 0.4,
+                "calc_period_years": 30,
+            },
+        )
+        self.assertTrue(result["ok"], result["issues"])
+
+    def test_non_rail_projects_are_not_affected(self) -> None:
+        result = check_finance_run_scale(
+            {"revenue": {"model": "product_sales"}, "industry_code": "manufacturing"},
+            {
+                "total_investment_wan": 5_000.0,
+                "build_period_months": 24,
+                "loan_ratio": 0.5,
+                "capital_own_ratio": 0.5,
+                "calc_period_years": 20,
+            },
+        )
+        self.assertTrue(result["ok"], result["issues"])
+
+    def test_third_party_funding_is_not_a_scale_error(self) -> None:
+        """债务+资本金不足 1 在正式链是合法的：还有政府补助等第三方来源。
+
+        互补校验只是零材料假设包的不变量（那里只有这两个来源）。市政道路样本的
+        loan_ratio=0.35、capital_own_ratio=0.10，其余由 gov_subsidy_wan 补足；
+        把 capital_own_ratio 当 equity_ratio 去校验互补会把合法资金结构判成尺度错误。
+        """
+
+        result = check_finance_run_scale(
+            {"revenue": {"model": "gov_payment"}, "industry_code": "government_public_service"},
+            {
+                "total_investment_wan": 78_148.8,
+                "build_period_months": 24,
+                "loan_ratio": 0.3500000448,
+                "capital_own_ratio": 0.1000000128,
+                "gov_subsidy_wan": 42_981.83,
+                "calc_period_years": 20,
+            },
+        )
+        self.assertTrue(result["ok"], result["issues"])
+
+    def test_ratio_outside_zero_to_one_is_still_blocked(self) -> None:
+        """去掉互补校验不等于放过"比例不是比率"这类明显错误。"""
+
+        result = check_finance_run_scale(
+            {"industry_code": "manufacturing"},
+            {"total_investment_wan": 5_000.0, "loan_ratio": 60},
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("loan_ratio", _fields(result))
+
+    def test_missing_route_length_is_not_a_false_positive(self) -> None:
+        """缺线路长度属于 missing_inputs 范畴，不在尺度检查内。"""
+
+        result = check_finance_run_scale(
+            {"revenue": {"model": "rail_transit"}},
+            {"total_investment_wan": 116_000.0, "calc_period_years": 30},
+        )
+        self.assertTrue(result["ok"], result["issues"])
+
+    def test_zero_material_facade_shares_the_same_implementation(self) -> None:
+        """零材料链的入口必须是同一份实现，而不是复制的一份规则。"""
+
+        from lvke_mcp.domains.finance import scale_reconciliation
+
+        self.assertIs(check_project_scale, scale_reconciliation.check_project_scale)
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ from lvke_mcp.domains.finance.rail_validation import (
     rail_transit_missing_inputs as _rail_transit_missing_inputs,
     revenue_input_complete as _revenue_input_complete,
 )
+from lvke_mcp.domains.finance.scale_reconciliation import check_finance_run_scale
 
 
 def run_model(args: dict[str, Any]) -> dict[str, Any]:
@@ -150,6 +151,42 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         )
     if not _revenue_input_complete(spec, input_revision):
         return _missing_run("annual_revenue_wan_or_revenue_driver", spec_id)
+    # 缺字段检查通过不代表业务尺度成立：50 公里轨道线套用通用单体项目投资种子时
+    # 字段齐全、算术自洽、十三表也能勾稽通过，run 会被标成 ok。此前该对账只存在于
+    # 零材料链，正式链完全不做，同一错误畅通无阻。
+    scale_check = check_finance_run_scale(spec, input_revision)
+    if not scale_check["ok"]:
+        codes = sorted({str(item.get("code")) for item in scale_check["issues"]})
+        return _ok_env(
+            {
+                "available": False,
+                "error": "project_scale_inconsistent",
+                "scale_check": scale_check,
+                "field_errors": [
+                    {
+                        "path": f"/input_revision/{item.get('field')}",
+                        "code": str(item.get("code")),
+                        "message": str(item.get("detail")),
+                        "resolution": str(item.get("resolution") or ""),
+                    }
+                    for item in scale_check["issues"]
+                ],
+            },
+            source=f"{SERVER_NAME}.finance_run_model",
+            status="blocked",
+            blockers=codes,
+            next_actions=[
+                str(item.get("resolution"))
+                for item in scale_check["issues"]
+                if item.get("resolution")
+            ]
+            or ["按尺度对账结论修正输入后重新运行"],
+            run_id=None,
+            spec_id=spec_id or None,
+            missing_inputs=[],
+            scale_check=scale_check,
+            warnings=[str(item.get("detail")) for item in scale_check["advisories"]],
+        )
     if mode == "review_candidate" and bool(input_revision.get("is_operating")):
         breakdown = input_revision.get("invest_breakdown")
         breakdown = breakdown if isinstance(breakdown, dict) else {}

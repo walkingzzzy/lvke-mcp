@@ -10,4 +10,4 @@ Read only the entries needed for the current task, then follow the linked `SKILL
 | URL audit / fetch / visual chain | [SKILL.md](preserved/lvke-url-audit-fetch-visual-chain/SKILL.md) |
 | source file lifecycle | [SKILL.md](preserved/lvke-source-files/SKILL.md) |
 | quality benchmarking | [SKILL.md](preserved/lvke-quality-benchmarking/SKILL.md) |
-| source import route selection | [REFERENCE.md](preserved/lvke-source-import-route-selection/REFERENCE.md) |
+| source import route selection | [REFERENCE.md](preserved/lvke-source-import-route-selection/SKILL.md) |

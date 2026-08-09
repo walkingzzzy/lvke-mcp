@@ -7,7 +7,7 @@ description: Change or review Lvke MCP tool, Resource, schema, response-envelope
 
 ## Routing
 
-Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `REFERENCE.md` completely before acting. Do not preload unrelated references.
+Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `SKILL.md` completely before acting. Do not preload unrelated references.
 
 ## Workflow
 

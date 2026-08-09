@@ -1,100 +1,275 @@
 {
-  "schema_version": "industry-skill-routes.v1.1",
+  "schema_version": "industry-skill-routes.v2.0",
+  "notes": [
+    "primary_skill 必须是宿主可加载的顶层 Skill。",
+    "industry_references 是机器可解析的行业口径承载：carrier_skill 是可加载的顶层 Skill，reference_path 是其内部真实存在的参考文件相对路径。",
+    "通用编排 Skill 不含行业口径，不得用它替代 industry_references。"
+  ],
   "routes": [
     {
       "route_id": "hotel-acquisition",
       "priority": 100,
-      "industry_prefixes": ["hotel", "hospitality"],
-      "asset_types": ["hotel_lease"],
-      "project_types": ["asset_acquisition"],
-      "transaction_structures": ["asset_acquisition", "equity_acquisition", "operation_lease"],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-finance-spec", "lvke-finance-modeling"]
+      "industry_prefixes": [
+        "hotel",
+        "hospitality"
+      ],
+      "asset_types": [
+        "hotel_lease"
+      ],
+      "project_types": [
+        "asset_acquisition"
+      ],
+      "transaction_structures": [
+        "asset_acquisition",
+        "equity_acquisition",
+        "operation_lease"
+      ],
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-finance",
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "酒店资产收购口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-commercial-services/SKILL.md"
+        },
+        {
+          "capability": "收购财务与融资比例",
+          "carrier_skill": "lvke-finance",
+          "reference_path": "references/preserved/financing/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "energy",
       "priority": 90,
-      "industry_prefixes": ["energy", "power", "solar", "wind", "storage"],
-      "asset_types": ["solar_power"],
+      "industry_prefixes": [
+        "energy",
+        "power",
+        "solar",
+        "wind",
+        "storage"
+      ],
+      "asset_types": [
+        "solar_power"
+      ],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-market-sizing", "lvke-build-scale", "lvke-cost-drivers"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "能源行业规模与投资强度",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/energy/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "cultural-tourism",
       "priority": 80,
-      "industry_prefixes": ["cultural_tourism", "tourism", "culture-tourism"],
+      "industry_prefixes": [
+        "cultural_tourism",
+        "tourism",
+        "culture-tourism"
+      ],
       "asset_types": [],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-market-sizing", "lvke-revenue-drivers"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "文旅与儿童游乐口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-cultural-tourism/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "real-estate",
       "priority": 80,
-      "industry_prefixes": ["real_estate", "construction_real_estate", "housing"],
+      "industry_prefixes": [
+        "real_estate",
+        "construction_real_estate",
+        "housing"
+      ],
       "asset_types": [],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-market-sizing", "lvke-build-scale"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "商业与地产服务口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-commercial-services/SKILL.md"
+        },
+        {
+          "capability": "建设规模与用地约束",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/lvke-build-scale/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "manufacturing",
       "priority": 70,
-      "industry_prefixes": ["manufacturing", "mineral_processing", "chemical", "machinery", "electronics"],
-      "asset_types": ["mineral_processing"],
+      "industry_prefixes": [
+        "manufacturing",
+        "mineral_processing",
+        "chemical",
+        "machinery",
+        "electronics"
+      ],
+      "asset_types": [
+        "mineral_processing"
+      ],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-cost-drivers", "lvke-build-scale"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "制造业投资强度与行业特性",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/manufacturing/SKILL.md"
+        },
+        {
+          "capability": "成本动因口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/lvke-cost-drivers/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "urban-rail-transit",
       "priority": 85,
-      "industry_prefixes": ["urban_rail_transit", "rail_transit", "urban_rail", "metro", "subway", "light_rail", "tram"],
+      "industry_prefixes": [
+        "urban_rail_transit",
+        "rail_transit",
+        "urban_rail",
+        "metro",
+        "subway",
+        "light_rail",
+        "tram"
+      ],
       "asset_types": [],
       "project_types": [],
       "transaction_structures": [],
       "primary_skill": "lvke-urban-rail-transit",
       "auxiliary_skills": [
-        "lvke-rail-ridership-forecast",
-        "lvke-rail-alignment-and-stations",
-        "lvke-rail-investment-estimate",
-        "lvke-rail-car-km-cost",
-        "lvke-rail-rolling-stock-renewal",
-        "lvke-rail-operating-staffing"
+        "lvke-research",
+        "lvke-project-planning",
+        "lvke-finance"
       ],
-      "capabilities": [
-        "轨道客流预测与清分票价",
-        "线站位与敷设方案",
-        "投资估算与单位里程强度",
-        "车公里运营成本",
-        "车辆更新与大修周期",
-        "运营定员编制"
+      "industry_references": [
+        {
+          "capability": "轨道客流预测与清分票价",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/ridership-and-clearing-fare.md"
+        },
+        {
+          "capability": "线站位与敷设方案",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/alignment-and-stations.md"
+        },
+        {
+          "capability": "投资估算与单位里程强度",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/investment-estimate.md"
+        },
+        {
+          "capability": "车公里运营成本",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/car-km-operating-cost.md"
+        },
+        {
+          "capability": "车辆更新与大修周期",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/rolling-stock-renewal.md"
+        },
+        {
+          "capability": "运营定员编制",
+          "carrier_skill": "lvke-urban-rail-transit",
+          "reference_path": "references/operating-staffing.md"
+        }
       ]
     },
     {
       "route_id": "public-service",
       "priority": 60,
-      "industry_prefixes": ["public_service", "government_public_service", "environmental_utilities", "infrastructure", "transit", "transport"],
+      "industry_prefixes": [
+        "public_service",
+        "government_public_service",
+        "environmental_utilities",
+        "infrastructure",
+        "transit",
+        "transport"
+      ],
       "asset_types": [],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-build-scale", "lvke-cost-drivers"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "社会公共服务口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-social-public/SKILL.md"
+        },
+        {
+          "capability": "环保与公用事业口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-environmental-utilities/SKILL.md"
+        },
+        {
+          "capability": "基础设施投资指标",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/infrastructure/SKILL.md"
+        },
+        {
+          "capability": "物流与交通口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-logistics-transport/SKILL.md"
+        }
+      ]
     },
     {
       "route_id": "generic",
       "priority": 10,
-      "industry_prefixes": ["general", "generic"],
-      "asset_types": ["general"],
+      "industry_prefixes": [
+        "general",
+        "generic"
+      ],
+      "asset_types": [
+        "general"
+      ],
       "project_types": [],
       "transaction_structures": [],
-      "primary_skill": "lvke-industry-context",
-      "auxiliary_skills": ["lvke-market-sizing", "lvke-option-comparison"]
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "行业路由与版本化规划参数",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/lvke-industry-context/SKILL.md"
+        }
+      ]
     }
   ]
 }
