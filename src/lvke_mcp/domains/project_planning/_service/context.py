@@ -6,7 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from lvke_mcp.runtime.skill_inventory import resolve_skill_inventory
+from lvke_mcp.runtime.skill_inventory import (
+    AUTHORITATIVE_SOURCES,
+    resolve_skill_inventory,
+)
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     sha256_json,
@@ -243,9 +246,9 @@ def resolve_industry_skill(
             lineage=lineage,
         )
     # 资格判定是不对称的：磁盘上没有 → 一定加载不了，可据此阻断；磁盘上有 →
-    # 只说明仓库里写了它，不证明当前宿主任务加载了它。因此 disk_offline 下即使全部
+    # 只说明仓库里写了它，不证明这份部署带上了它。因此 disk_offline 下即使全部
     # 命中也不给 ok，如实降级为 partial 并说明如何取得运行时资格。
-    unverified = inventory_source != "host_declared"
+    unverified = inventory_source not in AUTHORITATIVE_SOURCES
     degraded = bool(
         missing_auxiliary or missing_carriers or unresolved_references or unverified
     )
@@ -268,9 +271,10 @@ def resolve_industry_skill(
         )
     if unverified:
         next_actions.append(
-            "宿主未声明已加载 Skill 清单，本响应只证明仓库内存在这些 Skill，"
-            "不证明当前任务已加载；设置 LVKE_MCP_SKILL_INVENTORY 或 "
-            "LVKE_MCP_SKILL_INVENTORY_FILE 后重新解析才能取得运行时资格"
+            "未找到已发布 Skill 清单，本响应只证明仓库内存在这些 Skill，"
+            "不证明这份部署已带上它们；运行 scripts/build_codex_plugin.py 生成 "
+            "skill_inventory.json，或由宿主设置 LVKE_MCP_SKILL_INVENTORY "
+            "后重新解析才能取得运行时资格"
         )
     return _envelope(
         success=not degraded,

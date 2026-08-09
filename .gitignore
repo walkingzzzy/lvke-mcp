@@ -27,6 +27,11 @@ quality/
 build_metadata.json
 src/lvke_mcp/runtime/build_metadata.json
 
+# src/lvke_mcp/runtime/skill_inventory.json 刻意**不**忽略，与 build_metadata 相反：
+# 缺这份清单时路由门禁不会显式报错，而是静默降级为
+# skill_loadability_unverified —— 对调用方表现为"永远拿不到行业口径"。
+# 它的内容由 Skill 目录决定而非 commit 决定，因此不会像 commit 那样一提交就过期。
+
 # lvke产出/ 是每次验收重新生成的交付产出（DOCX/XLSX/CSV/报告修订），不入库：
 # 它们由 run_id/package_id 决定内容，随验收作废重建，入库只会让仓库膨胀并留下
 # 与当前代码不对应的陈旧工件。需要留存时按验收批次单独归档。

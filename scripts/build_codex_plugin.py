@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from write_build_metadata import write_build_metadata  # noqa: E402
+from write_skill_inventory import write_skill_inventory  # noqa: E402
 
 SOURCE_ROOT = ROOT / "skills"
 PLUGIN_SKILLS_ROOT = ROOT / "plugins" / "lvke-mcp" / "skills"
@@ -87,6 +88,9 @@ def build() -> None:
     # 插件安装时注入统一构建元数据；不写则 14 个服务启动即报
     # build_metadata_incomplete，而不是退化成 source-checkout 占位串。
     metadata = write_build_metadata()
+    # 同批写出已发布 Skill 清单：路由门禁据此判定 Skill 可加载性。清单必须在
+    # Skill 复制完成之后生成，才能反映本次真正发布的集合。
+    inventory = write_skill_inventory(PLUGIN_SKILLS_ROOT)
 
     print(
         f"Built {len(PUBLISHED_SKILLS)} Codex Skills with "
@@ -97,6 +101,9 @@ def build() -> None:
         f"build_time={metadata['build_time']} "
         f"plugin_version={metadata['plugin_version']}"
     )
+    skills = inventory["skills"]
+    assert isinstance(skills, list)
+    print(f"Skill inventory: {len(skills)} published Skills declared for route gating.")
 
 
 if __name__ == "__main__":

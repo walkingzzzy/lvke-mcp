@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-08-09T12:10:14Z",
+  "schema_version": "skill-inventory.v1",
+  "skills": [
+    "lvke-api-contract",
+    "lvke-backend",
+    "lvke-delivery-guardrails",
+    "lvke-error-recovery",
+    "lvke-feasibility-study",
+    "lvke-finance",
+    "lvke-local-verify",
+    "lvke-mcp-acceptance",
+    "lvke-project-planning",
+    "lvke-report",
+    "lvke-research",
+    "lvke-review-release",
+    "lvke-source-evidence",
+    "lvke-tool-coordination",
+    "lvke-urban-rail-transit"
+  ],
+  "source_root": "plugins/lvke-mcp/skills"
+}

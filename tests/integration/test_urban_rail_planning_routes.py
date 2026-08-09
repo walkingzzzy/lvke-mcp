@@ -17,6 +17,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from lvke_mcp.domains.project_planning import application as service
 from lvke_mcp.servers.lvke_project_planning._lifecycle import build_scale
@@ -169,16 +170,25 @@ class _HostInventoryCase(_PlanningCase):
     声明宿主 inventory，实现只负责消费它。
     """
 
+    _INVENTORY_VARS = (
+        "LVKE_MCP_SKILL_INVENTORY",
+        "LVKE_MCP_SKILL_INVENTORY_FILE",
+    )
+
     def setUp(self) -> None:
         super().setUp()
-        self.previous_inventory = os.environ.get("LVKE_MCP_SKILL_INVENTORY")
+        # 两个变量都要存档：用例会 pop 它们来构造"未声明"场景，只还原一个会泄漏。
+        self.previous_inventory = {
+            name: os.environ.get(name) for name in self._INVENTORY_VARS
+        }
         self._declare(_ALL_PUBLISHED_SKILLS)
 
     def tearDown(self) -> None:
-        if self.previous_inventory is None:
-            os.environ.pop("LVKE_MCP_SKILL_INVENTORY", None)
-        else:
-            os.environ["LVKE_MCP_SKILL_INVENTORY"] = self.previous_inventory
+        for name, value in self.previous_inventory.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
         super().tearDown()
 
     def _declare(self, names: tuple[str, ...] | list[str]) -> None:
@@ -319,6 +329,43 @@ class RailSkillRouteTest(_HostInventoryCase):
             resolved["lineage"]["project_context_id"], resolved["project_context_id"]
         )
 
+    def test_real_environment_does_not_degrade_without_host_env(self) -> None:
+        """没有任何宿主 env 时也必须取得运行时资格，不得恒定降级。
+
+        这条是必须的：门禁若只认环境变量，而没有任何宿主会去手写它
+        （仓库 .mcp.json、用户级配置都不含），那么该工具对所有真实调用永久返回
+        skill_loadability_unverified —— 等于把假阳性换成了恒定降级。
+        构建器写出的 skill_inventory.json 才是与这份代码同批发布的权威清单。
+        """
+
+        os.environ.pop("LVKE_MCP_SKILL_INVENTORY", None)
+        os.environ.pop("LVKE_MCP_SKILL_INVENTORY_FILE", None)
+        resolved = service.resolve_industry_skill(
+            self.workspace, self._context("urban_rail_transit")
+        )
+        self.assertEqual("packaged_build", resolved["skill_inventory_source"])
+        self.assertEqual("ok", resolved["status"])
+        self.assertTrue(resolved["success"], resolved)
+        self.assertEqual([], resolved["warnings"])
+
+    def test_packaged_inventory_matches_published_skills(self) -> None:
+        """包内清单必须与实际发布的 Skill 目录一致，不能各写一份而漂移。"""
+
+        from lvke_mcp.runtime import skill_inventory as inventory_module
+
+        packaged = inventory_module._packaged_inventory_file()
+        self.assertIsNotNone(packaged, "缺少 skill_inventory.json：运行 build_codex_plugin.py")
+        declared = set(json.loads(packaged.read_text(encoding="utf-8"))["skills"])
+        plugin_skills = (
+            Path(__file__).resolve().parents[2] / "plugins" / "lvke-mcp" / "skills"
+        )
+        on_disk = {
+            entry.name
+            for entry in plugin_skills.iterdir()
+            if (entry / "SKILL.md").is_file()
+        }
+        self.assertEqual(declared, on_disk)
+
     def test_disk_presence_alone_never_certifies_loadability(self) -> None:
         """宿主没声明清单时不得报 ok：磁盘上有只说明仓库里写了它。
 
@@ -327,9 +374,16 @@ class RailSkillRouteTest(_HostInventoryCase):
         """
 
         os.environ.pop("LVKE_MCP_SKILL_INVENTORY", None)
-        resolved = service.resolve_industry_skill(
-            self.workspace, self._context("urban_rail_transit")
-        )
+        os.environ.pop("LVKE_MCP_SKILL_INVENTORY_FILE", None)
+        # 显式隔离到"两类声明都不存在"的部署：只有这时才允许落到磁盘扫描。
+        from lvke_mcp.runtime import skill_inventory as inventory_module
+
+        with mock.patch.object(
+            inventory_module, "_packaged_inventory_file", return_value=None
+        ):
+            resolved = service.resolve_industry_skill(
+                self.workspace, self._context("urban_rail_transit")
+            )
         self.assertEqual("disk_offline", resolved["skill_inventory_source"])
         self.assertEqual("partial", resolved["status"])
         self.assertFalse(resolved["success"])
