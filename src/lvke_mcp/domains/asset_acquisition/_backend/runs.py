@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.domains.asset_acquisition.model import AcquisitionModelError, run_acquisition_model
 from lvke_mcp.domains.finance.spec import LATEST_SPEC_VERSION, validate, validate_for_formal
 
@@ -149,10 +150,11 @@ def create_run(
             "formal_spec_errors": formal_errors, "request_id": request_id,
             "created_at": created_at,
             "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
-            "project_fact_certified": bool(spec.get(
-                "project_fact_certified",
-                str(spec.get("evidence_policy") or "") != "source_reconstructed",
-            )),
+            # 不采信 spec 自报，也不把 "非重建" 当作已认证。
+            "project_fact_certified": project_fact_may_be_certified(
+                str(spec.get("evidence_policy") or "formal_evidence"),
+                own_qualification_passed=bool(schema_ok and not formal_errors),
+            ),
             "reconstruction_records": copy.deepcopy(spec.get("reconstruction_records") or []),
             "reconstructed_source_ids": copy.deepcopy(spec.get("reconstructed_source_ids") or []),
             "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),
@@ -249,7 +251,11 @@ def enqueue_run(
             "request_id": request_id, "created_at": created_at, "updated_at": created_at,
             "issues": [],
             "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
-            "project_fact_certified": bool(spec.get("project_fact_certified", str(spec.get("evidence_policy") or "") != "source_reconstructed")),
+            # 同上：不采信自报，非重建也不等于已认证。
+            "project_fact_certified": project_fact_may_be_certified(
+                str(spec.get("evidence_policy") or "formal_evidence"),
+                own_qualification_passed=bool(schema_formal_ok and formal_ok),
+            ),
             "reconstruction_records": copy.deepcopy(spec.get("reconstruction_records") or []),
             "reconstructed_source_ids": copy.deepcopy(spec.get("reconstructed_source_ids") or []),
             "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),

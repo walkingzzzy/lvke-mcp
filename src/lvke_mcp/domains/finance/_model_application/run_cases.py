@@ -7,6 +7,7 @@ import hashlib
 import json
 import time
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.adapters.finance_model_repository import BASIS_OF_ESTIMATE_STORE, IDEMPOTENCY_STORE, SPEC_STORE
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
@@ -250,7 +251,19 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             selected_scenario_id=str(args.get("selected_scenario_id") or "base"),
             evidence_metadata={
                 "evidence_policy": str(boe_payload.get("evidence_policy") or payload.get("evidence_policy") or "formal_evidence"),
-                "project_fact_certified": bool(boe_payload.get("project_fact_certified", payload.get("project_fact_certified", False))),
+                # Run 不能凭 BoE/spec 的自报字段认证项目事实：两者都必须是
+                # formal_evidence 且自身已认证，Run 才可继承认证。
+                "project_fact_certified": project_fact_may_be_certified(
+                    str(
+                        boe_payload.get("evidence_policy")
+                        or payload.get("evidence_policy")
+                        or "formal_evidence"
+                    ),
+                    own_qualification_passed=True,
+                    parents=[
+                        item for item in (boe_payload, payload) if isinstance(item, dict)
+                    ],
+                ),
                 "reconstruction_records": list(boe_payload.get("reconstruction_records") or payload.get("reconstruction_records") or []),
                 "reconstructed_source_ids": list(boe_payload.get("reconstructed_source_ids") or payload.get("reconstructed_source_ids") or []),
                 "unresolved_inputs": list(boe_payload.get("unresolved_inputs") or payload.get("unresolved_inputs") or []),

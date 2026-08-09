@@ -311,7 +311,8 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     )
     project_fact_certified = project_fact_may_be_certified(
         release_evidence_policy,
-        own_qualification_passed=evidence_metadata.get("project_fact_certified") is True,
+        own_qualification_passed=True,
+        parents=[evidence_metadata],
     )
     if review_purpose == "project_delivery" and release_evidence_policy != "formal_evidence":
         blockers.append({

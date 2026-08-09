@@ -17,6 +17,7 @@ from typing import Any
 from lvke_mcp.adapters.data_analysis_repository import CANDIDATE_STORE, EVIDENCE_STORE
 from lvke_mcp.runtime.evidence_qualification import (
     FORMAL_EVIDENCE,
+    declared_evidence_policy,
     project_fact_may_be_certified,
 )
 from lvke_mcp.runtime.source_reconstruction import (
@@ -428,6 +429,15 @@ def build_evidence_pack(
     project_fact_certified = project_fact_may_be_certified(
         evidence_policy,
         own_qualification_passed=formal_evidence_candidate,
+        # 除 formal_use_allowed 外，再按来源自报的 evidence_policy 复核一遍：
+        # 浏览器快照等候选来源即使被误标可用，其 policy 仍是 candidate。
+        parents=[
+            {
+                "evidence_policy": declared_evidence_policy(doc, default="candidate"),
+                "project_fact_certified": bool(doc.get("formal_use_allowed")),
+            }
+            for doc in selected
+        ],
     )
     payload = {
         "analysis_task_id": task_id,

@@ -9,6 +9,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 from lvke_mcp.domains.asset_acquisition.model import AcquisitionModelError
 from lvke_mcp.domains.finance.spec import validate, validate_for_formal
@@ -233,7 +234,12 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "validation_errors": errors, "formal_validation_errors": formal_errors,
         "field_errors": field_errors,
         "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
-        "project_fact_certified": False if str(spec.get("evidence_policy") or "") == SOURCE_RECONSTRUCTED else True,
+        # 只排除重建来源不够：controlled_assumption / technical_fixture 同样
+        # 不能认证项目事实，且不采信 spec 自报。
+        "project_fact_certified": project_fact_may_be_certified(
+            str(spec.get("evidence_policy") or "formal_evidence"),
+            own_qualification_passed=not errors and not formal_errors,
+        ),
         "reconstruction_errors": reconstruction_errors,
         "spec_hash": acquisition_service._hash(spec),  # noqa: SLF001
         "resource_uris": [], "warnings": [], "blockers": blockers,

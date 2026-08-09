@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.adapters.source_files_repository import (
     _load_analysis,
     _load_state,
@@ -1171,7 +1172,12 @@ def bind_finance_spec_evidence(
         "invalid": invalid,
         "binding_hash": assessment_hash,
         "evidence_policy": SOURCE_RECONSTRUCTED if reconstructed else "formal_evidence",
-        "project_fact_certified": not bool(reconstructed),
+        # "非重建" 不等于 "已认证"：绑定还必须真的完整（formal_ok）。旧写法
+        # not bool(reconstructed) 会让绑定缺失或仅有受控假设的场景也返回 true。
+        "project_fact_certified": project_fact_may_be_certified(
+            SOURCE_RECONSTRUCTED if reconstructed else "formal_evidence",
+            own_qualification_passed=formal_ok,
+        ),
         "reconstruction_ids": [item.get("reconstruction_id") for item in reconstructed],
     }
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import functools
+
 import hashlib
 import json
 from pathlib import Path
@@ -89,6 +91,47 @@ def _blocked(code: str, message: str, *, next_actions: list[str] | None = None, 
     )
 
 
+_INVALID_ID_CODES = {
+    "workspace_id": "invalid_workspace_id",
+    "object_id": "invalid_delivery_run_id",
+    "delivery_run_id": "invalid_delivery_run_id",
+    "checkpoint_id": "invalid_checkpoint_id",
+    "segment": "invalid_resource_segment",
+}
+
+
+def _guard_identifiers(handler: Callable[[dict[str, Any]], dict[str, Any]]):
+    """Report malformed identifiers as business blocks, not server faults.
+
+    ``require_safe_id`` raises ``ValueError`` and every entrypoint calls it
+    outside any try, so the transport degraded a rejected *input* into a generic
+    ``internal_error`` with ``system_success=False`` — losing both the specific
+    code and the object identity a caller needs to fix the call.
+    """
+
+    @functools.wraps(handler)
+    def wrapper(args: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return handler(args)
+        except ValueError as error:
+            detail = str(error)
+            field = next(
+                (name for name in _INVALID_ID_CODES if name in detail),
+                "",
+            )
+            if not field:
+                raise
+            return _blocked(
+                _INVALID_ID_CODES[field],
+                f"标识符不合法：{detail}",
+                next_actions=["改用服务端签发的合法标识符重新调用"],
+                workspace_id=str(args.get("workspace_id") or ""),
+                delivery_run_id=str(args.get("delivery_run_id") or ""),
+            )
+
+    return wrapper
+
+
 def _lock(workspace_id: str) -> FileLock:
     directory = workspace_root(require_safe_id(workspace_id, "workspace_id")) / "mcp_objects" / "feasibility-delivery"
     directory.mkdir(parents=True, exist_ok=True)
@@ -163,6 +206,7 @@ def _run_response(record: dict[str, Any], *, extra: dict[str, Any] | None = None
     return _envelope(True, str(run.get("status") or "in_progress"), **payload)
 
 
+@_guard_identifiers
 def start(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     mode = str(args.get("delivery_mode") or "")
@@ -245,12 +289,13 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
     return _idempotent(
         workspace_id,
         operation="feasibility_start",
-        idempotency_key=str(args["idempotency_key"]),
+        idempotency_key=str(args.get("idempotency_key") or ""),
         request_payload=request,
         mutation=create,
     )
 
 
+@_guard_identifiers
 def status(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     record = _record(workspace_id, str(args.get("delivery_run_id") or ""))
@@ -259,6 +304,7 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
     return _run_response(record)
 
 
+@_guard_identifiers
 def stage(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     delivery_run_id = str(args.get("delivery_run_id") or "")
@@ -422,7 +468,7 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
     return _idempotent(
         workspace_id,
         operation="feasibility_stage",
-        idempotency_key=str(args["idempotency_key"]),
+        idempotency_key=str(args.get("idempotency_key") or ""),
         request_payload=request,
         mutation=update,
     )
@@ -461,6 +507,7 @@ _NEXT_TOOLS: dict[str, list[Any]] = {
 }
 
 
+@_guard_identifiers
 def next_actions(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     record = _record(workspace_id, str(args.get("delivery_run_id") or ""))
@@ -513,6 +560,7 @@ def next_actions(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+@_guard_identifiers
 def checkpoint(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     delivery_run_id = str(args.get("delivery_run_id") or "")
@@ -547,12 +595,13 @@ def checkpoint(args: dict[str, Any]) -> dict[str, Any]:
     return _idempotent(
         workspace_id,
         operation="feasibility_checkpoint",
-        idempotency_key=str(args["idempotency_key"]),
+        idempotency_key=str(args.get("idempotency_key") or ""),
         request_payload=request,
         mutation=create,
     )
 
 
+@_guard_identifiers
 def resume(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     checkpoint_id = str(args.get("checkpoint_id") or "")
@@ -585,7 +634,7 @@ def resume(args: dict[str, Any]) -> dict[str, Any]:
     return _idempotent(
         workspace_id,
         operation="feasibility_resume",
-        idempotency_key=str(args["idempotency_key"]),
+        idempotency_key=str(args.get("idempotency_key") or ""),
         request_payload=request,
         mutation=create,
     )
@@ -1246,9 +1295,14 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
                 validation_scope=scope,
             )
         )
+    else:
+        # 没有 workspace 就无法核对任何上游对象是否真实存在。此前这里静默跳过
+        # 整段对象链校验，等于让一条合成的、指向不存在对象的链拿到 ok=True。
+        blockers.append("object_chain_not_verifiable_without_workspace")
     return not blockers, sorted(set(blockers)), sorted(set(warnings))
 
 
+@_guard_identifiers
 def validate(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     record = _record(workspace_id, str(args.get("delivery_run_id") or ""))
@@ -1277,6 +1331,7 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+@_guard_identifiers
 def release(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     delivery_run_id = str(args.get("delivery_run_id") or "")
@@ -1397,12 +1452,13 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
     return _idempotent(
         workspace_id,
         operation="feasibility_release",
-        idempotency_key=str(args["idempotency_key"]),
+        idempotency_key=str(args.get("idempotency_key") or ""),
         request_payload=request,
         mutation=create,
     )
 
 
+@_guard_identifiers
 def list_resources(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     resource_type = str(args.get("resource_type") or "")
@@ -1422,6 +1478,7 @@ def list_resources(args: dict[str, Any]) -> dict[str, Any]:
     return _envelope(True, "ok", **paginate_resource_entries(entries, cursor=str(args.get("cursor") or ""), limit=int(args.get("limit") or 50)))
 
 
+@_guard_identifiers
 def read_resource(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     uri = str(args.get("uri") or "")

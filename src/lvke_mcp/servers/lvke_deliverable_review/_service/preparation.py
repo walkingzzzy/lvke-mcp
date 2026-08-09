@@ -105,7 +105,10 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_may_be_certified(
                 evidence_policy,
-                own_qualification_passed=upstream.get("project_fact_certified") is True,
+                own_qualification_passed=True,
+                # parents= 会连父对象的 evidence_policy 一起复核，不只看它自报的
+                # certified 布尔值。
+                parents=[upstream],
             ),
             "reconstruction_records": list(upstream.get("reconstruction_records") or []),
             "reconstructed_source_ids": list(upstream.get("reconstructed_source_ids") or []),

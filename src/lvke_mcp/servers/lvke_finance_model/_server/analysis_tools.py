@@ -7,6 +7,7 @@ from typing import Any
 
 from mcp import types
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.runtime.storage import (
     JSONArtifactStore,
     paginate_resource_entries,
@@ -257,7 +258,20 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "technical_ready": technical_ready,
         "formal_ready": formal_ready,
         "evidence_policy": "source_reconstructed" if reconstructed else "formal_evidence",
-        "project_fact_certified": not reconstructed,
+        # not reconstructed 只排除了重建来源：technical_fixture / controlled_assumption
+        # 同样不能认证项目事实。要求每一条 entry 都显式是 formal_evidence，且 BoE
+        # 自身通过正式就绪判定。
+        "project_fact_certified": project_fact_may_be_certified(
+            "source_reconstructed" if reconstructed else "formal_evidence",
+            own_qualification_passed=bool(
+                formal_ready
+                and entries
+                and all(
+                    str(entry.get("evidence_eligibility") or "") == "formal_evidence"
+                    for entry in entries
+                )
+            ),
+        ),
         "reconstruction_records": reconstruction_records,
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in reconstruction_records if item.get("reconstruction_id")],
         "unresolved_inputs": list(args.get("unresolved_inputs") or spec_payload.get("unresolved_inputs") or []),

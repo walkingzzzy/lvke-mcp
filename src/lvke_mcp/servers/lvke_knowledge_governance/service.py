@@ -405,7 +405,10 @@ def review_candidate(args: dict[str, Any]) -> dict[str, Any]:
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_may_be_certified(
                 evidence_policy,
-                own_qualification_passed=candidate_payload.get("project_fact_certified") is True,
+                own_qualification_passed=True,
+                # 走 parents= 而非把父对象的 certified 当作自身合格信号：前者还会
+                # 复核父对象的 evidence_policy，上游 combine 出错时仍能兜住。
+                parents=[candidate_payload],
             ),
             "reviewed_at": utc_now(),
         }
@@ -467,7 +470,8 @@ def publish_release(args: dict[str, Any]) -> dict[str, Any]:
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_may_be_certified(
                 evidence_policy,
-                own_qualification_passed=payload.get("project_fact_certified") is True,
+                own_qualification_passed=True,
+                parents=[payload],
             ),
             "release_note": request["release_note"],
             "released_at": utc_now(),
@@ -529,7 +533,8 @@ def create_snapshot(args: dict[str, Any]) -> dict[str, Any]:
                 "evidence_policy": evidence_policy,
                 "project_fact_certified": project_fact_may_be_certified(
                     evidence_policy,
-                    own_qualification_passed=payload.get("project_fact_certified") is True,
+                    own_qualification_passed=True,
+                    parents=[payload],
                 ),
             },
             producer="lvke-knowledge-governance.knowledge_create_snapshot",

@@ -88,7 +88,15 @@ def project_fact_may_be_certified(
     own_qualification_passed: bool,
     parents: Iterable[Any] = (),
 ) -> bool:
-    """Return True only for an explicitly formal, fully certified lineage."""
+    """Return True only for an explicitly formal, fully certified lineage.
+
+    Lineage correctness is inductive, not recursive: this checks only the
+    parents it is handed, so each projection must pass its own immediate
+    factual parents and must itself have been written through this gate.
+    Full-chain soundness therefore follows from every writer using it — an
+    omitted ``parents`` argument silently narrows the check to one object,
+    so callers with upstream objects are expected to supply them.
+    """
 
     if str(evidence_policy or "").strip() != FORMAL_EVIDENCE:
         return False
