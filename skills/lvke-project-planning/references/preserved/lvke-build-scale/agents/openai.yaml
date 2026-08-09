@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Scale"
+  short_description: "Validate capacity, land, and build scale"
+  default_prompt: "Use $lvke-build-scale to create a deterministic build scale case from confirmed market demand and planning constraints."

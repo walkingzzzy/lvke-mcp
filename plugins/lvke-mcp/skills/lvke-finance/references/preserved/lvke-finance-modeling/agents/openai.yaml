@@ -1,0 +1,4 @@
+interface:
+  display_name: "绿科财务建模"
+  short_description: "运行已确认 FinanceSpec 并检查完整财务模型结果"
+  default_prompt: "使用 $lvke-finance-modeling 运行已确认 FinanceSpec 并检查完整结果。"

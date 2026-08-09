@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke 项目初始化"
+  short_description: "Create immutable project context and input applicability"
+  default_prompt: "Use $lvke-project-initialization to create and validate an immutable ProjectContext before downstream work."

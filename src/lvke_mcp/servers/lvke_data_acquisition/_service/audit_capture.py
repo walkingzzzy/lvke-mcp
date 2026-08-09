@@ -16,6 +16,28 @@ from .resources import _resource_failure
 from .urls import _audit_display_url, _canonical_discovery_url, _secret_block_reason
 
 
+def _url_safety_diagnosis(url: str) -> dict[str, Any]:
+    """Borrow url_safety's classification so both gates explain a block alike."""
+
+    try:
+        from lvke_mcp.domains.research.url_safety import url_safety_decision
+
+        decision = url_safety_decision(str(url or ""))
+    except Exception:  # noqa: BLE001 - diagnosis must never fail the audit
+        return {}
+    code = str(decision.get("code") or "")
+    if code == "proxy_fake_ip_resolution":
+        return {
+            "reason_code": "proxy_fake_ip_resolution",
+            "detail": decision.get("detail"),
+            "remediation": decision.get("remediation"),
+        }
+    return {
+        "reason_code": "unsafe_public_url",
+        "detail": decision.get("detail"),
+    }
+
+
 def audit_urls(
     workspace_id: str,
     urls: list[str],
@@ -54,6 +76,9 @@ def audit_urls(
         safe = _safe_public_url(url)
         canonical = _canonical_discovery_url(url)
         if not safe:
+            # 与 data_fetch 共用 url_safety 的诊断口径，避免两个门给相反结论时
+            # 调用方拿不到根因（历史问题 MCP-P2-005）。
+            diagnosis = _url_safety_diagnosis(url)
             results.append(
                 {
                     "url_index": index,
@@ -61,8 +86,10 @@ def audit_urls(
                     "canonical_url": canonical,
                     "url_status": "BLOCKED",
                     "safe_public_target": False,
-                    "reason_code": "unsafe_public_url",
+                    "reason_code": diagnosis.get("reason_code") or "unsafe_public_url",
                     "checked_at": checked_at,
+                    **({"detail": diagnosis["detail"]} if diagnosis.get("detail") else {}),
+                    **({"remediation": diagnosis["remediation"]} if diagnosis.get("remediation") else {}),
                 }
             )
             continue

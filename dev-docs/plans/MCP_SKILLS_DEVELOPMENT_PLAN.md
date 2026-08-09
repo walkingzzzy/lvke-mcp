@@ -22,7 +22,9 @@
 
 ## 2. 当前 MCP 能力盘点
 
-当前 `src/lvke_mcp/testing/server_manifest.py` 定义 24 个 MCP 服务，实际工具职责如下：
+**状态**: 历史文档（Wave 2 拓扑） — 当前为 14 个 server、169 个工具（参见 `server_manifest.py`）。
+
+当前 `src/lvke_mcp/testing/server_manifest.py` 定义 14 个 MCP 服务。Wave 2 时曾有 24 个，Wave 4 压缩后实际工具职责如下：
 
 | 服务 | 当前能力 | 定位 |
 |---|---|---|

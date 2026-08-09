@@ -427,7 +427,8 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "data_provider_status",
-        "列出不含密钥的 Web provider 能力与可用状态。",
+        "探测 Web provider 搜索连通性并报告不含密钥的配置状态；会真实发起一次计费"
+        "搜索调用。提取能力不被探测（extract=null），status=ok 不代表提取可用。",
         {"type": "object", "additionalProperties": False, "properties": {}},
         lambda _args: service.provider_status(),
         _OUTPUT_SCHEMA,

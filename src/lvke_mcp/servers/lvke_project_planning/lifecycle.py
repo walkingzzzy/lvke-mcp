@@ -37,6 +37,7 @@ from ._lifecycle.policy_option import (
     prepare_policy_basis,
     score_option_comparison,
     validate_option_comparison,
+    validate_policy_basis,
 )
 from ._lifecycle.revenue import (
     compare_revenue_candidates,
@@ -64,6 +65,7 @@ __all__ = [
     "validate_cost_drivers",
     "validate_labor_plan",
     "validate_option_comparison",
+    "validate_policy_basis",
     "validate_revenue_drivers",
     "calculate_cost_drivers",
 ]

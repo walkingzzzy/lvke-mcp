@@ -1,6 +1,6 @@
 ---
 name: lvke-api-contract
-description: Change or review Lvke HTTP, OpenAPI, MCP, and frontend-backend contracts. Use whenever routes, schemas, generated clients, error envelopes, or public tool interfaces change.
+description: Change or review Lvke MCP tool, Resource, schema, response-envelope, and migration contracts. Use whenever public tool interfaces, compact schemas, handlers, or dependent Skills change. This product has no frontend or HTTP application contract.
 ---
 
 # Lvke Api Contract
@@ -22,4 +22,3 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Public compression must not weaken server-side validation or business gates.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

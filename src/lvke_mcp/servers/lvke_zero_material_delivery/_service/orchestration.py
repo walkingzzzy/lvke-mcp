@@ -8,6 +8,7 @@ from typing import Any
 
 from lvke_mcp.runtime.storage import sha256_json
 
+from .assumptions import _field_values
 from .finance_align import _scenario_inputs
 
 
@@ -171,6 +172,41 @@ def execute(
                 "research_task_id": str(research.get("task_id") or ""),
                 "project_context_id": str(project_context.get("project_context_id") or ""),
                 "finance_candidate_spec_id": candidate_spec_id,
+            },
+            "resource_uris": [
+                *list(research.get("resource_uris") or []),
+                *list(project_context.get("resource_uris") or []),
+                *list(prepared.get("resource_uris") or []),
+                *list(confirmed.get("resource_uris") or []),
+            ],
+        }
+    # FinanceRun 之前做尺度对账：算术自洽不代表业务尺度成立。
+    # 50 公里轨道线套用通用单体种子会全程通过校验并标记 finance_status=ok。
+    from .scale_guard import check_project_scale
+
+    scale_check = check_project_scale(
+        industry_code=str((intent.get("industry") or {}).get("industry_code") or ""),
+        explicit_inputs=intent.get("explicit_inputs"),
+        field_values=_field_values(assumption_package),
+    )
+    if not scale_check["ok"]:
+        return {
+            "status": "model_blocked",
+            "stage": "planning_ready",
+            "research": research,
+            "project_context": project_context,
+            "finance_preparation": prepared,
+            "finance_confirmation": confirmed,
+            "scale_check": scale_check,
+            "blockers": [
+                *sorted({str(item.get("code")) for item in scale_check["issues"]}),
+            ],
+            "warnings": [str(item.get("detail")) for item in scale_check["advisories"]],
+            "object_refs": {
+                "research_task_id": str(research.get("task_id") or ""),
+                "project_context_id": str(project_context.get("project_context_id") or ""),
+                "finance_candidate_spec_id": candidate_spec_id,
+                "finance_confirmed_spec_id": confirmed_spec_id,
             },
             "resource_uris": [
                 *list(research.get("resource_uris") or []),

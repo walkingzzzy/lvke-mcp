@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke 方案比选"
+  short_description: "Score and confirm immutable project options"
+  default_prompt: "Use $lvke-option-comparison to score project alternatives and record an explicit evidence-based selection."

@@ -160,11 +160,22 @@ class McpCompressionRound2Test(unittest.TestCase):
             total += len(server.tool_specs)
             all_names.update(tool.name for tool in server.tool_specs)
         self.assertEqual(total, 169)
-        self.assertEqual(
-            sum(len(server._round2_legacy_specs) for server in self.servers.values()),  # noqa: SLF001
-            32,
+        # legacy spec 总数 = 32 条压缩迁移替换掉的旧工具 + 压缩之后新增的分支。
+        # 后者不属于 v2 迁移清单（那份 manifest 记录的是「被替换」的路由），所以
+        # 这里按「≥32 且新增部分可枚举」判定，而不是把两类计数混成一个魔数。
+        legacy_total = sum(
+            len(server._round2_legacy_specs) for server in self.servers.values()  # noqa: SLF001
         )
-        self.assertEqual(total + 32, 201)
+        post_compression_branches = {"planning_validate_policy_basis"}
+        self.assertEqual(legacy_total, 32 + len(post_compression_branches))
+        for name in post_compression_branches:
+            self.assertTrue(
+                any(
+                    name in server._round2_legacy_specs  # noqa: SLF001
+                    for server in self.servers.values()
+                ),
+                f"{name} 应注册为 legacy spec 并由聚合入口分派",
+            )
         aggregates = {
             "planning_validate", "finance_get_analysis", "planning_compare",
             "source_task_status", "delivery_transition", "planning_confirm",

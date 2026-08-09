@@ -1,0 +1,4 @@
+interface:
+  display_name: "商业服务"
+  short_description: "Plan commercial and modern service feasibility studies"
+  default_prompt: "Use $industry-context-commercial-services to structure demand, revenue, cost, and compliance analysis for a commercial service project."

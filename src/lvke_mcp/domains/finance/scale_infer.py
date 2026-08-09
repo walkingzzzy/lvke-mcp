@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .industry_aliases import normalize_industry
+
 _MU_TO_M2 = 666.67  # 1 亩 ≈ 666.67 ㎡
 _PARAMS_CACHE: dict[str, Any] | None = None
 
@@ -33,16 +35,18 @@ def _load_params() -> dict[str, Any]:
 
 
 def _resolve(industry: str = "") -> dict[str, Any]:
-    """合并 default 与命中行业的参数。"""
+    """合并 default 与命中行业的参数。支持中英文匹配。"""
     data = _load_params()
     base = dict(data.get("default") or {
         "plot_ratio": 1.0, "green_ratio": 0.15, "building_coverage": 0.40,
         "workshop_share": 0.70, "office_share": 0.15, "floor_height_m": 6.0,
         "headcount_per_10k_m2": 60, "avg_wage_wan": 9.0,
     })
-    ind = str(industry or "")
+    normalized = normalize_industry(industry)
+
+    # Match Chinese key in YAML
     for kw, override in (data.get("industry") or {}).items():
-        if kw and kw in ind and isinstance(override, dict):
+        if kw and kw in normalized and isinstance(override, dict):
             base.update(override)
             base["_matched"] = kw
             break

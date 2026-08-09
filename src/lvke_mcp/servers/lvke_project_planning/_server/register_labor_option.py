@@ -199,6 +199,16 @@ def _register_policy_option(
         write,
     )
     server.register_tool(
+        "planning_validate_policy_basis",
+        "只读复核政策候选证据绑定、分类与已确认选择的资格，不修改对象。",
+        _schema({"policy_basis_id": _STRING}, ["policy_basis_id"]),
+        lambda a: lifecycle.validate_policy_basis(
+            a["workspace_id"], a["policy_basis_id"]
+        ),
+        _OUTPUT,
+        read,
+    )
+    server.register_tool(
         "planning_validate_option_comparison",
         "校验方案、指标、强制约束和至少一个可行方案。",
         _schema({"option_comparison_id": _STRING}, ["option_comparison_id"]),

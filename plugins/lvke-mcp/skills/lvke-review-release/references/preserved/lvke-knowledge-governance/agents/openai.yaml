@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke 知识治理"
+  short_description: "Review and publish evidence-backed knowledge candidates"
+  default_prompt: "Use $lvke-knowledge-governance to submit, review, and publish an evidence-backed knowledge candidate."

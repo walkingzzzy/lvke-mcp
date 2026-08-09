@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke 受控附件"
+  short_description: "Import and govern immutable project source files"
+  default_prompt: "Use $lvke-source-files to import project files safely and inspect their immutable parsing and evidence status."

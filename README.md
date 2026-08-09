@@ -85,7 +85,8 @@ mcp_servers/
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
 │       └── <domain>/         # 14 个公开领域与参考 server
-├── skills/                   # 16 个父 Skill；专业正文位于按需 references
+├── skills/                   # Skill 源码；Codex 插件发布 14 个非前端父 Skill
+├── plugins/lvke-mcp/         # Codex 插件：14 个 MCP + 14 个 Skill
 ├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```
@@ -138,12 +139,14 @@ printf '%s\n' 'import site, sys; sys.path[:] = [p for p in sys.path if p != geta
 conda run -n lvke-mcp python -c "import sys;print([p for p in sys.path if '/.local/lib/python' in p] or 'none')"
 ```
 
-## 在客户端中启用
+## 在 Codex 中启用
 
-MCP 发行版自身不依赖任何客户端运行。任何 MCP 客户端（Codex、Claude Desktop、Hermes
-等）通过 stdio 子进程方式启动本目录下的 server 即可；客户端侧的注册方式是客户端自己的
-配置行为，不属于本发行版。`optional-mcps/` 下的 manifest 是各 server 的注册描述，
-供客户端直接引用。
+使用 `plugins/lvke-mcp/` 中的 Codex 插件发布 14 个 stdio MCP 和 14 个非前端 Skill。
+完整安装、更新、范围和验证说明见
+[`dev-docs/config/CODEX_USER_CONFIG.md`](dev-docs/config/CODEX_USER_CONFIG.md)。
+
+本产品只有 MCP + Codex Skills；Tavily 是唯一联网 provider。产品不提供前端、语音、
+协同办公、登录、身份、tenant、角色、RBAC、权限管理、安全审查或专业签审。
 
 ## 共用约定
 

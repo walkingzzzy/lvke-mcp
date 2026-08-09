@@ -109,6 +109,82 @@ def confirm_policy_basis(
     )
 
 
+_POLICY_CLASSIFICATIONS = frozenset(
+    {"applicable", "pending_verification", "excluded", "expired"}
+)
+_POLICY_SELECTABLE = frozenset({"applicable", "pending_verification"})
+
+
+def validate_policy_basis(
+    workspace_id: str, policy_basis_id: str
+) -> dict[str, Any]:
+    """Re-check a PolicyBasis object's own gates without mutating it.
+
+    prepare/confirm 已在写入时施加这些门禁，但它们内联在幂等 mutation 里，
+    确认后无法重新核验。评审与发布需要「已确认的政策基础现在仍然合规」这一
+    只读断言（例如政策过期、证据绑定被上游 revision 改动）。
+    """
+
+    record = service.POLICY_BASIS_STORE.get(workspace_id, policy_basis_id)
+    if record is None:
+        return service._blocked("policy_basis_not_found", "政策基础对象不存在")
+    payload = _payload(record)
+    candidates = [
+        row for row in (payload.get("candidates") or []) if isinstance(row, dict)
+    ]
+    blockers: list[str] = []
+    warnings: list[str] = []
+    ids = [str(row.get("candidate_id") or "") for row in candidates]
+    if not candidates:
+        blockers.append("policy_candidates_missing")
+    elif "" in ids or len(set(ids)) != len(ids):
+        blockers.append("policy_candidates_invalid")
+    if any(row.get("classification") not in _POLICY_CLASSIFICATIONS for row in candidates):
+        blockers.append("policy_classification_invalid")
+    if any(
+        not all(
+            row.get(field)
+            for field in ("title", "source_snapshot_id", "content_hash", "locator")
+        )
+        for row in candidates
+    ):
+        blockers.append("policy_evidence_incomplete")
+    status_text = str(payload.get("status") or "candidate")
+    selection = payload.get("selection")
+    if status_text == "confirmed":
+        if not isinstance(selection, dict):
+            blockers.append("policy_selection_missing")
+        else:
+            by_id = {str(row.get("candidate_id") or ""): row for row in candidates}
+            selected = [
+                str(item) for item in (selection.get("selected_candidate_ids") or [])
+            ]
+            if not selected or not set(selected) <= set(by_id):
+                blockers.append("policy_selection_invalid")
+            elif any(
+                by_id[item].get("classification") not in _POLICY_SELECTABLE
+                for item in selected
+            ):
+                blockers.append("policy_selection_ineligible")
+            if len(str(selection.get("selection_reason") or "").strip()) < 10:
+                blockers.append("policy_selection_reason_insufficient")
+    else:
+        # 未确认对象不是缺陷，但也不能被当成可引用的政策基础。
+        warnings.append("policy_basis_not_confirmed")
+    if any(row.get("classification") == "pending_verification" for row in candidates):
+        warnings.append("policy_pending_verification_present")
+    if blockers:
+        return service._envelope(
+            success=False, status="blocked", code="policy_basis_invalid",
+            blockers=blockers, warnings=warnings, valid=False,
+        )
+    return service._envelope(
+        success=True, status="ok", valid=True, warnings=warnings,
+        policy_basis_status=status_text, candidate_count=len(candidates),
+        content_hash=record["content_hash"],
+    )
+
+
 def validate_option_comparison(
     workspace_id: str, option_comparison_id: str
 ) -> dict[str, Any]:

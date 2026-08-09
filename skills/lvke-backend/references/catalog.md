@@ -4,6 +4,5 @@ Read only the entries needed for the current task, then follow the linked `SKILL
 
 | Topic | Preserved specialist source |
 |---|---|
-| FastAPI backend | [SKILL.md](preserved/lvke-backend-fastapi/SKILL.md) |
+| MCP backend | [SKILL.md](preserved/lvke-mcp-backend/SKILL.md) |
 | jobs and idempotency | [SKILL.md](preserved/lvke-backend-jobs-idempotency/SKILL.md) |
-| security and RBAC | [SKILL.md](preserved/lvke-backend-security-rbac/SKILL.md) |

@@ -6,6 +6,7 @@ from typing import Any
 
 
 from .base import ASSUMPTION_PROFILE_VERSION
+from .explicit_inputs import SOURCE_SENTENCE
 
 
 def _assumption_field(
@@ -141,6 +142,44 @@ def _build_assumption_package(intent: dict[str, Any]) -> dict[str, Any]:
             high=20,
         ),
     ]
+    # source_precedence 声明 sentence_explicit_input 高于行业种子，但此前
+    # 无人执行：句中写明的 50 公里 / 10 站 / 2028-2032 年被种子覆盖。
+    # 这里让明确输入改写同名字段，其余字段种子只作补缺。
+    explicit = dict(intent.get("explicit_inputs") or {})
+    applied: list[str] = []
+    by_name = {str(item.get("name")): item for item in fields if isinstance(item, dict)}
+    for name, spec in explicit.items():
+        if not isinstance(spec, dict) or "value" not in spec:
+            continue
+        target = by_name.get(name)
+        if target is None:
+            fields.append(
+                _assumption_field(
+                    name,
+                    spec.get("value"),
+                    unit=str(spec.get("unit") or ""),
+                    source_ref=SOURCE_SENTENCE,
+                    sensitivity="critical",
+                    uncertainty="low",
+                    decision_impact="critical",
+                    # 明确输入是给定值而非区间，low/high 取同值以示无展开。
+                    low=spec.get("value"),
+                    high=spec.get("value"),
+                )
+            )
+        else:
+            target["value"] = spec.get("value")
+            target["source_ref"] = SOURCE_SENTENCE
+            target["uncertainty"] = "low"
+            target.pop("low", None)
+            target.pop("high", None)
+        target_or_new = by_name.get(name) or fields[-1]
+        target_or_new["source"] = SOURCE_SENTENCE
+        target_or_new["explicit_raw"] = spec.get("raw")
+        if spec.get("derivation"):
+            target_or_new["derivation"] = spec.get("derivation")
+        applied.append(name)
+    unmapped = list(intent.get("explicit_input_unmapped") or [])
     return {
         "object_type": "AssumptionPackage",
         "revision": 1,
@@ -152,6 +191,8 @@ def _build_assumption_package(intent: dict[str, Any]) -> dict[str, Any]:
         "factory_scenario_id": base["scenario_id"],
         "archetype_name": base["archetype_name"],
         "fields": fields,
+        "explicit_inputs_applied": applied,
+        "explicit_input_unmapped": unmapped,
         "source_precedence": [
             "sentence_explicit_input",
             "immutable_public_evidence",

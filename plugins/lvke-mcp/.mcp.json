@@ -1,0 +1,162 @@
+{
+  "mcpServers": {
+    "lvke-asset-acquisition": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_asset_acquisition.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-data-acquisition": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_data_acquisition.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke",
+        "TAVILY_MCP_URL": "https://tavily.ivanli.cc/mcp",
+        "TAVILY_MCP_BEARER_TOKEN_FILE": "/Users/mac/.lvke/config/tavily_mcp_bearer_token",
+        "LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET_FILE": "/Users/mac/.lvke/config/external_extract_receipt_secret",
+        "LVKE_MCP_TRUSTED_HTTPS_PRIVATE_IP_HOSTS": "www.whxinzhou.gov.cn,www.gov.cn"
+      },
+      "env_vars": [
+        "TAVILY_MCP_URL",
+        "TAVILY_MCP_BEARER_TOKEN",
+        "TAVILY_MCP_BEARER_TOKEN_FILE",
+        "LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET",
+        "LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET_FILE",
+        "LVKE_MCP_TRUSTED_HTTPS_PRIVATE_IP_HOSTS"
+      ]
+    },
+    "lvke-data-analysis": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_data_analysis.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-deep-research": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_deep_research.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-deliverable-review": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_deliverable_review.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-feasibility-delivery": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_feasibility_delivery.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-finance-model": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_finance_model.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-finance-tables": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_finance_tables.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-knowledge-governance": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_knowledge_governance.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-project-planning": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_project_planning.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-reference": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_reference.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-report-generation": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_report_generation.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    },
+    "lvke-source-files": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_source_files.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke",
+        "LVKE_SOURCE_IMPORT_ROOTS": "/Users/mac/Desktop/lvke-资料",
+        "LVKE_EXTERNAL_CORPUS_ROOT": "/Users/mac/Desktop/mcp_servers/docs"
+      },
+      "env_vars": [
+        "LVKE_SOURCE_IMPORT_ROOTS",
+        "LVKE_EXTERNAL_CORPUS_ROOT"
+      ]
+    },
+    "lvke-zero-material-delivery": {
+      "command": "/opt/miniconda3/envs/lvke-mcp/bin/python",
+      "args": [
+        "-m",
+        "lvke_mcp.servers.lvke_zero_material_delivery.server"
+      ],
+      "env": {
+        "LVKE_MCP_DATA_DIR": "/Users/mac/.lvke"
+      }
+    }
+  }
+}

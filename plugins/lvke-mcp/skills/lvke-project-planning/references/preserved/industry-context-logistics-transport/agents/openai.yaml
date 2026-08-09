@@ -1,0 +1,4 @@
+interface:
+  display_name: "物流与交通"
+  short_description: "Plan logistics and transport feasibility studies"
+  default_prompt: "Use $industry-context-logistics-transport to structure demand, capacity, revenue, and network analysis for a logistics project."

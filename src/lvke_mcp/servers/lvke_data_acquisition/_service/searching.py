@@ -250,16 +250,20 @@ def search(
     if skipped_urls:
         # 让调用方看到「provider 返回了结果但 URL 不可用」，而不是静默变少。
         warnings.append("search_results_dropped_unusable_url")
+    # `ok` 的含义是「拿到了可用的高相关结果」，不是「每一条都完美」。
+    # 旧口径要求 relevant_count == len(results)，于是 5 条里 4 条过阈值也报
+    # partial/business_success=false，让调用方据此丢掉好数据。低相关结果本身
+    # 仍如实留在 results 里并附 warning，诚实性由 warning 承担而非状态位。
     if not results:
         status = "empty"
         warnings.append("search_results_empty")
     elif relevant_count == 0:
+        # 一条都没过阈值：确实没有可直接采用的结果。
         status = "partial"
         warnings.append("search_results_low_relevance")
-    elif relevant_count < len(results):
-        status = "partial"
-        warnings.append("search_results_include_low_relevance")
     else:
+        if relevant_count < len(results):
+            warnings.append("search_results_include_low_relevance")
         status = "partial" if (fallback_reason or skipped_urls) else "ok"
     record = SEARCH_STORE.put(
         workspace_id,

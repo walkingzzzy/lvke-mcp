@@ -14,6 +14,7 @@ from .base import (
     _idempotent_mutation,
     _view,
 )
+from .explicit_inputs import extract_explicit_inputs
 from .routing import _new_run, _project_name, _resolve_route
 
 
@@ -32,9 +33,13 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
 
     def mutation() -> dict[str, Any]:
         route = _resolve_route(sentence, request_payload["industry"])
+        # 句子里写明的参数必须固化，否则行业种子会覆盖明确输入。
+        explicit = extract_explicit_inputs(sentence)
         intent_payload = {
             "object_type": "DeliveryIntent",
             "sentence": sentence,
+            "explicit_inputs": explicit["fields"],
+            "explicit_input_unmapped": explicit["unmapped"],
             "project_name": _project_name(sentence, request_payload["project_name"]),
             "region": request_payload["region"],
             "industry": route,

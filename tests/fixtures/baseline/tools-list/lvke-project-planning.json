@@ -878,7 +878,8 @@
             "build_scale",
             "cost_drivers",
             "labor_plan",
-            "option_comparison"
+            "option_comparison",
+            "policy_basis"
           ]
         },
         "target_id": {

@@ -170,7 +170,13 @@ def discover(
 
     actual = len(candidates)
     met_target = not target_count or actual >= target_count
-    degraded_search = any(item.get("status") != "ok" for item in query_results)
+    # 只有「查询整体失败」才算降级。旧口径把任一 query 的 status != "ok" 都算
+    # degraded，而 data_search 在存在低相关结果时就返回 partial，于是十个角度的
+    # auto_expand 几乎必然报 business_success=false。低相关候选本就已被过滤进
+    # skipped，不应再二次惩罚整个调用。
+    degraded_search = any(
+        item.get("status") in {"upstream_failure", "empty"} for item in query_results
+    )
     status = (
         "ok"
         if met_target and candidates and not budget_exhausted and not degraded_search

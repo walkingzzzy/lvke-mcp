@@ -1,0 +1,4 @@
+interface:
+  display_name: "Labor Planning"
+  short_description: "Build reproducible staffing and wage inputs"
+  default_prompt: "Use $lvke-labor-planning to create a reproducible labor plan and wage-benefit ledger."

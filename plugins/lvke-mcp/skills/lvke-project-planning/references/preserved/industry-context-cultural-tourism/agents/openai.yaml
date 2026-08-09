@@ -1,0 +1,4 @@
+interface:
+  display_name: "文旅与儿童游乐"
+  short_description: "Plan cultural tourism and amusement feasibility studies"
+  default_prompt: "Use $industry-context-cultural-tourism to govern the planning, finance, safety, and review assumptions for a cultural tourism project."

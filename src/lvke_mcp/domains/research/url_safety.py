@@ -131,6 +131,12 @@ _ALWAYS_BLOCKED_NETWORKS = (
 # 100.64.0.0/10（CGNAT，RFC 6598）：ipaddress 的 is_private 不覆盖，必须显式拦截。
 _CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
 
+# 198.18.0.0/15（RFC 2544 基准测试段）：Python 的 is_private 覆盖它，所以公网域名
+# 在 Clash/Surge 等 fake-ip 代理下会被判成 "private"。仍然拦截——本进程无法区分
+# 「代理伪造地址」和「真有服务跑在该段」——但单列一个分类,让错误响应能说出根因,
+# 而不是把代理配置问题伪装成「URL 指向内网」。放行需显式白名单或改走受信提取。
+_PROXY_FAKE_IP_NETWORK = ipaddress.ip_network("198.18.0.0/15")
+
 # 精确 HTTPS 主机名白名单：允许解析到私网/benchmark 段（刻意收窄）。
 _TRUSTED_PRIVATE_IP_HOSTS = frozenset({
     "multimedia.nt.qq.com.cn",
@@ -168,6 +174,26 @@ def _allows_private_ip_resolution(hostname: str, scheme: str) -> bool:
     return scheme == "https" and hostname in _configured_trusted_private_ip_hosts()
 
 
+def is_always_blocked_address(value: str) -> bool:
+    """True 表示该地址属于云 metadata / 凭据端点，无条件拒绝。
+
+    单一权威名单：Gate B(extractor) 复用本函数而不复制常量，否则两处名单会漂移，
+    而漂移的那一侧就是 SSRF 缺口 —— 主机名白名单绝不能放行 metadata 端点。
+    """
+
+    try:
+        ip = ipaddress.ip_address(str(value or "").split("%", 1)[0])
+    except ValueError:
+        return False
+    candidate = ip.ipv4_mapped if isinstance(ip, ipaddress.IPv6Address) else None
+    for checked in {ip, candidate} - {None}:
+        if checked in _ALWAYS_BLOCKED_IPS or any(
+            checked in net for net in _ALWAYS_BLOCKED_NETWORKS
+        ):
+            return True
+    return False
+
+
 def _ip_classification(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str:
     candidate = ip.ipv4_mapped if isinstance(ip, ipaddress.IPv6Address) else None
     checked = candidate or ip
@@ -179,6 +205,9 @@ def _ip_classification(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> str
         return "link_local"
     if checked in _CGNAT_NETWORK:
         return "cgnat"
+    if checked in _PROXY_FAKE_IP_NETWORK:
+        # 仍不放行，但与真实内网地址区分开，供调用方定位代理 fake-ip 场景。
+        return "proxy_fake_ip"
     if checked.is_private:
         return "private"
     if checked.is_multicast:
@@ -261,13 +290,47 @@ def url_safety_decision(url: str) -> dict[str, object]:
     base["proxy_hostname_allowlisted"] = allow_exact_proxy_host
     base["global_private_override"] = allow_all_private
     base["allowed"] = bool(addresses) and not blocked
-    base["code"] = (
-        "allowed_exact_https_proxy_host"
-        if base["allowed"] and allow_exact_proxy_host
-        else "allowed_public"
-        if base["allowed"]
-        else "private_or_internal_resolution"
+    blocking = [
+        item for item in addresses if not item.get("allowed")
+    ]
+    fake_ip_blocked = bool(blocking) and all(
+        item.get("classification") == "proxy_fake_ip" for item in blocking
     )
+    if base["allowed"]:
+        base["code"] = (
+            "allowed_exact_https_proxy_host"
+            if allow_exact_proxy_host
+            else "allowed_public"
+        )
+    elif any(item.get("classification") == "cloud_metadata" for item in blocking):
+        # 云 metadata 命中必须自报家门：调用方据此知道这是无条件拒绝，
+        # 不存在任何白名单或开关能放行。
+        base["code"] = "cloud_metadata_resolution"
+        base["detail"] = f"{hostname} 解析到云 metadata 端点 " + "、".join(
+            str(item.get("address")) for item in blocking
+            if item.get("classification") == "cloud_metadata"
+        ) + "；无条件拒绝，不受任何放行开关影响。"
+    elif fake_ip_blocked:
+        # 唯一阻断原因是代理 fake-ip 段：这是本机代理配置问题，不是目标站点内网。
+        base["code"] = "proxy_fake_ip_resolution"
+        base["detail"] = (
+            f"{hostname} 解析到 "
+            + "、".join(str(item.get("address")) for item in blocking)
+            + "（198.18.0.0/15，RFC 2544 基准测试段）；通常是本机代理 fake-ip 映射，"
+            "而非目标站点位于内网。本地直连无法校验真实公网地址，因此仍然拦截。"
+        )
+        base["remediation"] = [
+            "改用 extraction_provider=tavily（受信提取由 provider 侧出网，不经本地 DNS）",
+            f"或将 {hostname} 加入 LVKE_MCP_TRUSTED_HTTPS_PRIVATE_IP_HOSTS（仅 HTTPS 生效）",
+            "或关闭代理 fake-ip 模式（Clash/Surge 改 redir-host），使 DNS 返回真实公网 IP",
+        ]
+    else:
+        base["code"] = "private_or_internal_resolution"
+        if blocking:
+            base["detail"] = f"{hostname} 解析到 " + "、".join(
+                f"{item.get('address')}({item.get('classification')})"
+                for item in blocking
+            )
     return base
 
 

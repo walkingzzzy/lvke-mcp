@@ -1,0 +1,4 @@
+interface:
+  display_name: "社会公共服务"
+  short_description: "Plan social and public service feasibility studies"
+  default_prompt: "Use $industry-context-social-public to structure need, capacity, finance, and public value analysis for a social service project."

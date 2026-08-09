@@ -1,0 +1,4 @@
+interface:
+  display_name: "环保与公用事业"
+  short_description: "Plan environmental and utility feasibility studies"
+  default_prompt: "Use $industry-context-environmental-utilities to structure capacity, tariffs, cost, and compliance analysis for a utility project."

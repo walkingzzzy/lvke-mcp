@@ -18,8 +18,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 ## Gates
 
-- Do not weaken RBAC, signatures, evidence, review, or release boundaries.
+- Preserve evidence, deterministic validation, quality review, revision, and lineage boundaries.
+- Do not add authentication, roles, tenant isolation, RBAC, permission management, or security signoff.
 - Report blockers honestly and distinguish technical completion from formal acceptance.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

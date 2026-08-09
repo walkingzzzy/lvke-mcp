@@ -13,6 +13,7 @@ _VALIDATE_BRANCHES = {
     "cost_drivers": ("planning_validate_cost_drivers", "cost_driver_set_id"),
     "labor_plan": ("planning_validate_labor_plan", "labor_plan_id"),
     "option_comparison": ("planning_validate_option_comparison", "option_comparison_id"),
+    "policy_basis": ("planning_validate_policy_basis", "policy_basis_id"),
 }
 _COMPARE_BRANCHES = {
     "market_case": ("planning_compare_market_cases", "market_case_id"),

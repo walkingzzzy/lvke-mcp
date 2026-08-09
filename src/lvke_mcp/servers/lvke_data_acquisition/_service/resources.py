@@ -92,8 +92,38 @@ async def provider_status() -> dict[str, Any]:
     from lvke_mcp.domains.research.providers import tavily as tavily_provider
 
     providers = [await tavily_provider.provider_status()]
-    available_count = sum(1 for item in providers if item["available"])
+    available_count = sum(1 for item in providers if item.get("available"))
     status = "ok" if available_count else "blocked"
+    # 区分本地配置缺口与上游故障：旧实现对两者都报
+    # provider_configuration_missing，把 Tavily 宕机说成少配了环境变量。
+    failure_kinds = {
+        str(item.get("failure_kind") or "")
+        for item in providers
+        if not item.get("available")
+    } - {""}
+    warnings: list[str] = []
+    blockers: list[str] = []
+    next_actions: list[str] = []
+    if not available_count:
+        if failure_kinds == {"upstream_unavailable"}:
+            warnings.append("Tavily 传输已配置但连通性探测失败，属上游不可用，非本地配置缺口")
+            blockers.append("provider_upstream_unavailable")
+            next_actions.append("稍后重试；持续失败请检查 Tavily 服务状态或凭据有效性")
+        else:
+            warnings.append("当前没有可用 Web provider")
+            blockers.append("provider_configuration_missing")
+            next_actions.append("配置受信 Tavily，或使用受控 direct_http 采集")
+    # 受信提取额外依赖 receipt secret：不在这里报出来，data_fetch 会在每次调用
+    # 时才 blocked，而本工具是文档指定的前置检查。
+    if any(
+        item.get("available") and not item.get("formal_extract_ready")
+        for item in providers
+    ):
+        warnings.append(
+            "缺少 LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET：搜索可用，但受信提取"
+            "（data_fetch 的 auto/tavily 路径）会被 trusted_extract_local_config_gap 阻断"
+        )
+        next_actions.append("补充 LVKE_EXTERNAL_EXTRACT_RECEIPT_SECRET 后重启 server")
     return {
         "success": bool(available_count),
         "transport_success": True,
@@ -103,8 +133,10 @@ async def provider_status() -> dict[str, Any]:
         "status": status,
         "checked_at": utc_now(),
         "providers": providers,
+        # 探测覆盖面要自报：extract 从未被探测，调用方不应把 ok 当作提取健康。
+        "probe_coverage": {"search": "probed", "extract": "not_probed"},
         "resource_uris": [],
-        "warnings": [] if available_count else ["当前没有可用 Web provider"],
-        "blockers": [] if available_count else ["provider_configuration_missing"],
-        "next_actions": [] if available_count else ["配置受信 Tavily，或使用受控 direct_http 采集"],
+        "warnings": warnings,
+        "blockers": blockers,
+        "next_actions": next_actions,
     }

@@ -43,6 +43,26 @@ dependencies = [
   # openai: spec_builder 可选 LLM 定规范（无网关时静默回退 flat）
   "pyyaml==6.0.3",
   "openai==2.24.0",
+  # pypdf: 来源域 PDF 文本层解析（_parse_bytes 的 pdf_page locator）。纯 Python、
+  # 零传递依赖。扫描版 PDF 无文本层时诚实报 needs_ocr,不在此处引入 OCR 栈
+  # (PyMuPDF/rapidocr 含二进制轮子,单机发行体积与跨平台构建代价过高)。
+  "pypdf==6.1.1",
+]
+
+[project.optional-dependencies]
+# 扫描版 / Identity-H 编码 PDF 的 OCR 回退栈。刻意留在 extras：含二进制轮子
+# （PyMuPDF、onnxruntime、opencv），装上后体积增加数百 MB，跨平台构建代价高，
+# 而多数 PDF 有可用文本层并不需要它。
+#
+# 何时必须装：中文政府公报类 PDF 常用 Identity-H 子集化字体，ToUnicode 表往中文
+# 字形缺映射，pypdf 只能抽出数字与标点、中文整段丢空。此时 extractor 的
+# _needs_ocr_fallback 会判定文本层不可用并转 OCR；缺本组依赖则降级保留文本层，
+# 并在 metadata 置 text_layer_degraded / ocr_unavailable_reason 如实上报。
+deep-research-ocr = [
+  "pymupdf==1.28.2",              # fitz：按页渲染位图供 OCR
+  "numpy==2.5.1",                 # rapidocr 的数组输入
+  "pillow==12.3.0",               # 位图解码
+  "rapidocr-onnxruntime==1.2.3",  # OCR 引擎（自带中英文模型，离线可用）
 ]
 
 [project.scripts]

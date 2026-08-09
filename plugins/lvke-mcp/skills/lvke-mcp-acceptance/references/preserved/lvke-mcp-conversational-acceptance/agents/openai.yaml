@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke MCP 对话式验收"
+  short_description: "在当前对话内逐工具真实调用 MCP 并完成项目全链工件验收"
+  default_prompt: "Use $lvke-mcp-conversational-acceptance to run a live conversational MCP acceptance for the current Lvke project."

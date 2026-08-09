@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .industry_aliases import normalize_industry
+
 _PARAMS_CACHE: dict[str, Any] | None = None
 
 _BUILTIN_DEFAULT: dict[str, Any] = {
@@ -46,9 +48,9 @@ def resolve_env_template(industry: str = "") -> dict[str, Any]:
     """合并 default 与命中行业的环保模板。返回含 measures/env_invest_ratio/eia_level/_matched。"""
     data = _load_params()
     base = dict(data.get("default") or _BUILTIN_DEFAULT)
-    ind = str(industry or "")
+    normalized = normalize_industry(industry)
     for kw, override in (data.get("industry") or {}).items():
-        if kw and kw in ind and isinstance(override, dict):
+        if kw and kw in normalized and isinstance(override, dict):
             base.update(override)
             base["_matched"] = kw
             break

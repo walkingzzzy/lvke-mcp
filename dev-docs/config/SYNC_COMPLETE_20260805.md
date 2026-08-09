@@ -1,6 +1,7 @@
 # 用户级配置同步完成（2026-08-05）
 
-**状态**: 已完成 — 24 个 MCP server + 29 个 skill 已同步到 Claude Code 用户级配置。
+**状态**: 已过时 — 本文档记录了 Wave 2 后的 24 服务拓扑。Wave 4 压缩后当前为 **14 个 MCP server + 16 个 skill**。
+参见更新的 `CLAUDE_USER_CONFIG.md`（2026-08-08 基线）。
 
 ## 已同步内容
 

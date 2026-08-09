@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke 质量基准比对"
+  short_description: "Audit URLs and compare compatible public benchmarks"
+  default_prompt: "Use $lvke-quality-benchmarking to audit source URLs and compare compatible benchmark evidence."

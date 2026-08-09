@@ -1,6 +1,6 @@
 ---
 name: lvke-review-release
-description: Review and release Lvke deliverables for evidence, consistency, numerics, format, policy, risk, decision support, and knowledge governance. Use for findings, remediation, signoff, compliance, or publication.
+description: Review Lvke deliverables for evidence, consistency, numerics, format, policy, risk, decision support, and knowledge quality. Use for findings, remediation, deterministic rescoring, retest, comparison, or review export. This workflow has no authentication, role, permission, or security-signoff step.
 ---
 
 # Lvke Review Release
@@ -18,8 +18,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 ## Gates
 
-- Review, remediation, retest, professional signoff, and separation of duties remain fail-closed.
-- Never infer policy validity or professional approval from a technical pass.
+- Keep review, remediation, retest, scoring, evidence, and export deterministic and traceable.
+- Never infer external approval or legal/professional signoff from a technical quality pass.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

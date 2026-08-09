@@ -2,6 +2,8 @@
 
 生成时间：2026-08-05　适用仓库：`/Users/mac/Desktop/mcp_servers`（独立发行版 `lvke-mcp`）
 
+**状态**: 历史文档 — 本轮验收针对 Wave 2 后的 24 服务拓扑执行。Wave 4 压缩后当前为 14 个 server、169 个工具。
+
 ## 一、背景
 
 本轮验收对 24 个 MCP server、262 个工具执行了 30,550 次真实 `tools/call`，暴露 20 个缺陷

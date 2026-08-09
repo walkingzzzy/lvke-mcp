@@ -22,6 +22,7 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 
 from .contracts import ExtractRecord, SourceRecord
+from .url_safety import _allows_private_ip_resolution, is_always_blocked_address
 from .provider_executor import (
     SyncProviderCallCancelled,
     SyncProviderCallTimeout,
@@ -39,6 +40,106 @@ _NAVIGATION_RE = re.compile(
     r"^(\u9996\u9875|\u5bfc\u822a|\u767b\u5f55|\u6ce8\u518c|\u8054\u7cfb\u6211\u4eec|\u7f51\u7ad9\u5730\u56fe|\u7248\u6743|\u9690\u79c1|\u4e0a\u4e00\u7bc7|\u4e0b\u4e00\u7bc7)(\s|$)",
     re.IGNORECASE,
 )
+
+# 行噪声判定：按字符数一刀切（旧实现 len < 12）会系统性误杀中文证据。PDF 版面把
+# 指标名与数值切成独立短行，而中文标签（「城镇化率」4 字）总比数值串（「1234.5亿元」8 字）
+# 更短 —— 于是标签先死、数值独活，正文退化成无主数字串，Gate 2 再也匹配不到 locator。
+#
+# 真实分布给出了干净的分界：中文导航词几乎全是 2 字（首页/登录/更多），而统计指标
+# 标签最短 3 字（总人口/出生率）。所以中文行用 3 字作实质性下限，并由导航词表精确
+# 排除；拉丁文本信息密度低，保留 12 字符下限。
+_CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\u3040-\u30ff]")
+_MIN_CJK_CHARS = 3
+_MIN_LATIN_CHARS = 12
+
+# 含数字的行是量化证据，永不按长度丢弃：「63.2%」「1234.5亿元」「亿元」这类行
+# 正是抽取目标本身，宁可多留噪声也不能丢证据。
+_DIGIT_RE = re.compile(r"\d")
+
+# 计量单位可独立成行（表格表头「亿元」「万人」「%」），长度必然不足 3 字，但它正是
+# Gate 3 单位相容门赖以判定的证据。按语义而非长度保留，否则单位行被当噪声删掉后，
+# 数值虽在却无单位可依，字段候选只能退化为 partial。
+_UNIT_ONLY_RE = re.compile(
+    r"^[（(\[]?\s*(?:\u4ebf\u5143|\u4e07\u5143|\u5343\u5143|\u5143|\u4e07\u4eba|\u4ebf\u4eba|\u4e07\u6237|\u4eba|\u6237|"
+    r"\u5428|\u4e07\u5428|\u516c\u65a4|\u5343\u514b|\u5e73\u65b9\u7c73|\u4e07\u5e73\u65b9\u7c73|\u516c\u9877|\u4ea9|\u5e73\u65b9\u516c\u91cc|"
+    r"\u5343\u74e6|\u4e07\u5343\u74e6|\u5146\u74e6|\u5343\u74e6\u65f6|\u4e07\u5343\u74e6\u65f6|\u5ea6|\u6807\u7164|\u5428\u6807\u7164|"
+    r"\u7acb\u65b9\u7c73|\u4e07\u7acb\u65b9\u7c73|\u516c\u91cc|\u5343\u7c73|\u7c73|\u8f86|\u53f0|\u5957|\u4ef6|\u4e2a|\u5bb6|\u5ea7|"
+    r"%|\uff05|\u2030|kWh|MWh|GWh|kW|MW|GW|km|m2|\u33a1|m\u00b2)"
+    r"\s*[)）\]]?$",
+    re.IGNORECASE,
+)
+
+# 整行恰为导航词的情形（_NAVIGATION_RE 只锚定行首，覆盖不到独立成行的短词）。
+_NAV_EXACT = frozenset({
+    "\u9996\u9875", "\u5bfc\u822a", "\u767b\u5f55", "\u6ce8\u518c", "\u8054\u7cfb\u6211\u4eec", "\u7f51\u7ad9\u5730\u56fe", "\u7248\u6743\u6240\u6709", "\u9690\u79c1\u653f\u7b56",
+    "\u4e0a\u4e00\u7bc7", "\u4e0b\u4e00\u7bc7", "\u8fd4\u56de", "\u66f4\u591a", "\u8be6\u60c5", "\u5173\u95ed", "\u641c\u7d22", "\u6253\u5370", "\u5206\u4eab",
+    "\u7248\u6743", "\u9690\u79c1", "\u5168\u6587", "\u6b63\u6587", "\u5b57\u4f53", "\u7ea0\u9519", "\u6536\u85cf", "\u8bc4\u8bba", "\u5bfc\u8bfb",
+    "home", "login", "register", "sitemap", "copyright", "privacy", "more",
+    "back", "next", "prev", "previous", "search", "print", "share", "menu",
+})
+
+
+def _is_evidence_line(line: str) -> bool:
+    """\u8be5\u884c\u662f\u5426\u503c\u5f97\u4f5c\u4e3a\u6b63\u6587\u4fdd\u7559\u3002
+
+    \u5224\u636e\u987a\u5e8f\uff1a
+      1. \u547d\u4e2d\u5bfc\u822a\u6a21\u5f0f\u6216\u6574\u884c\u7b49\u4e8e\u5bfc\u822a\u8bcd \u2192 \u4e22\u5f03\uff08\u5373\u4fbf\u542b\u6570\u5b57\uff0c\u5982\u300c\u7b2c 2 \u9875\u300d\uff09\u3002
+      2. \u542b\u6570\u5b57\u6216\u6574\u884c\u4e3a\u8ba1\u91cf\u5355\u4f4d \u2192 \u4fdd\u7559\uff1a\u91cf\u5316\u8bc1\u636e\u4e0d\u53d7\u957f\u5ea6\u9650\u5236\u3002
+      3. \u542b CJK \u2192 \u6309 ``_MIN_CJK_CHARS`` \u5224\uff08\u4e2d\u6587\u4fe1\u606f\u5bc6\u5ea6\u9ad8\uff09\u3002
+      4. \u7eaf\u62c9\u4e01 \u2192 \u6309 ``_MIN_LATIN_CHARS`` \u5224\u3002
+    """
+
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if _NAVIGATION_RE.match(stripped) or stripped.lower() in _NAV_EXACT:
+        return False
+    if _DIGIT_RE.search(stripped) or _UNIT_ONLY_RE.match(stripped):
+        return True
+    cjk = len(_CJK_RE.findall(stripped))
+    if cjk:
+        return cjk >= _MIN_CJK_CHARS
+    return len(stripped) >= _MIN_LATIN_CHARS
+
+
+# 中文 PDF 常用 Identity-H 编码的子集化字体，ToUnicode 表往中文字形缺映射：pypdf 能
+# 抽出数字与标点，却把中文整段丢空。此时正文长度可能很可观（一份 10 页统计公报仍能
+# 抽出近 1900 字符），只按长度判 OCR 回退（旧实现 len < 80）永远不会触发，系统便拿着
+# 一堆无主数字当"抽取成功"返回，下游 Gate 2 找不到标签，字段全部退化为 partial。
+#
+# 阈值以真实样本定标：本类坏样本中文占比 4.4%、数字 54.7%；同类正常中文报告中文
+# 57.7%、数字 23.0% —— 相差 13 倍，用「数字压倒中文」判别可干净分开。前置要求正文
+# 含中文迹象，纯英文文档（中文恒为 0）才不会被误判成需要 OCR。
+_MIN_TEXT_LAYER_CHARS = 80
+_DIGIT_DOMINANT_RATIO = 0.40
+_CJK_STARVED_RATIO = 0.20
+_CJK_TRACE_MIN = 1
+
+
+def _needs_ocr_fallback(content: str) -> bool:
+    """文本层是否不可用、需要改走 OCR。
+
+    两种情形：
+      1. 正文过短 —— 扫描件或抽取整体失败。
+      2. 数字压倒中文 —— 有中文迹象却占比极低，而数字占比极高，典型的 Identity-H
+         字形映射缺失。长度检查会放行这种情形，必须靠占比拦下。
+
+    纯英文正文中文恒为 0、不满足「含中文迹象」，因此不会被误判。
+    """
+
+    total = len(content)
+    if total < _MIN_TEXT_LAYER_CHARS:
+        return True
+    cjk = len(_CJK_RE.findall(content))
+    if cjk < _CJK_TRACE_MIN:
+        return False
+    digits = len(_DIGIT_RE.findall(content))
+    return (
+        digits / total >= _DIGIT_DOMINANT_RATIO
+        and cjk / total < _CJK_STARVED_RATIO
+    )
+
+
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 5
 
@@ -248,7 +349,7 @@ def clean_extracted_text(value: str) -> str:
     seen: set[str] = set()
     for raw in text.replace("\u00a0", " ").splitlines():
         line = _SPACE_RE.sub(" ", raw).strip()
-        if len(line) < 12 or _NAVIGATION_RE.match(line):
+        if not line or not _is_evidence_line(line):
             continue
         key = line.lower()
         if key in seen:
@@ -315,13 +416,17 @@ def _public_address(value: str) -> bool:
         address = ipaddress.ip_address(_normalized_address(value))
     except ValueError:
         return False
-    # Clash/Surge "fake-ip" often maps public hosts to 198.18.0.0/15 (RFC 2544
-    # benchmarking range). Python marks these non-global, which blocked *all*
-    # extractions on single-machine proxy setups (audit: 0 extracts on gov.cn).
-    # Allow when DR_ALLOW_PROXY_DNS is not "0" (default allow for 单机).
+    # Clash/Surge "fake-ip" maps public hosts into 198.18.0.0/15 (RFC 2544
+    # benchmarking range), which Python marks non-global.  This used to be
+    # allowed by default (DR_ALLOW_PROXY_DNS defaulting to "1"), which made this
+    # gate DISAGREE with url_safety._ip_classification: data_audit_urls reported
+    # a URL LIVE while data_fetch(direct_http) blocked the very same URL in the
+    # same process (MCP-P2-005).  Two gates with opposite verdicts is worse than
+    # either verdict, so the default is now deny — matching url_safety.  Opt in
+    # per-deployment with DR_ALLOW_PROXY_DNS=1 if the proxy is trusted.
     import os as _os
 
-    if _os.environ.get("DR_ALLOW_PROXY_DNS", "1").strip() != "0":
+    if _os.environ.get("DR_ALLOW_PROXY_DNS", "0").strip() in {"1", "true", "yes"}:
         try:
             if address in ipaddress.ip_network("198.18.0.0/15"):
                 return True
@@ -362,6 +467,9 @@ def _safe_public_url(
         or host.endswith((".localhost", ".local"))
     ):
         return False
+    # 与 _resolve_public_target 同一白名单，否则前置门会先拒掉 direct_http
+    # 实际能抓的 URL（表现为 "URL is not an allowed public HTTP(S) target"）。
+    trusted = _allows_private_ip_resolution(host, parsed.scheme)
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
@@ -369,8 +477,15 @@ def _safe_public_url(
             addresses = tuple((resolver or _resolve_hostname)(host, port))
         except (OSError, TypeError, ValueError):
             return False
-        return bool(addresses) and all(_public_address(value) for value in addresses)
-    return _public_address(str(address))
+        if not addresses:
+            return False
+        # 云 metadata 无条件拒绝，主机名白名单不得绕过。
+        if any(is_always_blocked_address(value) for value in addresses):
+            return False
+        return trusted or all(_public_address(value) for value in addresses)
+    if is_always_blocked_address(str(address)):
+        return False
+    return _public_address(str(address)) or trusted
 
 
 def _resolve_public_target(
@@ -416,18 +531,50 @@ def _resolve_public_target(
         )
     except ValueError as exc:
         raise UnsafePublicURLError("unsafe_url: invalid DNS address") from exc
-    if not addresses or not all(_public_address(value) for value in addresses):
+    if not addresses:
         raise UnsafePublicURLError("unsafe_url: DNS target is not wholly public")
+    # 云 metadata / 凭据端点无条件拒绝，且必须先判 —— 主机名白名单不得绕过它。
+    if any(is_always_blocked_address(value) for value in addresses):
+        raise UnsafePublicURLError("unsafe_url: cloud metadata endpoint is never allowed")
+    # Gate B 只看 IP，拿不到 hostname，所以此前无法尊重 Gate A 的 HTTPS 精确白名单：
+    # 白名单让 data_fetch 判定 URL «可固化为正式来源»，direct_http 却仍抓不到它。
+    # 可固化却抓不到是自相矛盾的状态，因此这里按同一白名单放行，判定权仍在 Gate A。
+    if not all(_public_address(value) for value in addresses):
+        if not _allows_private_ip_resolution(host, parsed.scheme):
+            raise UnsafePublicURLError("unsafe_url: DNS target is not wholly public")
     return host, int(port), addresses
 
 
-def _validate_connected_peer(sock: socket.socket, expected_ip: str) -> str:
+def _validate_connected_peer(
+    sock: socket.socket,
+    expected_ip: str,
+    *,
+    trusted_private_host: bool = False,
+) -> str:
+    """Confirm the socket landed on exactly the pre-validated address.
+
+    ``trusted_private_host`` is the one signal that may relax the public-IP
+    check, and only because ``_resolve_public_target`` already matched the
+    hostname against the HTTPS allowlist.  The peer-equals-expected check is
+    NOT relaxed by it: that is what closes the DNS-rebinding window, so it must
+    hold for allowlisted hosts too.
+    """
+
     try:
         peer = _normalized_address(str(sock.getpeername()[0]))
         expected = _normalized_address(expected_ip)
     except (OSError, TypeError, ValueError, IndexError) as exc:
         raise UnsafePublicURLError("unsafe_url: connected peer could not be verified") from exc
-    if peer != expected or not _public_address(peer):
+    if peer != expected:
+        raise UnsafePublicURLError(
+            "unsafe_url: connected peer differs from the validated public address"
+        )
+    # 无条件拒绝先判：即便主机名在白名单上，也不得连到云 metadata 端点。
+    if is_always_blocked_address(peer):
+        raise UnsafePublicURLError(
+            "unsafe_url: cloud metadata endpoint is never allowed"
+        )
+    if not _public_address(peer) and not trusted_private_host:
         raise UnsafePublicURLError(
             "unsafe_url: connected peer differs from the validated public address"
         )
@@ -437,9 +584,18 @@ def _validate_connected_peer(sock: socket.socket, expected_ip: str) -> str:
 class _PinnedHTTPConnection(http.client.HTTPConnection):
     """HTTP connection that never performs a second hostname lookup."""
 
-    def __init__(self, host: str, port: int, address: str, *, timeout: float) -> None:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        address: str,
+        *,
+        timeout: float,
+        trusted_private_host: bool = False,
+    ) -> None:
         super().__init__(host, port=port, timeout=timeout)
         self._validated_address = address
+        self._trusted_private_host = trusted_private_host
         self.connected_peer = ""
 
     def connect(self) -> None:
@@ -452,6 +608,7 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
             self.connected_peer = _validate_connected_peer(
                 sock,
                 self._validated_address,
+                trusted_private_host=self._trusted_private_host,
             )
             self.sock = sock
         except Exception:
@@ -470,9 +627,11 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
         *,
         timeout: float,
         context: ssl.SSLContext | None = None,
+        trusted_private_host: bool = False,
     ) -> None:
         super().__init__(host, port=port, timeout=timeout, context=context)
         self._validated_address = address
+        self._trusted_private_host = trusted_private_host
         self.connected_peer = ""
 
     def connect(self) -> None:
@@ -482,13 +641,18 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
             self.source_address,
         )
         try:
-            _validate_connected_peer(raw_sock, self._validated_address)
+            _validate_connected_peer(
+                raw_sock,
+                self._validated_address,
+                trusted_private_host=self._trusted_private_host,
+            )
             # ``server_hostname`` deliberately remains the original URL host:
             # certificate validation and SNI must not be weakened by IP pinning.
             tls_sock = self._context.wrap_socket(raw_sock, server_hostname=self.host)
             self.connected_peer = _validate_connected_peer(
                 tls_sock,
                 self._validated_address,
+                trusted_private_host=self._trusted_private_host,
             )
             self.sock = tls_sock
         except Exception:
@@ -586,6 +750,7 @@ def _request_pinned_once(
     timeout: float,
     max_bytes: int,
     method: str,
+    trusted_private_host: bool = False,
 ) -> tuple[bytes, int, dict[str, str], str]:
     """Try validated addresses without ever handing the hostname to connect()."""
 
@@ -604,6 +769,7 @@ def _request_pinned_once(
                         port,
                         address,
                         timeout=timeout,
+                        trusted_private_host=trusted_private_host,
                     )
                     if parsed.scheme == "https"
                     else _PinnedHTTPConnection(
@@ -611,6 +777,7 @@ def _request_pinned_once(
                         port,
                         address,
                         timeout=timeout,
+                        trusted_private_host=trusted_private_host,
                     )
                 )
                 try:
@@ -712,6 +879,12 @@ def _read_public_url(
                     current,
                     resolver=resolver,
                 )
+                # 与 _resolve_public_target 用同一判据：那里已按 hostname 匹配过
+                # HTTPS 白名单才放行非公网地址，连接层必须知道这件事，否则
+                # _validate_connected_peer 会把同一个地址再拦一次。
+                trusted_private_host = _allows_private_ip_resolution(
+                    host, urlparse(current).scheme
+                )
                 data, status, headers, peer_ip = _request_pinned_once(
                     current,
                     host=host,
@@ -720,6 +893,7 @@ def _read_public_url(
                     timeout=timeout,
                     max_bytes=max_bytes,
                     method=method,
+                    trusted_private_host=trusted_private_host,
                 )
                 if status in _REDIRECT_STATUSES:
                     location = str(headers.get("location") or "").strip()
@@ -1409,9 +1583,20 @@ class SourceExtractor:
             raise ValueError("PDF exceeds 25 MiB extraction limit")
         content, pages = extract_pdf_bytes(data)
         ocr_used = False
-        if len(content) < 80:
-            content, pages = extract_pdf_ocr(data)
-            ocr_used = True
+        text_layer_degraded = False
+        ocr_unavailable_reason = ""
+        if _needs_ocr_fallback(content):
+            text_layer_content, text_layer_pages = content, pages
+            try:
+                content, pages = extract_pdf_ocr(data)
+                ocr_used = True
+            except Exception as exc:  # noqa: BLE001
+                # OCR 不可用（通常是缺 deep-research-ocr extras）时保留文本层：数字
+                # 仍是可用证据，不能因为拿不到更好的正文就让整次抽取失败。但必须把
+                # 降级原因如实上报，否则下游只见正文缺中文、无从判断根因。
+                content, pages = text_layer_content, text_layer_pages
+                text_layer_degraded = True
+                ocr_unavailable_reason = str(exc)[:200]
         tables = extract_pdf_tables(data)
         content, safety_findings = sanitize_untrusted_text(content)
         if len(content) < 80:
@@ -1437,6 +1622,8 @@ class SourceExtractor:
                 "tables": tables,
                 "table_count": len(tables),
                 "ocr_used": ocr_used,
+                "text_layer_degraded": text_layer_degraded,
+                "ocr_unavailable_reason": ocr_unavailable_reason,
                 "safety_findings": safety_findings,
             },
         )
