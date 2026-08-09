@@ -1,5 +1,5 @@
 {
-  "frozen_at": "2026-08-07T13:30:47+0800",
+  "frozen_at": "2026-08-09T11:46:41+0800",
   "protocol_version": "2025-11-25",
   "python": "installed-environment",
   "servers": [
@@ -155,7 +155,7 @@
         "finance_import_vendor_review",
         "finance_get_analysis"
       ],
-      "resources": 5,
+      "resources": 6,
       "protocol_version": "2025-11-25"
     },
     {

@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from lvke_mcp.adapters.research_repository import PACKAGE_STORE
+from lvke_mcp.adapters.research_repository import PACKAGE_STORE, QUALITY_REVIEW_STORE
 from lvke_mcp.domains.research import application
 
 
@@ -145,6 +146,71 @@ class DeepResearchQualityTest(unittest.TestCase):
         })
         self.assertFalse(blocked["success"], blocked)
         self.assertEqual(blocked["code"], "research_quality_failed")
+
+    def test_quality_output_prevalidation_failure_writes_nothing(self) -> None:
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "引用原子性",
+            "idempotency_key": "dr-start-atomic",
+        })
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": started["task_id"],
+            "report_md": "结论。[1]",
+            "citations": [{"source_id": "source-atomic", "locator": "page:1"}],
+            "source_snapshot_ids": ["source-atomic"],
+            "quality_summary": {
+                "usable_source_count": 1,
+                "citation_coverage": 1.0,
+                "missing_fields": [],
+                "conflicts": [],
+            },
+        })
+        package_count = len(PACKAGE_STORE.list(self.workspace))
+        review_count = len(QUALITY_REVIEW_STORE.list(self.workspace))
+        with patch(
+            "lvke_mcp.domains.research._service.agent_lifecycle."
+            "validate_quality_confirmation_output",
+            side_effect=ValueError("forced schema failure"),
+        ):
+            result = application.confirm_quality({
+                "workspace_id": self.workspace,
+                "research_package_id": submitted["research_package_id"],
+            })
+        self.assertFalse(result["success"], result)
+        self.assertEqual(result["code"], "quality_confirmation_output_invalid")
+        self.assertEqual(len(PACKAGE_STORE.list(self.workspace)), package_count)
+        self.assertEqual(len(QUALITY_REVIEW_STORE.list(self.workspace)), review_count)
+        source = PACKAGE_STORE.get(self.workspace, submitted["research_package_id"])
+        self.assertEqual((source or {}).get("status"), "partial")
+
+    def test_citation_mismatch_blocks_before_quality_writes(self) -> None:
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "引用一致性",
+            "idempotency_key": "dr-start-citation-audit",
+        })
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": started["task_id"],
+            "report_md": "结论。[1]",
+            "citations": [{"source_id": "not-in-basis", "locator": "page:1"}],
+            "source_snapshot_ids": ["source-basis"],
+            "quality_summary": {
+                "usable_source_count": 1,
+                "citation_coverage": 1.0,
+                "missing_fields": [],
+                "conflicts": [],
+            },
+        })
+        review_count = len(QUALITY_REVIEW_STORE.list(self.workspace))
+        result = application.confirm_quality({
+            "workspace_id": self.workspace,
+            "research_package_id": submitted["research_package_id"],
+        })
+        self.assertFalse(result["success"], result)
+        self.assertEqual(result["code"], "research_citation_audit_failed")
+        self.assertEqual(len(QUALITY_REVIEW_STORE.list(self.workspace)), review_count)
 
 
 if __name__ == "__main__":

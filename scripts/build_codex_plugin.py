@@ -4,10 +4,15 @@
 from __future__ import annotations
 
 import shutil
+import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from write_build_metadata import write_build_metadata  # noqa: E402
+
 SOURCE_ROOT = ROOT / "skills"
 PLUGIN_SKILLS_ROOT = ROOT / "plugins" / "lvke-mcp" / "skills"
 PUBLISHED_SKILLS = (
@@ -25,6 +30,8 @@ PUBLISHED_SKILLS = (
     "lvke-review-release",
     "lvke-source-evidence",
     "lvke-tool-coordination",
+    # 行业专用：城市轨道交通不能走通用公共服务口径（规模、收入结构、成本口径三处都不同）。
+    "lvke-urban-rail-transit",
 )
 
 
@@ -60,9 +67,18 @@ def build() -> None:
                     encoding="utf-8",
                 )
 
+    # 插件安装时注入统一构建元数据；不写则 14 个服务启动即报
+    # build_metadata_incomplete，而不是退化成 source-checkout 占位串。
+    metadata = write_build_metadata()
+
     print(
         f"Built {len(PUBLISHED_SKILLS)} Codex Skills with "
         f"{reference_count} nested reference documents."
+    )
+    print(
+        f"Build metadata: commit={metadata['build_commit']} "
+        f"build_time={metadata['build_time']} "
+        f"plugin_version={metadata['plugin_version']}"
     )
 
 

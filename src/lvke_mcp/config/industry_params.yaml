@@ -22,3 +22,114 @@ industry:
   基础设施: {plot_ratio: 0.6, green_ratio: 0.20, building_coverage: 0.30, workshop_share: 0.60, office_share: 0.25, floor_height_m: 6.0, headcount_per_10k_m2: 35, avg_wage_wan: 11.0}
   公共服务: {plot_ratio: 1.2, green_ratio: 0.30, building_coverage: 0.35, workshop_share: 0.20, office_share: 0.60, floor_height_m: 4.0, headcount_per_10k_m2: 90, avg_wage_wan: 9.0}
   矿产加工: {plot_ratio: 0.7, green_ratio: 0.15, building_coverage: 0.35, workshop_share: 0.75, office_share: 0.15, floor_height_m: 10.0, headcount_per_10k_m2: 45, avg_wage_wan: 10.5}
+
+# 线性交通工程（轨道/铁路/公路）的规模不由容积率、建筑密度、厂房占比决定，
+# 上面 industry 表的用地口径参数对其无意义。这里只给**字段模板与校验规则**，
+# 刻意不给任何默认取值：线路长度、车站数、敷设比例都必须来自工可批复或线网
+# 规划证据。模板本身不构成正式证据，evidence_eligibility 恒为 field_template_only。
+field_templates:
+  轨道交通:
+    template_version: urban_rail_scale_template.v1
+    applies_to_industry_tokens:
+      [urban_rail, rail_transit, metro, subway, 轨道, 地铁, 轻轨, 市域铁路, 有轨电车]
+    fields:
+      line_length_km:
+        label: 线路长度
+        unit: km
+        type: number
+        required: true
+        minimum: 0.5
+        maximum: 200.0
+      station_count:
+        label: 车站数
+        unit: 座
+        type: integer
+        required: true
+        minimum: 2
+        maximum: 80
+      average_station_spacing_km:
+        label: 平均站间距
+        unit: km
+        type: number
+        required: false
+        minimum: 0.6
+        maximum: 5.0
+        derivation: line_length_km / max(station_count - 1, 1)
+        note: 可由线路长度与车站数确定性推导；显式给值时必须与推导值一致
+      underground_ratio:
+        label: 地下敷设比例
+        unit: ratio
+        type: number
+        required: true
+        minimum: 0.0
+        maximum: 1.0
+      elevated_ratio:
+        label: 高架敷设比例
+        unit: ratio
+        type: number
+        required: true
+        minimum: 0.0
+        maximum: 1.0
+      at_grade_ratio:
+        label: 地面敷设比例
+        unit: ratio
+        type: number
+        required: false
+        minimum: 0.0
+        maximum: 1.0
+      depot_count:
+        label: 车辆段数量
+        unit: 处
+        type: integer
+        required: true
+        minimum: 1
+        maximum: 6
+      depot_land_area_ha:
+        label: 车辆段用地面积
+        unit: ha
+        type: number
+        required: false
+        minimum: 5.0
+        maximum: 120.0
+      design_speed_kph:
+        label: 设计速度目标值
+        unit: km/h
+        type: number
+        required: true
+        minimum: 60.0
+        maximum: 160.0
+      train_formation:
+        label: 列车编组
+        unit: 辆
+        type: integer
+        required: true
+        enum: [3, 4, 6, 8]
+      headway_seconds:
+        label: 行车间隔
+        unit: s
+        type: number
+        required: true
+        minimum: 90.0
+        maximum: 600.0
+      rolling_stock_count:
+        label: 配属车辆数
+        unit: 列
+        type: integer
+        required: false
+        minimum: 4
+        maximum: 120
+    validation_rules:
+      - id: grade_separation_ratio_sum
+        expression: underground_ratio + elevated_ratio + at_grade_ratio == 1.0
+        tolerance: 0.01
+        message: 地下、高架、地面敷设比例之和必须为 1
+      - id: station_spacing_consistency
+        expression: average_station_spacing_km == line_length_km / max(station_count - 1, 1)
+        tolerance: 0.05
+        message: 显式平均站间距必须与线路长度、车站数一致
+      - id: depot_scale_matches_line
+        expression: depot_count >= ceil(line_length_km / 40)
+        message: 线路长度超过约 40km 通常需要第二处车辆段，须给出理由或补充车辆段
+      - id: headway_supports_design_speed
+        expression: headway_seconds >= 90
+        message: 行车间隔小于 90 秒需提供信号系统能力证据

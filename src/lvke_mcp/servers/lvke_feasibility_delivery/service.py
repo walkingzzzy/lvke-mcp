@@ -10,6 +10,10 @@ from typing import Any, Callable
 from filelock import FileLock
 
 from lvke_mcp.runtime import resource_registry
+from lvke_mcp.runtime.evidence_qualification import (
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -173,17 +177,23 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("release_scope_invalid", "release_scope 必须是 process_acceptance 或 project_delivery")
     if mode == "estimate_preview" and release_scope == "project_delivery":
         release_scope = "process_acceptance"
+    project_object: dict[str, Any] | None = None
     if project_context_id:
         project_object = _resolve_object(workspace_id, project_context_id)
         if project_object is None or project_object.get("kind") != "ProjectContext":
             return _blocked("project_context_not_found", "project_context_id 必须解析到当前 workspace 的真实 ProjectContext")
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=args.get("project_fact_certified") is True,
+        parents=[project_object] if project_object is not None else [],
+    )
     request = {
         "workspace_id": workspace_id,
         "delivery_mode": mode,
         "project_context_id": project_context_id,
         "evidence_policy": evidence_policy,
         "release_scope": release_scope,
-        "project_fact_certified": bool(args.get("project_fact_certified", evidence_policy == "formal_evidence")),
+        "project_fact_certified": project_fact_certified,
         "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
         "reconstruction_records": list(args.get("reconstruction_records") or []),
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
@@ -843,7 +853,20 @@ def _declared_parent_ids(payload: dict[str, Any]) -> set[str]:
     return parents
 
 
-def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[str]:
+def _object_chain_validation(
+    run: dict[str, Any],
+    workspace_id: str,
+    *,
+    validation_scope: str,
+) -> list[str]:
+    """Validate the immutable delivery chain for both acceptance scopes.
+
+    ``technical`` relaxes only formal evidence/release eligibility.  Object
+    existence, hashes, stage bindings and the substantive output contract are
+    common to both scopes; otherwise an empty or synthetic chain could pass a
+    process-acceptance check.
+    """
+
     blockers: list[str] = []
     stages = run.get("stages") or {}
     objects_by_stage: dict[str, list[dict[str, Any]]] = {}
@@ -859,8 +882,8 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
             if obj.get("reference_role") == "output"
         ]
 
-    # Each formal stage must not merely be marked completed; it must carry a
-    # real object with its immutable hashes and no unresolved blocker.
+    # Every completed delivery stage must carry a real immutable object.  This
+    # is a technical invariant, not a formal-evidence qualification rule.
     for name in STAGES[:-1]:
         item = stages.get(name) or {}
         if item.get("blockers"):
@@ -925,32 +948,33 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
                 if declared_parents:
                     blockers.append(f"{name}_object_parent_binding_mismatch:{obj.get('object_id')}")
 
-    expected_policy = str(run.get("evidence_policy") or "formal_evidence")
-    evidence_kinds = {
-        "evidence_pack", "ResearchPackage", "FinanceSpec", "BasisOfEstimate",
-        "FinanceRun", "FinanceTablesPackage", "AcquisitionFinanceSpec",
-        "AcquisitionRun", "AcquisitionTablesPackage", "ReportRevision", "ReviewRun",
-    }
-    for objects in objects_by_stage.values():
-        for obj in objects:
-            if str(obj.get("kind") or "") not in evidence_kinds:
-                continue
-            payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else {}
-            if obj.get("kind") == "ReportRevision":
-                payload = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
-            elif obj.get("kind") == "ReviewRun":
-                payload = payload.get("evidence_metadata") if isinstance(payload.get("evidence_metadata"), dict) else {}
-            policy = str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
-            if policy in {"controlled_assumption", "technical_fixture"}:
-                blockers.append(f"formal_evidence_policy_forbidden:{obj.get('object_id')}:{policy}")
-            if policy and policy != expected_policy:
-                blockers.append(f"evidence_policy_mismatch:{obj.get('object_id')}")
-            if expected_policy == "source_reconstructed":
-                if payload.get("project_fact_certified") is True:
-                    blockers.append(f"source_reconstructed_fact_certification_forbidden:{obj.get('object_id')}")
-                records = payload.get("reconstruction_records") or []
-                if not records:
-                    blockers.append(f"reconstruction_records_not_propagated:{obj.get('object_id')}")
+    if validation_scope == "formal":
+        expected_policy = str(run.get("evidence_policy") or "formal_evidence")
+        evidence_kinds = {
+            "evidence_pack", "ResearchPackage", "FinanceSpec", "BasisOfEstimate",
+            "FinanceRun", "FinanceTablesPackage", "AcquisitionFinanceSpec",
+            "AcquisitionRun", "AcquisitionTablesPackage", "ReportRevision", "ReviewRun",
+        }
+        for objects in objects_by_stage.values():
+            for obj in objects:
+                if str(obj.get("kind") or "") not in evidence_kinds:
+                    continue
+                payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else {}
+                if obj.get("kind") == "ReportRevision":
+                    payload = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
+                elif obj.get("kind") == "ReviewRun":
+                    payload = payload.get("evidence_metadata") if isinstance(payload.get("evidence_metadata"), dict) else {}
+                policy = declared_evidence_policy(payload)
+                if policy in {"controlled_assumption", "technical_fixture"}:
+                    blockers.append(f"formal_evidence_policy_forbidden:{obj.get('object_id')}:{policy}")
+                if policy and policy != expected_policy:
+                    blockers.append(f"evidence_policy_mismatch:{obj.get('object_id')}")
+                if expected_policy == "source_reconstructed":
+                    if payload.get("project_fact_certified") is True:
+                        blockers.append(f"source_reconstructed_fact_certification_forbidden:{obj.get('object_id')}")
+                    records = payload.get("reconstruction_records") or []
+                    if not records:
+                        blockers.append(f"reconstruction_records_not_propagated:{obj.get('object_id')}")
 
     project_ids = [str(item.get("object_id") or "") for item in objects_by_stage.get("project", []) if item.get("kind") == "ProjectContext" and item.get("reference_role") == "output"]
     if not project_ids:
@@ -1024,15 +1048,19 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
             try:
                 from lvke_mcp.domains.finance import tables_service
 
-                formal_validation = tables_service.validate(
+                table_validation = tables_service.validate(
                     workspace_id,
                     str(payload.get("run_id") or ""),
-                    validation_scope="formal",
+                    validation_scope=validation_scope,
                 )
             except Exception:  # noqa: BLE001
-                formal_validation = {"success": False}
-            if not formal_validation.get("success"):
-                blockers.append("finance_tables_formal_validation_required")
+                table_validation = {"success": False}
+            if not table_validation.get("success"):
+                blockers.append(
+                    "finance_tables_formal_validation_required"
+                    if validation_scope == "formal"
+                    else "finance_tables_technical_validation_required"
+                )
 
     report_payloads = payloads("report")
     if not report_payloads:
@@ -1062,16 +1090,20 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
             blockers.append("report_finance_tables_binding_mismatch")
         if payload.get("readiness") is False:
             blockers.append("report_readiness_failed")
-    for obj in objects_by_stage.get("report", []):
-        if obj.get("reference_role") != "output" or obj.get("kind") != "ReportRevision":
-            continue
-        try:
-            from lvke_mcp.domains.reports.validation import validate_report
-            report_validation = validate_report(workspace_id, str(obj.get("object_id") or ""))
-            if not report_validation.get("valid"):
-                blockers.append("report_readiness_failed")
-        except Exception:  # noqa: BLE001
-            blockers.append("report_readiness_unverifiable")
+    # report_validate includes the strict finance publish binding.  The common
+    # technical checks above still require nine chapters, section lineage and
+    # readiness; only formal release invokes that additional publish gate.
+    if validation_scope == "formal":
+        for obj in objects_by_stage.get("report", []):
+            if obj.get("reference_role") != "output" or obj.get("kind") != "ReportRevision":
+                continue
+            try:
+                from lvke_mcp.domains.reports.validation import validate_report
+                report_validation = validate_report(workspace_id, str(obj.get("object_id") or ""))
+                if not report_validation.get("valid"):
+                    blockers.append("report_readiness_failed")
+            except Exception:  # noqa: BLE001
+                blockers.append("report_readiness_unverifiable")
 
     review_payloads = payloads("review")
     if not review_payloads:
@@ -1085,8 +1117,30 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
             blockers.append("review_open_finding")
         if payload.get("validation_complete") is False:
             blockers.append("review_not_complete")
+        review_purpose = str(
+            (payload.get("project_context") or {}).get("review_purpose")
+            or (payload.get("project_context") or {}).get("release_scope")
+            or ""
+        )
+        release_scope = str(run.get("release_scope") or "project_delivery")
+        if review_purpose and review_purpose != release_scope:
+            blockers.append("review_release_scope_mismatch")
+        if payload.get("technical_verdict") in {"fail", "incomplete"}:
+            blockers.append("review_technical_verdict_not_acceptable")
+        if validation_scope == "formal" and payload.get("release_verdict") in {"fail", "incomplete"}:
+            blockers.append("review_release_verdict_not_acceptable")
+            blockers.extend(
+                str(item)
+                for item in payload.get("blockers") or []
+                if str(item).startswith((
+                    "standard_methodology_full_text_required:",
+                    "controlled_assumption_release_forbidden",
+                    "source_reconstructed_release_forbidden",
+                    "technical_fixture_release_forbidden",
+                ))
+            )
     knowledge_ids = list(run.get("knowledge_candidate_ids") or [])
-    if knowledge_ids:
+    if validation_scope == "formal" and knowledge_ids:
         try:
             for candidate_id in knowledge_ids:
                 result = resource_registry.get_knowledge_candidate(workspace_id, candidate_id)
@@ -1100,6 +1154,16 @@ def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[st
     return sorted(set(blockers))
 
 
+def _formal_object_validation(run: dict[str, Any], workspace_id: str) -> list[str]:
+    """Compatibility wrapper for callers of the former private helper."""
+
+    return _object_chain_validation(
+        run,
+        workspace_id,
+        validation_scope="formal",
+    )
+
+
 def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tuple[bool, list[str], list[str]]:
     stages = run.get("stages") or {}
     blockers: list[str] = []
@@ -1107,21 +1171,16 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
     for index, name in enumerate(STAGES[:-1]):
         item = stages.get(name) or {}
         item_status = str(item.get("status") or "pending")
-        if item_status == "completed" and not item.get("output_refs"):
+        if item_status != "completed":
+            blockers.append(f"{name}_{item_status or 'pending'}")
+        if not item.get("output_refs"):
             blockers.append(f"{name}_output_refs_missing")
-        if item_status == "completed" and not str(item.get("basis_hash") or "").strip():
+        if not str(item.get("basis_hash") or "").strip():
             blockers.append(f"{name}_basis_hash_missing")
-        if item_status == "completed" and name != "project" and not item.get("input_refs"):
+        if name != "project" and not item.get("input_refs"):
             blockers.append(f"{name}_input_refs_missing")
-        if scope == "formal":
-            if item_status != "completed":
-                blockers.append(f"{name}_{item_status or 'pending'}")
-            if item.get("blockers"):
-                blockers.append(f"{name}_blockers_present")
-            if item_status in {"partial", "stale", "blocked"}:
-                blockers.append(f"{name}_{item_status}")
-        elif item_status in {"partial", "blocked", "stale"}:
-            warnings.append(f"{name}_{item_status}")
+        if item.get("blockers"):
+            blockers.append(f"{name}_blockers_present")
         if index > 0:
             previous = stages.get(STAGES[index - 1]) or {}
             if item_status == "completed" and previous.get("status") != "completed":
@@ -1140,10 +1199,22 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
         blockers.append("preview_cannot_formal_release")
     evidence_policy = str(run.get("evidence_policy") or "formal_evidence")
     release_scope = str(run.get("release_scope") or "project_delivery")
+    if scope == "technical":
+        if evidence_policy != "formal_evidence":
+            warnings.append(f"formal_evidence_not_established:{evidence_policy}")
+        if not run.get("project_fact_certified"):
+            warnings.append("project_fact_not_certified")
+        warnings.extend(
+            f"release_limitation:{item}"
+            for item in run.get("release_limitations") or []
+            if str(item)
+        )
     if scope == "formal" and evidence_policy == "controlled_assumption":
         blockers.append("controlled_assumption_formal_forbidden")
     if scope == "formal" and release_scope == "project_delivery" and evidence_policy == "source_reconstructed":
         blockers.append("project_fact_evidence_missing")
+    if scope == "formal" and release_scope == "project_delivery" and not run.get("project_fact_certified"):
+        blockers.append("project_fact_certification_required")
     if scope == "formal" and evidence_policy == "source_reconstructed":
         if not run.get("reconstructed_source_ids"):
             blockers.append("reconstructed_source_ids_missing")
@@ -1167,9 +1238,15 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
                     blockers.append(f"reconstruction_source_hash_mismatch:{uri}")
         if run.get("project_fact_certified") is True:
             blockers.append("source_reconstructed_cannot_certify_project_fact")
-    if scope == "formal" and workspace_id:
-        blockers.extend(_formal_object_validation(run, workspace_id))
-    return not blockers, blockers, warnings
+    if workspace_id:
+        blockers.extend(
+            _object_chain_validation(
+                run,
+                workspace_id,
+                validation_scope=scope,
+            )
+        )
+    return not blockers, sorted(set(blockers)), sorted(set(warnings))
 
 
 def validate(args: dict[str, Any]) -> dict[str, Any]:
@@ -1212,18 +1289,55 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("release_scope_invalid", "release_scope 必须是 process_acceptance 或 project_delivery")
     if requested_scope != str(run.get("release_scope") or "project_delivery"):
         run = {**run, "release_scope": requested_scope}
-    passed, blockers, warnings = _validation(run, "formal", workspace_id)
+    validation_scope = "technical" if requested_scope == "process_acceptance" else "formal"
+    passed, blockers, warnings = _validation(run, validation_scope, workspace_id)
     if not passed:
         if "project_fact_evidence_missing" in blockers:
             return _blocked("project_fact_evidence_missing", "当前资料只有 source_reconstructed，不能作为 project_delivery 发布", next_actions=["将 release_scope 改为 process_acceptance"], validation_blockers=blockers)
-        return _blocked("formal_validation_required", "formal 校验未通过，不能发布", next_actions=["调用 feasibility_validate(scope=formal)"], validation_blockers=blockers)
-    request = {"delivery_run_id": delivery_run_id, "release_note": str(args.get("release_note") or "")}
+        if "project_fact_certification_required" in blockers:
+            return _blocked(
+                "project_fact_certification_required",
+                "project_delivery 要求项目事实及其正式证据链已认证",
+                next_actions=["补齐业主正式资料并重新执行证据认证，或改做 process_acceptance"],
+                validation_blockers=blockers,
+            )
+        methodology_blocker = next((
+            item for item in blockers
+            if str(item).startswith("standard_methodology_full_text_required:")
+        ), "")
+        if methodology_blocker:
+            return _blocked(
+                "standard_methodology_full_text_required",
+                "缺少 PKG-STD-011 的合法 S003 方法书全文，不能执行 project_delivery",
+                next_actions=["导入合法方法书全文并重新审查，或改做 process_acceptance"],
+                validation_blockers=blockers,
+            )
+        code = (
+            "technical_validation_required"
+            if validation_scope == "technical"
+            else "formal_validation_required"
+        )
+        return _blocked(
+            code,
+            f"{validation_scope} 校验未通过，不能发布",
+            next_actions=[f"调用 feasibility_validate(scope={validation_scope})"],
+            validation_blockers=blockers,
+            validation_scope=validation_scope,
+            release_scope=requested_scope,
+        )
+    request = {
+        "delivery_run_id": delivery_run_id,
+        "release_scope": requested_scope,
+        "validation_scope": validation_scope,
+        "release_note": str(args.get("release_note") or ""),
+    }
 
     def create() -> dict[str, Any]:
         release_payload = {
             "delivery_run_id": delivery_run_id,
             "delivery_mode": run.get("delivery_mode"),
             "release_scope": requested_scope,
+            "validation_scope": validation_scope,
             "evidence_policy": run.get("evidence_policy") or "formal_evidence",
             "project_fact_certified": bool(run.get("project_fact_certified")),
             "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),
@@ -1249,6 +1363,7 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         payload["parent_run_id"] = delivery_run_id
         payload["status"] = "released"
         payload["current_stage"] = "released"
+        payload["release_scope"] = requested_scope
         payload.setdefault("stages", empty_stages())["released"] = {
             "status": "completed",
             "input_refs": [delivery_run_id],
@@ -1273,6 +1388,9 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             release_id=release_record["object_id"],
             delivery_run=_view(released_run),
             delivery_run_id=released_run["object_id"],
+            release_scope=requested_scope,
+            validation_scope=validation_scope,
+            warnings=warnings,
             resource_uris=[release_record["resource_uri"], released_run["resource_uri"]],
         )
 

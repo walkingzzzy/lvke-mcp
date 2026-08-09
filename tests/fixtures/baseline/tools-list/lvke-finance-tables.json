@@ -88,7 +88,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "从同一 run_id 导出带 lineage 的 XLSX；不接收任何散乱财务参数。",
+    "description": "从同一 run_id 导出恰好13张正式财务表的 XLSX；默认 formal。validation_scope='technical' 时文件内逐表标记为估算预览且永不可取得正式资格。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -105,6 +105,18 @@
         "template_version": {
           "type": "string",
           "minLength": 1
+        },
+        "finance_tables_package_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validation_scope": {
+          "type": "string",
+          "enum": [
+            "technical",
+            "formal"
+          ],
+          "default": "formal"
         }
       },
       "required": [
@@ -123,7 +135,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，不把 JSON 序列化入表。",
+    "description": "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，给定 finance_tables_package_id 时消费既有包。默认 formal，正式门禁不过即拒绝；validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -140,6 +152,18 @@
         "template_version": {
           "type": "string",
           "minLength": 1
+        },
+        "finance_tables_package_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "validation_scope": {
+          "type": "string",
+          "enum": [
+            "technical",
+            "formal"
+          ],
+          "default": "formal"
         }
       },
       "required": [

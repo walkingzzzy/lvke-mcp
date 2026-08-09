@@ -35,6 +35,7 @@ from mcp.types.version import (
 
 from lvke_mcp.runtime.errors import error_call_result, protocol_error_response
 from lvke_mcp.runtime.coordination import build_coordination
+from lvke_mcp.runtime.build_metadata import build_metadata
 
 
 def _audit_hash(value: Any) -> str:
@@ -47,49 +48,10 @@ def _audit_hash(value: Any) -> str:
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def _resolve_build_commit() -> str:
-    """Resolve a source-checkout commit without host-application metadata."""
-
-    configured = str(os.getenv("LVKE_MCP_GIT_SHA") or "").strip()
-    if configured:
-        return configured
-    try:
-        # 向上搜索而不写死层数：源码树是 src/lvke_mcp/runtime/（.git 在
-        # 第 3 层），安装布局层数不同，写死会静默退化为 unknown。
-        here = Path(__file__).resolve()
-        git_dir = next(
-            (
-                candidate / ".git"
-                for candidate in here.parents
-                if (candidate / ".git").exists()
-            ),
-            None,
-        )
-        if git_dir is None:
-            return "unknown"
-        if git_dir.is_file():
-            marker = git_dir.read_text(encoding="utf-8").strip()
-            if marker.startswith("gitdir:"):
-                git_dir = (git_dir.parent / marker.split(":", 1)[1].strip()).resolve()
-        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
-        if not head.startswith("ref:"):
-            return head
-        ref = head.split(":", 1)[1].strip()
-        loose = git_dir / ref
-        if loose.is_file():
-            return loose.read_text(encoding="utf-8").strip()
-        for line in (git_dir / "packed-refs").read_text(encoding="utf-8").splitlines():
-            if line and not line.startswith(("#", "^")):
-                sha, name = line.split(" ", 1)
-                if name == ref:
-                    return sha
-    except Exception:  # noqa: BLE001
-        pass
-    return "unknown"
-
-
-_BUILD_COMMIT = _resolve_build_commit()
-_BUILD_TIME = str(os.getenv("LVKE_MCP_BUILD_TIME") or "source-checkout")
+# 构建元数据由 lvke_mcp.runtime.build_metadata 统一解析：14 个服务共享同一
+# commit / build_time / plugin_version 快照，缺失时显式暴露
+# build_metadata_incomplete 而不是写 source-checkout 占位串。
+_BUILD_METADATA = build_metadata()
 _RUNTIME_INSTANCE = secrets.token_hex(6)
 # Keep tools/list below the hard context budget while preserving every
 # top-level argument and its scalar constraints.  Larger nested objects remain
@@ -782,8 +744,8 @@ class OfficialStdioServer:
             else:
                 payload.setdefault(field, [])
         payload.setdefault("service_version", self.server_version)
-        payload.setdefault("build_commit", _BUILD_COMMIT)
-        payload.setdefault("build_time", _BUILD_TIME)
+        for key, value in _BUILD_METADATA.envelope_fields().items():
+            payload.setdefault(key, value)
         payload.setdefault("schema_version", "mcp-envelope.v2")
         payload.setdefault("runtime_instance", _RUNTIME_INSTANCE)
         payload["coordination"] = build_coordination(payload, server_name=self.server_name)

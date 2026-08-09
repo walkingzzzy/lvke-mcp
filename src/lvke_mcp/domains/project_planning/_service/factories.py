@@ -12,6 +12,10 @@ from lvke_mcp.adapters.project_planning_repository import (
     PROJECT_CONTEXT_STORE,
     REVENUE_DRIVER_STORE,
 )
+from lvke_mcp.runtime.evidence_qualification import (
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 
 from .base import (
     _blocked,
@@ -72,7 +76,15 @@ def create_revenue_driver_set(
                 blockers=["revenue_component_conflict"],
                 field_errors={item["path"]: item for item in normalization_errors},
             )
-        evidence_track = str((context.get("payload") or {}).get("evidence_track") or "real")
+        context_payload = context.get("payload") or {}
+        market_payload = market.get("payload") or {}
+        evidence_track = str(market_payload.get("evidence_track") or context_payload.get("evidence_track") or "real")
+        evidence_policy = declared_evidence_policy(market_payload, default=evidence_track)
+        project_fact_certified = project_fact_may_be_certified(
+            evidence_policy,
+            own_qualification_passed=True,
+            parents=[market_payload, context_payload],
+        )
         if mode not in {"estimate_preview", "review_candidate"}:
             return _blocked("revenue_mode_invalid", "mode 必须为 estimate_preview 或 review_candidate")
         if not isinstance(op_years, int) or isinstance(op_years, bool) or not 1 <= op_years <= 100:
@@ -134,7 +146,8 @@ def create_revenue_driver_set(
             "market_case_id": market_case_id,
             "mode": mode,
             "evidence_track": evidence_track,
-            "project_fact_certified": False if evidence_track == "source_reconstructed" else True,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "revenue_spec": normalized_spec,
             "op_years": op_years,
             "expanded": expanded,
@@ -183,6 +196,8 @@ def create_revenue_driver_set(
             finance_spec_ledger=payload["finance_spec_ledger"],
             lineage={"project_context_id": project_context_id, "market_case_id": market_case_id},
             evidence_track=evidence_track,
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             idempotent_replay=False,
         )
 

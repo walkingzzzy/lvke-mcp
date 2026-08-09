@@ -88,6 +88,10 @@ def render(
         )
     payload = {
         "run_id": run_id,
+        # 十三表/CSV/XLSX 都从这个 package 派生，必须能自证绑定的是哪一个
+        # confirmed Spec，否则脱离 MCP 响应单看工件时无法反查口径。
+        "spec_id": str(source_run.get("spec_id") or ""),
+        "spec_hash": str(source_run.get("spec_hash") or ""),
         "template_version": data.get("template_version"),
         "table_bundle_hash": data.get("table_bundle_hash"),
         "table_manifest": table_manifest,
@@ -111,7 +115,12 @@ def render(
         producer="lvke-finance-tables.tables_render",
         status=status,
         source_ids=[run_id],
-        basis={"run_id": run_id, "table_bundle_hash": data.get("table_bundle_hash")},
+        basis={
+            "run_id": run_id,
+            "spec_id": payload["spec_id"],
+            "spec_hash": payload["spec_hash"],
+            "table_bundle_hash": data.get("table_bundle_hash"),
+        },
     )
     result = _package_result(record, validation, status)
     result.update({

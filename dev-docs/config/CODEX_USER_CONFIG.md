@@ -1,6 +1,6 @@
 # Codex 用户级部署说明
 
-本项目通过 `lvke-mcp` Codex 插件发布 **14 个 MCP server** 和 **14 个 Codex Skill**。`lvke-frontend` 与 `lvke-desktop` 不属于产品能力，不进入插件。
+本项目通过 `lvke-mcp` Codex 插件发布 **14 个 MCP server** 和 **15 个 Codex Skill**。`lvke-frontend` 与 `lvke-desktop` 不属于产品能力，不进入插件。
 
 ## 产品边界
 
@@ -36,7 +36,7 @@
 
 3. 重新启动 Codex 任务，使新的 MCP 和 Skills 进入会话。
 
-插件更新时先运行 `python3 scripts/build_codex_plugin.py`。构建器只发布 14 个父 Skill，并把嵌套专家资料打包为普通 `REFERENCE.md`，避免 Codex 将其重复注册为额外 Skill。之后运行 plugin-creator 的 cachebuster 工具并重新安装。
+插件更新时先运行 `python3 scripts/build_codex_plugin.py`。构建器只发布 15 个父 Skill，并把嵌套专家资料打包为普通 `REFERENCE.md`，避免 Codex 将其重复注册为额外 Skill。之后运行 plugin-creator 的 cachebuster 工具并重新安装。
 
 ## Tavily 凭据
 
@@ -54,4 +54,4 @@ codex plugin list
 codex mcp list
 ```
 
-验收必须看到 14 个 `lvke-*` MCP 和 14 个非前端 Lvke Skill。MCP 源码测试通过不等于 Codex 已发现这些能力；必须在新任务中完成一次真实 `tools/list` 和代表性业务调用。
+验收必须看到 14 个 `lvke-*` MCP 和 15 个非前端 Lvke Skill。MCP 源码测试通过不等于 Codex 已发现这些能力；必须在新任务中完成一次真实 `tools/list` 和代表性业务调用。

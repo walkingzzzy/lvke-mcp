@@ -85,8 +85,8 @@ mcp_servers/
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
 │       └── <domain>/         # 14 个公开领域与参考 server
-├── skills/                   # Skill 源码；Codex 插件发布 14 个非前端父 Skill
-├── plugins/lvke-mcp/         # Codex 插件：14 个 MCP + 14 个 Skill
+├── skills/                   # Skill 源码；Codex 插件发布 15 个非前端父 Skill
+├── plugins/lvke-mcp/         # Codex 插件：14 个 MCP + 15 个 Skill
 ├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```
@@ -141,7 +141,7 @@ conda run -n lvke-mcp python -c "import sys;print([p for p in sys.path if '/.loc
 
 ## 在 Codex 中启用
 
-使用 `plugins/lvke-mcp/` 中的 Codex 插件发布 14 个 stdio MCP 和 14 个非前端 Skill。
+使用 `plugins/lvke-mcp/` 中的 Codex 插件发布 14 个 stdio MCP 和 15 个非前端 Skill。
 完整安装、更新、范围和验证说明见
 [`dev-docs/config/CODEX_USER_CONFIG.md`](dev-docs/config/CODEX_USER_CONFIG.md)。
 

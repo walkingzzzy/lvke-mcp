@@ -160,6 +160,7 @@ def find_run_by_idempotency_key(workspace_id: str, idempotency_key: str) -> dict
     out: dict[str, Any] = {
         "run_id": record.get("run_id"),
         "input_hash": record.get("input_hash"),
+        "spec_id": record.get("spec_id"),
         "spec_hash": record.get("spec_hash"),
         "model_version": record.get("model_version"),
         "template_version": record.get("template_version"),
@@ -290,6 +291,7 @@ def record_run(
         "consistency_ok": consistency_ok,
         "consistency": consistency,
         "spec_json": spec_json,
+        "spec_id": fin.get("spec_id") or None,
         "spec_hash": spec_hash,
         "parent_run_id": None,
         "input_hash": input_hash or fin.get("input_hash") or "",

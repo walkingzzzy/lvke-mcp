@@ -69,6 +69,8 @@ def expand(spec: dict[str, Any], op_years: int) -> dict[str, Any]:
         return _tourism(rev, op_years)
     if model == "gov_payment":
         return _gov_payment(rev, op_years)
+    if model == "rail_transit":
+        return _rail_transit(rev, op_years)
     if model == "hotel_mixed":  # 【恒立专用】混合经营模型
         return _hotel_mixed(rev, op_years)
     if model in {"lease_portfolio", "inventory_sales"}:
@@ -342,6 +344,97 @@ def _gov_payment(rev: dict[str, Any], op_years: int) -> dict[str, Any]:
         "vat_refund_rate": vat_refund,
         "fiscal_subsidy_wan": subsidy,
         "note": "：".join(note_parts) if len(note_parts) > 1 else note_parts[0],
+    }
+
+
+_NON_FARE_SCENARIO_RATES = {"low": 0.05, "base": 0.10, "high": 0.15}
+
+
+def rail_non_fare_rate(rev: dict[str, Any]) -> float:
+    """Resolve the non-fare share of farebox revenue from an explicit scenario.
+
+    非票收入（广告、商业、通信管道等）在轨道交通里按票务收入的固定比例情景估算，
+    行业惯例给 5%/10%/15% 三档。显式 ``non_fare_revenue_rate`` 优先，其次按
+    ``non_fare_scenario`` 取档；两者都缺则回落 base 档，绝不静默取 0。
+    """
+
+    explicit = rev.get("non_fare_revenue_rate")
+    if explicit is not None:
+        return max(0.0, min(_f(explicit), 1.0))
+    scenario = str(rev.get("non_fare_scenario") or "base").strip().lower()
+    return _NON_FARE_SCENARIO_RATES.get(scenario, _NON_FARE_SCENARIO_RATES["base"])
+
+
+def _rail_transit(rev: dict[str, Any], op_years: int) -> dict[str, Any]:
+    """城市轨道交通：票务/非票/财政支持三分收入。
+
+    参数：
+    - annual_passenger_trips：达产年客运量（万人次，单位由 passenger_unit 决定）
+    - average_fare_yuan：平均清分票价（元/人次，线网清分后归本线的票款）
+    - ridership_ramp：逐年客流爬坡系数
+    - non_fare_scenario / non_fare_revenue_rate：非票收入占票务收入比例（5%/10%/15%）
+    - annual_fiscal_support_wan / fiscal_support_ramp：财政支持（运营补贴），单列不混入票价
+
+    三类收入必须各自可追溯：票务=客运量×清分票价×爬坡；非票=票务×比例；
+    财政支持独立成项。绝不把补贴摊进票价冒充票款收入，也不把票款和补贴合并成
+    单一"营业收入"，否则运营期票价敏感性无法计算。
+    """
+
+    trips_unit = str(rev.get("passenger_unit") or "").strip()
+    unit_scales = {
+        "人次": 1.0,
+        "person_trips": 1.0,
+        "passenger_trips": 1.0,
+        "persons": 1.0,
+        "万人次": 10000.0,
+        "10k_person_trips": 10000.0,
+        "ten_thousand_person_trips": 10000.0,
+    }
+    if trips_unit not in unit_scales:
+        raise ValueError("rail_transit.passenger_unit 必须显式为 人次 或 万人次")
+    trips = max(_f(rev.get("annual_passenger_trips")), 0.0) * unit_scales[trips_unit]
+    fare = max(_f(rev.get("average_fare_yuan")), 0.0)
+    ramp = _ramp(rev.get("ridership_ramp") or rev.get("ramp") or [], op_years)
+    # 票务收入（万元）= 客运量（人次）× 清分票价（元/人次）÷ 10000
+    farebox_full = _to_wan(fare, "yuan") * trips
+    multipliers = _ramp(rev.get("fare_multiplier_by_year") or [], op_years)
+    if any(value < 0 for value in multipliers):
+        raise ValueError("rail_transit.fare_multiplier_by_year 不得为负")
+    farebox_by_year = [
+        round(farebox_full * ramp[index] * multipliers[index], 2)
+        for index in range(op_years)
+    ]
+
+    non_fare_rate = rail_non_fare_rate(rev)
+    non_fare_by_year = [round(value * non_fare_rate, 2) for value in farebox_by_year]
+
+    support_full = max(_f(rev.get("annual_fiscal_support_wan")), 0.0)
+    support_ramp = _ramp(rev.get("fiscal_support_ramp") or [], op_years)
+    support_by_year = [round(support_full * r, 2) for r in support_ramp]
+
+    revenue_by_year = [
+        round(farebox_by_year[y] + non_fare_by_year[y] + support_by_year[y], 2)
+        for y in range(op_years)
+    ]
+    note_parts = [
+        "轨道交通三分收入：票务=客运量×清分票价×爬坡",
+        f"非票={non_fare_rate:.0%}×票务",
+    ]
+    if support_full > 0:
+        note_parts.append(f"财政支持达产年 {support_full:g} 万元（单列）")
+    return {
+        "revenue_by_year": revenue_by_year,
+        "var_cost_by_year": [0.0] * op_years,
+        "model": "rail_transit",
+        "farebox_by_year": farebox_by_year,
+        "non_fare_by_year": non_fare_by_year,
+        "fiscal_support_by_year": support_by_year,
+        "non_fare_revenue_rate": non_fare_rate,
+        "annual_passenger_trips_persons": trips,
+        "average_fare_yuan": fare,
+        "ridership_ramp": ramp,
+        "fare_multiplier_by_year": multipliers,
+        "note": "；".join(note_parts),
     }
 
 

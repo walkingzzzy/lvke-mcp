@@ -58,6 +58,7 @@ def get_workspace_finance_run(
         "run_id": rid,
         "model_version": audit_view.get("model_version"),
         "template_version": audit_view.get("template_version") or TEMPLATE_VERSION,
+        "spec_id": audit_view.get("spec_id"),
         "spec_hash": audit_view.get("spec_hash"),
         "input_hash": audit_view.get("input_hash"),
         "input_revision_id": audit_view.get("input_revision"),

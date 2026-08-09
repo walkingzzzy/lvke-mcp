@@ -371,6 +371,35 @@ def delivery_assessment(
     if not boe_ready:
         gate["validation_complete"] = False
         gate["blockers"] = [*gate["blockers"], "basis_of_estimate_required"]
+    # 附表4 分年资金计划：比例摊分回退只是估算，不得进正式表包。
+    # 这两项此前只影响 grade（funding_uses_sources_balance 在
+    # independent_recalc_checks 里）或只查列标签（funding_year_plan），
+    # 都不产 blocker，于是回退数据能一路通过正式门禁。
+    # 归入 gate 而非技术层：technical scope 的过程验收仍应放行。
+    workbook_quality = validation.get("workbook_delivery_quality") or {}
+    funding_gate_checks = {
+        "funding_year_plan": (workbook_quality.get("semantic_checks") or {}).get(
+            "funding_year_plan"
+        ),
+        "funding_uses_sources_balance": (
+            workbook_quality.get("independent_recalc_checks") or {}
+        ).get("funding_uses_sources_balance"),
+    }
+    funding_blockers = [
+        f"funding_plan_not_formal:{name}"
+        for name, check in funding_gate_checks.items()
+        if check is not None and not bool((check or {}).get("ok"))
+    ]
+    if funding_blockers:
+        gate["validation_complete"] = False
+        gate["blockers"] = [*gate["blockers"], *funding_blockers]
+        validation["funding_plan_blockers_actionable"] = [
+            str((check or {}).get("actionable") or "")
+            for check in funding_gate_checks.values()
+            if check is not None
+            and not bool((check or {}).get("ok"))
+            and (check or {}).get("actionable")
+        ]
     formal_ready = bool(validation["valid"]) and bool(gate["validation_complete"])
     validation["validation_complete"] = formal_ready
     validation["validation_level"] = "complete" if formal_ready else "incomplete"
@@ -392,6 +421,9 @@ def delivery_assessment(
         ),
         "workbook_semantic_blockers_actionable": list(
             validation.get("workbook_semantic_blockers_actionable") or []
+        ),
+        "funding_plan_blockers_actionable": list(
+            validation.get("funding_plan_blockers_actionable") or []
         ),
         "bound_run_id": gate["bound_run_id"],
         "basis_of_estimate_id": boe_id or None,

@@ -262,7 +262,7 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             "idempotency_key": "release-cy-process",
         })
         self.assertFalse(released["success"], released)
-        self.assertEqual(released["code"], "formal_validation_required")
+        self.assertEqual(released["code"], "technical_validation_required")
 
         delivery_run, blocked_validation = self._complete_run("cy-delivery", release_scope="project_delivery")
         self.assertFalse(blocked_validation["success"])

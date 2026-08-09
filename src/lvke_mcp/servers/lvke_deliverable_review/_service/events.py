@@ -6,6 +6,10 @@ from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json, utc_now
+from lvke_mcp.runtime.evidence_qualification import (
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.servers.lvke_deliverable_review import rules
 from lvke_mcp.servers.lvke_deliverable_review.contracts import SEVERITY_ORDER, finding_blocks, normalize_target, verdict_for
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
@@ -59,6 +63,7 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     state: dict[str, Any] = {
         "schema_version": "deliverable_review.v1", "workspace_id": workspace_id,
         "review_id": review_id, "review_status": "created", "overall_verdict": "incomplete",
+        "technical_verdict": "incomplete", "release_verdict": "incomplete",
         "target": {}, "bindings": {}, "rule_pack": {}, "standards": {}, "project_context": {}, "findings": [],
         "incomplete_reasons": [], "coverage": {}, "exports": [], "retests": [],
         "invalidated": False,
@@ -201,7 +206,9 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     ]))
     state["retest_in_progress"] = bool(state["pending_retest_operation_ids"])
 
-    verdict = verdict_for(ordered_findings, state["incomplete_reasons"])
+    technical_verdict = verdict_for(ordered_findings, state["incomplete_reasons"])
+    if not engine_completed or state["pending_retest_operation_ids"]:
+        technical_verdict = "incomplete"
     active_blockers = [row for row in ordered_findings if finding_blocks(row)]
     state["active_blocking_finding_ids"] = [str(row.get("finding_id") or "") for row in active_blockers]
     state["pending_quality_rule_ids"] = sorted(
@@ -211,7 +218,7 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         and row.get("status") != "resolved"
     )
     if state["invalidated"]:
-        verdict = "incomplete"
+        technical_verdict = "incomplete"
         state["review_status"] = "invalidated"
         state["validation_status"] = "invalidated"
     elif state["pending_retest_operation_ids"]:
@@ -230,14 +237,13 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         else:
             state["review_status"] = "validated"
             state["validation_status"] = (
-                "passed" if verdict == "pass" else "conditional"
+                "passed" if technical_verdict == "pass" else "conditional"
             )
     elif engine_failed:
         state["review_status"] = "findings_ready"
         state["validation_status"] = "failed"
     else:
         state["validation_status"] = "pending"
-    state["overall_verdict"] = verdict
     validation_complete = bool(
         engine_completed
         and not engine_failed
@@ -289,13 +295,81 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     if state.get("deployment_mode") == "shadow":
         blockers.append("shadow_mode_release_forbidden")
     evidence_track = str((state.get("project_context") or {}).get("evidence_track") or "real")
-    if evidence_track == "controlled_assumption":
-        blockers.append("controlled_assumption_release_forbidden")
+    review_purpose = str(
+        (state.get("project_context") or {}).get("review_purpose")
+        or (state.get("project_context") or {}).get("release_scope")
+        or ("project_delivery" if evidence_track == "real" else "process_acceptance")
+    )
+    evidence_metadata = (
+        state.get("evidence_metadata")
+        if isinstance(state.get("evidence_metadata"), dict)
+        else {}
+    )
+    release_evidence_policy = declared_evidence_policy(
+        evidence_metadata,
+        default=evidence_track,
+    )
+    project_fact_certified = project_fact_may_be_certified(
+        release_evidence_policy,
+        own_qualification_passed=evidence_metadata.get("project_fact_certified") is True,
+    )
+    if review_purpose == "project_delivery" and release_evidence_policy != "formal_evidence":
+        blockers.append({
+            "controlled_assumption": "controlled_assumption_release_forbidden",
+            "source_reconstructed": "source_reconstructed_release_forbidden",
+            "technical_fixture": "technical_fixture_release_forbidden",
+        }.get(release_evidence_policy, "formal_evidence_required"))
+    elif review_purpose == "project_delivery" and not project_fact_certified:
+        blockers.append("project_fact_certification_required")
+    standards = state.get("standards") if isinstance(state.get("standards"), dict) else {}
+    standard_packages = {
+        str(row.get("package_id") or ""): row
+        for row in standards.get("packages") or []
+        if isinstance(row, dict)
+    }
+    methodology = standard_packages.get("PKG-STD-011") or {}
+    if review_purpose == "project_delivery" and "PKG-STD-011" in standard_packages:
+        # 直接检查 S003 方法书全文是否真的在册。原先只看 gate_status：该键在
+        # material-snapshot 路径下并不存在（.get() 返回 None 而恰好阻断），一旦
+        # lock 文件把 gate_status 标成 passed 而 S003 实际仍缺，阻断就会失效。
+        methodology_artifacts = {
+            str(item.get("artifact_id") or ""): item
+            for item in methodology.get("artifacts") or []
+            if isinstance(item, dict)
+        }
+        methodology_present = bool(
+            methodology_artifacts.get("S003", {}).get("sha256")
+        )
+        if not methodology_present or methodology.get("gate_status") != "passed":
+            blockers.append("standard_methodology_full_text_required:PKG-STD-011")
     state["blockers"] = sorted(set(blockers))
+    state["warnings"] = [
+        f"standard_framework_only:{item}:full_methodology_conformance_not_claimed"
+        for item in standards.get("framework_only") or []
+    ]
+    # The technical result is independent of release eligibility.  The public
+    # overall verdict is release-aware so it can never say pass while an
+    # effective blocker is present.
+    release_verdict = technical_verdict
+    if state["blockers"]:
+        release_verdict = (
+            "incomplete" if technical_verdict == "incomplete" else "fail"
+        )
+    state["technical_verdict"] = technical_verdict
+    state["release_verdict"] = release_verdict
+    state["overall_verdict"] = release_verdict
+    if release_verdict == "fail" and state["validation_status"] in {"passed", "conditional"}:
+        state["validation_status"] = "failed"
+        state["review_status"] = "release_blocked"
     state["validation_summary"] = {
         "status": state["validation_status"],
         "complete": state["validation_complete"],
         "overall_verdict": state["overall_verdict"],
+        "technical_verdict": state["technical_verdict"],
+        "release_verdict": state["release_verdict"],
+        "review_purpose": review_purpose,
+        "evidence_policy": release_evidence_policy,
+        "project_fact_certified": project_fact_certified,
         "event_chain_valid": state["event_chain_valid"],
         "event_chain_hash": state["event_chain_hash"],
     }
@@ -344,7 +418,15 @@ def _freshness_reasons(workspace_id: str, state: dict[str, Any]) -> list[str]:
         )
         if current_pack.get("content_hash") != (state.get("rule_pack") or {}).get("content_hash"):
             reasons.append("rule_pack_changed")
-        current_standards = rules.standards_snapshot(REPO_ROOT, current_pack.get("standard_package_ids") or [])
+        current_standards = rules.standards_snapshot(
+            REPO_ROOT,
+            current_pack.get("standard_package_ids") or [],
+            review_purpose=str(
+                (state.get("project_context") or {}).get("review_purpose")
+                or (state.get("project_context") or {}).get("release_scope")
+                or "project_delivery"
+            ),
+        )
         if current_standards.get("content_hash") != (state.get("standards") or {}).get("content_hash"):
             reasons.append("standards_changed")
     except ValueError:

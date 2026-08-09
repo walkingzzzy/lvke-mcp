@@ -63,7 +63,7 @@ class RevenueSpec:
 
     model: Literal[
         "product_sales", "property_sales", "tourism", "gov_payment",
-        "lease_portfolio", "inventory_sales", "flat",
+        "rail_transit", "lease_portfolio", "inventory_sales", "flat",
     ] = "flat"
     products: list[ProductLine] = field(default_factory=list)  # product_sales 用
     # property_sales（房地产去化）: 可售面积/售价/逐年去化率
@@ -80,6 +80,16 @@ class RevenueSpec:
     payment_ramp: list[float] = field(default_factory=list)
     vat_refund_rate: float = 0.0          # 增值税即征即退比例（污水等 0.7）
     fiscal_subsidy_wan: float = 0.0       # 年财政运营补贴（万元）
+    # rail_transit（城市轨道交通）: 票务/非票/财政支持三分
+    annual_passenger_trips: float = 0.0   # 达产年客运量
+    passenger_unit: str = ""
+    average_fare_yuan: float = 0.0        # 平均清分票价（元/人次）
+    ridership_ramp: list[float] = field(default_factory=list)
+    non_fare_scenario: str = "base"       # low=5% / base=10% / high=15%
+    non_fare_revenue_rate: float | None = None  # 显式比例优先于情景档
+    annual_fiscal_support_wan: float = 0.0      # 财政支持（单列，不混入票价）
+    fiscal_support_ramp: list[float] = field(default_factory=list)
+    fare_multiplier_by_year: list[float] = field(default_factory=list)
     annual_schedule_wan: list[float] = field(default_factory=list)  # 租赁/存量销售逐年计划
     inventory_total: float = 0.0
     sales_schedule: list[float] = field(default_factory=list)
@@ -778,7 +788,7 @@ def _validate_v3_formal(spec: dict[str, Any], errors: list[str]) -> None:
 
 _REVENUE_MODELS = (
     "product_sales", "property_sales", "tourism", "gov_payment",
-    "lease_portfolio", "inventory_sales", "flat",
+    "rail_transit", "lease_portfolio", "inventory_sales", "flat",
 )
 
 
@@ -950,6 +960,28 @@ def coerce_llm_spec(spec: dict[str, Any], requirement: dict[str, Any] | None = N
         vr = _f(rev.get("vat_refund_rate"))
         if vr is not None:
             rev["vat_refund_rate"] = max(0.0, min(1.0, vr))
+    if model == "rail_transit":
+        trips = _f(rev.get("annual_passenger_trips"), 0.0)
+        fare = _f(rev.get("average_fare_yuan"), 0.0)
+        passenger_unit = str(rev.get("passenger_unit") or "").strip()
+        if (trips or 0) <= 0 or (fare or 0) <= 0:
+            # 城轨不做 flat 回退。改写 model 会让 rail_transit_missing_inputs()
+            # 因判别式失配而直接返回空，整套城轨必填门禁被静默跳过，最终生成
+            # 一个"成功"但无客流依据的 Run。保留 model 让 run 前门禁显式报缺。
+            out.setdefault("assumptions", [])
+            if isinstance(out["assumptions"], list):
+                out["assumptions"].append(
+                    "coerce: rail_transit 缺客运量/清分票价，保留城轨模型交由门禁报缺"
+                )
+        if passenger_unit not in {
+            "人次", "万人次", "person_trips", "passenger_trips", "persons",
+            "10k_person_trips", "ten_thousand_person_trips",
+        }:
+            # 单位不能猜测；保留原值，由 validate/run 门禁显式报错。
+            rev["passenger_unit"] = passenger_unit
+        explicit_rate = rev.get("non_fare_revenue_rate")
+        if explicit_rate is not None:
+            rev["non_fare_revenue_rate"] = max(0.0, min(1.0, _f(explicit_rate, 0.0) or 0.0))
     if model in {"lease_portfolio", "inventory_sales"}:
         schedule = rev.get("annual_schedule_wan") or []
         if not isinstance(schedule, list) or not schedule or any((_f(value) or 0) < 0 for value in schedule):
@@ -1103,6 +1135,33 @@ def validate(spec: dict[str, Any]) -> tuple[bool, list[str]]:
         vr = _f(rev.get("vat_refund_rate"), 0.0)
         if vr is not None and not (0.0 <= vr <= 1.0):
             errs.append("gov_payment.vat_refund_rate 越界（应在 0~1）")
+    if model == "rail_transit":
+        if _f(rev.get("annual_passenger_trips"), 0.0) <= 0:
+            errs.append("rail_transit 缺 annual_passenger_trips（达产年客运量）")
+        if _f(rev.get("average_fare_yuan"), 0.0) <= 0:
+            errs.append("rail_transit 缺 average_fare_yuan（平均清分票价）")
+        if str(rev.get("passenger_unit") or "").strip() not in {
+            "人次", "万人次", "person_trips", "passenger_trips", "persons",
+            "10k_person_trips", "ten_thousand_person_trips",
+        }:
+            errs.append("rail_transit.passenger_unit 必须显式为 人次 或 万人次")
+        if not (rev.get("ridership_ramp") or rev.get("ramp")):
+            errs.append("rail_transit 缺 ridership_ramp（客流爬坡）")
+        explicit_rate = rev.get("non_fare_revenue_rate")
+        if explicit_rate is not None and not (0.0 <= _f(explicit_rate, -1.0) <= 1.0):
+            errs.append("rail_transit.non_fare_revenue_rate 越界（应在 0~1）")
+        scenario = str(rev.get("non_fare_scenario") or "base").strip().lower()
+        if explicit_rate is None and scenario not in {"low", "base", "high"}:
+            errs.append("rail_transit.non_fare_scenario 非法（应为 low/base/high）")
+        # 财政支持必须单列可辨识：允许为 0（无补贴线路），但不允许为负。
+        if _f(rev.get("annual_fiscal_support_wan"), 0.0) < 0:
+            errs.append("rail_transit.annual_fiscal_support_wan 不得为负")
+        multipliers = rev.get("fare_multiplier_by_year") or []
+        if multipliers and (
+            not isinstance(multipliers, list)
+            or any((_f(value) is None or float(_f(value) or 0) < 0) for value in multipliers)
+        ):
+            errs.append("rail_transit.fare_multiplier_by_year 含非法值")
     if model in {"lease_portfolio", "inventory_sales"}:
         schedule = rev.get("annual_schedule_wan") or []
         if not isinstance(schedule, list) or not schedule:
@@ -1110,8 +1169,23 @@ def validate(spec: dict[str, Any]) -> tuple[bool, list[str]]:
         elif any(_f(value) is None or float(_f(value) or 0) < 0 for value in schedule):
             errs.append(f"{model}.annual_schedule_wan 含非法值")
 
-    # 达产率/去化率须在 [0, 1.5]，防 LLM 给出离谱值
-    for key in ("ramp", "absorption", "visitor_ramp", "payment_ramp"):
+    # 城轨长期客流增长不是“达产率”：30 年评价期可自然超过 1.5 倍，
+    # 只要求显式、非负且保持原序列，不得静默截断。
+    ridership_growth = rev.get("ridership_ramp")
+    if ridership_growth and (
+        not isinstance(ridership_growth, (list, tuple))
+        or any(
+            _f(value) is None or not 0 <= float(_f(value) or 0) <= 10
+            for value in ridership_growth
+        )
+    ):
+        errs.append("ridership_ramp 含越界值（长期客流倍率应在0~10）")
+
+    # 其他达产率/去化率须在 [0, 1.5]，防 LLM 给出离谱值。
+    for key in (
+        "ramp", "absorption", "visitor_ramp", "payment_ramp",
+        "fiscal_support_ramp",
+    ):
         seq = rev.get(key)
         if key == "ramp":
             # ramp 在各 product 里
@@ -1381,6 +1455,34 @@ FINANCE_SPEC_SCHEMA: dict[str, Any] = {
                 "payment_ramp": {"type": "array", "items": {"type": "number"}},
                 "vat_refund_rate": {"type": "number"},
                 "fiscal_subsidy_wan": {"type": "number"},
+                "annual_passenger_trips": {
+                    "type": "number", "minimum": 0,
+                    "description": "轨道交通达产年客运量，单位由 passenger_unit 决定。",
+                },
+                "passenger_unit": {
+                    "type": "string",
+                    "enum": [
+                        "人次", "万人次", "person_trips", "passenger_trips", "persons",
+                        "10k_person_trips", "ten_thousand_person_trips",
+                    ],
+                },
+                "average_fare_yuan": {
+                    "type": "number", "minimum": 0,
+                    "description": "平均清分票价（元/人次）：线网清分后归属本线的票款。",
+                },
+                "ridership_ramp": {"type": "array", "items": {"type": "number", "minimum": 0}},
+                "non_fare_scenario": {"type": "string", "enum": ["low", "base", "high"]},
+                "non_fare_revenue_rate": {"type": "number", "minimum": 0, "maximum": 1},
+                "annual_fiscal_support_wan": {
+                    "type": "number", "minimum": 0,
+                    "description": "财政支持（运营补贴）单列，不得混入票价或保证利润。",
+                },
+                "fiscal_support_ramp": {"type": "array", "items": {"type": "number", "minimum": 0}},
+                "fare_multiplier_by_year": {
+                    "type": "array",
+                    "items": {"type": "number", "minimum": 0},
+                    "description": "逐运营年票价倍率；仅作用于票务收入，非票收入随票务联动。",
+                },
                 "annual_schedule_wan": {"type": "array", "items": {"type": "number"}},
                 "inventory_total": {"type": "number"},
                 "sales_schedule": {"type": "array", "items": {"type": "number"}},

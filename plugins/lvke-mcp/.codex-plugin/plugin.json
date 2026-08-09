@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Lvke MCP",
     "shortDescription": "Feasibility research, finance, reports, and evidence",
-    "longDescription": "Fourteen local MCP servers and fourteen Codex Skills for evidence-backed feasibility studies. Tavily is the only web provider. The plugin has no frontend, voice, collaboration, authentication, tenant, RBAC, role, or permission-management feature.",
+    "longDescription": "Fourteen local MCP servers and fifteen Codex Skills for evidence-backed feasibility studies. Tavily is the only web provider. The plugin has no frontend, voice, collaboration, authentication, tenant, RBAC, role, or permission-management feature.",
     "developerName": "\u6e56\u5317\u7eff\u79d1",
     "category": "Productivity",
     "capabilities": [

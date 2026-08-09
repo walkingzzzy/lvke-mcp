@@ -215,3 +215,79 @@ def classified_depreciation_schedule(
         ),
         "terminal_book_value_wan": terminal_book_value,
     }
+
+
+def renewal_capex_schedule(
+    plan: list[dict[str, Any]],
+    *,
+    op_years: int,
+) -> dict[str, Any]:
+    """Build cash, depreciation and terminal book-value schedules for renewals."""
+
+    years = max(int(op_years or 0), 1)
+    normalized: list[dict[str, Any]] = []
+    for index, item in enumerate(plan or []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            in_service_year = int(item.get("year") or 0)
+            amount = float(item.get("amount_wan") or 0.0)
+            life = int(item.get("depreciation_years") or 0)
+            salvage_rate = float(item.get("salvage_rate") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if (
+            not 1 <= in_service_year <= years
+            or amount <= 0
+            or life <= 0
+            or not 0 <= salvage_rate < 1
+        ):
+            continue
+        normalized.append({
+            **item,
+            "name": str(item.get("name") or item.get("asset_class") or f"更新资产{index + 1}"),
+            "year": in_service_year,
+            "amount_wan": round(amount, 2),
+            "depreciation_years": life,
+            "salvage_rate": salvage_rate,
+            "annual_depreciation_wan": annual_straight_line(
+                amount, life, salvage_rate=salvage_rate,
+            ),
+        })
+
+    capex_by_year = [0.0] * years
+    depreciation_by_year = [0.0] * years
+    cumulative_capex = [0.0] * years
+    terminal_book_value = 0.0
+    for item in normalized:
+        start = int(item["year"])
+        amount = float(item["amount_wan"])
+        life = int(item["depreciation_years"])
+        annual = float(item["annual_depreciation_wan"])
+        salvage = round(amount * float(item["salvage_rate"]), 2)
+        capex_by_year[start - 1] = round(capex_by_year[start - 1] + amount, 2)
+        charges = 0.0
+        for year_index in range(start - 1, years):
+            age = year_index - (start - 1) + 1
+            charge = annual if age <= life else 0.0
+            depreciable_left = round(amount - salvage - charges, 2)
+            charge = round(min(charge, max(depreciable_left, 0.0)), 2)
+            depreciation_by_year[year_index] = round(
+                depreciation_by_year[year_index] + charge, 2,
+            )
+            charges = round(charges + charge, 2)
+        terminal_book_value = round(
+            terminal_book_value + max(amount - charges, salvage), 2,
+        )
+    running = 0.0
+    for index, amount in enumerate(capex_by_year):
+        running = round(running + amount, 2)
+        cumulative_capex[index] = running
+    return {
+        "items": normalized,
+        "capex_by_year": capex_by_year,
+        "depreciation_by_year": depreciation_by_year,
+        "cumulative_capex_by_year": cumulative_capex,
+        "total_capex_wan": round(sum(capex_by_year), 2),
+        "terminal_book_value_wan": terminal_book_value,
+    }

@@ -7,6 +7,11 @@ import json
 from typing import Any, Callable
 
 from filelock import FileLock
+from lvke_mcp.runtime.evidence_qualification import (
+    combine_evidence_policies,
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.workspace import workspace_root
 
 from lvke_mcp.runtime.storage import (
@@ -163,8 +168,11 @@ def _object_view(record: dict[str, Any], id_field: str) -> dict[str, Any]:
 def _validate_evidence(evidence: list[dict[str, Any]]) -> list[str]:
     blockers: list[str] = []
     for index, item in enumerate(evidence):
-        if str(item.get("evidence_track") or "") == "controlled_assumption":
+        track = str(item.get("evidence_track") or "")
+        if track == "controlled_assumption":
             blockers.append(f"controlled_assumption_not_knowledge_evidence:{index}")
+        if track not in {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}:
+            blockers.append(f"evidence_track_invalid:{index}")
         if str(item.get("source_type") or "") == "search_summary":
             blockers.append(f"search_summary_not_knowledge_evidence:{index}")
         if not str(item.get("resource_uri") or "").startswith("lvke://"):
@@ -204,16 +212,21 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
             blockers=blockers,
             next_actions=["补充不可变 Resource、content hash 和 locator 后重新提交"],
         )
+    evidence_policy = combine_evidence_policies(evidence)
+    # Evidence bindings are caller descriptors, not resolved immutable parent
+    # records.  Until this service verifies each referenced object and hash it
+    # must not certify project facts, even when a binding is labelled ``real``.
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=False,
+        parents=evidence,
+    )
     payload = {
         **candidate,
         "candidate_status": "validated",
         "evidence_bindings": evidence,
-        "evidence_policy": "source_reconstructed" if any(
-            str(item.get("evidence_track") or "") == "source_reconstructed" for item in evidence
-        ) else "formal_evidence",
-        "project_fact_certified": not any(
-            str(item.get("evidence_track") or "") == "source_reconstructed" for item in evidence
-        ),
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": project_fact_certified,
     }
     request_payload = {"candidate": candidate}
 
@@ -378,6 +391,8 @@ def review_candidate(args: dict[str, Any]) -> dict[str, Any]:
     }
 
     def create() -> dict[str, Any]:
+        candidate_payload = candidate.get("payload") or {}
+        evidence_policy = declared_evidence_policy(candidate_payload, default="candidate")
         payload = {
             "candidate_id": candidate_id,
             "decision": decision,
@@ -387,6 +402,11 @@ def review_candidate(args: dict[str, Any]) -> dict[str, Any]:
             "candidate_basis_hash": candidate["basis_hash"],
             "candidate_content_hash": candidate["content_hash"],
             "evidence_hash": sha256_json((candidate.get("payload") or {}).get("evidence_bindings") or []),
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_may_be_certified(
+                evidence_policy,
+                own_qualification_passed=candidate_payload.get("project_fact_certified") is True,
+            ),
             "reviewed_at": utc_now(),
         }
         record = REVIEW_STORE.put(
@@ -434,6 +454,7 @@ def publish_release(args: dict[str, Any]) -> dict[str, Any]:
 
     def create() -> dict[str, Any]:
         payload = dict(candidate.get("payload") or {})
+        evidence_policy = declared_evidence_policy(payload, default="candidate")
         release_payload = {
             "candidate_id": candidate_id,
             "review_id": review_id,
@@ -443,6 +464,11 @@ def publish_release(args: dict[str, Any]) -> dict[str, Any]:
             "candidate_content_hash": candidate["content_hash"],
             "review_basis_hash": review["basis_hash"],
             "evidence_bindings": payload.get("evidence_bindings", []),
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_may_be_certified(
+                evidence_policy,
+                own_qualification_passed=payload.get("project_fact_certified") is True,
+            ),
             "release_note": request["release_note"],
             "released_at": utc_now(),
         }
@@ -491,6 +517,7 @@ def create_snapshot(args: dict[str, Any]) -> dict[str, Any]:
     request_payload = {"candidate_id": candidate_id}
 
     def create() -> dict[str, Any]:
+        evidence_policy = declared_evidence_policy(payload, default="candidate")
         snapshot = SNAPSHOT_STORE.put(
             workspace_id,
             {
@@ -499,6 +526,11 @@ def create_snapshot(args: dict[str, Any]) -> dict[str, Any]:
                 "candidate_content_hash": candidate["content_hash"],
                 "content": str(payload.get("content") or ""),
                 "evidence_fingerprint": sha256_json(evidence),
+                "evidence_policy": evidence_policy,
+                "project_fact_certified": project_fact_may_be_certified(
+                    evidence_policy,
+                    own_qualification_passed=payload.get("project_fact_certified") is True,
+                ),
             },
             producer="lvke-knowledge-governance.knowledge_create_snapshot",
             source_ids=[candidate_id],

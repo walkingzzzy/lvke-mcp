@@ -95,6 +95,9 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         "status": status,
         "finance_tables_package_id": record["object_id"],
         "run_id": payload.get("run_id"),
+        # 与 run_id 同级透出，让 package / CSV / XLSX 的消费方都能反查 confirmed Spec
+        "spec_id": payload.get("spec_id"),
+        "spec_hash": payload.get("spec_hash"),
         "table_manifest": payload.get("table_manifest") or [],
         "validation": validation,
         "validation_complete": bool(payload.get("validation_complete", False)),

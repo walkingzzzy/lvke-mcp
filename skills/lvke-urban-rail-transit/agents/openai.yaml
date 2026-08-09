@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke Urban Rail Transit"
+  short_description: "Plan and model metro, light rail, and tram feasibility"
+  default_prompt: "Use $lvke-urban-rail-transit to plan this rail line's ridership, scale, and finance."

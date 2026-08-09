@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from __future__ import annotations
-
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -11,6 +9,15 @@ from typing import Any
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 
 from lvke_mcp.adapters.research_repository import AGENT_SESSION_STORE, AGENT_TRANSITION_STORE, IDEMPOTENCY_STORE, PACKAGE_STORE, QUALITY_REVIEW_STORE
+from lvke_mcp.domains.research.output_contracts import (
+    validate_quality_confirmation_output,
+)
+from lvke_mcp.runtime.evidence_qualification import (
+    FORMAL_EVIDENCE,
+    combine_evidence_policies,
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.storage import sha256_json
 
 from .base import _agent_transition_guard, _active_idempotency_record, _append_event, _failure, _idempotency_ttl_seconds
@@ -21,6 +28,59 @@ from .planning import (
 
 
 _PACKAGE_STATUS_RANK = {"completed": 2, "partial": 1}
+
+
+def _citation_consistency_issues(
+    workspace_id: str,
+    citations: list[Any],
+    evidence_payloads: list[dict[str, Any]],
+    source_snapshot_ids: list[str],
+) -> list[str]:
+    """Validate that every citation resolves to the immutable submitted basis."""
+
+    known_sources: dict[str, str] = {str(item): "" for item in source_snapshot_ids}
+    for evidence in evidence_payloads:
+        for source in evidence.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            source_id = str(source.get("source_id") or "")
+            if source_id:
+                known_sources[source_id] = str(source.get("content_hash") or "").lower()
+    issues: list[str] = []
+    for index, citation in enumerate(citations):
+        if not isinstance(citation, dict):
+            issues.append(f"citation_invalid:{index}")
+            continue
+        if citation.get("locator") in (None, "", [], {}):
+            issues.append(f"citation_locator_required:{index}")
+        resource_uri = str(citation.get("resource_uri") or "").strip()
+        cited_id = str(
+            citation.get("source_id")
+            or citation.get("source_snapshot_id")
+            or citation.get("object_id")
+            or (resource_uri.rstrip("/").rsplit("/", 1)[-1] if resource_uri else "")
+        ).strip()
+        if not cited_id:
+            if len(known_sources) == 1:
+                cited_id = next(iter(known_sources))
+            else:
+                issues.append(f"citation_source_id_required:{index}")
+                continue
+        if cited_id not in known_sources:
+            issues.append(f"citation_source_not_in_basis:{index}:{cited_id}")
+            continue
+        if resource_uri and "/workspaces/" in resource_uri:
+            workspace_marker = resource_uri.split("/workspaces/", 1)[1].split("/", 1)[0]
+            if (
+                workspace_marker != workspace_id
+                or not resource_uri.rstrip("/").endswith("/" + cited_id)
+            ):
+                issues.append(f"citation_resource_uri_mismatch:{index}")
+        expected_hash = known_sources[cited_id]
+        supplied_hash = str(citation.get("content_hash") or "").lower()
+        if supplied_hash and expected_hash and supplied_hash != expected_hash:
+            issues.append(f"citation_content_hash_mismatch:{index}:{cited_id}")
+    return sorted(set(issues))
 
 
 def select_task_package(workspace_id: str, task_id: str) -> dict[str, Any] | None:
@@ -342,13 +402,31 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
     if not market_field_bindings:
         artifacts.pop("market_field_bindings", None)
     evidence_payloads = [(item.get("payload") or {}) for item in evidence_records if isinstance(item, dict)]
-    evidence_policies = {str(item.get("evidence_policy") or "") for item in evidence_payloads if item.get("evidence_policy")}
-    # P0-009 修复：同时从 evidence_pack_ids（已聚合）和 citations（EvidencePack
-    # 写入时带 evidence_policy）读取证据策略；任一为 source_reconstructed 则整包降级
+    policy_inputs: list[Any] = [*evidence_payloads]
+    evidence_policies = [declared_evidence_policy(item) for item in evidence_payloads]
+    # P0-009 compatibility: citation declarations may downgrade a package but
+    # can never upgrade a candidate/direct snapshot to formal evidence.
     for citation in citations:
-        if isinstance(citation, dict) and str(citation.get("evidence_policy") or "") == "source_reconstructed":
-            evidence_policies.add("source_reconstructed")
-    evidence_policy = "source_reconstructed" if "source_reconstructed" in evidence_policies else (sorted(evidence_policies)[0] if evidence_policies else "formal_evidence")
+        citation_policy = (
+            str(citation.get("evidence_policy") or "").strip()
+            if isinstance(citation, dict)
+            else ""
+        )
+        if isinstance(citation, dict) and (citation_policy or declared_evidence_policy(citation)):
+            evidence_policies.append(citation_policy or declared_evidence_policy(citation))
+            policy_inputs.append(citation)
+    # A direct snapshot is still a candidate source, even when the page itself
+    # is official.  Only an EvidencePack can carry formal fact qualification.
+    policy_inputs.extend(
+        {"evidence_policy": "candidate", "project_fact_certified": False}
+        for _ in source_snapshot_ids
+    )
+    evidence_policy = combine_evidence_policies(policy_inputs)
+    upstream_project_fact_certified = bool(evidence_payloads) and not source_snapshot_ids and all(
+        declared_evidence_policy(item) == FORMAL_EVIDENCE
+        and item.get("project_fact_certified") is True
+        for item in evidence_payloads
+    )
     reconstruction_records = [row for item in evidence_payloads for row in (item.get("reconstruction_records") or []) if isinstance(row, dict)]
     payload = {
         "task_id": task_id,
@@ -358,7 +436,8 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "agent_artifacts": artifacts,
         "limitations": ["正文由调用 Agent 撰写，尚无独立 DR 质量审计；下游必须披露 partial 限制"],
         "evidence_policy": evidence_policy,
-        "project_fact_certified": False if evidence_policy == "source_reconstructed" else True,
+        "project_fact_certified": False,
+        "upstream_project_fact_certified": upstream_project_fact_certified,
         "reconstruction_records": reconstruction_records,
         "reconstructed_source_ids": [str(row.get("reconstruction_id") or "") for row in reconstruction_records if row.get("reconstruction_id")],
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
@@ -460,6 +539,38 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
             "quality": metrics,
         }
     review_status = "passed" if quality_passed else "accepted_with_limitations"
+    basis = artifacts.get("evidence") if isinstance(artifacts.get("evidence"), dict) else {}
+    evidence_pack_ids = [str(item) for item in basis.get("evidence_pack_ids") or [] if str(item)]
+    source_snapshot_ids = [str(item) for item in basis.get("source_snapshot_ids") or [] if str(item)]
+    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
+    evidence_payloads = [
+        record.get("payload") or {}
+        for record in evidence_records
+        if isinstance(record, dict)
+    ]
+    citation_issues = _citation_consistency_issues(
+        workspace_id,
+        citations,
+        evidence_payloads,
+        source_snapshot_ids,
+    )
+    if citation_issues:
+        return {
+            "success": False,
+            "status": "blocked",
+            "code": "research_citation_audit_failed",
+            "message": "研究引用未能全部解析到本次提交的不可变来源依据",
+            "resource_uris": [source["resource_uri"]],
+            "warnings": [],
+            "blockers": citation_issues,
+            "next_actions": ["补齐 citation 的 source_id、locator，并核对 content_hash 后重新确认"],
+            "quality": metrics,
+        }
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=review_status == "passed",
+        parents=evidence_payloads,
+    ) and not source_snapshot_ids
     review_payload = {
         "research_package_id": package_id,
         "task_id": payload.get("task_id"),
@@ -468,13 +579,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "accepted_limitations": accepted_limitations and not quality_passed,
         "limitations": limitations,
         "evidence_policy": evidence_policy,
-        # 【修复门禁泄漏】只有 review_status="passed" (完全通过，零 missing_fields、
-        # 零 conflicts、非 source_reconstructed) 才认证项目事实。
-        # accepted_with_limitations 意味着存在 missing_fields/conflicts 或
-        # source_reconstructed，都不应认证项目事实，否则绕过正式交付门禁。
-        "project_fact_certified": (
-            review_status == "passed" and evidence_policy != "source_reconstructed"
-        ),
+        "project_fact_certified": project_fact_certified,
     }
     # P0-009 修复：先推导 identity（object_id 是 payload 的确定性函数），构建并
     # 校验完整响应，最后再写 QualityReview 和 completed 包。这确保 outputSchema
@@ -496,10 +601,25 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "quality_review_status": review_status, "quality": metrics,
         "evidence_policy": evidence_policy,
         "project_fact_certified": review_payload["project_fact_certified"],
+        "release_limitations": confirmed_payload["release_limitations"],
         "resource_uris": [review_identity["resource_uri"], confirmed_identity["resource_uri"]],
         "warnings": limitations, "blockers": [], "next_actions": [],
     }
-    # 响应已构建且可被 outputSchema 校验（transport.py:566-580），现在落盘
+    try:
+        validate_quality_confirmation_output(response)
+    except Exception:  # noqa: BLE001 - fail closed before either immutable write
+        return {
+            "success": False,
+            "status": "blocked",
+            "code": "quality_confirmation_output_invalid",
+            "message": "质量确认结果未通过完整 outputSchema 预校验，未写入任何确认对象",
+            "resource_uris": [source["resource_uri"]],
+            "warnings": [],
+            "blockers": ["quality_confirmation_output_invalid"],
+            "next_actions": ["修复质量确认输出契约后重试"],
+        }
+    # The exact public response has passed the same schema registered at the
+    # MCP boundary.  Immutable writes are deliberately the final operations.
     review = QUALITY_REVIEW_STORE.put(
         workspace_id, review_payload,
         producer="lvke-deep-research.dr_confirm_quality",

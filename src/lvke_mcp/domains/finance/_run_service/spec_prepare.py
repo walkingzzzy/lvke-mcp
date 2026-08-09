@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from lvke_mcp.adapters.finance_model_repository import SPEC_STORE
 
 from .base import (
     MODEL_VERSION,
@@ -14,6 +15,75 @@ from .base import (
     compute_input_hash,
     compute_spec_hash,
 )
+
+
+def _latest_confirmed_spec(
+    workspace_id: str,
+    *,
+    req: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return the newest intact confirmed FinanceSpec in this workspace.
+
+    Confirmation records are immutable child objects.  Reuse is fail-closed:
+    the stored spec/hash must agree, the confirmation parent must still exist
+    in the same workspace, and the child must carry that parent in both its
+    payload lineage and store-level ``source_ids``.
+    """
+
+    expected_project_id = str(
+        req.get("project_id") or req.get("project_code") or ""
+    ).strip()
+    candidates = sorted(
+        SPEC_STORE.list(workspace_id),
+        key=lambda item: str(item.get("created_at") or ""),
+        reverse=True,
+    )
+    for record in candidates:
+        if str(record.get("workspace_id") or "") != workspace_id:
+            continue
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if payload.get("confirmation_status") != "confirmed":
+            continue
+        spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else None
+        if spec is None:
+            continue
+        stored_hash = str(payload.get("spec_hash") or "")
+        if not stored_hash or stored_hash != compute_spec_hash(spec):
+            continue
+        parent_id = str(payload.get("parent_spec_id") or "").strip()
+        parent_ids = {
+            str(item) for item in (payload.get("parent_object_ids") or []) if str(item)
+        }
+        source_ids = {str(item) for item in (record.get("source_ids") or []) if str(item)}
+        if (
+            not parent_id
+            or parent_id not in parent_ids
+            or parent_id not in source_ids
+            or SPEC_STORE.get(workspace_id, parent_id) is None
+        ):
+            continue
+        project_metadata = (
+            spec.get("project_metadata")
+            if isinstance(spec.get("project_metadata"), dict)
+            else {}
+        )
+        spec_project_id = str(
+            project_metadata.get("project_id")
+            or project_metadata.get("project_code")
+            or ""
+        ).strip()
+        if expected_project_id and spec_project_id and expected_project_id != spec_project_id:
+            continue
+        expected_finance_kind = str(req.get("finance_kind") or "").strip()
+        stored_finance_kind = str(spec.get("finance_kind") or "").strip()
+        if (
+            expected_finance_kind
+            and stored_finance_kind
+            and expected_finance_kind != stored_finance_kind
+        ):
+            continue
+        return record
+    return None
 
 
 def _inject_linked_cost_items(req: dict[str, Any], finance_in: dict[str, Any]) -> dict[str, Any]:
@@ -138,29 +208,37 @@ def prepare_workspace_finance_spec(
     used_llm = False
     llm_attempted = False
 
-    if force_flat or strategy == "reuse_confirmed":
+    reused_confirmed_record: dict[str, Any] | None = None
+    if not force_flat and not force_refresh:
+        reused_confirmed_record = _latest_confirmed_spec(
+            workspace_id,
+            req=req,
+        )
+        if reused_confirmed_record is not None:
+            reused_payload = reused_confirmed_record.get("payload") or {}
+            spec = dict(reused_payload.get("spec") or {})
+            finance_in = dict(reused_payload.get("input_revision") or finance_in)
+            input_hash = compute_input_hash(
+                finance_in,
+                invest_type=invest_type,
+                build_period_months=(
+                    finance_in.get("build_period_months") or build_period_months
+                ),
+                industry=str(finance_in.get("industry") or industry),
+            )
+            assumptions.append("复用对象存储中最新且血缘完整的已确认 FinanceSpec")
+
+    if force_flat or (strategy == "reuse_confirmed" and spec is None):
         # 强制 flat / 复用确认：不调用 LLM
-        if strategy == "reuse_confirmed" and not force_flat:
-            try:
-                from lvke_mcp.domains.finance import run_store
-
-                manual = finance_in.get("finance_spec")
-                if isinstance(manual, dict):
-                    spec = dict(manual)
-                    assumptions.append("复用工作区已确认 FinanceSpec")
-
-                latest = run_store.latest_run(workspace_id) or {}
-                if spec is None and latest.get("spec_json"):
-                    import json as _json
-                    try:
-                        spec = _json.loads(latest["spec_json"])
-                        assumptions.append("复用最近一次 run 的已固化 FinanceSpec")
-                    except Exception:  # noqa: BLE001
-                        spec = None
-            except Exception:  # noqa: BLE001
-                spec = None
         if spec is None:
-            warnings.append("force_flat 或无已确认 spec，使用 flat 默认口径（不调用 LLM）")
+            warnings.append(
+                "force_flat 使用 flat 默认口径（不调用 LLM）"
+                if force_flat
+                else "对象存储中没有可复用且血缘完整的已确认 FinanceSpec"
+            )
+    elif spec is not None:
+        # 已确认对象优先级高于 LLM candidate。
+        pass
     elif not force_refresh and not force_flat:
         # 默认：可走 LLM 定规范
         try:
@@ -233,6 +311,13 @@ def prepare_workspace_finance_spec(
         except Exception:  # noqa: BLE001
             pass
 
+    missing = [] if finance_in.get("total_investment_wan") else ["total_investment_wan"]
+    if (
+        force_flat
+        and finance_in.get("is_operating") is not False
+        and not finance_in.get("annual_revenue_wan")
+    ):
+        missing.append("annual_revenue_wan")
     spec_hash = compute_spec_hash(spec if isinstance(spec, dict) else None)
     spec_source_hint = None
     validate_errors: list[str] = []
@@ -250,6 +335,12 @@ def prepare_workspace_finance_spec(
         "missing_inputs": missing,
         "spec": spec if isinstance(spec, dict) else None,
         "spec_hash": spec_hash,
+        "spec_id": (
+            reused_confirmed_record.get("object_id")
+            if reused_confirmed_record is not None else None
+        ),
+        "reused_confirmed": reused_confirmed_record is not None,
+        "confirmed_spec_record": reused_confirmed_record,
         "assumptions_to_confirm": assumptions,
         "warnings": warnings,
         "used_llm": used_llm,

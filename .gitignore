@@ -18,11 +18,19 @@ mcp_objects/
 **/review_outputs*/
 quality/
 
-# lvke产出/ 是正式交付物目录，纳入版本控制
-# 只忽略其下的临时/二进制文件，保留 CSV/JSON/MD/manifest
-lvke产出/**/_tmp/
-lvke产出/**/*.lock
-lvke产出/**/~$*
+# 浏览器工具的会话缓存（截图、console 日志、抓取的 PDF），不是交付物
+.playwright-mcp/
+
+# 构建元数据是构建/安装时生成的：记录的 commit 一提交就过期，入库只会让
+# 服务报告一个陈旧的 build_commit。缺文件时服务会显式报
+# build_metadata_incomplete，这正是想要的行为。
+build_metadata.json
+src/lvke_mcp/runtime/build_metadata.json
+
+# lvke产出/ 是每次验收重新生成的交付产出（DOCX/XLSX/CSV/报告修订），不入库：
+# 它们由 run_id/package_id 决定内容，随验收作废重建，入库只会让仓库膨胀并留下
+# 与当前代码不对应的陈旧工件。需要留存时按验收批次单独归档。
+lvke产出/
 
 # Client-specific and local assistant configuration
 .claude/

@@ -12,6 +12,11 @@ from lvke_mcp.domains.finance.parameter_resolver import (
     canonicalize_finance_inputs,
     finance_input_schema,
 )
+from lvke_mcp.domains.finance.rail_validation import (
+    rail_transit_missing_inputs as _rail_transit_missing_inputs,
+    revenue_input_complete as _revenue_input_complete,
+)
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
 
@@ -116,7 +121,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             workspace_id,
             strategy=str(args.get("strategy") or "propose_from_project"),
             force_refresh=bool(args.get("force_refresh") or False),
-            force_flat=bool(args.get("force_flat", supplied_spec is None)),
+            force_flat=bool(args.get("force_flat") or False),
         )
         if supplied_spec is not None:
             data["spec"] = supplied_spec
@@ -173,6 +178,17 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
         spec = data.get("spec") if isinstance(data.get("spec"), dict) else None
         if not _revenue_input_complete(spec or supplied_spec, normalized_inputs):
             missing.append("annual_revenue_wan_or_revenue_driver")
+        missing.extend(
+            _rail_transit_missing_inputs(
+                spec or supplied_spec,
+                normalized_inputs,
+                build_period_months=(
+                    normalized_inputs.get("build_period_months")
+                    or data.get("build_period_months")
+                ),
+            )
+        )
+        missing = list(dict.fromkeys(missing))
         if spec is None:
             missing.append("finance_spec")
         data["available"] = not missing
@@ -192,6 +208,23 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             }
         )
         spec_record = None
+        reused_fact_pack_hash: str | None = None
+        reused_record = (
+            data.get("confirmed_spec_record")
+            if isinstance(data.get("confirmed_spec_record"), dict)
+            else None
+        )
+        can_reuse_confirmed = bool(
+            reused_record
+            and supplied_spec is None
+            and not isinstance(args.get("input_revision"), dict)
+            and not evidence_ids
+            and not fact_pack_id
+            and str((reused_record.get("payload") or {}).get("spec_hash") or "")
+            == str(data.get("spec_hash") or "")
+            and str((reused_record.get("payload") or {}).get("input_hash") or "")
+            == str(data.get("input_hash") or "")
+        )
         if spec is not None:
             reconstruction_records = [
                 item
@@ -234,7 +267,19 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 *_str_list(fact_pack_payload.get("release_limitations")),
             ]))
             parent_object_ids = [*evidence_ids, *([fact_pack_id] if fact_pack_id else [])]
-            spec_record = SPEC_STORE.put(
+            if can_reuse_confirmed:
+                spec_record = reused_record
+                reused_payload = reused_record.get("payload") or {}
+                evidence_binding_hash = str(
+                    reused_payload.get("evidence_binding_hash")
+                    or evidence_binding_hash
+                )
+                fact_pack_id = str(reused_payload.get("fact_pack_id") or "")
+                reused_fact_pack_hash = str(
+                    reused_payload.get("fact_pack_hash") or ""
+                ) or None
+            else:
+                spec_record = SPEC_STORE.put(
                 workspace_id,
                 {
                     "spec": spec,
@@ -254,10 +299,12 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                     ),
                     "evidence_binding_hash": evidence_binding_hash,
                     "evidence_policy": evidence_policy,
-                    "project_fact_certified": (
-                        False
-                        if evidence_policy == "source_reconstructed"
-                        else bool(fact_pack_payload.get("project_fact_certified", True))
+                    # 缺省必须 fail-closed。旧写法 get(..., True) 在 FactPack 未表态
+                    # 时给出 True，且只挡 source_reconstructed 一种非正式资格。
+                    "project_fact_certified": project_fact_may_be_certified(
+                        evidence_policy,
+                        own_qualification_passed=True,
+                        parents=[fact_pack_payload, *evidence_records],
                     ),
                     "reconstruction_records": reconstruction_records,
                     "reconstructed_source_ids": reconstructed_source_ids,
@@ -277,11 +324,16 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                     ),
                     "fact_pack_hash": fact_pack.get("fact_pack_hash") or None,
                 },
-            )
+                )
             data["spec_id"] = spec_record["object_id"]
+            data["reused_confirmed"] = can_reuse_confirmed
             data["evidence_binding_hash"] = evidence_binding_hash
             data["fact_pack_id"] = fact_pack_id or None
-            data["fact_pack_hash"] = fact_pack.get("fact_pack_hash") or None
+            data["fact_pack_hash"] = (
+                reused_fact_pack_hash
+                if can_reuse_confirmed
+                else fact_pack.get("fact_pack_hash") or None
+            )
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_prepare_spec",
@@ -291,14 +343,22 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             next_actions=(
                 ["补齐缺失输入后重新调用 finance_prepare_spec"]
                 if missing
-                else ["调用 finance_confirm_spec 确认候选 Spec，再调用 finance_run_model"]
+                else (
+                    ["已复用 confirmed Spec，可直接用 spec_id 调用 finance_run_model"]
+                    if can_reuse_confirmed
+                    else ["调用 finance_confirm_spec 确认候选 Spec，再调用 finance_run_model"]
+                )
             ),
             resource_uris=[spec_record["resource_uri"]] if spec_record else [],
             spec_id=spec_record["object_id"] if spec_record else None,
             spec_hash=data.get("spec_hash"),
             evidence_binding_hash=evidence_binding_hash,
             fact_pack_id=fact_pack_id or None,
-            fact_pack_hash=fact_pack.get("fact_pack_hash") or None,
+            fact_pack_hash=(
+                reused_fact_pack_hash
+                if can_reuse_confirmed
+                else fact_pack.get("fact_pack_hash") or None
+            ),
             missing_inputs=missing,
             assumptions_to_confirm=_str_list(data.get("assumptions_to_confirm")),
             input_hash=data.get("input_hash"),
@@ -328,6 +388,14 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
     missing = [] if input_revision.get("total_investment_wan") else ["total_investment_wan"]
     if not _revenue_input_complete(spec, input_revision):
         missing.append("annual_revenue_wan_or_revenue_driver")
+    missing.extend(
+        _rail_transit_missing_inputs(
+            spec,
+            input_revision,
+            build_period_months=input_revision.get("build_period_months"),
+        )
+    )
+    missing = list(dict.fromkeys(missing))
     from lvke_mcp.domains.finance.spec import mark_spec_confirmed, validate_for_formal
 
     confirmed = mark_spec_confirmed(spec)
@@ -523,43 +591,3 @@ def _canonical_candidate_inputs(
     rejected.extend({**item, "source": "effective"} for item in errors)
     return normalized, adoption, rejected
 
-
-def _revenue_input_complete(
-    spec: dict[str, Any] | None,
-    input_revision: dict[str, Any] | None,
-) -> bool:
-    revision = input_revision if isinstance(input_revision, dict) else {}
-    annual = revision.get("annual_revenue_wan")
-    if isinstance(annual, (int, float)) and annual > 0:
-        return True
-    candidate = spec if isinstance(spec, dict) else {}
-    revenue = candidate.get("revenue")
-    if not isinstance(revenue, dict) and isinstance(candidate.get("finance_inputs"), dict):
-        revenue = candidate["finance_inputs"].get("revenue")
-    if not isinstance(revenue, dict):
-        return False
-    model = str(revenue.get("model") or "")
-    if model == "product_sales":
-        products = revenue.get("products")
-        return isinstance(products, list) and bool(products) and all(
-            isinstance(item, dict)
-            and float(item.get("capacity") or 0) > 0
-            and float(item.get("price_per_unit") or 0) > 0
-            for item in products
-        )
-    if model == "property_sales":
-        return float(revenue.get("saleable_area") or 0) > 0 and float(
-            revenue.get("price_per_sqm") or 0
-        ) > 0
-    if model == "tourism":
-        visitors = float(revenue.get("annual_visitors") or 0)
-        spend = max(
-            float(revenue.get("spend_per_visitor") or 0),
-            float(revenue.get("ticket_price_yuan") or 0)
-            + float(revenue.get("secondary_spend_yuan") or 0),
-        )
-        return visitors > 0 and spend > 0
-    series = revision.get("revenue_by_year")
-    return isinstance(series, list) and any(
-        isinstance(value, (int, float)) and value > 0 for value in series
-    )

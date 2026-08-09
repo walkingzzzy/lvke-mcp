@@ -47,15 +47,19 @@ def list_resources(
                 "mime_type": "application/json",
                 "created_at": record.get("created_at"),
             }
-        xlsx_uri = f"{uri}/xlsx"
-        if uri and xlsx_path_from_uri(xlsx_uri) is not None:
-            entries[xlsx_uri] = {
-                "uri": xlsx_uri,
-                "name": f"{package_id}.xlsx",
-                "resource_type": "xlsx",
-                "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "created_at": record.get("created_at"),
-            }
+        for resource_suffix, filename_suffix in (
+            ("xlsx", ".xlsx"),
+            ("xlsx-technical", ".technical.xlsx"),
+        ):
+            xlsx_uri = f"{uri}/{resource_suffix}"
+            if uri and xlsx_path_from_uri(xlsx_uri) is not None:
+                entries[xlsx_uri] = {
+                    "uri": xlsx_uri,
+                    "name": f"{package_id}{filename_suffix}",
+                    "resource_type": "xlsx",
+                    "mime_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "created_at": record.get("created_at"),
+                }
 
     for record in CSV_EXPORT_STORE.list(workspace_id):
         uri = str(record.get("resource_uri") or "")
@@ -143,7 +147,7 @@ def resolve_resource(
         if result.get("status") != "ok":
             return None
         return json.dumps(result, ensure_ascii=False, indent=2), "application/json"
-    if uri.endswith("/xlsx"):
+    if uri.endswith(("/xlsx", "/xlsx-technical")):
         path = xlsx_path_from_uri(uri)
         return None if path is None else (path.read_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if "/csv/" in uri:

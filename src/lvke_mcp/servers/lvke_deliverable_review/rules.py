@@ -362,10 +362,18 @@ def compose(
     return {**body, "content_hash": sha256_json(body)}
 
 
-def standards_snapshot(repo_root: Path, package_ids: Iterable[str]) -> dict[str, Any]:
+def standards_snapshot(
+    repo_root: Path,
+    package_ids: Iterable[str],
+    *,
+    review_purpose: str = "project_delivery",
+) -> dict[str, Any]:
     path = repo_root / "config" / "review_standards.lock.json"
     if not path.is_file():
-        return _standards_snapshot_from_materials(package_ids)
+        return _standards_snapshot_from_materials(
+            package_ids,
+            review_purpose=review_purpose,
+        )
     try:
         lock = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -395,14 +403,18 @@ def standards_snapshot(repo_root: Path, package_ids: Iterable[str]) -> dict[str,
     ]
     found = {str(row.get("package_id")) for row in packages}
     incomplete = sorted((wanted - found) | {str(row["package_id"]) for row in packages if row.get("gate_status") != "passed"})
-    selected = {"schema_version": lock.get("schema_version"), "packages": packages}
-    return {
+    snapshot = {
         "available": True, "schema_version": lock.get("schema_version"),
-        "content_hash": sha256_json(selected), "packages": packages, "incomplete": incomplete,
+        "packages": packages, "incomplete": incomplete,
     }
+    return _apply_standard_review_purpose(snapshot, review_purpose)
 
 
-def _standards_snapshot_from_materials(package_ids: Iterable[str]) -> dict[str, Any]:
+def _standards_snapshot_from_materials(
+    package_ids: Iterable[str],
+    *,
+    review_purpose: str = "project_delivery",
+) -> dict[str, Any]:
     """Build the immutable review basis from the checked-in standard packages."""
 
     import os
@@ -455,22 +467,100 @@ def _standards_snapshot_from_materials(package_ids: Iterable[str]) -> dict[str, 
                     "official_page_url": artifact.get("official_page_url"),
                     "sha256": artifact.get("sha256"),
                     "page_count": artifact.get("page_count"),
+                    "status": artifact.get("status"),
+                    "source_is_official": artifact.get("source_is_official"),
                 }
                 for artifact in manifest.get("artifacts") or []
                 if isinstance(artifact, dict)
             ],
         })
-    selected = {
-        "schema_version": "review_standards.material_snapshot.v1",
-        "packages": packages,
-    }
-    return {
+    snapshot = {
         "available": bool(packages),
-        "schema_version": selected["schema_version"],
-        "content_hash": sha256_json(selected) if packages else None,
+        "schema_version": "review_standards.material_snapshot.v1",
         "packages": packages,
         "incomplete": sorted(set(incomplete) | (set(wanted) - {str(row.get("package_id")) for row in packages})),
     }
+    return _apply_standard_review_purpose(snapshot, review_purpose)
+
+
+_FAILED_ARTIFACT_STATUSES = frozenset({
+    "download_or_extract_failed",
+    "download_failed",
+    "extract_failed",
+    "missing",
+    "unavailable",
+})
+
+
+def _is_official_framework_artifact(artifact: Any) -> bool:
+    """Return whether an artifact really stands as official framework basis."""
+
+    if not isinstance(artifact, dict):
+        return False
+    if not artifact.get("sha256"):
+        return False
+    if artifact.get("source_is_official") is not True:
+        return False
+    status = str(artifact.get("status") or "").strip()
+    return status not in _FAILED_ARTIFACT_STATUSES
+
+
+def _apply_standard_review_purpose(
+    snapshot: dict[str, Any],
+    review_purpose: str,
+) -> dict[str, Any]:
+    """Apply the explicit PKG-STD-011 process-acceptance boundary.
+
+    S001/S002 establish the public framework and revision status.  They do not
+    replace the restricted S003 methodology text.  Therefore the package may
+    support a framework-only process review, while project delivery remains
+    incomplete and must not claim full-methodology conformance.
+    """
+
+    purpose = str(review_purpose or "project_delivery")
+    result = {
+        **snapshot,
+        "packages": [dict(row) for row in snapshot.get("packages") or []],
+        "incomplete": list(snapshot.get("incomplete") or []),
+        "framework_only": [],
+        "review_purpose": purpose,
+    }
+    if purpose == "process_acceptance":
+        for package in result["packages"]:
+            if str(package.get("package_id") or "") != "PKG-STD-011":
+                continue
+            artifacts = {
+                str(item.get("artifact_id") or ""): item
+                for item in package.get("artifacts") or []
+                if isinstance(item, dict)
+            }
+            # 「官方框架依据」不能只看 sha256 非空：还要求来源确为官方发布、
+            # 且该条目自身不处于抓取/解析失败态，否则一份下载失败的占位记录
+            # 也会被当成框架已具备。
+            public_framework_present = all(
+                _is_official_framework_artifact(artifacts.get(item_id))
+                for item_id in ("S001", "S002")
+            )
+            methodology_present = bool(artifacts.get("S003", {}).get("sha256"))
+            if public_framework_present and not methodology_present:
+                package["process_acceptance_status"] = "framework_only"
+                package["framework_only"] = True
+                result["framework_only"].append("PKG-STD-011")
+                result["incomplete"] = [
+                    item for item in result["incomplete"]
+                    if item != "PKG-STD-011"
+                ]
+    selected = {
+        "schema_version": result.get("schema_version"),
+        "review_purpose": purpose,
+        "packages": result["packages"],
+        "incomplete": sorted(set(result["incomplete"])),
+        "framework_only": sorted(set(result["framework_only"])),
+    }
+    result["incomplete"] = selected["incomplete"]
+    result["framework_only"] = selected["framework_only"]
+    result["content_hash"] = sha256_json(selected) if result["packages"] else None
+    return result
 
 
 def finding(rule_id: str, severity: str, message: str, *, category: str, blocking: bool | None = None,

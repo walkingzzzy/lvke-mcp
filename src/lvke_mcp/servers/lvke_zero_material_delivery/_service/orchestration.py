@@ -188,6 +188,10 @@ def execute(
         industry_code=str((intent.get("industry") or {}).get("industry_code") or ""),
         explicit_inputs=intent.get("explicit_inputs"),
         field_values=_field_values(assumption_package),
+        project_context=project_context,
+        # finance_inputs 是真正送进 FinanceRun 的 InputRevision；
+        # 用它对账才能拦住最后一步的取值漂移。
+        input_revision={**dict(spec), "input_revision": dict(finance_inputs or {})},
     )
     if not scale_check["ok"]:
         return {

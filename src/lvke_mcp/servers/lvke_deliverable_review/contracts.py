@@ -19,6 +19,7 @@ DEPLOYMENT_MODES = {"enforced", "shadow"}
 
 SEVERITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 EVIDENCE_TRACKS = {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}
+REVIEW_PURPOSES = {"process_acceptance", "project_delivery"}
 PROJECT_TYPES = {"generic_feasibility", "asset_acquisition"}
 TRANSACTION_STRUCTURES = {
     "new_build", "operation_lease", "asset_acquisition", "equity_acquisition",
@@ -39,6 +40,13 @@ def normalize_project_context(value: Any, *, target_type: str) -> dict[str, Any]
     ).strip()
     asset_type = str(raw.get("asset_type") or "general").strip()
     evidence_track = str(raw.get("evidence_track") or "real").strip()
+    declared_purpose = str(raw.get("review_purpose") or "").strip()
+    declared_scope = str(raw.get("release_scope") or "").strip()
+    if declared_purpose and declared_scope and declared_purpose != declared_scope:
+        raise ValueError("review_purpose_release_scope_mismatch")
+    review_purpose = declared_purpose or declared_scope or (
+        "project_delivery" if evidence_track == "real" else "process_acceptance"
+    )
     industry_code = str(raw.get("industry_code") or "general").strip()
     if project_type not in PROJECT_TYPES:
         raise ValueError("project_type_invalid")
@@ -48,6 +56,8 @@ def normalize_project_context(value: Any, *, target_type: str) -> dict[str, Any]
         raise ValueError("asset_type_invalid")
     if evidence_track not in EVIDENCE_TRACKS:
         raise ValueError("evidence_track_invalid")
+    if review_purpose not in REVIEW_PURPOSES:
+        raise ValueError("review_purpose_invalid")
     if project_type == "asset_acquisition" and transaction not in {
         "asset_acquisition", "equity_acquisition", "operation_lease",
     }:
@@ -59,6 +69,10 @@ def normalize_project_context(value: Any, *, target_type: str) -> dict[str, Any]
         "target_type": target_type,
         "asset_type": asset_type,
         "evidence_track": evidence_track,
+        # Keep both public spellings canonical and equal.  Existing callers can
+        # adopt either field without creating two subtly different gates.
+        "review_purpose": review_purpose,
+        "release_scope": review_purpose,
     }
 
 

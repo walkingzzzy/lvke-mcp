@@ -22,6 +22,15 @@ _BASE = {
     "run_id": {"type": "string", "minLength": 1},
 }
 _TEMPLATE_VERSION = {"type": "string", "minLength": 1, "description": "可选版本钉住断言；与 run 固化模板版本不一致时报错，不做版本转换"}
+_SOURCE_PACKAGE_ID = {
+    "type": "string",
+    "minLength": 1,
+    "description": (
+        "可选：消费既有十三表 package 而不重新渲染。省略时会新渲染一个包，"
+        "其 content hash 可能与主包不同（package payload 内嵌可变门禁状态）。"
+        "要求 XLSX/CSV 与主包同一 package_id 时必须显式传入。"
+    ),
+}
 _TABLE_ID_ALIASES = {
     "construction_interest": "interest-during-construction",
     "working_capital": "working-capital",
@@ -43,7 +52,7 @@ def _public_table_ids() -> list[str]:
 
 
 def _resource(uri: str):
-    if uri.endswith("/xlsx"):
+    if uri.endswith(("/xlsx", "/xlsx-technical")):
         path = service.xlsx_path_from_uri(uri)
         return None if path is None else ReadResourceContents(path.read_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     if "/csv/" in uri:
@@ -84,8 +93,74 @@ def build_server() -> OfficialStdioServer:
     write = types.ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False)
     server.register_tool("tables_render", "只消费 run_id 渲染十三表并固化 package；绝不重新计算财务。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "format": {"type": "string", "enum": ["structured", "markdown"], "default": "structured"}, "template_version": _TEMPLATE_VERSION}, "required": ["workspace_id", "run_id"]}, lambda a: service.render(a["workspace_id"], a["run_id"], a.get("format", "structured"), a.get("template_version", "")), _OUTPUT, write)
     server.register_tool("tables_validate", "校验 run 的十三表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "validation_scope": {"type": "string", "enum": ["technical", "formal"], "default": "formal", "description": "technical 仅校验结构，formal 还要求宿主正式门禁"}}, "required": ["workspace_id", "run_id"]}, lambda a: service.validate(a["workspace_id"], a["run_id"], validation_scope=a.get("validation_scope", "formal")), _VALIDATE_OUTPUT, read)
-    server.register_tool("tables_export_xlsx", "从同一 run_id 导出带 lineage 的 XLSX；不接收任何散乱财务参数。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "template_version": _TEMPLATE_VERSION}, "required": ["workspace_id", "run_id"]}, lambda a: service.export_xlsx(a["workspace_id"], a["run_id"], a.get("template_version", "")), _OUTPUT, write)
-    server.register_tool("tables_export_csv", "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，不把 JSON 序列化入表。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "template_version": _TEMPLATE_VERSION}, "required": ["workspace_id", "run_id"]}, lambda a: service.export_csv(a["workspace_id"], a["run_id"], a.get("template_version", "")), _OUTPUT, write)
+    server.register_tool(
+        "tables_export_xlsx",
+        "从同一 run_id 导出恰好13张正式财务表的 XLSX；默认 formal。"
+        "validation_scope='technical' 时文件内逐表标记为估算预览且永不可取得正式资格。",
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                **_BASE,
+                "template_version": _TEMPLATE_VERSION,
+                "finance_tables_package_id": _SOURCE_PACKAGE_ID,
+                "validation_scope": {
+                    "type": "string",
+                    "enum": ["technical", "formal"],
+                    "default": "formal",
+                    "description": (
+                        "technical：产出带文件内警示的过程验收 XLSX，"
+                        "validation_complete 恒为 false；formal：保持正式门禁。"
+                    ),
+                },
+            },
+            "required": ["workspace_id", "run_id"],
+        },
+        lambda a: service.export_xlsx(
+            a["workspace_id"],
+            a["run_id"],
+            a.get("template_version", ""),
+            a.get("finance_tables_package_id", ""),
+            a.get("validation_scope", "formal"),
+        ),
+        _OUTPUT,
+        write,
+    )
+    server.register_tool(
+        "tables_export_csv",
+        "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，"
+        "给定 finance_tables_package_id 时消费既有包。默认 formal，正式门禁不过即拒绝；"
+        "validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                **_BASE,
+                "template_version": _TEMPLATE_VERSION,
+                "finance_tables_package_id": _SOURCE_PACKAGE_ID,
+                "validation_scope": {
+                    "type": "string",
+                    "enum": ["technical", "formal"],
+                    "default": "formal",
+                    "description": (
+                        "formal：正式门禁未过则拒绝导出。technical：产出过程验收 CSV，"
+                        "每个文件首行写入不可正式使用标记，release_grade=technical_preview，"
+                        "validation_complete 恒为 false。"
+                    ),
+                },
+            },
+            "required": ["workspace_id", "run_id"],
+        },
+        lambda a: service.export_csv(
+            a["workspace_id"],
+            a["run_id"],
+            a.get("template_version", ""),
+            a.get("finance_tables_package_id", ""),
+            a.get("validation_scope", "formal"),
+        ),
+        _OUTPUT,
+        write,
+    )
     server.register_tool("tables_get_package", "读取已固化十三表 package 摘要。", {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _BASE["workspace_id"], "finance_tables_package_id": {"type": "string", "minLength": 1}}, "required": ["workspace_id", "finance_tables_package_id"]}, lambda a: service.get_package(a["workspace_id"], a["finance_tables_package_id"]), _OUTPUT, read)
     package_table_properties = {
         "workspace_id": _BASE["workspace_id"],

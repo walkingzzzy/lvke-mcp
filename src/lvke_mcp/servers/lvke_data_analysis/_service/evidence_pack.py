@@ -15,6 +15,10 @@ from datetime import datetime
 from typing import Any
 
 from lvke_mcp.adapters.data_analysis_repository import CANDIDATE_STORE, EVIDENCE_STORE
+from lvke_mcp.runtime.evidence_qualification import (
+    FORMAL_EVIDENCE,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.source_reconstruction import (
     SOURCE_RECONSTRUCTED,
     normalize_reconstruction,
@@ -396,6 +400,8 @@ def build_evidence_pack(
                 "fetched_at", "status", "formal_use_allowed",
                 "formal_use_decision", "ocr_formal_use_decision",
                 "unresolved_low_confidence_locator_count", "locators",
+                "content_origin", "provider", "provider_tool",
+                "evidence_policy", "project_fact_certified",
             )
         }
         reconstruction = reconstruction_by_source.get(str(doc.get("source_id") or ""))
@@ -412,6 +418,17 @@ def build_evidence_pack(
             elif reconstruction is not None and reconstruction.get("locator"):
                 row["locators"] = [str(reconstruction["locator"])]
         source_rows.append(row)
+    evidence_policy = (
+        FORMAL_EVIDENCE
+        if formal_evidence_candidate
+        else SOURCE_RECONSTRUCTED
+        if evidence_track == SOURCE_RECONSTRUCTED
+        else evidence_track
+    )
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=formal_evidence_candidate,
+    )
     payload = {
         "analysis_task_id": task_id,
         "evidence_track": evidence_track,
@@ -422,8 +439,8 @@ def build_evidence_pack(
         "formal_evidence_candidate": formal_evidence_candidate,
         "source_reconstructed_candidate": source_reconstructed_candidate,
         "reconstruction_records": normalized_reconstructions,
-        "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
-        "project_fact_certified": False if evidence_track == SOURCE_RECONSTRUCTED else bool(formal_evidence_candidate),
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": project_fact_certified,
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
         "unresolved_inputs": list(missing_fields),
         "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),
@@ -469,8 +486,8 @@ def build_evidence_pack(
         "formal_evidence_candidate": formal_evidence_candidate,
         "source_reconstructed_candidate": source_reconstructed_candidate,
         "reconstruction_records": normalized_reconstructions,
-        "evidence_policy": SOURCE_RECONSTRUCTED if evidence_track == SOURCE_RECONSTRUCTED else evidence_track,
-        "project_fact_certified": False if evidence_track == SOURCE_RECONSTRUCTED else bool(formal_evidence_candidate),
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": project_fact_certified,
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
         "unresolved_inputs": list(missing_fields),
         "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),

@@ -52,9 +52,34 @@
       "auxiliary_skills": ["lvke-cost-drivers", "lvke-build-scale"]
     },
     {
+      "route_id": "urban-rail-transit",
+      "priority": 85,
+      "industry_prefixes": ["urban_rail_transit", "rail_transit", "urban_rail", "metro", "subway", "light_rail", "tram"],
+      "asset_types": [],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-urban-rail-transit",
+      "auxiliary_skills": [
+        "lvke-rail-ridership-forecast",
+        "lvke-rail-alignment-and-stations",
+        "lvke-rail-investment-estimate",
+        "lvke-rail-car-km-cost",
+        "lvke-rail-rolling-stock-renewal",
+        "lvke-rail-operating-staffing"
+      ],
+      "capabilities": [
+        "轨道客流预测与清分票价",
+        "线站位与敷设方案",
+        "投资估算与单位里程强度",
+        "车公里运营成本",
+        "车辆更新与大修周期",
+        "运营定员编制"
+      ]
+    },
+    {
       "route_id": "public-service",
       "priority": 60,
-      "industry_prefixes": ["public_service", "government_public_service", "environmental_utilities", "infrastructure", "urban_rail_transit", "rail_transit", "urban_rail", "metro", "transit", "transport"],
+      "industry_prefixes": ["public_service", "government_public_service", "environmental_utilities", "infrastructure", "transit", "transport"],
       "asset_types": [],
       "project_types": [],
       "transaction_structures": [],

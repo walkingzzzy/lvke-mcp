@@ -25,6 +25,7 @@ from lvke_mcp.adapters.data_acquisition_repository import (
 )
 
 _ALLOWED_EXTERNAL_EXTRACT_TOOLS = frozenset({
+    ("codex-browser", "browser_snapshot"),
     ("tavily", "tavily_extract"),
     ("tavily-hikari", "tavily_extract"),
 })

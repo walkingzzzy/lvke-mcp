@@ -209,6 +209,20 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
 
     assumptions: list[str] = []
     bench, bench_note = _resolve_benchmark(industry)  # M1 T1.3：分行业财务基准收益率
+    explicit_discount_rate = _f(fin.get("discount_rate"))
+    if explicit_discount_rate is not None:
+        if not 0 < explicit_discount_rate < 1:
+            return {
+                "available": False,
+                "reason": "discount_rate_invalid",
+                "validation_errors": [{
+                    "field": "discount_rate",
+                    "severity": "error",
+                    "message": "discount_rate 必须在 0~1 之间",
+                }],
+            }
+        bench = explicit_discount_rate
+        bench_note = f"折现率按项目显式输入 {bench * 100:.2f}%"
     assumptions.append(bench_note)
     # P1：基准收益率适用性口径（政府投资项目才套行业基准达标判定；企业项目用投资者自定最低收益率）
     nature_policy = project_nature_policy(invest_type)
@@ -436,12 +450,32 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
     _absorption_series: Optional[list[float]] = None
     # BC-4b：gov_payment 增值税退税比例（即征即退，如污水 70%）
     _vat_refund_rate = 0.0
+    _effective_revenue_spec = spec
+    _fiscal_support_policy = (
+        dict(fin.get("fiscal_support_policy") or {})
+        if isinstance(fin.get("fiscal_support_policy"), dict) else {}
+    )
     if is_operating and spec and _spec_rev_model != "flat":
         try:
             from lvke_mcp.domains.finance import revenue_models
 
             _op_years_for_rev = max(calc_years - build_years, 1)
-            _exp = revenue_models.expand(spec, _op_years_for_rev)
+            _effective_revenue_spec = copy.deepcopy(spec)
+            _effective_revenue = _effective_revenue_spec.setdefault("revenue", {})
+            if isinstance(fin.get("fare_multiplier_by_year"), list):
+                _effective_revenue["fare_multiplier_by_year"] = list(
+                    fin.get("fare_multiplier_by_year") or []
+                )
+            if (
+                _spec_rev_model == "rail_transit"
+                and _fiscal_support_policy.get("mode")
+                == "actual_cash_and_debt_service_gap"
+            ):
+                # Gap support is a financing cash inflow resolved after profit
+                # and debt service.  It must not be embedded in fare revenue.
+                _effective_revenue["annual_fiscal_support_wan"] = 0.0
+                _effective_revenue["fiscal_support_ramp"] = []
+            _exp = revenue_models.expand(_effective_revenue_spec, _op_years_for_rev)
             _rev_by_year = [round(_f(x) or 0.0, 2) for x in (_exp.get("revenue_by_year") or [])]
             _var_by_year = [round(_f(x) or 0.0, 2) for x in (_exp.get("var_cost_by_year") or [])]
             if _rev_by_year and any(v > 0 for v in _rev_by_year):
@@ -519,6 +553,10 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
             # Keep the resolved revenue drivers in the immutable run snapshot so
             # report/review tooling can reconcile component claims, not only the total.
             "revenue_spec": copy.deepcopy((spec or {}).get("revenue") or {}),
+            "fare_multiplier_by_year": list(fin.get("fare_multiplier_by_year") or []),
+            "renewal_capex_plan": copy.deepcopy(fin.get("renewal_capex_plan") or []),
+            "fiscal_support_policy": copy.deepcopy(_fiscal_support_policy),
+            "project_metadata": copy.deepcopy(fin.get("project_metadata") or {}),
             "cost_items": fin.get("cost_items") or {},
             "annual_operating_subsidy_wan": _f(fin.get("annual_operating_subsidy_wan")) or 0.0,
             "wage_wan": _f(fin.get("wage_wan")),                     # 工资及附加年额（缺则从 cost_items 拆）
@@ -706,6 +744,10 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
             _salvage_rate = _cost_param(spec, "salvage_rate", "cost")  # 默认 0.05
         if _property_inventory:
             _salvage_rate = 0.0  # 房产：无固定资产残值
+        _renewal_schedule = _fin_assets.renewal_capex_schedule(
+            list(fin.get("renewal_capex_plan") or []),
+            op_years=_op_years_dep,
+        )
         _dep_class_schedule = (
             _fin_assets.classified_depreciation_schedule(
                 list(fin.get("depreciation_classes") or []), op_years=_op_years_dep,
@@ -717,6 +759,7 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
             round(float(row.get("depreciation") or 0.0), 2)
             for row in (_dep_class_schedule.get("rows") or [])
         ]
+        _renewal_dep_values = list(_renewal_schedule.get("depreciation_by_year") or [])
         if _dep_schedule_values:
             _salvage_rate = float(_dep_class_schedule.get("weighted_salvage_rate") or 0.0)
         # 【P1-2 / F13-P1-02】折旧/摊销年限尊重用户输入，禁止静默延长到运营期。
@@ -795,6 +838,58 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
                 assumptions.append(
                     f"折旧年限 {_dep_years} 年短于运营期 {_op_years_dep} 年：按用户寿命计提，"
                     f"期满后零折旧（不静默延长寿命，P1-2）")
+        if _renewal_schedule.get("items"):
+            if _dep_schedule_values:
+                _base_dep_values = list(_dep_schedule_values)
+            else:
+                _base_dep_values = [
+                    float(row.get("depreciation") or 0.0)
+                    for row in _fin_assets.yearly_dep_schedule(
+                        original=_dep_base,
+                        annual=_dep_only,
+                        years=_dep_years,
+                        op_years=_op_years_dep,
+                        salvage_rate=_salvage_rate,
+                    )
+                ]
+            _dep_schedule_values = [
+                round(
+                    (_base_dep_values[index] if index < len(_base_dep_values) else 0.0)
+                    + (_renewal_dep_values[index] if index < len(_renewal_dep_values) else 0.0),
+                    2,
+                )
+                for index in range(_op_years_dep)
+            ]
+            _combined_rows = []
+            _cumulative_dep = 0.0
+            _renewal_cumulative = list(
+                _renewal_schedule.get("cumulative_capex_by_year") or []
+            )
+            for index, charge in enumerate(_dep_schedule_values):
+                _cumulative_dep = round(_cumulative_dep + charge, 2)
+                _combined_rows.append({
+                    "year": index + 1,
+                    "original_value": round(
+                        _dep_base
+                        + (_renewal_cumulative[index] if index < len(_renewal_cumulative) else 0.0),
+                        2,
+                    ),
+                    "depreciation": charge,
+                    "cumulative_depreciation": _cumulative_dep,
+                    "depreciation_basis": "renewal_composite",
+                    "classes": list(
+                        (_dep_class_schedule.get("rows") or [{}])[index].get("classes") or []
+                    ) if index < len(_dep_class_schedule.get("rows") or []) else [],
+                })
+            result["investment"]["renewal_capex_total"] = _renewal_schedule["total_capex_wan"]
+            result["investment"]["fixed_asset_additions_total"] = round(
+                fixed_asset + float(_renewal_schedule["total_capex_wan"]), 2,
+            )
+            assumptions.append(
+                f"运营期更新投资 {_fmt(_renewal_schedule['total_capex_wan'])} 万元按投用年进入现金流、折旧和期末净值"
+            )
+        else:
+            _combined_rows = list(_dep_class_schedule.get("rows") or [])
         # 透传独立折旧/摊销与折旧基数给 _build_annual
         result["raw"]["dep_only"] = _dep_only
         result["raw"]["amort_only"] = _amort_only
@@ -806,7 +901,8 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
         result["raw"]["amortization_years"] = _amort_years
         result["raw"]["dep_life_meta"] = _dep_life
         result["raw"]["depreciation_classes"] = _dep_class_schedule.get("classes") or []
-        result["raw"]["depreciation_class_schedule"] = _dep_class_schedule.get("rows") or []
+        result["raw"]["depreciation_class_schedule"] = _combined_rows
+        result["raw"]["renewal_capex_schedule"] = _renewal_schedule
         result["raw"]["amort_life_meta"] = _amort_life
         result["raw"]["property_inventory"] = _property_inventory
         result["raw"]["vat_refund_rate"] = _vat_refund_rate
@@ -1277,7 +1373,7 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
             _salvage_residual = 0.0
             _dep_unrecovered = 0.0
             _amort_unrecovered = 0.0
-        elif _dep_schedule_values:
+        elif _dep_class_schedule.get("rows"):
             _salvage_residual = round(
                 float(_dep_class_schedule.get("salvage_value_wan") or 0.0), 2
             )
@@ -1328,6 +1424,18 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
                     f"计算期({op_years}年)短于折旧/摊销年限,期末回收未折完账面净值 "
                     f"{_fmt(round(_dep_unrecovered + _amort_unrecovered, 2))} 万元"
                     f"（P1-03:除残值 {_fmt(_salvage_residual)} 万元外,补回未折完部分,避免低估终值）")
+        if _renewal_schedule.get("items"):
+            renewal_terminal = round(
+                float(_renewal_schedule.get("terminal_book_value_wan") or 0.0), 2,
+            )
+            salvage = round(salvage + renewal_terminal, 2)
+            result["raw"]["terminal_recovery"] = salvage
+            result["raw"].setdefault("terminal_meta", {})
+            result["raw"]["terminal_meta"].update({
+                "renewal_terminal_book_value": renewal_terminal,
+                "renewal_capex_total": _renewal_schedule.get("total_capex_wan"),
+                "terminal_recovery": salvage,
+            })
         # B-2: optional vendor terminal recovery overrides (input rows on CF sheet)
         _wc_recover = round(float(working or 0.0), 2)
         if fin.get("terminal_fixed_asset_recover_wan") is not None:
@@ -1349,6 +1457,10 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
 
         for j in range(op_years):
             cf = pnl_by_year[j]["op_cashflow"] if pnl_by_year else op_cashflow
+            renewal_capex = float(
+                (_renewal_schedule.get("capex_by_year") or [0.0] * op_years)[j]
+            )
+            cf -= renewal_capex
             if j == 0:
                 cf -= working  # P1-c：投产年投入【全额】流动资金（现行可研口径，非"×30%铺底"旧制）
             if j == op_years - 1:
@@ -1367,6 +1479,19 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
             npv_v = _npv(cashflows, bench)
         except Exception:  # noqa: BLE001
             npv_v = None
+        discount_scenarios = []
+        for scenario_rate in (fin.get("discount_rate_scenarios") or []):
+            try:
+                rate_value = float(scenario_rate)
+                if not 0 < rate_value < 1:
+                    raise ValueError
+                discount_scenarios.append({
+                    "discount_rate": rate_value,
+                    "npv_wan": round(_npv(cashflows, rate_value), 2),
+                })
+            except (TypeError, ValueError):
+                continue
+        result["discount_rate_scenarios"] = discount_scenarios
         try:
             pb = _payback(cashflows, rate=bench)
             static_pb = pb.static_years
@@ -1486,6 +1611,7 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
     result["indicators"] = indicators
     # M1 T1.1：逐年联动附表 + 敏感性 + 情景（在渲染前算好，供 _render_tables 合并）
     result["annual"] = _build_annual(result)
+    result["project_metadata"] = copy.deepcopy(fin.get("project_metadata") or {})
     if (result.get("annual") or {}).get("non_operating_balance") is not None:
         result["non_operating_balance"] = result["annual"]["non_operating_balance"]
     # 【P1-5】敏感性/情景改「改输入重跑整模型」（方案 §10）：存原始调用上下文供重跑，

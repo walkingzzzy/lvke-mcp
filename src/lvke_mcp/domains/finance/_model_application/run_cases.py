@@ -27,8 +27,9 @@ from .base import (
     _workspace_id,
 )
 
-from .spec_cases import (
-    _revenue_input_complete,
+from lvke_mcp.domains.finance.rail_validation import (
+    rail_transit_missing_inputs as _rail_transit_missing_inputs,
+    revenue_input_complete as _revenue_input_complete,
 )
 
 
@@ -130,6 +131,22 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
     input_revision = input_revision if isinstance(input_revision, dict) else {}
     if spec_id and not input_revision.get("total_investment_wan"):
         return _missing_run("total_investment_wan", spec_id)
+    rail_missing = _rail_transit_missing_inputs(
+        spec,
+        input_revision,
+        build_period_months=input_revision.get("build_period_months"),
+    )
+    if rail_missing:
+        return _ok_env(
+            {"available": False, "missing_inputs": rail_missing},
+            source=f"{SERVER_NAME}.finance_run_model",
+            status="missing_inputs",
+            blockers=[f"missing_input:{item}" for item in rail_missing],
+            next_actions=["补齐城市轨道交通专用输入后重新运行"],
+            run_id=None,
+            spec_id=spec_id or None,
+            missing_inputs=rail_missing,
+        )
     if not _revenue_input_complete(spec, input_revision):
         return _missing_run("annual_revenue_wan_or_revenue_driver", spec_id)
     if mode == "review_candidate" and bool(input_revision.get("is_operating")):

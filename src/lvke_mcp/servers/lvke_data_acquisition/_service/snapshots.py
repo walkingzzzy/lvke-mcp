@@ -182,7 +182,10 @@ def _external_snapshot_url_block_reason(url: str) -> str | None:
     if port is not None and not (1 <= port <= 65535):
         return "已拦截：来源 URL 端口无效"
     lowered = hostname.lower()
-    if lowered in {"localhost", "metadata.google.internal"} or lowered.endswith(".localhost"):
+    if (
+        lowered in {"localhost", "metadata.google.internal"}
+        or lowered.endswith((".localhost", ".internal", ".local"))
+    ):
         return "已拦截：来源 URL 指向内部或云 metadata 地址"
     try:
         address = ipaddress.ip_address(hostname.strip("[]"))
@@ -240,6 +243,10 @@ def import_external_snapshot(
     # extract-tool allowlist; this does not broaden the provider set.
     provider_key = str(provider or "").strip().lower().replace("_", "-")
     tool_key = str(provider_tool or "").strip().lower()
+    browser_snapshot = (provider_key, tool_key) == (
+        "codex-browser",
+        "browser_snapshot",
+    )
     if (provider_key, tool_key) not in _ALLOWED_EXTERNAL_EXTRACT_TOOLS:
         return {
             "success": False,
@@ -313,13 +320,19 @@ def import_external_snapshot(
                 "blockers": ["external_extraction_receipt_unverifiable"],
                 "next_actions": ["由受信 extract adapter 使用服务端共享密钥签发完整回执后重试"],
             }
+    formal_use_allowed = bool(receipt_verified and not browser_snapshot)
+    content_origin = (
+        "codex_browser_snapshot"
+        if browser_snapshot
+        else "external_mcp_extract"
+    )
     payload = {
         "url": str(url).strip(),
         "title": str(title or "").strip(),
         "content": normalized_content,
         "content_mode": "external_extract",
         "content_kind": content_kind,
-        "content_origin": "external_mcp_extract",
+        "content_origin": content_origin,
         "mime_type": str(mime_type or "text/markdown").strip().lower(),
         "mime_type_source": "external_provider_declared",
         "provider": str(provider).strip(),
@@ -327,7 +340,10 @@ def import_external_snapshot(
         "retrieved_at": str(retrieved_at).strip(),
         "extraction_receipt_verified": receipt_verified,
         "external_content_hash": computed_hash,
-        "formal_use_allowed": receipt_verified,
+        "formal_use_allowed": formal_use_allowed,
+        "evidence_policy": "candidate" if not formal_use_allowed else "formal_evidence",
+        "evidence_eligibility": "candidate" if not formal_use_allowed else "formal_evidence",
+        "project_fact_certified": False,
         "evidence_boundary": "外部 MCP 提取正文已固化为候选来源快照；未经整理与核验不是已采信事实或财务输入。",
     }
     record = SOURCE_STORE.put(
@@ -354,9 +370,13 @@ def import_external_snapshot(
         "retrieved_at": payload["retrieved_at"],
         "external_content_hash": computed_hash,
         "extraction_receipt_verified": receipt_verified,
-        "formal_use_allowed": receipt_verified,
+        "formal_use_allowed": formal_use_allowed,
+        "evidence_policy": payload["evidence_policy"],
+        "project_fact_certified": False,
         "resource_uris": [record["resource_uri"]],
         "warnings": ([
+            "Codex 浏览器正文已固化为非正式候选快照；浏览器会话不是证据签发方，禁止自动升级为正式证据"
+        ] if browser_snapshot else [
             "该快照只有调用方声明的 extract 来源，缺少可验证回执；仅可作为 unverified_external_text 候选，禁止正式使用"
         ] if not receipt_verified else [
             "外部提取回执已核对；仍需进入 analysis_ingest 并核对 locator/来源资格"

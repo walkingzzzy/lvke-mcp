@@ -6,6 +6,10 @@ from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
+from lvke_mcp.runtime.evidence_qualification import (
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.servers.lvke_deliverable_review import rules
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_project_context, normalize_target
 
@@ -79,7 +83,11 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             args.get("industry_overlays") or [], component_types=component_types,
             project_context=project_context,
         )
-        standards = rules.standards_snapshot(REPO_ROOT, pack["standard_package_ids"])
+        standards = rules.standards_snapshot(
+            REPO_ROOT,
+            pack["standard_package_ids"],
+            review_purpose=project_context["review_purpose"],
+        )
         upstream_snapshot = _binding_snapshot(
             workspace_id,
             resolved["bindings"],
@@ -92,9 +100,13 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         revision_record = target_snapshot.get("revision_record") if isinstance(target_snapshot.get("revision_record"), dict) else {}
         revision_payload = revision_record.get("payload") if isinstance(revision_record.get("payload"), dict) else {}
         upstream = revision_payload.get("upstream") if isinstance(revision_payload.get("upstream"), dict) else {}
+        evidence_policy = declared_evidence_policy(upstream, default="candidate")
         evidence_metadata = {
-            "evidence_policy": str(upstream.get("evidence_policy") or "formal_evidence"),
-            "project_fact_certified": bool(upstream.get("project_fact_certified", False)),
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_may_be_certified(
+                evidence_policy,
+                own_qualification_passed=upstream.get("project_fact_certified") is True,
+            ),
             "reconstruction_records": list(upstream.get("reconstruction_records") or []),
             "reconstructed_source_ids": list(upstream.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(upstream.get("unresolved_inputs") or []),
@@ -137,6 +149,10 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             )
         record = verified_record
         warnings = [f"标准包未完成：{item}" for item in standards["incomplete"]]
+        warnings.extend(
+            f"标准包仅支持框架性过程验收：{item}；不得声称已按方法书全文完成"
+            for item in standards.get("framework_only") or []
+        )
         return _ok(
             review_preparation_id=record["object_id"], 
             target=basis["target"], bindings=basis["bindings"],

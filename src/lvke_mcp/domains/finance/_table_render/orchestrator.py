@@ -131,6 +131,12 @@ def _assess_missing_fields(fin: dict[str, Any]) -> dict[str, list[str]]:
             for field in ("annual_gov_payment_wan", "payment_ramp"):
                 if revenue.get(field) in (None, "", [], {}):
                     revenue_missing.append(field)
+        elif model == "rail_transit":
+            for field in ("annual_passenger_trips", "average_fare_yuan"):
+                if revenue.get(field) in (None, "", [], {}):
+                    revenue_missing.append(field)
+            if not (revenue.get("ridership_ramp") or revenue.get("ramp")):
+                revenue_missing.append("ridership_ramp 客流爬坡")
         elif model in {"lease_portfolio", "inventory_sales"}:
             if not (revenue.get("annual_schedule_wan") or revenue.get("sales_schedule")):
                 revenue_missing.append("annual_schedule_wan/sales_schedule 收入序列")
@@ -266,6 +272,68 @@ def build_all_structured(fin: dict[str, Any]) -> dict[str, Any]:
                                 "ramp": list(component.get("ramp") or visitor_ramp),
                                 "var_cost_rate": 0.0,
                                 "revenue_model": model,
+                            })
+                    elif model == "rail_transit":
+                        # 票务/非票/财政支持三分，逐项保留量价与爬坡，
+                        # 使附表5 的三类收入各自可复算、票价敏感性可算。
+                        from lvke_mcp.domains.finance.revenue_models import (
+                            rail_non_fare_rate,
+                        )
+
+                        trips = float(revenue_spec.get("annual_passenger_trips") or 0.0)
+                        trips_unit = str(revenue_spec.get("passenger_unit") or "万人次")
+                        fare = revenue_spec.get("average_fare_yuan")
+                        ridership_ramp = list(
+                            revenue_spec.get("ridership_ramp")
+                            or revenue_spec.get("ramp")
+                            or []
+                        )
+                        non_fare_rate = rail_non_fare_rate(revenue_spec)
+                        body["product_tree"] = [{
+                            "name": "票务收入",
+                            "unit": trips_unit,
+                            "price_per_unit": fare,
+                            "price_unit": "yuan",
+                            "capacity": trips,
+                            "ramp": ridership_ramp,
+                            "var_cost_rate": 0.0,
+                            "revenue_model": model,
+                            "revenue_category": "farebox",
+                        }, {
+                            # 非票收入绑定票务情景比例：单位取"倍票务收入"，
+                            # 量=票务达产收入、价=比例，公式仍是量×价×爬坡。
+                            "name": f"非票收入（票务×{non_fare_rate:.0%}）",
+                            "unit": trips_unit,
+                            "price_per_unit": (
+                                float(fare) * non_fare_rate if fare is not None else None
+                            ),
+                            "price_unit": "yuan",
+                            "capacity": trips,
+                            "ramp": ridership_ramp,
+                            "var_cost_rate": 0.0,
+                            "revenue_model": model,
+                            "revenue_category": "non_fare",
+                            "non_fare_revenue_rate": non_fare_rate,
+                            "non_fare_scenario": str(
+                                revenue_spec.get("non_fare_scenario") or "base"
+                            ),
+                        }]
+                        support = float(
+                            revenue_spec.get("annual_fiscal_support_wan") or 0.0
+                        )
+                        if support > 0:
+                            body["product_tree"].append({
+                                "name": "财政支持（运营补贴）",
+                                "unit": "年",
+                                "price_per_unit": support,
+                                "price_unit": "wan",
+                                "capacity": 1.0,
+                                "ramp": list(
+                                    revenue_spec.get("fiscal_support_ramp") or []
+                                ),
+                                "var_cost_rate": 0.0,
+                                "revenue_model": model,
+                                "revenue_category": "fiscal_support",
                             })
                     elif model == "property_sales" and revenue_spec.get("absorption"):
                         body["product_tree"] = [{

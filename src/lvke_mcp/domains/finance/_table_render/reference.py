@@ -567,7 +567,7 @@ def _promote_reference_period_table(
         atomic_fields = {
             "revenue", "recover_fixed", "recover_wc", "op_cash_cost",
             "tax_surtax", "income_tax", "capital_invest", "principal",
-            "interest", "net_cashflow",
+            "interest", "net_cashflow", "fiscal_support", "renewal_capex",
         }
         atomic_complete = True
         for row in records:
@@ -601,13 +601,21 @@ def _promote_reference_period_table(
             float(row.get("interest") or 0.0) if isinstance(row, dict) else 0.0
             for row in records
         ]
+        fiscal_support = [
+            float(row.get("fiscal_support") or 0.0) if isinstance(row, dict) else 0.0
+            for row in records
+        ]
+        renewal_capex = [
+            float(row.get("renewal_capex") or 0.0) if isinstance(row, dict) else 0.0
+            for row in records
+        ]
         cash_inflow = [
-            round(revenue[i] + fixed_recover[i] + wc_recover[i], 2)
+            round(revenue[i] + fiscal_support[i] + fixed_recover[i] + wc_recover[i], 2)
             for i in range(len(records))
         ]
         cash_outflow = [
             round(
-                capital_invest[i] + principal[i] + interest[i]
+                capital_invest[i] + renewal_capex[i] + principal[i] + interest[i]
                 + op_cash_cost[i] + tax_surtax[i] + income_tax[i],
                 2,
             )
@@ -623,15 +631,17 @@ def _promote_reference_period_table(
         row_fields = [
             ("1", "现金流入", cash_inflow, "cash_inflow"),
             ("1.1", "营业收入", revenue, "revenue"),
-            ("1.2", "回收固定资产余值", fixed_recover, "recover_fixed"),
-            ("1.3", "回收流动资金", wc_recover, "recover_wc"),
+            ("1.2", "财政缺口支持", fiscal_support, "fiscal_support"),
+            ("1.3", "回收固定资产余值", fixed_recover, "recover_fixed"),
+            ("1.4", "回收流动资金", wc_recover, "recover_wc"),
             ("2", "现金流出", cash_outflow, "cash_outflow"),
             ("2.1", "项目资本金", capital_invest, "capital_invest"),
-            ("2.2", "借款本金偿还", principal, "principal"),
-            ("2.3", "借款利息支付", interest, "interest"),
-            ("2.4", "经营成本", op_cash_cost, "op_cash_cost"),
-            ("2.5", "税金及附加", tax_surtax, "tax_surtax"),
-            ("2.6", "所得税", income_tax, "income_tax"),
+            ("2.2", "更新改造投资", renewal_capex, "renewal_capex"),
+            ("2.3", "借款本金偿还", principal, "principal"),
+            ("2.4", "借款利息支付", interest, "interest"),
+            ("2.5", "经营成本", op_cash_cost, "op_cash_cost"),
+            ("2.6", "税金及附加", tax_surtax, "tax_surtax"),
+            ("2.7", "所得税", income_tax, "income_tax"),
             ("3", "资本金净现金流量", net, "net_cashflow"),
             ("4", "累计净现金流量", cumulative, "cumulative"),
         ]

@@ -44,7 +44,7 @@
   },
   {
     "name": "analysis_status",
-    "description": "读取解析、入库和 partial/失败状态。",
+    "description": "读取解析、入库和 partial/失败状态，并返回已索引字符数/文档数与失败原因。",
     "inputSchema": {
       "properties": {
         "workspace_id": {
@@ -74,7 +74,7 @@
   },
   {
     "name": "analysis_query",
-    "description": "在已摄入来源中检索并返回原始 locator 与资格状态。",
+    "description": "在已摄入来源中检索并返回原始 locator 与资格状态；中文按确定性 n-gram 分词并支持子串回退，空结果会说明是未索引到正文还是正文确实不含该词。",
     "inputSchema": {
       "properties": {
         "workspace_id": {

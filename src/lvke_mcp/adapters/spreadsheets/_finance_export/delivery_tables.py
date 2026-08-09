@@ -12,6 +12,19 @@ from .base import (
     _REQUIRED_FORMULA_FAMILIES,
 )
 
+# 附表4 分年资金计划的回退来源标记：这些来源不是真实分年计划，
+# 只是按建设支出比例摊分的估算，不得进入正式表包。
+_FUNDING_FALLBACK_SOURCES = frozenset(
+    {"proportional_spread_fallback", "estimate_fallback"}
+)
+
+
+def _has_year_columns(table: Any) -> bool:
+    """Return True when the table actually exposes per-build-year columns."""
+
+    labels = [str(item) for item in ((table or {}).get("column_labels") or [])]
+    return any("分年" in label or label.startswith("建设期第") for label in labels)
+
 
 def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
     """Write 13 delivery sheets and return formula lineage + quality metadata."""
@@ -1165,10 +1178,29 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 "quantity_items 输入中补全每项的工程量与单位指标。"
             ) if not quantity_indicator_ok else None,
         },
+        # 只检查列标签是无效的：分年列头由渲染器无条件生成，比例摊分回退
+        # 同样会带上"建设期第N年"，于是回退数据也能拿到"已展示分年计划"。
+        # 判定必须落在数据来源上。
         "funding_year_plan": {
-            "ok": "分年" in [str(x) for x in (pack.get("funding", {}).get("column_labels") or [])]
-                or any(str(x).startswith("建设期第") for x in (pack.get("funding", {}).get("column_labels") or [])),
-            "detail": "附表4必须展示建设期分年使用计划",
+            "ok": (
+                (pack.get("funding") or {}).get("grade") == "not_applicable"
+                or (
+                    _has_year_columns(pack.get("funding"))
+                    and str((pack.get("funding") or {}).get("funding_plan_source") or "")
+                    not in _FUNDING_FALLBACK_SOURCES
+                )
+            ),
+            "detail": (
+                "附表4必须展示建设期分年使用计划，且分年数据不得来自比例摊分回退"
+                f"（funding_plan_source={(pack.get('funding') or {}).get('funding_plan_source')}）"
+            ),
+            "actionable": (
+                "附表4 当前分年资金计划来自按建设支出比例摊分的回退结果，不得用于"
+                "正式表包。请提供 2028-2032 各年的资本金、贷款、其他来源、建设投资、"
+                "建设期利息与流动资金原子数据（finance_run_model 的 "
+                "funding_annual_schedule 输入），使每年满足"
+                "资本金+贷款+其他来源=建设投资+建设期利息+流动资金。"
+            ),
         },
         "construction_interest_reconciled": {
             "ok": bool(idc_rows) and abs(idc_formula_total - stated_interest) <= 0.01,
@@ -1420,11 +1452,16 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 (pack.get("funding") or {}).get("grade") == "not_applicable"
                 or (
                     (pack.get("funding") or {}).get("funding_balance_ok") is True
-                    and (pack.get("funding") or {}).get("funding_plan_source")
-                    != "proportional_spread_fallback"
+                    and str((pack.get("funding") or {}).get("funding_plan_source") or "")
+                    not in _FUNDING_FALLBACK_SOURCES
                 )
             ),
             "detail": "附表4 资金用途与来源须分年闭合，且不得为比例摊分回退",
+            "actionable": (
+                "附表4 每年须满足资本金+贷款+其他来源=建设投资+建设期利息+流动资金。"
+                "请通过 finance_run_model 的 funding_annual_schedule 提供分年原子数据，"
+                "而非依赖按建设支出比例摊分的回退结果。"
+            ),
         },
     }
     independent_recalc_coverage = round(

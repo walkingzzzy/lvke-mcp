@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from lvke_mcp.domains.finance.spec import FINANCE_SPEC_SCHEMA as _BASE_FINANCE_SPEC_SCHEMA
+from lvke_mcp.domains.finance.spec import (
+    FINANCE_SPEC_V3_SCHEMA as _FINANCE_SPEC_V3_SCHEMA,
+)
 
 
 SOURCE_PRIORITY = (
@@ -44,6 +47,8 @@ CANONICAL_FINANCE_FIELDS = frozenset({
     "build_outlay_by_year", "terminal_fixed_asset_recover_wan",
     "terminal_working_capital_recover_wan", "use_initial_working_capital_ratio",
     "distribution_policy", "industry", "invest_type", "build_period_months",
+    "discount_rate", "discount_rate_scenarios", "fare_multiplier_by_year",
+    "renewal_capex_plan", "fiscal_support_policy", "project_metadata",
     # Governance fields are consumed by the formal table/rendering gates.  The
     # fact-pack adapter intentionally materializes both the nested policy and
     # these flat confirmations, so they are effective inputs rather than
@@ -95,6 +100,7 @@ def finance_input_schema() -> dict[str, Any]:
         "urban_maintenance_rate", "education_surcharge_rate",
         "local_education_surcharge_rate", "salvage_rate",
         "use_initial_working_capital_ratio", "statutory_reserve_rate",
+        "discount_rate",
     ):
         properties[field] = copy.deepcopy(rate)
     for field in (
@@ -109,6 +115,7 @@ def finance_input_schema() -> dict[str, Any]:
         "loan_draw_by_year", "loan_interest_by_year", "loan_principal_by_year",
         "debt_interest_by_year", "debt_principal_by_year",
         "equity_inject_by_year",
+        "fare_multiplier_by_year", "discount_rate_scenarios",
     ):
         properties[field] = copy.deepcopy(number_series)
     properties["construction_invest_by_year"] = {
@@ -318,6 +325,43 @@ def finance_input_schema() -> dict[str, Any]:
         "minItems": 1,
         "description": "按房屋建筑、游乐设备等资产类别分别计算折旧。",
     }
+    properties["renewal_capex_plan"] = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "year": {"type": "integer", "minimum": 1},
+                "name": {"type": "string", "minLength": 1},
+                "asset_class": {"type": "string", "minLength": 1},
+                "amount_wan": copy.deepcopy(nonnegative),
+                "depreciation_years": copy.deepcopy(positive_int),
+                "salvage_rate": copy.deepcopy(rate),
+            },
+            "required": ["year", "amount_wan", "depreciation_years"],
+        },
+        "description": "运营期更新改造投资计划；year 为运营年序号，金额单位万元。",
+    }
+    properties["fiscal_support_policy"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["disabled", "fixed_revenue", "actual_cash_and_debt_service_gap"],
+            },
+            "annual_cap_wan": copy.deepcopy(nonnegative),
+            "cap_by_year": copy.deepcopy(number_series),
+            "include_debt_service": {"type": "boolean"},
+        },
+        "required": ["mode"],
+        "description": "财政支持规则；缺口模式仅据实弥补现金及必要偿债缺口，不保证利润。",
+    }
+    properties["project_metadata"] = {
+        "type": "object",
+        "additionalProperties": True,
+        "description": "项目标识与估值口径元数据；进入输入哈希及 FinanceRun 快照。",
+    }
     for field in ("amort_bases", "debt_repay_sources", "loan_draw_plan"):
         properties[field] = {"type": "array", "items": {"type": "object"}}
     for field in (
@@ -392,6 +436,15 @@ def finance_spec_candidate_schema() -> dict[str, Any]:
     schema = copy.deepcopy(_BASE_FINANCE_SPEC_SCHEMA)
     schema["additionalProperties"] = False
     properties = schema.setdefault("properties", {})
+    # v3 判别字段与收购域字段必须出现在对外契约里：候选 schema 是
+    # additionalProperties=False，缺声明会让客户端连 finance_kind 都传不进来，
+    # 从而只能靠推断，通用可研又被拉进酒店收购校验器。
+    for field, field_schema in _FINANCE_SPEC_V3_SCHEMA["properties"].items():
+        if field not in properties:
+            properties[field] = copy.deepcopy(field_schema)
+    properties["finance_kind"] = copy.deepcopy(
+        _FINANCE_SPEC_V3_SCHEMA["properties"]["finance_kind"]
+    )
     input_schema = finance_input_schema()
     properties["finance_inputs"] = {
         **copy.deepcopy(input_schema),
@@ -467,6 +520,53 @@ def canonicalize_finance_inputs(
                         "conflicts_with": "invest_breakdown.construction_items",
                     })
                     continue
+            if key == "discount_rate":
+                try:
+                    if not 0 < float(value) < 1:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    rejected.append({"input": key, "reason": "rate_out_of_range"})
+                    continue
+            if key == "discount_rate_scenarios":
+                if not isinstance(value, list) or any(
+                    not isinstance(item, (int, float)) or not 0 < float(item) < 1
+                    for item in value
+                ):
+                    rejected.append({"input": key, "reason": "invalid_discount_rate_scenarios"})
+                    continue
+            if key == "fare_multiplier_by_year":
+                if not isinstance(value, list) or any(
+                    not isinstance(item, (int, float)) or float(item) < 0
+                    for item in value
+                ):
+                    rejected.append({"input": key, "reason": "invalid_fare_multiplier_by_year"})
+                    continue
+            if key == "renewal_capex_plan":
+                if not isinstance(value, list) or any(
+                    not isinstance(item, dict)
+                    or not isinstance(item.get("year"), int)
+                    or item.get("year", 0) < 1
+                    or not isinstance(item.get("amount_wan"), (int, float))
+                    or float(item.get("amount_wan") or 0) < 0
+                    or not isinstance(item.get("depreciation_years"), int)
+                    or item.get("depreciation_years", 0) < 1
+                    or not _valid_optional_salvage_rate(item)
+                    for item in value
+                ):
+                    rejected.append({"input": key, "reason": "invalid_renewal_capex_plan"})
+                    continue
+            if key == "fiscal_support_policy":
+                if (
+                    not isinstance(value, dict)
+                    or value.get("mode") not in {
+                        "disabled", "fixed_revenue", "actual_cash_and_debt_service_gap",
+                    }
+                ):
+                    rejected.append({"input": key, "reason": "invalid_fiscal_support_policy"})
+                    continue
+            if key == "project_metadata" and not isinstance(value, dict):
+                rejected.append({"input": key, "reason": "project_metadata_must_be_dict"})
+                continue
             effective[key] = value
             adoption.append({
                 "input": key, "effective": key, "raw_value": value,
@@ -523,6 +623,17 @@ def canonicalize_finance_inputs(
         else:
             rejected.append({"input": key, "reason": "unknown_field"})
     return effective, adoption, rejected
+
+
+def _valid_optional_salvage_rate(item: dict[str, Any]) -> bool:
+    if "salvage_rate" not in item:
+        return True
+    value = item.get("salvage_rate")
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and 0 <= float(value) < 1
+    )
 
 
 @dataclass(frozen=True)
@@ -666,6 +777,8 @@ def resolve_run_inputs(
             "products", "saleable_area", "price_per_sqm", "absorption",
             "annual_visitors", "spend_per_visitor", "visitor_ramp",
             "annual_gov_payment_wan", "payment_ramp", "annual_revenue_wan",
+            "annual_passenger_trips", "passenger_unit", "average_fare_yuan",
+            "ridership_ramp", "fare_multiplier_by_year",
         }:
             return revenue.get(field, resolved_inputs.get(field))
         return resolved_inputs.get(field)

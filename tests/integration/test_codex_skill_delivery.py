@@ -32,6 +32,7 @@ PUBLISHED_SKILLS = {
     "lvke-review-release",
     "lvke-source-evidence",
     "lvke-tool-coordination",
+    "lvke-urban-rail-transit",
 }
 
 

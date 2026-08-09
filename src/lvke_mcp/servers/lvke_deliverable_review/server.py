@@ -190,6 +190,16 @@ _PROJECT_CONTEXT = {
         "transaction_structure": {"type": "string", "enum": ["new_build", "operation_lease", "asset_acquisition", "equity_acquisition", "ppp", "other"]},
         "asset_type": {"type": "string", "enum": ["general", "amusement_park", "solar_power", "hotel_lease", "mineral_processing"]},
         "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"], "default": "real"},
+        "review_purpose": {
+            "type": "string",
+            "enum": ["process_acceptance", "project_delivery"],
+            "description": "审查用途；process_acceptance 只判技术链，project_delivery 叠加正式发布资格。",
+        },
+        "release_scope": {
+            "type": "string",
+            "enum": ["process_acceptance", "project_delivery"],
+            "description": "review_purpose 的兼容别名；两者同时给出时必须一致。",
+        },
     },
 }
 _FACILITIES = {
@@ -268,6 +278,14 @@ def _output_schema() -> dict[str, Any]:
             "validation_id": {"type": "string"},
             "validation_status": {"type": "string"},
             "overall_verdict": {
+                "type": "string",
+                "enum": ["pass", "conditional_pass", "fail", "incomplete"],
+            },
+            "technical_verdict": {
+                "type": "string",
+                "enum": ["pass", "conditional_pass", "fail", "incomplete"],
+            },
+            "release_verdict": {
                 "type": "string",
                 "enum": ["pass", "conditional_pass", "fail", "incomplete"],
             },

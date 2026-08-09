@@ -21,13 +21,33 @@ def _assumption_field(
     low: Any,
     high: Any,
     confirmed: bool = False,
+    explicit: bool = False,
 ) -> dict[str, Any]:
+    """Build one assumption field.
+
+    ``explicit`` 标记句子里写明的参数：它不是行业种子，也不是用户事后确认，
+    因此不得继续用 ``deterministic_industry_scenario_seed`` 作 method，
+    也不得进入 confirmation_items 让用户再确认一遍已写明的数字。
+    """
+
     ranking = {"critical": 4, "high": 3, "medium": 2, "low": 1}
     priority_score = (
         ranking.get(sensitivity, 0)
         * ranking.get(uncertainty, 0)
         * ranking.get(decision_impact, 0)
     )
+    if explicit:
+        method = SOURCE_SENTENCE
+    elif confirmed:
+        method = "user_override"
+    else:
+        method = "deterministic_industry_scenario_seed"
+    if explicit:
+        validation_condition = "句中已写明的参数，仍需与后续原始材料做 hash 与数值一致性校验"
+    elif confirmed:
+        validation_condition = "已确认参数仍需与后续原始材料进行 hash 和数值一致性校验"
+    else:
+        validation_condition = "须确认参数，并以合同、测绘、报价或权属等材料替换"
     return {
         "name": name,
         "value": value,
@@ -36,18 +56,14 @@ def _assumption_field(
         "period": "模型期",
         "source_type": "user_confirmed" if confirmed else "controlled_assumption",
         "source_ref": source_ref,
-        "method": "user_override" if confirmed else "deterministic_industry_scenario_seed",
-        "confidence": 1.0 if confirmed else 0.42,
+        "method": method,
+        "confidence": 1.0 if (confirmed or explicit) else 0.42,
         "sensitivity": sensitivity,
         "uncertainty": uncertainty,
         "decision_impact": decision_impact,
-        "confirmation_priority_score": 0 if confirmed else priority_score,
+        "confirmation_priority_score": 0 if (confirmed or explicit) else priority_score,
         "confirmed": confirmed,
-        "validation_condition": (
-            "已确认参数仍需与后续原始材料进行 hash 和数值一致性校验"
-            if confirmed
-            else "须确认参数，并以合同、测绘、报价或权属等材料替换"
-        ),
+        "validation_condition": validation_condition,
     }
 
 
@@ -165,14 +181,26 @@ def _build_assumption_package(intent: dict[str, Any]) -> dict[str, Any]:
                     # 明确输入是给定值而非区间，low/high 取同值以示无展开。
                     low=spec.get("value"),
                     high=spec.get("value"),
+                    explicit=True,
                 )
             )
         else:
-            target["value"] = spec.get("value")
+            value = spec.get("value")
+            target["value"] = value
             target["source_ref"] = SOURCE_SENTENCE
             target["uncertainty"] = "low"
-            target.pop("low", None)
-            target.pop("high", None)
+            # 区间在嵌套的 range 里，早期实现 pop 顶层 low/high 静默无效，
+            # 于是 value=60 与 range.base=24 并存，读包的人同时看到两个数。
+            # 明确输入是给定值而非区间，三档收敛到同一值以示无展开。
+            target["range"] = {"low": value, "base": value, "high": value}
+            # 方法与资格必须随来源一起更新，否则明确输入仍被标成行业种子，
+            # 并因此继续出现在 confirmation_items 里要求用户确认已写明的参数。
+            target["method"] = SOURCE_SENTENCE
+            target["confidence"] = 1.0
+            target["confirmation_priority_score"] = 0
+            target["validation_condition"] = (
+                "句中已写明的参数，仍需与后续原始材料做 hash 与数值一致性校验"
+            )
         target_or_new = by_name.get(name) or fields[-1]
         target_or_new["source"] = SOURCE_SENTENCE
         target_or_new["explicit_raw"] = spec.get("raw")

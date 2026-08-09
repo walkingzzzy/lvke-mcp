@@ -7,6 +7,10 @@ from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
+from lvke_mcp.runtime.evidence_qualification import (
+    FORMAL_EVIDENCE,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_project_context
 
 from .base import (
@@ -231,7 +235,10 @@ def _resolve_standard_evidence_resource(
         record = resolve_resource(uri, workspace_id)
         if not isinstance(record, dict):
             return None
-        return record, "real"
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        # A browser or unsigned external snapshot remains a candidate source;
+        # its URI and hash do not turn it into formal standard evidence.
+        return record, "real" if payload.get("formal_use_allowed") is True else "candidate"
     if uri.startswith(f"lvke://data-analysis/workspaces/{workspace_id}/"):
         from lvke_mcp.adapters.data_analysis_repository import resolve_resource
 
@@ -305,7 +312,16 @@ def attach_requirement_evidence(args: dict[str, Any]) -> dict[str, Any]:
                 "controlled_assumption": "unable_to_determine",
             }.get(requested_track, "unable_to_determine"),
             formal_evidence_candidate=requested_track in {"real", "source_reconstructed"},
-            project_fact_certified=requested_track == "real",
+            project_fact_certified=project_fact_may_be_certified(
+                FORMAL_EVIDENCE if requested_track == "real" else requested_track,
+                own_qualification_passed=(
+                    requested_track == "real"
+                    and (
+                        (source_record.get("payload") or {}).get("formal_use_allowed") is True
+                        or (source_record.get("payload") or {}).get("project_fact_certified") is True
+                    )
+                ),
+            ),
             compliance_conclusion="not_determined",
             resource_uris=[evidence_record["resource_uri"], resource_uri],
             warnings=[], blockers=[], next_actions=["调用 review_validate_standards 汇总证据状态"],

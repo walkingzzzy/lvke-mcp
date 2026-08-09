@@ -94,7 +94,7 @@
   },
   {
     "name": "delivery_status",
-    "description": "读取 DeliveryRun 阶段、进度、blocker 和恢复令牌。",
+    "description": "读取 DeliveryRun 阶段、进度、blocker 和恢复令牌。query_success 表示本次查询成功，domain_status/delivery_state 才是交付真实状态；每个工件自带 usable、validation_status 与 release_grade。",
     "inputSchema": {
       "properties": {
         "workspace_id": {
@@ -263,7 +263,7 @@
   },
   {
     "name": "delivery_get_artifacts",
-    "description": "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用。",
+    "description": "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用；每个工件带 usable、validation_status 与 release_grade，URI 可读不等于可交付。",
     "inputSchema": {
       "properties": {
         "workspace_id": {

@@ -5,6 +5,7 @@ required_inputs: [construction_items, cost_items, wc_turnover]
 required_by_revenue_model:
   product_sales: [products]
   gov_payment: [annual_gov_payment_wan, payment_ramp]
-allowed_revenue_models: [product_sales, gov_payment, flat]
+  rail_transit: [annual_passenger_trips, passenger_unit, average_fare_yuan, ridership_ramp]
+allowed_revenue_models: [product_sales, gov_payment, rail_transit, flat]
 sensitivity_variables: [throughput, tariff, fuel_and_power_cost, construction_investment]
 quality_expectations: [吞吐量或车流量, 收费标准, 运营维护强度, 特许经营期限]

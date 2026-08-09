@@ -68,6 +68,20 @@
                 "controlled_assumption"
               ],
               "default": "real"
+            },
+            "review_purpose": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
+            },
+            "release_scope": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
             }
           }
         }
@@ -284,6 +298,20 @@
                 "controlled_assumption"
               ],
               "default": "real"
+            },
+            "review_purpose": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
+            },
+            "release_scope": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
             }
           }
         }
@@ -930,6 +958,20 @@
                 "controlled_assumption"
               ],
               "default": "real"
+            },
+            "review_purpose": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
+            },
+            "release_scope": {
+              "type": "string",
+              "enum": [
+                "process_acceptance",
+                "project_delivery"
+              ]
             }
           }
         },

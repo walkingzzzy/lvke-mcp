@@ -66,7 +66,11 @@ def _resolve_source(args: dict) -> tuple[Path | None, dict, dict | None]:
     uri = str(raw_uri).strip()
     prefix = "lvke://finance-tables/workspaces/"
     parts = uri[len(prefix):].split("/") if uri.startswith(prefix) else []
-    if len(parts) != 4 or parts[1] != "packages" or parts[3] != "xlsx":
+    if (
+        len(parts) != 4
+        or parts[1] != "packages"
+        or parts[3] not in {"xlsx", "xlsx-technical"}
+    ):
         return None, {}, err(
             f"{SERVER_NAME}.resource_uri_invalid",
             "resource_uri 必须是 finance-tables 的 XLSX Resource",

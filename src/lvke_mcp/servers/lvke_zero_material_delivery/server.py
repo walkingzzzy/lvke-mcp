@@ -29,6 +29,63 @@ _OUTPUT = make_tool_output_schema(
 )
 
 
+_ARTIFACT_STATE = {
+    "type": "object",
+    "properties": {
+        "uri": {"type": "string"},
+        "artifact_kind": {"type": "string"},
+        "usable": {"type": "boolean"},
+        "validation_status": {"type": "string"},
+        "release_grade": {
+            "type": "string",
+            "enum": ["technical_preview", "unavailable", "formal"],
+        },
+        "blocking_reasons": {"type": "array", "items": {"type": "string"}},
+        "is_deliverable": {
+            "type": "boolean",
+            "description": "false 表示中间对象（spec/context），既非可用交付物也不算失败",
+        },
+    },
+    "required": ["uri", "usable", "validation_status", "release_grade"],
+}
+# 查询成功 ≠ 交付可用：两者必须是不同字段，否则 status=ok 会被读成"工件可交付"。
+_DELIVERY_STATE_OUTPUT = make_tool_output_schema(
+    {
+        "delivery_run": {"type": "object"},
+        "query_success": {
+            "type": "boolean",
+            "description": "本次查询是否成功；与交付状态无关",
+        },
+        "domain_status": {
+            "type": "string",
+            "enum": ["ready", "partial", "blocked"],
+            "description": "交付域真实状态；ready 之外一律不得视为可交付",
+        },
+        "delivery_state": {
+            "type": "string",
+            "enum": ["ready", "partial", "blocked", "in_progress", "cancelled"],
+        },
+        "artifacts": {"type": "array", "items": _ARTIFACT_STATE},
+        "usable_artifact_count": {"type": "integer", "minimum": 0},
+        "unusable_artifact_uris": {"type": "array", "items": {"type": "string"}},
+        "technical_preview_ready": {"type": "boolean"},
+        "validation_complete": {"type": "boolean"},
+        "input_evidence_complete": {"type": "boolean"},
+    },
+    required=(
+        "resource_uris",
+        "warnings",
+        "blockers",
+        "next_actions",
+        "query_success",
+        "domain_status",
+        "delivery_state",
+        "artifacts",
+        "technical_preview_ready",
+    ),
+)
+
+
 def _schema(properties: dict, required: list[str]) -> dict:
     return {
         "type": "object",
@@ -144,10 +201,12 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "delivery_status",
-        "读取 DeliveryRun 阶段、进度、blocker 和恢复令牌。",
+        "读取 DeliveryRun 阶段、进度、blocker 和恢复令牌。"
+        "query_success 表示本次查询成功，domain_status/delivery_state 才是交付真实状态；"
+        "每个工件自带 usable、validation_status 与 release_grade。",
         _schema({"delivery_run_id": _SAFE_ID}, ["delivery_run_id"]),
         service.status,
-        _OUTPUT,
+        _DELIVERY_STATE_OUTPUT,
         read,
     )
     server.register_tool(
@@ -204,10 +263,11 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "delivery_get_artifacts",
-        "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用。",
+        "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用；"
+        "每个工件带 usable、validation_status 与 release_grade，URI 可读不等于可交付。",
         _schema({"delivery_run_id": _SAFE_ID}, ["delivery_run_id"]),
         service.get_artifacts,
-        _OUTPUT,
+        _DELIVERY_STATE_OUTPUT,
         read,
     )
     server.register_tool(

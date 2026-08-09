@@ -77,13 +77,20 @@ _EXTERNAL_IMPORT_OUTPUT = {
         "source_snapshot_id": {"type": "string"},
         "content_hash": {"type": "string"},
         "source_url": {"type": "string", "format": "uri"},
-        "content_origin": {"type": "string", "const": "external_mcp_extract"},
+        "content_origin": {
+            "type": "string",
+            "enum": ["external_mcp_extract", "codex_browser_snapshot"],
+        },
         "provider": {"type": "string"},
         "provider_tool": {"type": "string"},
         "retrieved_at": {"type": "string"},
         "external_content_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
         "extraction_receipt_verified": {"type": "boolean"},
         "formal_use_allowed": {"type": "boolean"},
+        # 导入结果的证据资格必须由 schema 自证：浏览器快照即便带回执也只能是
+        # candidate，且 project_fact_certified 恒为 false。
+        "evidence_policy": {"type": "string"},
+        "project_fact_certified": {"type": "boolean"},
     },
     "if": {"properties": {"success": {"const": True}}},
     "then": {
@@ -91,6 +98,7 @@ _EXTERNAL_IMPORT_OUTPUT = {
             "source_snapshot_id", "content_hash", "source_url", "content_origin",
             "provider", "provider_tool", "retrieved_at", "external_content_hash",
             "extraction_receipt_verified", "formal_use_allowed",
+            "evidence_policy", "project_fact_certified",
         ]
     },
 }
@@ -218,7 +226,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "data_import_external_snapshot",
-        "将 Tavily Hikari 等外部 MCP 对选定公网 URL 提取的正文固化为 Lvke 不可变快照；拒绝搜索摘要、answer 和 research synthesis。",
+        "将 Tavily Hikari 或 Codex 浏览器对选定公网 URL 提取的正文固化为 Lvke 不可变候选快照；浏览器快照始终非正式，搜索摘要、answer 和 research synthesis 会被拒绝。",
         {
             "type": "object",
             "additionalProperties": False,

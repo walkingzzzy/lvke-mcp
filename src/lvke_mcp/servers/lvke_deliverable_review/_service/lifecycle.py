@@ -244,12 +244,14 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         return _ok(
             status=response_status, review_id=review_id,
             review_status=current.get("review_status"), overall_verdict=current.get("overall_verdict"),
+            technical_verdict=current.get("technical_verdict"),
+            release_verdict=current.get("release_verdict"),
             deployment_mode=current.get("deployment_mode"),
             shadow_comparison=current.get("shadow_comparison") or {},
             validation_status=current.get("validation_status"),
             validation_complete=bool(current.get("validation_complete")),
             resource_uris=[_review_uri(workspace_id, review_id)],
-            blockers=current.get("blockers") or [], warnings=[],
+            blockers=current.get("blockers") or [], warnings=current.get("warnings") or [],
             next_actions=["调用 review_get 查询深度校验进度"] if execution == "async" else ["处理 findings 或导出不可变校验结果"],
         )
     return _write("review_start", args, execute)
@@ -274,10 +276,13 @@ def get_review(args: dict[str, Any] | str, review_id: str = "") -> dict[str, Any
         validation_status=state["validation_status"],
         validation_complete=state["validation_complete"],
         overall_verdict=state["overall_verdict"],
+        technical_verdict=state.get("technical_verdict"),
+        release_verdict=state.get("release_verdict"),
         deployment_mode=state.get("deployment_mode"),
         shadow_comparison=state.get("shadow_comparison") or {},
         finding_counts=state["finding_counts"],
         active_finding_counts=state["active_finding_counts"], coverage=state.get("coverage") or {},
-        blockers=state.get("blockers") or [], resource_uris=[_review_uri(workspace_id, review_id)],
+        blockers=state.get("blockers") or [], warnings=state.get("warnings") or [],
+        resource_uris=[_review_uri(workspace_id, review_id)],
         next_actions=_next_actions(state),
     )

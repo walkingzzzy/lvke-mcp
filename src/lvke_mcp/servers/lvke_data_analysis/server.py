@@ -29,6 +29,24 @@ _OUTPUT = {
     },
     "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"],
 }
+_INDEXED_OUTPUT = {
+    **_OUTPUT,
+    "properties": {
+        **_OUTPUT["properties"],
+        # 「摄入成功」不等于「检索得到」：把可检索规模显式声明出来，
+        # 让调用方能区分"没索引到正文"与"正文里确实没这个词"。
+        "indexed_char_count": {"type": "integer", "minimum": 0},
+        "indexed_cjk_char_count": {"type": "integer", "minimum": 0},
+        "indexed_document_count": {"type": "integer", "minimum": 0},
+        "empty_content_source_ids": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": [
+        *_OUTPUT["required"],
+        "indexed_char_count",
+        "indexed_cjk_char_count",
+        "indexed_document_count",
+    ],
+}
 _WS = {"type": "string", "minLength": 1}
 _IDS = {
     "type": "array", "maxItems": 100,
@@ -265,20 +283,33 @@ def build_server() -> OfficialStdioServer:
     }, lambda a: service.ingest(
         a["workspace_id"], a.get("source_snapshot_ids", []), a.get("file_ids", []),
     ), _OUTPUT, write)
-    server.register_tool("analysis_status", "读取解析、入库和 partial/失败状态。", {
-        "type": "object", "additionalProperties": False,
-        "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}},
-        "required": ["workspace_id", "analysis_task_id"],
-    }, lambda a: service.status(
-        a["workspace_id"], a["analysis_task_id"],
-    ), _OUTPUT, read)
-    server.register_tool("analysis_query", "在已摄入来源中检索并返回原始 locator 与资格状态。", {
-        "type": "object", "additionalProperties": False,
-        "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}, "query": {"type": "string", "minLength": 1}, "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}},
-        "required": ["workspace_id", "analysis_task_id", "query"],
-    }, lambda a: service.query(
-        a["workspace_id"], a["analysis_task_id"], a["query"], int(a.get("limit", 20)),
-    ), _OUTPUT, read)
+    server.register_tool(
+        "analysis_status",
+        "读取解析、入库和 partial/失败状态，并返回已索引字符数/文档数与失败原因。",
+        {
+            "type": "object", "additionalProperties": False,
+            "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}},
+            "required": ["workspace_id", "analysis_task_id"],
+        },
+        lambda a: service.status(a["workspace_id"], a["analysis_task_id"]),
+        _INDEXED_OUTPUT,
+        read,
+    )
+    server.register_tool(
+        "analysis_query",
+        "在已摄入来源中检索并返回原始 locator 与资格状态；中文按确定性 n-gram 分词并支持子串回退，"
+        "空结果会说明是未索引到正文还是正文确实不含该词。",
+        {
+            "type": "object", "additionalProperties": False,
+            "properties": {"workspace_id": _WS, "analysis_task_id": {"type": "string", "minLength": 1}, "query": {"type": "string", "minLength": 1}, "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}},
+            "required": ["workspace_id", "analysis_task_id", "query"],
+        },
+        lambda a: service.query(
+            a["workspace_id"], a["analysis_task_id"], a["query"], int(a.get("limit", 20)),
+        ),
+        _INDEXED_OUTPUT,
+        read,
+    )
     field_spec = {
         "type": "object", "additionalProperties": False,
         "properties": {

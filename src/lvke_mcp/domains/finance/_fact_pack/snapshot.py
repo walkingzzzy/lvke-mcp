@@ -6,6 +6,8 @@ import copy
 import secrets
 from typing import Any
 
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
+
 from .base import (
     DOMAIN_KEYS,
     EvidenceResolver,
@@ -310,8 +312,14 @@ def build_fact_pack_snapshot(
         "delivery_grade_ceiling": ceiling,
         "ai_role": "candidate_extraction_only",
         "evidence_policy": evidence_policy,
-        "project_fact_certified": bool(
-            raw.get("project_fact_certified", evidence_policy != "source_reconstructed")
+        # 证据资格由服务端判定，不采信 raw 自报：调用方声明 certified=true 不构成
+        # 认证。缺省也必须是 False —— 旧写法 (policy != "source_reconstructed")
+        # 会让 controlled_assumption / technical_fixture 拿到 True。
+        "project_fact_certified": project_fact_may_be_certified(
+            evidence_policy,
+            own_qualification_passed=(
+                source_coverage >= 0.999 and not missing and bool(confirmed)
+            ),
         ),
         "reconstruction_records": reconstruction_records,
         "reconstructed_source_ids": [

@@ -127,11 +127,12 @@ INDUSTRIES: tuple[Industry, ...] = (
         60000, 14000, 0.43, 0.09, 24, 18, 0.01, "万吨",
         (
             _a("toll_road", "收费公路改扩建", model="gov_payment", scale=1.45),
-            # 城市轨道交通：票款通常不足以覆盖成本，依赖政府补贴，
-            # 故与收费公路同用 gov_payment 模型。scale 相对收费公路取
-            # 较高倍数以反映单位里程投资强度，属结构性口径而非线路实测
-            # 参数；正式交付仍须以批复或可比项目证据替换。
-            _a("urban_rail", "城市轨道交通线路", model="gov_payment", scale=1.85),
+            # 城市轨道交通用专用 rail_transit 模型：票务=客运量×清分票价×爬坡，
+            # 非票按票务比例情景，财政支持单列。此前套用 gov_payment 把三类收入
+            # 压成单一"政府付费"，票价与客流敏感性无法计算。scale 相对收费公路
+            # 取较高倍数以反映单位里程投资强度，属结构性口径而非线路实测参数；
+            # 正式交付仍须以批复或可比项目证据替换。
+            _a("urban_rail", "城市轨道交通线路", model="rail_transit", scale=1.85),
             _a("port_terminal", "港口码头工程", scale=1.35),
             _a("logistics_park", "综合物流园", scale=0.88),
             _a("cold_chain", "冷链物流中心", scale=0.76),
@@ -479,6 +480,32 @@ def _revenue_spec(
             "payment_ramp": list(variant.ramp),
             "vat_refund_rate": 0.70 if archetype.code in {"sewage", "sewage_ppp"} else 0.0,
         }
+    if model == "rail_transit":
+        # 达产年收入按票务/非票/财政支持三分回推：票务承担 55%、非票按 base 档
+        # 10% 绑定票务、余额记财政支持。这是结构性口径种子，不是线路实测客流；
+        # 正式交付须以客流预测报告与清分协议替换。
+        full_revenue = round(peak_revenue / max(variant.ramp), 2)
+        non_fare_rate = 0.10
+        farebox_full = round(full_revenue * 0.55, 2)
+        non_fare_full = round(farebox_full * non_fare_rate, 2)
+        support_full = round(max(full_revenue - farebox_full - non_fare_full, 0.0), 2)
+        # 客运量按行业惯例人均清分票价回推，保证"量×价=票务收入"可复算。
+        average_fare = 3.2
+        annual_trips_wan = round(
+            farebox_full * 10000.0 / (average_fare * 10000.0), 4
+        )
+        return {
+            "model": model,
+            "annual_passenger_trips": annual_trips_wan,
+            "passenger_unit": "万人次",
+            "average_fare_yuan": average_fare,
+            "ridership_ramp": list(variant.ramp),
+            "non_fare_scenario": "base",
+            "non_fare_revenue_rate": non_fare_rate,
+            "annual_fiscal_support_wan": support_full,
+            "fiscal_support_ramp": list(variant.ramp),
+            "annual_revenue_wan": peak_revenue,
+        }
     price = 100.0 if industry.code != "finance" else 1000.0
     primary_revenue, secondary_revenue = _round_split(peak_revenue, (0.68, 0.32))
     max_ramp = max(variant.ramp)
@@ -643,7 +670,9 @@ def build_scenario(industry: Industry, archetype: Archetype, variant: Variant) -
         "total_investment_wan": total,
         "invest_breakdown": detail,
         "capital_own_wan": capital,
+        "capital_own_ratio": round(capital / total, 10) if total else 0.0,
         "loan_wan": loan,
+        "loan_ratio": round(loan / total, 10) if total else 0.0,
         "gov_subsidy_wan": subsidy,
         "loan_rate": variant.loan_rate,
         "loan_years": loan_years,
@@ -651,6 +680,20 @@ def build_scenario(industry: Industry, archetype: Archetype, variant: Variant) -
         "loan_grace_years": variant.grace_years,
         "loan_balloon_pct": 0.45 if variant.repayment == "balloon" else 0.30,
         "calc_period_years": calc_years,
+        "build_period_months": build_months,
+        "discount_rate": 0.05 if model == "rail_transit" else 0.08,
+        "discount_rate_scenarios": [0.04, 0.05, 0.06] if model == "rail_transit" else [0.08],
+        "fare_multiplier_by_year": [1.0] * operating_years if model == "rail_transit" else [],
+        "renewal_capex_plan": [] if model == "rail_transit" else [],
+        "fiscal_support_policy": (
+            {"mode": "fixed_revenue", "include_debt_service": True}
+            if model == "rail_transit" else {"mode": "disabled"}
+        ),
+        "project_metadata": {
+            "scenario_id": scenario_id,
+            "industry": industry.code,
+            "archetype_id": archetype.code,
+        },
         "is_operating": operating,
         "annual_revenue_wan": peak_revenue,
         "annual_operating_subsidy_wan": annual_operating_subsidy,

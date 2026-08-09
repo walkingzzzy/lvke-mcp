@@ -10,6 +10,10 @@ from lvke_mcp.runtime.storage import (
     canonical_json,
     sha256_json,
 )
+from lvke_mcp.runtime.evidence_qualification import (
+    declared_evidence_policy,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.adapters.project_planning_repository import (
     MARKET_CASE_STORE,
     PROJECT_CONTEXT_STORE,
@@ -317,6 +321,16 @@ def prepare_market_case(
                 field_errors={item["path"]: item for item in binding_errors},
                 next_actions=["使用 EvidencePack 中相同 source、hash、locator 和 track 重建候选"],
             )
+        context_payload = context.get("payload") or {}
+        evidence_policy = declared_evidence_policy(
+            evidence_payload,
+            default=resolved_track,
+        )
+        project_fact_certified = project_fact_may_be_certified(
+            evidence_policy,
+            own_qualification_passed=True,
+            parents=[evidence_payload, context_payload],
+        )
         next_actions = [
             "调用 planning_compare(object_kind=\"market_case\") 比较路径偏差",
             "调用 planning_validate(object_kind=\"market_case\") 检查证据与口径",
@@ -329,6 +343,8 @@ def prepare_market_case(
             "evidence_pack_id": evidence_pack_id,
             "evidence_pack_basis_hash": evidence["basis_hash"],
             "evidence_track": resolved_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "candidates": normalized_candidates,
             "status": "candidate",
             "revision_number": 1,
@@ -359,6 +375,8 @@ def prepare_market_case(
             market_case=_market_view(record),
             object_type="MarketSizingCase",
             evidence_track=payload["evidence_track"],
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             lineage={
                 "project_context_id": project_context_id,
                 "evidence_pack_id": evidence_pack_id,

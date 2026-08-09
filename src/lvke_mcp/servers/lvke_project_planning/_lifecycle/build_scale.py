@@ -14,6 +14,23 @@ from lvke_mcp.runtime.storage import sha256_json
 from .base import _candidate, _payload, _put_candidate, _selection
 
 
+def _match_field_template(
+    manifest: dict[str, Any], industry: str
+) -> tuple[str, dict[str, Any]]:
+    """Resolve a field-only template for工程 types the land-use table cannot describe."""
+
+    templates = manifest.get("field_templates")
+    if not isinstance(templates, dict):
+        return "", {}
+    for key, template in templates.items():
+        if not isinstance(template, dict):
+            continue
+        tokens = template.get("applies_to_industry_tokens") or []
+        if any(str(token).lower() in industry for token in tokens):
+            return str(key), template
+    return "", {}
+
+
 def get_industry_constraints(
     workspace_id: str, project_context_id: str
 ) -> dict[str, Any]:
@@ -48,7 +65,9 @@ def get_industry_constraints(
     if not selected_key:
         # 线性交通工程（轨道、铁路、公路）的规模由线路长度、车站数、敷设
         # 方式、车辆段决定，本表的容积率/建筑密度/厂房占比等用地口径参数
-        # 对其无意义。宁可诚实报缺，也不返回语义错误的通用参数。
+        # 对其无意义。此前只能诚实报缺；现在改为返回**字段模板与校验规则**，
+        # 仍不给任何默认取值，也不授予正式证据资格。
+        template_key, template = _match_field_template(manifest, industry)
         linear_transport = any(
             token in industry
             for token in (
@@ -56,6 +75,41 @@ def get_industry_constraints(
                 "轨道", "地铁", "轻轨", "市域铁路", "有轨电车", "铁路", "公路",
             )
         )
+        if template:
+            required = [
+                name
+                for name, spec in (template.get("fields") or {}).items()
+                if isinstance(spec, dict) and spec.get("required")
+            ]
+            return service._envelope(
+                success=True,
+                status="missing_inputs",
+                code="industry_field_template_only",
+                warnings=[
+                    "返回的是字段模板与校验规则，不含任何参数取值；"
+                    "模板本身不构成正式证据，须由工可批复或线网规划证据逐项填充",
+                ],
+                blockers=["industry_specific_constraints_required"],
+                next_actions=[
+                    "按 field_template 逐项提供线路长度、车站数、敷设比例、车辆段、"
+                    "设计速度、编组与行车间隔，并附工可批复或线网规划 locator",
+                ],
+                project_context_id=project_context_id,
+                industry_code=project.get("industry_code"),
+                matched_industry_key=None,
+                matched_field_template_key=template_key,
+                supported_industries=sorted(aliases),
+                supported_field_templates=sorted(
+                    (manifest.get("field_templates") or {}).keys()
+                ),
+                parameters={},
+                field_template=template,
+                field_template_version=str(template.get("template_version") or ""),
+                required_fields=sorted(required),
+                validation_rules=list(template.get("validation_rules") or []),
+                parameter_manifest_hash=sha256_json(manifest),
+                evidence_eligibility="field_template_only",
+            )
         next_actions = ["提供地方规划证据或显式 technical_fixture 约束后进入规模求解"]
         if linear_transport:
             next_actions = [
@@ -72,6 +126,9 @@ def get_industry_constraints(
             industry_code=project.get("industry_code"),
             matched_industry_key=None,
             supported_industries=sorted(aliases),
+            supported_field_templates=sorted(
+                (manifest.get("field_templates") or {}).keys()
+            ),
             parameters={},
             evidence_eligibility="none",
         )

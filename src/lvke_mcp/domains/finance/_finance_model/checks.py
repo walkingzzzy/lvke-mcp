@@ -117,6 +117,16 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
 
     # 8.【H2/M1】折旧表逐年"原值×(1−残值率)/折旧年限" == 当期折旧费（表内公式自洽、扣残值、扣无形）
     if dep_tbl:
+        previous_cumulative = 0.0
+
+        def _renewal_composite_ok(row: dict[str, Any]) -> bool:
+            nonlocal previous_cumulative
+            cumulative = float(row.get("cumulative_depreciation") or 0.0)
+            charge = float(row.get("depreciation") or 0.0)
+            ok = charge >= 0 and abs((cumulative - previous_cumulative) - charge) < 1.0
+            previous_cumulative = cumulative
+            return ok
+
         ok8 = all(
             (
                 abs(
@@ -136,6 +146,8 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                 )
             )
             if x.get("depreciation_basis") == "classified"
+            else _renewal_composite_ok(x)
+            if x.get("depreciation_basis") == "renewal_composite"
             else abs(
                 round(x["original_value"] * (1 - x["salvage_rate"]) / max(x["dep_years"], 1), 2)
                 - x["depreciation"]
@@ -296,6 +308,15 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
     if debt_service:
         icr_issues = []
         dscr_issues = []
+        gap_support_active = (
+            ((r.get("raw") or {}).get("fiscal_support_policy") or {}).get("mode")
+            == "actual_cash_and_debt_service_gap"
+            and all(
+                bool(row.get("repay_actual_covers_debt_service"))
+                for row in debt_service
+                if float(row.get("principal") or 0.0) + float(row.get("interest") or 0.0) > 0
+            )
+        )
 
         for idx, ds in enumerate(debt_service):
             year = ds.get("year", idx + 1)
@@ -309,7 +330,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                     "rule": "利息备付率ICR>=1",
                     "ok": False,
                     "severity": severity,
-                    "blocking": icr < 0.8,
+                    "blocking": bool(icr < 0.8 and not gap_support_active),
                     "detail": f"第{year}年ICR={icr:.2f}<1,偿债风险(当年EBITDA不足以覆盖利息)"
                 })
 
@@ -329,8 +350,11 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                 "rule": "利息备付率ICR>=1",
                 "ok": False,
                 "severity": "error",
-                "blocking": True,
-                "detail": f"ICR<1年数: {len(icr_issues)}年,偿债能力严重不足,建议调整融资结构"
+                "blocking": not gap_support_active,
+                "detail": (
+                    f"ICR<1年数: {len(icr_issues)}年,偿债能力严重不足,建议调整融资结构"
+                    + ("；年度据实财政支持已覆盖必要偿债缺口，但不改变经营能力风险" if gap_support_active else "")
+                )
             })
 
     return checks

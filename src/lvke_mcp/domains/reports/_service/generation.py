@@ -13,6 +13,10 @@ from lvke_mcp.domains.asset_acquisition.tables import get_package_record
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_STORE
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_STORE
+from lvke_mcp.runtime.evidence_qualification import (
+    combine_evidence_policies,
+    project_fact_may_be_certified,
+)
 
 
 from .base import (
@@ -148,6 +152,27 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             ):
                 if table_payload.get(field) != run.get(field):
                     blockers.append(f"acquisition_tables_{field}_mismatch")
+    upstream_evidence_payloads = [
+        record.get("payload") or {}
+        for record in [*evidence, *research]
+        if isinstance(record, dict)
+    ]
+    if isinstance(run, dict) and run:
+        upstream_evidence_payloads.append(run)
+    if isinstance(table_record, dict):
+        upstream_evidence_payloads.append(table_record.get("payload") or {})
+    supplied_policy = str(args.get("evidence_policy") or "").strip()
+    policy_inputs: list[Any] = [*upstream_evidence_payloads]
+    if supplied_policy:
+        policy_inputs.append({"evidence_policy": supplied_policy})
+    evidence_policy = combine_evidence_policies(policy_inputs)
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=True,
+        parents=upstream_evidence_payloads,
+    )
+    if not project_fact_certified:
+        formal_blockers.append("project_fact_not_certified")
     basis = {
         "evidence_pack_ids": evidence_ids,
         "research_package_ids": research_ids,
@@ -163,8 +188,8 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "finance_spec": run.get("spec_hash"),
             "finance_tables": table_record.get("basis_hash") if table_record else None,
         },
-        "evidence_policy": str(args.get("evidence_policy") or next((str((record.get("payload") or {}).get("evidence_policy") or "") for record in evidence if (record.get("payload") or {}).get("evidence_policy")), "formal_evidence")),
-        "project_fact_certified": bool(args.get("project_fact_certified", all(bool((record.get("payload") or {}).get("project_fact_certified", False)) for record in evidence))),
+        "evidence_policy": evidence_policy,
+        "project_fact_certified": project_fact_certified,
         "reconstruction_records": list(args.get("reconstruction_records") or [item for record in evidence for item in ((record.get("payload") or {}).get("reconstruction_records") or []) if isinstance(item, dict)]),
         "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),

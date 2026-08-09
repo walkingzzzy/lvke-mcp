@@ -318,13 +318,17 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                 )
                 dep_rows.append({
                     "year": y + 1,
-                    "original_value": round(fixed_base, 2),
+                    "original_value": round(
+                        float(class_row.get("original_value") or fixed_base), 2,
+                    ),
                     "salvage_rate": salvage_rate,
                     "dep_years": dep_years,
                     "depreciation": dep_y,
                     "cumulative_depreciation": cumulative_dep,
                     "net_value": round(fixed_base - cumulative_dep, 2),
-                    "depreciation_basis": "classified",
+                    "depreciation_basis": str(
+                        class_row.get("depreciation_basis") or "classified"
+                    ),
                     "classes": list(class_row.get("classes") or []),
                 })
             else:
@@ -429,6 +433,62 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             r.setdefault("assumptions", []).append(
                 f"无形及其他资产摊销 {_fmt(amort)} 万元/年（附表6-3，自非现金摊提额中拆分，不改变总成本口径）")
 
+        fiscal_policy = raw.get("fiscal_support_policy") or {}
+        if (
+            isinstance(fiscal_policy, dict)
+            and fiscal_policy.get("mode") == "actual_cash_and_debt_service_gap"
+        ):
+            caps = fiscal_policy.get("cap_by_year") or []
+            annual_cap = fiscal_policy.get("annual_cap_wan")
+            include_debt = fiscal_policy.get("include_debt_service") is not False
+            support_schedule: list[float] = []
+            for y in range(op_years):
+                profit_row = profit_rows[y] if y < len(profit_rows) else {}
+                dep_row = dep_rows[y] if y < len(dep_rows) else {}
+                amort_row = amort_rows[y] if y < len(amort_rows) else {}
+                debt_row = debt[y] if y < len(debt) else {}
+                interest = float(debt_row.get("interest") or 0.0)
+                cogs_series = raw.get("cogs_series") or []
+                cogs_addback = float(cogs_series[y] or 0.0) if y < len(cogs_series) else 0.0
+                available_before_support = round(
+                    float(profit_row.get("net_profit") or 0.0)
+                    + float(dep_row.get("depreciation") or 0.0)
+                    + float(amort_row.get("amortization") or 0.0)
+                    + interest
+                    + cogs_addback,
+                    2,
+                )
+                debt_due = round(
+                    float(debt_row.get("principal") or 0.0) + interest, 2,
+                ) if include_debt else 0.0
+                support = round(max(debt_due - available_before_support, 0.0), 2)
+                cap = None
+                if isinstance(caps, list) and y < len(caps):
+                    cap = float(caps[y] or 0.0)
+                elif annual_cap is not None:
+                    cap = float(annual_cap or 0.0)
+                if cap is not None:
+                    support = round(min(support, max(cap, 0.0)), 2)
+                support_schedule.append(support)
+                if y < len(income_rows):
+                    income_rows[y]["fiscal_support"] = support
+                if y < len(debt):
+                    total_available = round(available_before_support + support, 2)
+                    debt[y].update({
+                        "fiscal_support": support,
+                        "repay_available_before_support": available_before_support,
+                        "repay_available": total_available,
+                        "repay_actual": round(min(max(total_available, 0.0), debt_due), 2),
+                        "repay_surplus": round(max(total_available - debt_due, 0.0), 2),
+                        "repay_actual_covers_debt_service": total_available + 0.05 >= debt_due,
+                        "dscr": round(total_available / debt_due, 2) if debt_due > 0 else None,
+                    })
+            raw["fiscal_support_by_year"] = support_schedule
+            raw["fiscal_support_total_wan"] = round(sum(support_schedule), 2)
+            r.setdefault("assumptions", []).append(
+                "财政支持仅按年度经营现金及必要偿债缺口据实弥补，不进入营业利润且不保证利润"
+            )
+
     # 【P0-4】附表9 项目投资现金流：逐行组成(可人工复核),net 仍取 op.cashflows 保证项目 IRR 三处一致。
     #   运营期净现金流 = 营业收入 − 现金经营成本 − 税金及附加 − 调整所得税(融资前口径,与P0-03会计所得税分开)
     #                    − 流动资金增加(投产首年) + 流动资金回收+资产余值(末年);组成合计 == cfs[t](rule#13验证)。
@@ -485,6 +545,13 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             _net_op = float(cf)
             if j == 0:
                 _net_op = round(_net_op + _wc, 2)  # 还原投产年流资投入
+            renewal_schedule = raw.get("renewal_capex_schedule") or {}
+            renewal_by_year = renewal_schedule.get("capex_by_year") or []
+            renewal_capex = round(
+                float(renewal_by_year[j] or 0.0) if j < len(renewal_by_year) else 0.0,
+                2,
+            )
+            _net_op = round(_net_op + renewal_capex, 2)
             if j == op_years - 1:
                 # The terminal cash flow only includes the explicitly resolved
                 # recovery amount.  A vendor workbook may intentionally set
@@ -508,7 +575,9 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                         "tax_surtax": round(_tax_s, 2),
                         "income_tax": _adj_tax,  # 与净现金流恒等的调整所得税（rule#13）
                         "income_tax_financing_before": _adj_tax_display,  # 附表5 同源展示
-                        "construction": 0.0, "wc_change": round(wc_add, 2), "recover": rec})
+                        "construction": renewal_capex,
+                        "renewal_capex": renewal_capex,
+                        "wc_change": round(wc_add, 2), "recover": rec})
         proj_rows.append(row)
     annual["project_cashflow"] = proj_rows
 
@@ -585,8 +654,10 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             capital_rows.append({
                 "year": t, "phase": "建设期",
                 "capital_invest": capital_invest,
+                "renewal_capex": 0.0,
                 "loan_draw": round(draw, 2),
                 "subsidy_draw": round(subsidy_draw, 2),
+                "fiscal_support": 0.0,
                 "revenue": 0.0,
                 "recover_fixed": 0.0,
                 "recover_wc": 0.0,
@@ -604,7 +675,12 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             principal = round(debt[y]["principal"], 2) if y < len(debt) else 0.0
             interest = round(debt[y]["interest"], 2) if y < len(debt) else 0.0
             project_row = proj_rows[t] if t < len(proj_rows) else {}
-            capital_invest = round(max(float(project_row.get("wc_change") or 0.0), 0.0), 2)
+            capital_invest = round(
+                max(float(project_row.get("wc_change") or 0.0), 0.0), 2,
+            )
+            renewal_capex = round(
+                max(float(project_row.get("renewal_capex") or 0.0), 0.0), 2,
+            )
             revenue_y = round(float(project_row.get("revenue") or 0.0), 2)
             op_cash_cost_y = round(float(project_row.get("op_cash_cost") or 0.0), 2)
             tax_surtax_y = round(float(project_row.get("tax_surtax") or 0.0), 2)
@@ -615,9 +691,15 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             if terminal_wc is None:
                 terminal_wc = _wc
             recover_wc = round(float(terminal_wc or 0.0), 2) if is_terminal else 0.0
-            cash_inflow = round(revenue_y + recover_fixed + recover_wc, 2)
+            fiscal_support = round(
+                float((raw.get("fiscal_support_by_year") or [])[y] or 0.0)
+                if y < len(raw.get("fiscal_support_by_year") or []) else 0.0,
+                2,
+            )
+            cash_inflow = round(revenue_y + fiscal_support + recover_fixed + recover_wc, 2)
             cash_outflow = round(
-                capital_invest + op_cash_cost_y + tax_surtax_y + income_tax_y
+                capital_invest + renewal_capex
+                + op_cash_cost_y + tax_surtax_y + income_tax_y
                 + principal + interest,
                 2,
             )
@@ -625,7 +707,9 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             capital_rows.append({
                 "year": t, "phase": "运营期",
                 "capital_invest": capital_invest, "loan_draw": 0.0,
-                "subsidy_draw": 0.0,
+                "renewal_capex": renewal_capex,
+                "subsidy_draw": fiscal_support,
+                "fiscal_support": fiscal_support,
                 "revenue": revenue_y,
                 "recover_fixed": recover_fixed,
                 "recover_wc": recover_wc,
@@ -880,19 +964,33 @@ def _build_financial_plan(r: dict[str, Any], annual: dict[str, Any],
         # 投资活动：投产首年投入流动资金,末年回收流动资金+资产余值
         # With a v1 atomic funding plan, working capital is already an explicit
         # use in the construction/funding year and must not be paid a second time.
-        invest_out = 0.0 if atomic_funding else (wc_total if y == 0 else 0.0)
+        renewal_schedule = (r.get("raw") or {}).get("renewal_capex_schedule") or {}
+        renewal_by_year = renewal_schedule.get("capex_by_year") or []
+        renewal_capex = round(
+            float(renewal_by_year[y] or 0.0) if y < len(renewal_by_year) else 0.0,
+            2,
+        )
+        invest_out = (0.0 if atomic_funding else (wc_total if y == 0 else 0.0)) + renewal_capex
         recover = round(wc_total + salvage, 2) if y == op_years - 1 else 0.0
         invest_net = round(recover - invest_out, 2)
         # 融资活动：还本 + 付息
         principal = round(debt[y]["principal"], 2) if y < len(debt) else 0.0
         ds = round(principal + interest, 2)
-        net = round(op_net + invest_net - ds, 2)
+        fiscal_support_schedule = (r.get("raw") or {}).get("fiscal_support_by_year") or []
+        fiscal_support = round(
+            float(fiscal_support_schedule[y] or 0.0)
+            if y < len(fiscal_support_schedule) else 0.0,
+            2,
+        )
+        net = round(op_net + fiscal_support + invest_net - ds, 2)
         cum = round(cum + net, 2)
         rows.append({
             "period": build + y + 1, "phase": "运营期",
-            "finance_in": 0.0, "operating_net": op_net,
+            "finance_in": fiscal_support, "operating_net": op_net,
             "invest_out": round(invest_out - recover, 2),  # 净投资流出(负=净回收)
             "debt_service": ds, "net_cashflow": net,
             "cumulative": cum, "gap": cum < 0,
+            "fiscal_support": fiscal_support,
+            "renewal_capex": renewal_capex,
         })
     return rows

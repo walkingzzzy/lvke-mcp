@@ -239,9 +239,131 @@ def apply_plan_revision(args: dict[str, Any]) -> dict[str, Any]:
 def _source_identity(source: dict[str, Any]) -> str:
     return str(source.get("object_id") or "")
 
+
+_SOURCE_REQUIRED_FIELDS = (
+    "source_type",
+    "object_id",
+    "resource_uri",
+    "content_hash",
+    "locator",
+    "evidence_track",
+    "allowed_uses",
+)
+_SOURCE_URI_DOMAINS = {
+    "source_snapshot": "data-acquisition",
+    "source_file": "source-files",
+    "evidence_pack": "data-analysis",
+}
+_SOURCE_TRACK_CONSTRAINTS = {
+    "technical_fixture": "technical_fixture",
+    "source_reconstructed": "source_reconstructed",
+}
+
+
+def _describe_source_rejection(sources: list[Any]) -> dict[str, Any] | None:
+    """Name the matched branch and the exact missing/invalid fields.
+
+    传输层 schema 已能拦下大部分错误输入，但错误响应必须自己说清"命中哪个分支、
+    具体缺什么"——否则调用方只能看到 oneOf/allOf 的通用失败，无从修正。
+    """
+
+    for index, source in enumerate(sources):
+        if not isinstance(source, dict):
+            return {
+                "code": "source_descriptor_invalid",
+                "message": f"sources[{index}] 必须是对象",
+                "source_index": index,
+                "matched_branch": None,
+                "missing_fields": list(_SOURCE_REQUIRED_FIELDS),
+            }
+        source_type = str(source.get("source_type") or "")
+        if not source_type:
+            return {
+                "code": "source_type_required",
+                "message": f"sources[{index}] 缺少判别字段 source_type",
+                "source_index": index,
+                "matched_branch": None,
+                "missing_fields": ["source_type"],
+                "supported_source_types": sorted(
+                    {*_SOURCE_URI_DOMAINS, *_SOURCE_TRACK_CONSTRAINTS}
+                ),
+            }
+        missing = [
+            field
+            for field in _SOURCE_REQUIRED_FIELDS
+            if source.get(field) in (None, "", [], {})
+        ]
+        if missing:
+            return {
+                "code": "source_descriptor_incomplete",
+                "message": (
+                    f"sources[{index}] 命中 source_type={source_type} 分支，"
+                    f"缺少必填字段：{'、'.join(missing)}"
+                ),
+                "source_index": index,
+                "matched_branch": source_type,
+                "missing_fields": missing,
+                "required_fields": list(_SOURCE_REQUIRED_FIELDS),
+            }
+        domain = _SOURCE_URI_DOMAINS.get(source_type)
+        uri = str(source.get("resource_uri") or "")
+        if domain and not uri.startswith(f"lvke://{domain}/"):
+            return {
+                "code": "source_resource_uri_domain_mismatch",
+                "message": (
+                    f"sources[{index}] 命中 source_type={source_type} 分支，"
+                    f"resource_uri 必须以 lvke://{domain}/ 开头，实际为 {uri[:80]}"
+                ),
+                "source_index": index,
+                "matched_branch": source_type,
+                "invalid_fields": ["resource_uri"],
+                "expected_uri_prefix": f"lvke://{domain}/",
+            }
+        required_track = _SOURCE_TRACK_CONSTRAINTS.get(source_type)
+        track = str(source.get("evidence_track") or "")
+        if required_track and track != required_track:
+            return {
+                "code": "source_evidence_track_mismatch",
+                "message": (
+                    f"sources[{index}] 命中 source_type={source_type} 分支，"
+                    f"evidence_track 必须为 {required_track}，实际为 {track}"
+                ),
+                "source_index": index,
+                "matched_branch": source_type,
+                "invalid_fields": ["evidence_track"],
+                "expected_evidence_track": required_track,
+            }
+        if source_type == "technical_fixture":
+            uses = [str(item) for item in (source.get("allowed_uses") or [])]
+            if set(uses) - {"technical_validation"}:
+                return {
+                    "code": "source_allowed_uses_not_permitted",
+                    "message": (
+                        f"sources[{index}] 命中 technical_fixture 分支，"
+                        "allowed_uses 只能是 technical_validation"
+                    ),
+                    "source_index": index,
+                    "matched_branch": source_type,
+                    "invalid_fields": ["allowed_uses"],
+                    "expected_allowed_uses": ["technical_validation"],
+                }
+    return None
+
+
 def add_sources(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = str(args["workspace_id"])
     task_id = str(args["task_id"])
+    rejection = _describe_source_rejection(list(args.get("sources") or []))
+    if rejection is not None:
+        failure = _failure(str(rejection["code"]), str(rejection["message"]))
+        failure.update(
+            {key: value for key, value in rejection.items() if key not in {"code", "message"}}
+        )
+        failure["next_actions"] = [
+            "按 matched_branch 对应的 required_fields 补齐字段后重试；"
+            "source_type 是显式判别式，不同类型的 resource_uri 域与 evidence_track 约束不同",
+        ]
+        return failure
     with _agent_transition_guard(workspace_id, task_id):
         current = _latest_plan(workspace_id, task_id)
         if current is None:

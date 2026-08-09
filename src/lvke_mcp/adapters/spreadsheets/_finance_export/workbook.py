@@ -53,6 +53,7 @@ def export_finance_workbook(
     model_version: str = "finance_model.v1",
     run_id: str = "",
     include_control_sheets: bool = False,
+    artifact_notice: str = "",
 ) -> dict[str, Any]:
     """Write finance review workbook to ``path``. Returns summary dict."""
     if not fin or not fin.get("available"):
@@ -70,6 +71,14 @@ def export_finance_workbook(
     delivery_pack, lineage, delivery_quality = _write_delivery_tables(
         wb, fin, Font, PatternFill, Alignment, Border, Side,
     )
+    if artifact_notice:
+        for sheet_name in _DELIVERY_SHEETS.values():
+            sheet = wb[sheet_name]
+            existing = str(sheet.cell(2, 1).value or "")
+            notice_cell = sheet.cell(2, 1, f"{artifact_notice} {existing}".strip())
+            notice_cell.font = Font(bold=True, color="9C0006")
+            notice_cell.fill = PatternFill("solid", fgColor="FFC7CE")
+            notice_cell.alignment = Alignment(wrap_text=True, vertical="center")
 
     # Indicators
     ws_ind = wb.create_sheet("Indicators")
@@ -288,6 +297,7 @@ def export_finance_workbook(
         "delivery_sheets": list(_DELIVERY_SHEETS.values()),
         "delivery_sheet_count": len(_DELIVERY_SHEETS),
         "control_sheets_included": include_control_sheets,
+        "artifact_notice": artifact_notice,
         "cell_lineage_count": len(lineage),
         "validation_complete": bool(delivery_quality.get("validation_complete")),
         "table_quality": delivery_pack.get("_meta") or {},

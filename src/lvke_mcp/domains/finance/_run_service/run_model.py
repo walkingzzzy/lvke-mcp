@@ -5,6 +5,10 @@ from __future__ import annotations
 import copy
 from typing import Any, Optional
 
+from lvke_mcp.domains.finance.rail_validation import (
+    rail_transit_missing_inputs,
+    revenue_input_complete,
+)
 
 from .base import (
     MODEL_VERSION,
@@ -259,6 +263,20 @@ def run_workspace_finance_model(
         and not (input_revision or {}).get("annual_revenue_wan")
     ):
         missing.append("annual_revenue_wan")
+    if not force_flat:
+        if (
+            (input_revision or {}).get("is_operating") is not False
+            and not revenue_input_complete(resolved_spec, input_revision)
+        ):
+            missing.append("annual_revenue_wan_or_revenue_driver")
+        missing.extend(
+            rail_transit_missing_inputs(
+                resolved_spec,
+                input_revision,
+                build_period_months=build_period_months,
+            )
+        )
+    missing = list(dict.fromkeys(missing))
 
     resolved_spec_hash = spec_hash or compute_spec_hash(resolved_spec)
     if spec_hash and isinstance(resolved_spec, dict) and spec_hash != compute_spec_hash(resolved_spec):
@@ -291,6 +309,7 @@ def run_workspace_finance_model(
         workspace_id,
         input_hash=input_hash,
         spec_hash=resolved_spec_hash,
+        spec_id=spec_id,
         model_version=MODEL_VERSION,
         template_version=TEMPLATE_VERSION,
         manifest_hash=manifest.hash,
