@@ -10,7 +10,12 @@ DeliveryIntent 的明确输入、ProjectContext 的行业口径、AssumptionPack
 
 from __future__ import annotations
 
+import os
+import tempfile
 import unittest
+from importlib import import_module
+
+import jsonschema
 
 from lvke_mcp.domains.finance.scale_reconciliation import check_finance_run_scale
 from lvke_mcp.servers.lvke_zero_material_delivery._service import intake, lifecycle
@@ -255,6 +260,103 @@ class SharedScaleGateTest(unittest.TestCase):
         from lvke_mcp.domains.finance import scale_reconciliation
 
         self.assertIs(check_project_scale, scale_reconciliation.check_project_scale)
+
+
+class ScaleGateMcpEntryTest(unittest.TestCase):
+    """尺度门禁必须在**真实 MCP 入口**生效，而不只在直调函数时生效。
+
+    这是上一轮的测试覆盖缺口：测试直接调 check_finance_run_scale()，绕过了
+    finance_run_model 的公开 schema。而该 schema 是 additionalProperties=False
+    且不含 route_length_km / line_length_km / station_count，因此
+    "50 公里 + 通用投资种子" 根本无法通过真实工具接口传进门禁 —— 门禁在正式链上
+    等于空转，而直调测试全绿。
+    """
+
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory(prefix="lvke-scale-gate-")
+        self.previous_data_dir = os.environ.get("LVKE_MCP_DATA_DIR")
+        os.environ["LVKE_MCP_DATA_DIR"] = self.tempdir.name
+        server = import_module("lvke_mcp.servers.lvke_finance_model.server").build_server()
+        self.tool = server._tools["finance_run_model"]  # noqa: SLF001
+
+    def tearDown(self) -> None:
+        if self.previous_data_dir is None:
+            os.environ.pop("LVKE_MCP_DATA_DIR", None)
+        else:
+            os.environ["LVKE_MCP_DATA_DIR"] = self.previous_data_dir
+        self.tempdir.cleanup()
+
+    @property
+    def _revision_schema(self) -> dict:
+        return self.tool.input_schema["properties"]["input_revision"]
+
+    def _revision(self, total_investment_wan: float) -> dict:
+        return {
+            "total_investment_wan": total_investment_wan,
+            "route_length_km": 50,
+            "station_count": 25,
+            "build_period_months": 60,
+            "calc_period_years": 30,
+            "loan_ratio": 0.6,
+            "capital_own_ratio": 0.4,
+            "loan_rate": 0.042,
+            "loan_years": 15,
+            "discount_rate": 0.08,
+            "cost_items": {"年经营成本": 20_000.0},
+            # 轨道项目的财政支持口径是必填项：缺它会先被 missing_inputs 拦下，
+            # 从而测不到尺度门禁本身。
+            "fiscal_support_policy": {"mode": "actual_cash_and_debt_service_gap"},
+        }
+
+    _SPEC = {
+        "finance_kind": "generic_feasibility",
+        "revenue": {
+            "model": "rail_transit",
+            "annual_passenger_trips": 12_000.0,
+            "passenger_unit": "万人次",
+            "average_fare_yuan": 3.2,
+            "ridership_ramp": [0.6, 0.8, 1.0],
+        },
+    }
+
+    def test_public_schema_accepts_the_fields_the_gate_reads(self) -> None:
+        """门禁读的字段必须真的能通过公开 schema，否则门禁读不到任何值。"""
+
+        schema = self._revision_schema
+        self.assertFalse(schema.get("additionalProperties", True))
+        declared = set(schema["properties"])
+        for field in ("route_length_km", "line_length_km", "station_count"):
+            with self.subTest(field=field):
+                self.assertIn(field, declared)
+        jsonschema.validate(self._revision(116_000.0), schema)
+
+    def test_mcp_entry_blocks_seed_investment_and_creates_no_run(self) -> None:
+        result = self.tool.handler({
+            "workspace_id": "ws-scale-gate",
+            "spec": self._SPEC,
+            "input_revision": self._revision(116_000.0),
+            "mode": "estimate_preview",
+            "idempotency_key": "scale-gate-block-1",
+        })
+        self.assertFalse(result["success"])
+        self.assertEqual("blocked", result["status"])
+        self.assertIn("project_scale_inconsistent", result["blockers"])
+        # 城轨 Skill 要求：这种情况不得创建 FinanceRun。
+        self.assertIsNone(result["run_id"])
+
+    def test_mcp_entry_passes_credible_investment(self) -> None:
+        """门禁必须有判别力：合理投资额必须照常建 run，而不是一律阻断。"""
+
+        result = self.tool.handler({
+            "workspace_id": "ws-scale-gate",
+            "spec": self._SPEC,
+            "input_revision": self._revision(2_000_000.0),
+            "mode": "estimate_preview",
+            "idempotency_key": "scale-gate-pass-1",
+        })
+        self.assertTrue(result["success"], result.get("blockers"))
+        self.assertEqual("ok", result["status"])
+        self.assertTrue(result["run_id"])
 
 
 if __name__ == "__main__":

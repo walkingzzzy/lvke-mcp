@@ -56,6 +56,12 @@ CANONICAL_FINANCE_FIELDS = frozenset({
     "cost_behavior_confirmed", "tax_component_policy_confirmed",
     "statutory_reserve_rate", "arbitrary_reserve_confirmed_zero",
     "investor_distribution_confirmed_zero",
+    # 线性工程尺度维度。它们不进入算术，而是被 FinanceRun 之前的尺度对账消费：
+    # 50 公里线路配通用单体投资种子时算术自洽、十三表也能勾稽，只有拿到线路长度
+    # 与车站数才能判定业务尺度错误。此前门禁读这三个字段，而公开 schema
+    # additionalProperties=False 且不含它们，于是真实工具接口根本传不进来 ——
+    # 门禁在正式链上等于空转。
+    "route_length_km", "line_length_km", "station_count",
 })
 
 _NON_COMPUTE_METADATA_FIELDS = frozenset({
