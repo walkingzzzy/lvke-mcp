@@ -33,6 +33,17 @@ STATUS_VALUES: tuple[str, ...] = (
     "upstream_failure",
 )
 
+# 这些状态下工具没有产出业务结果，因此 required_on_success 字段不适用。
+# 'partial' 不在此列：部分成功仍然产出了结果，字段该在就得在。
+_NON_SUCCESS_STATUS_VALUES: frozenset[str] = frozenset({
+    "missing_inputs",
+    "blocked",
+    "incomplete",
+    "failed",
+    "upstream_failure",
+    "empty",
+})
+
 _STRING_ARRAY: dict[str, Any] = {
     "type": "array",
     "items": {"type": "string"},
@@ -92,17 +103,28 @@ def make_tool_output_schema(
     status_values: Iterable[str] = STATUS_VALUES,
     additional_properties: bool = True,
     description: str | None = None,
+    required_on_success: Iterable[str] = (),
 ) -> dict[str, Any]:
     """为单个工具生成"envelope + 专属字段"的 outputSchema。
 
     Args:
         tool_properties: 工具特有字段的 schema 片段（如 run_id、
             evidence_pack_id）；与 envelope 同名时以工具定义为准。
-        required: 除 ``success``/``status`` 外还必须出现的字段。
+        required: 无论成功或失败都必须出现的字段（信封字段放这里）。
         status_values: 允许收窄状态枚举（如只读工具没有 missing_inputs）。
         additional_properties: 默认放开以兼容既有载荷的增量字段；
             契约收紧到位的工具可置 False。
         description: 可选的 schema 描述。
+        required_on_success: **只在成功路径**必须出现的业务字段。
+
+    ``required_on_success`` 存在的原因：把只有成功路径才算得出的字段（已索引
+    字符数、交付状态、工件清单）无条件放进 ``required``，会让诚实的业务拒绝
+    （"对象不存在"）撞上自己的 outputSchema —— transport 于是把它改写成
+    ``invalid_tool_output`` + ``system_success=False``，调用方看到"服务器坏了"，
+    而真实情况是"这个 ID 不存在"，原始业务码也一并丢失。
+
+    这些字段仍然是成功路径的硬契约：用 ``if status ∈ 成功态 then required``
+    表达，而不是从 ``required`` 里删掉了事——后者会连成功路径的约束一起放弃。
     """
 
     properties = envelope_properties(status_values)
@@ -119,6 +141,25 @@ def make_tool_output_schema(
         "required": required_fields,
         "additionalProperties": additional_properties,
     }
+    success_only = [str(field) for field in required_on_success]
+    success_only = [name for name in success_only if name not in required_fields]
+    if success_only:
+        # 成功态取自本 schema 实际允许的状态枚举，避免与 status_values 收窄后失配。
+        allowed_statuses = list(properties.get("status", {}).get("enum") or STATUS_VALUES)
+        success_statuses = [
+            value for value in allowed_statuses
+            if value not in _NON_SUCCESS_STATUS_VALUES
+        ]
+        schema["allOf"] = [{
+            "if": {
+                "properties": {
+                    "success": {"const": True},
+                    "status": {"enum": success_statuses},
+                },
+                "required": ["success", "status"],
+            },
+            "then": {"required": success_only},
+        }]
     if description:
         schema["description"] = description
     Draft202012Validator.check_schema(schema)

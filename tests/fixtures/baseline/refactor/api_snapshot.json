@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-09T07:55:00+0000",
+  "generated_at": "2026-08-13T11:04:07+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
-    "module_count": 441,
-    "symbol_count": 4808,
+    "module_count": 444,
+    "symbol_count": 4845,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -2280,6 +2280,11 @@
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, limit: 'int' = 50) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.asset_acquisition._backend.runs"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "run_acquisition_model": {
           "kind": "callable",
@@ -5209,6 +5214,11 @@
           "signature": "(finance_inputs: 'dict[str, Any]', spec: 'dict[str, Any] | None', *, expected_workspace_id: 'str', expected_build_years: 'int | None' = None, expected_calc_years: 'int | None' = None) -> 'tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.finance._fact_pack.snapshot"
         },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
+        },
         "secrets": {
           "kind": "module",
           "target": "secrets"
@@ -5668,6 +5678,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "check_finance_run_scale": {
+          "kind": "callable",
+          "signature": "(spec: 'dict[str, Any] | None', input_revision: 'dict[str, Any] | None') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.finance.scale_reconciliation"
+        },
         "get_run": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -5685,6 +5700,11 @@
           "kind": "callable",
           "signature": "(data: 'Any', *, source: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.responses"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "run_model": {
           "kind": "callable",
@@ -5762,6 +5782,11 @@
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.finance._model_application.spec_cases"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "sha256_json": {
           "kind": "callable",
@@ -7944,6 +7969,11 @@
           "signature": "(value: 'Mapping[str, Any]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.source_reconstruction"
         },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
+        },
         "re": {
           "kind": "module",
           "target": "re"
@@ -9245,7 +9275,7 @@
         "CANONICAL_FINANCE_FIELDS": {
           "kind": "container",
           "value_type": "frozenset",
-          "length": 78
+          "length": 81
         },
         "ResolvedParameter": {
           "kind": "class",
@@ -10255,6 +10285,40 @@
           "kind": "callable",
           "signature": "(industry: str) -> str",
           "defined_in": "lvke_mcp.domains.finance.industry_aliases"
+        }
+      }
+    },
+    "lvke_mcp.domains.finance.scale_reconciliation": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "URBAN_RAIL_INVEST_INTENSITY": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 2
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "check_finance_run_scale": {
+          "kind": "callable",
+          "signature": "(spec: 'dict[str, Any] | None', input_revision: 'dict[str, Any] | None') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.finance.scale_reconciliation"
+        },
+        "check_project_scale": {
+          "kind": "callable",
+          "signature": "(*, industry_code: 'str', explicit_inputs: 'dict[str, Any] | None', field_values: 'dict[str, Any]', project_context: 'dict[str, Any] | None' = None, input_revision: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.finance.scale_reconciliation"
+        },
+        "is_rail_industry": {
+          "kind": "callable",
+          "signature": "(industry_code: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.domains.finance.scale_reconciliation"
         }
       }
     },
@@ -12201,6 +12265,11 @@
     "lvke_mcp.domains.project_planning._service.context": {
       "importable": true,
       "symbols": {
+        "AUTHORITATIVE_SOURCES": {
+          "kind": "container",
+          "value_type": "frozenset",
+          "length": 2
+        },
         "Any": {
           "kind": "class",
           "signature": "(*args, **kwargs)",
@@ -12316,6 +12385,11 @@
           "kind": "callable",
           "signature": "(workspace_id: 'str', project_context_id: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.project_planning._service.context"
+        },
+        "resolve_skill_inventory": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.skill_inventory"
         },
         "revise_project_context": {
           "kind": "callable",
@@ -19405,6 +19479,10 @@
           "kind": "module",
           "target": "lvke_mcp.runtime.responses"
         },
+        "skill_inventory": {
+          "kind": "module",
+          "target": "lvke_mcp.runtime.skill_inventory"
+        },
         "source_reconstruction": {
           "kind": "module",
           "target": "lvke_mcp.runtime.source_reconstruction"
@@ -19990,6 +20068,39 @@
         }
       }
     },
+    "lvke_mcp.runtime.input_guards": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "Awaitable": {
+          "kind": "_SpecialGenericAlias"
+        },
+        "Callable": {
+          "kind": "_CallableType"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "functools": {
+          "kind": "module",
+          "target": "functools"
+        },
+        "guard_identifier_rejections": {
+          "kind": "callable",
+          "signature": "(server_name: 'str') -> 'Callable[[Callable], Callable]'",
+          "defined_in": "lvke_mcp.runtime.input_guards"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
+        }
+      }
+    },
     "lvke_mcp.runtime.jobs": {
       "importable": true,
       "symbols": {
@@ -20452,8 +20563,131 @@
         },
         "make_tool_output_schema": {
           "kind": "callable",
-          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None) -> 'dict[str, Any]'",
+          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None, required_on_success: 'Iterable[str]' = ()) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.schemas"
+        }
+      }
+    },
+    "lvke_mcp.runtime.skill_inventory": {
+      "importable": true,
+      "symbols": {
+        "AUTHORITATIVE_SOURCES": {
+          "kind": "container",
+          "value_type": "frozenset",
+          "length": 2
+        },
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "OFFLINE_SKILL_ROOTS": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 2
+        },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "SKILL_INVENTORY_FILENAME": {
+          "kind": "constant",
+          "value_type": "str"
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "declared_skill_inventory": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.skill_inventory"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "offline_skill_names": {
+          "kind": "callable",
+          "signature": "(roots: 'tuple[Path, ...] | None' = None) -> 'set[str]'",
+          "defined_in": "lvke_mcp.runtime.skill_inventory"
+        },
+        "os": {
+          "kind": "module",
+          "target": "os"
+        },
+        "resolve_skill_inventory": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.skill_inventory"
         }
       }
     },
@@ -23434,7 +23668,7 @@
         },
         "make_tool_output_schema": {
           "kind": "callable",
-          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None) -> 'dict[str, Any]'",
+          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None, required_on_success: 'Iterable[str]' = ()) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.schemas"
         },
         "service": {
@@ -23545,6 +23779,11 @@
         "json": {
           "kind": "module",
           "target": "json"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "re": {
           "kind": "module",
@@ -24790,6 +25029,11 @@
             "weekday",
             "year"
           ]
+        },
+        "declared_evidence_policy": {
+          "kind": "callable",
+          "signature": "(value: 'Any', *, default: 'str' = '') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "normalize_reconstruction": {
           "kind": "callable",
@@ -28787,7 +29031,7 @@
         },
         "make_tool_output_schema": {
           "kind": "callable",
-          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None) -> 'dict[str, Any]'",
+          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None, required_on_success: 'Iterable[str]' = ()) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.schemas"
         },
         "rubrics": {
@@ -29904,6 +30148,10 @@
           "signature": "() -> 'dict[str, dict[str, object]]'",
           "defined_in": "lvke_mcp.servers.lvke_feasibility_delivery.contracts"
         },
+        "functools": {
+          "kind": "module",
+          "target": "functools"
+        },
         "hashlib": {
           "kind": "module",
           "target": "hashlib"
@@ -30119,6 +30367,11 @@
           "kind": "callable",
           "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "reconstruction_errors": {
           "kind": "callable",
@@ -31276,7 +31529,7 @@
         },
         "make_tool_output_schema": {
           "kind": "callable",
-          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None) -> 'dict[str, Any]'",
+          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None, required_on_success: 'Iterable[str]' = ()) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.schemas"
         },
         "service": {
@@ -35363,7 +35616,7 @@
         "check_project_scale": {
           "kind": "callable",
           "signature": "(*, industry_code: 'str', explicit_inputs: 'dict[str, Any] | None', field_values: 'dict[str, Any]', project_context: 'dict[str, Any] | None' = None, input_revision: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
-          "defined_in": "lvke_mcp.servers.lvke_zero_material_delivery._service.scale_guard"
+          "defined_in": "lvke_mcp.domains.finance.scale_reconciliation"
         }
       }
     },
@@ -35775,7 +36028,7 @@
         },
         "make_tool_output_schema": {
           "kind": "callable",
-          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None) -> 'dict[str, Any]'",
+          "signature": "(tool_properties: 'Mapping[str, Any] | None' = None, required: 'Iterable[str]' = (), *, status_values: 'Iterable[str]' = ('ok', 'accepted', 'partial', 'empty', 'missing_inputs', 'blocked', 'incomplete', 'failed', 'upstream_failure'), additional_properties: 'bool' = True, description: 'str | None' = None, required_on_success: 'Iterable[str]' = ()) -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.runtime.schemas"
         },
         "service": {

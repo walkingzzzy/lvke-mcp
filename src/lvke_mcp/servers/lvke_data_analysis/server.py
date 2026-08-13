@@ -40,12 +40,28 @@ _INDEXED_OUTPUT = {
         "indexed_document_count": {"type": "integer", "minimum": 0},
         "empty_content_source_ids": {"type": "array", "items": {"type": "string"}},
     },
-    "required": [
-        *_OUTPUT["required"],
-        "indexed_char_count",
-        "indexed_cjk_char_count",
-        "indexed_document_count",
-    ],
+    "required": [*_OUTPUT["required"]],
+    # 三个计数只有在真的读到分析任务时才算得出。此前它们无条件必填，于是
+    # "任务不存在"这种诚实拒绝会撞上自己的 schema，被 transport 改写成
+    # invalid_tool_output + system_success=False —— analysis_task_not_found
+    # 这个真正有用的码反而丢了。成功路径仍强制要求，否则"摄入成功≠检索得到"
+    # 的可诊断性就被放弃了。
+    "allOf": [{
+        "if": {
+            "properties": {
+                "success": {"const": True},
+                "status": {"enum": ["ok", "partial"]},
+            },
+            "required": ["success", "status"],
+        },
+        "then": {
+            "required": [
+                "indexed_char_count",
+                "indexed_cjk_char_count",
+                "indexed_document_count",
+            ],
+        },
+    }],
 }
 _WS = {"type": "string", "minLength": 1}
 _IDS = {

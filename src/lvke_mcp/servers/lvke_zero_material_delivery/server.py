@@ -77,6 +77,12 @@ _DELIVERY_STATE_OUTPUT = make_tool_output_schema(
         "warnings",
         "blockers",
         "next_actions",
+    ),
+    # 这五个字段只有在真的读到 DeliveryRun 时才算得出。此前它们无条件必填，
+    # 于是"运行不存在"这种诚实拒绝会撞上自己的 schema，被 transport 改写成
+    # invalid_tool_output + system_success=False —— 调用方看到"服务器坏了"，
+    # 而 delivery_run_not_found 这个真正有用的码被丢掉。成功路径仍强制要求。
+    required_on_success=(
         "query_success",
         "domain_status",
         "delivery_state",

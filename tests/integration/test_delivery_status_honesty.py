@@ -226,8 +226,36 @@ class DeliveryStatusEndToEndTest(unittest.TestCase):
             schema["properties"]["domain_status"]["enum"],
             ["ready", "partial", "blocked"],
         )
+        # 这些字段是**成功路径**的硬契约，用 if success then required 表达：
+        # 无条件必填会让"运行不存在"这类诚实拒绝撞上自己的 schema，被 transport
+        # 改写成 invalid_tool_output + system_success=False（见
+        # tests/integration/test_output_schema_error_paths.py）。断言方式因此从
+        # "在 required 里"改为"成功载荷缺任一字段必须被拒"——守的是同一件事，
+        # 但不会连业务拒绝一起判非法。
+        validator = jsonschema.Draft202012Validator(schema)
+        success_payload = {
+            "success": True,
+            "status": "ok",
+            "resource_uris": [],
+            "warnings": [],
+            "blockers": [],
+            "next_actions": [],
+            "query_success": True,
+            "domain_status": "ready",
+            "delivery_state": "ready",
+            "artifacts": [],
+            "technical_preview_ready": False,
+        }
+        validator.validate(success_payload)
         for field in ("query_success", "domain_status", "delivery_state", "artifacts"):
-            self.assertIn(field, schema["required"])
+            with self.subTest(field=field):
+                incomplete = {
+                    key: value
+                    for key, value in success_payload.items()
+                    if key != field
+                }
+                with self.assertRaises(jsonschema.ValidationError):
+                    validator.validate(incomplete)
 
 
 if __name__ == "__main__":
