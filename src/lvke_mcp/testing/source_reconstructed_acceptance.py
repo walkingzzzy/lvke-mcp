@@ -632,6 +632,26 @@ def run_reconstructed_finance_case(
     )
     if not technical.get("success"):
         raise ValueError(f"technical table validation failed: {technical}")
+    from lvke_mcp.domains.finance import gate as finance_gate
+
+    publish_before_export = finance_gate.assert_publish_finance_binding(
+        workspace_id,
+        expected_run_id=run_id,
+        strict=True,
+    )
+    before_codes = {
+        str(item.get("code") or "")
+        for item in (publish_before_export.get("blockers") or [])
+        if isinstance(item, dict)
+    }
+    if publish_before_export.get("ok") or not before_codes.intersection({
+        "finance_tables_package_missing",
+        "finance_tables_package_invalid",
+    }):
+        raise ValueError(
+            "report publish gate must require a formal package and XLSX before export: "
+            f"{publish_before_export}"
+        )
     exported = tables_service.export_xlsx(workspace_id, run_id)
     if not exported.get("xlsx_resource"):
         raise ValueError(f"xlsx export failed: {exported}")
@@ -641,6 +661,21 @@ def run_reconstructed_finance_case(
     if not formal.get("success"):
         raise ValueError(f"formal table validation failed: {formal}")
     package_id = str(exported.get("finance_tables_package_id") or "")
+    publish_after_export = finance_gate.assert_publish_finance_binding(
+        workspace_id,
+        expected_run_id=run_id,
+        strict=True,
+    )
+    if (
+        not publish_after_export.get("ok")
+        or publish_after_export.get("finance_tables_package_id") != package_id
+        or publish_after_export.get("xlsx_resource_uri") != exported.get("xlsx_resource")
+        or publish_after_export.get("xlsx_hash") != exported.get("xlsx_hash")
+    ):
+        raise ValueError(
+            "report publish gate did not bind the newly exported formal artifact: "
+            f"{publish_after_export}"
+        )
     return {
         "workspace_id": workspace_id,
         "source_file_id": source_id,
@@ -655,6 +690,8 @@ def run_reconstructed_finance_case(
         "xlsx_hash": exported.get("xlsx_hash"),
         "technical_validation": technical,
         "formal_validation": formal,
+        "publish_gate_before_export": publish_before_export,
+        "publish_gate_after_export": publish_after_export,
         "evidence_policy": "source_reconstructed",
         "project_fact_certified": False,
         "unresolved_inputs": ["original_project_boe"],

@@ -25,5 +25,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   `finance_binding.kind=asset_acquisition`.
 - Require one shared complete build identity across all 14 services after code
   freeze; stale metadata or a dirty tracked checkout is incomplete.
+- Use restarted live `tools/list` as the sole coverage denominator, call every
+  listed tool at least once, and keep every tool at `taskSupport=forbidden`.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

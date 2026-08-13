@@ -109,6 +109,16 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
         self.assertTrue(result["finance_tables_package_id"].startswith("ftp_"), result)
         self.assertTrue(result["xlsx_resource_uri"].endswith("/xlsx"), result)
         self.assertTrue(result["formal_validation"]["success"], result)
+        self.assertFalse(result["publish_gate_before_export"]["ok"], result)
+        self.assertTrue(result["publish_gate_after_export"]["ok"], result)
+        self.assertEqual(
+            result["publish_gate_after_export"]["finance_tables_package_id"],
+            result["finance_tables_package_id"],
+        )
+        self.assertEqual(
+            result["publish_gate_after_export"]["xlsx_hash"],
+            result["xlsx_hash"],
+        )
         self.assertEqual(result["evidence_policy"], "source_reconstructed")
         self.assertFalse(result["project_fact_certified"])
 

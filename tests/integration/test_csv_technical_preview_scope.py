@@ -125,14 +125,14 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertNotEqual(exported.get("release_grade"), "technical_preview")
 
     def test_formal_default_does_not_mark_files(self) -> None:
+        before = sorted(Path(self.tempdir.name).rglob("*.csv"))
         exported = self._export("formal")
-        if not exported.get("csv_resource_uris"):
-            self.skipTest("formal 档在本 run 被门禁拒绝，无产物可查")
-        directory = Path(exported["deliverable_path"])
-        for path in sorted(directory.glob("*.csv")):
-            with self.subTest(file=path.name):
-                first_line = path.read_text(encoding="utf-8-sig").splitlines()[0]
-                self.assertNotIn(_BANNER_HEAD, first_line)
+        self.assertEqual(exported["status"], "blocked")
+        self.assertEqual(exported["code"], "tables_validation_failed")
+        self.assertEqual(exported["resource_uris"], [])
+        self.assertNotIn("csv_resource_uris", exported)
+        self.assertNotIn("deliverable_path", exported)
+        self.assertEqual(sorted(Path(self.tempdir.name).rglob("*.csv")), before)
 
 
 if __name__ == "__main__":

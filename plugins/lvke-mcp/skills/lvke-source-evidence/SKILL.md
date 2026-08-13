@@ -22,5 +22,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Keep scanning, workspace isolation, locator, hash, and lineage checks fail-closed.
 - A changed acquisition evidence binding returns `EVIDENCE_BINDING_STALE`; save a
   new Spec revision and rerun before formal artifact generation.
+- Preserve current evidence hash/version against the immutable run snapshot;
+  technical validation alone never repairs a stale formal binding.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

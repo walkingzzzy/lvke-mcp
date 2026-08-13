@@ -20,6 +20,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Never change formulas, rounding, convergence, warnings, or FinanceSpec validation to make a run pass.
 - finance_calculate is a pure calculator and never replaces finance_run_model or formal gates.
+- Require complete current formal validation before any formal CSV/XLSX write;
+  technical scope may emit only explicitly marked process artifacts.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

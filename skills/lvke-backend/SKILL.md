@@ -23,5 +23,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Do not add login, identity, role, tenant, RBAC, permission, or security-signoff workflows.
 - Preflight formal acquisition eligibility before creating staging or
   idempotency state, and clean every newly created staging directory on error.
+- Preflight formal CSV/XLSX eligibility before creating directories or files;
+  blocked formal export must expose no new path or Resource URI.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

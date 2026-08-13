@@ -137,6 +137,48 @@ def _verify_package_tables(record: dict[str, Any]) -> dict[str, Any]:
     return {"valid": not failures, "failures": failures, "verified": verified}
 
 
+def _formal_export_preflight(
+    rendered: dict[str, Any],
+    *,
+    artifact_label: str,
+) -> dict[str, Any] | None:
+    """Reject formal exports before an artifact directory or file is created."""
+
+    validation = dict(rendered.get("validation") or {})
+    technical_valid = bool(validation.get("valid"))
+    validation_complete = bool(rendered.get("validation_complete"))
+    if technical_valid and validation_complete:
+        return None
+
+    blockers = [str(item) for item in (rendered.get("blockers") or [])]
+    if not technical_valid:
+        blockers.append("tables_validation_failed")
+    if not validation_complete:
+        blockers.append("finance_tables_formal_gate_incomplete")
+    blockers = list(dict.fromkeys(blockers))
+    blocked = _failure(
+        "tables_validation_failed",
+        f"十三表未通过正式交付资格校验，禁止导出 {artifact_label}；"
+        "仅需过程验收文件可显式指定 validation_scope='technical'"
+        "（产物会标记为不可正式使用）",
+    )
+    blocked.update({
+        "validation_scope": "formal",
+        "details": {
+            "technical_validation_valid": technical_valid,
+            "validation_complete": validation_complete,
+            "finance_tables_package_id": rendered.get("finance_tables_package_id"),
+            "run_id": rendered.get("run_id"),
+        },
+        "blockers": blockers,
+        "next_actions": [
+            "修正十三表结构、工作簿语义或跨工件绑定门禁后重新渲染正式包",
+            "仅做过程验收时显式使用 validation_scope='technical'",
+        ],
+    })
+    return blocked
+
+
 def export_xlsx(
     workspace_id: str,
     run_id: str,
@@ -171,6 +213,13 @@ def export_xlsx(
             "finance_tables_package_content_mismatch",
             "包内十三表内容哈希与自带清单不一致，禁止导出：" + "、".join(integrity["failures"][:5]),
         )
+    if not technical_preview:
+        formal_rejection = _formal_export_preflight(
+            rendered,
+            artifact_label="XLSX",
+        )
+        if formal_rejection is not None:
+            return formal_rejection
     from lvke_mcp.adapters.spreadsheets.finance_export import export_finance_workbook
 
     directory = _export_root(workspace_id, "xlsx")
@@ -308,12 +357,6 @@ def export_csv(
     if not package_id:
         return rendered
     validation = dict(rendered.get("validation") or {})
-    if not validation.get("valid") and not technical_preview:
-        return _failure(
-            "tables_validation_failed",
-            "十三表列级完整性或结构质量校验未通过，禁止导出 CSV；"
-            "仅需过程验收文件可显式指定 validation_scope='technical'（产物标记不可正式使用）",
-        )
     record = PACKAGE_STORE.get(workspace_id, package_id)
     package_integrity = _verify_package_tables(record or {})
     if not package_integrity["valid"]:
@@ -322,6 +365,13 @@ def export_csv(
             "包内十三表内容哈希与自带清单不一致，禁止导出："
             + "、".join(package_integrity["failures"][:5]),
         )
+    if not technical_preview:
+        formal_rejection = _formal_export_preflight(
+            rendered,
+            artifact_label="CSV",
+        )
+        if formal_rejection is not None:
+            return formal_rejection
     payload = dict((record or {}).get("payload") or {})
     tables = dict(payload.get("tables") or {})
     directory = _export_root(

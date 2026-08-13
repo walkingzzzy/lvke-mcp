@@ -23,5 +23,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Asset-acquisition preview reports may be technically ready while
   `formal_release_eligible=false`; formal artifacts require a qualified
   `formal_candidate` run.
+- Build preview reports through `report_prepare` with
+  `finance_binding.kind=asset_acquisition`; classify direct preview/process
+  formal-artifact calls as `EXPECTED_REJECTION`.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

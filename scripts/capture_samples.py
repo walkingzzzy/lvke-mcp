@@ -596,14 +596,24 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
         csv_export = runner.inner_payload(runner.call_tool_on(
             proc,
             "tables_export_csv",
-            {"workspace_id": context.workspace_id, "run_id": context.run_id},
+            {
+                "workspace_id": context.workspace_id,
+                "run_id": context.run_id,
+                "finance_tables_package_id": package_id,
+                "validation_scope": "technical",
+            },
             request_id=3,
             timeout=180.0,
         ))
         xlsx_export = runner.inner_payload(runner.call_tool_on(
             proc,
             "tables_export_xlsx",
-            {"workspace_id": context.workspace_id, "run_id": context.run_id},
+            {
+                "workspace_id": context.workspace_id,
+                "run_id": context.run_id,
+                "finance_tables_package_id": package_id,
+                "validation_scope": "technical",
+            },
             request_id=4,
             timeout=180.0,
         ))
@@ -641,8 +651,20 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
         "csv_exported": len(csv_uris) == 13 and len(csv_manifest) == 13,
         "csv_integrity": bool(((csv_export or {}).get("csv_integrity") or {}).get("valid")),
         "csv_read": _status(csv_read) == "ok" and csv_bytes.startswith(b"\xef\xbb\xbf"),
+        "csv_technical_scope": (
+            (csv_export or {}).get("validation_scope") == "technical"
+            and (csv_export or {}).get("release_grade") == "technical_preview"
+            and (csv_export or {}).get("source_package_id") == package_id
+            and not bool((csv_export or {}).get("validation_complete"))
+        ),
         "xlsx_exported": _hash_present((xlsx_export or {}).get("xlsx_hash")),
         "xlsx_read": _status(xlsx_read) == "ok" and xlsx_bytes.startswith(b"PK"),
+        "xlsx_technical_scope": (
+            (xlsx_export or {}).get("validation_scope") == "technical"
+            and (xlsx_export or {}).get("release_grade") == "technical_preview"
+            and (xlsx_export or {}).get("source_package_id") == package_id
+            and not bool((xlsx_export or {}).get("validation_complete"))
+        ),
     }
     if not all(checks.values()):
         runner.record_defect(sample, json.dumps(checks, ensure_ascii=False))

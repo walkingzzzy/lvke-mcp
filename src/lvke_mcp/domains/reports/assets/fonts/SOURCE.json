@@ -1,0 +1,17 @@
+{
+  "upstream": "https://github.com/notofonts/noto-cjk",
+  "commit": "f8d157532fbfaeda587e826d4cd5b21a49186f7c",
+  "license": "SIL Open Font License 1.1",
+  "files": [
+    {
+      "name": "NotoSerifSC-Regular.otf",
+      "path": "Serif/SubsetOTF/SC/NotoSerifSC-Regular.otf",
+      "sha256": "e8f396decc1f0963a016a989c3d8852e863d1350996f573860a80767c83a1cd3"
+    },
+    {
+      "name": "NotoSansSC-Medium.otf",
+      "path": "Sans/SubsetOTF/SC/NotoSansSC-Medium.otf",
+      "sha256": "7633f5a016d4dd95e685a69633d818aabc4644c4b08e26bd35b1b30c45ed5dda"
+    }
+  ]
+}

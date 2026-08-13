@@ -24,5 +24,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   project-local virtual environment or `uv` runtime.
 - Verify P0A with `scripts/golden_samples_manifest.py`; P0B remains
   `pending_business_approval` until real dual-track approval material is supplied.
+- Audit exported DOCX packages for decodable embedded OFL CJK fonts and glyph
+  coverage, then render every page to PNG and inspect visible Chinese text,
+  tables, pagination, clipping, and blank pages.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

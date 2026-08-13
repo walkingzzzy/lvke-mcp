@@ -19,8 +19,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 ## Gates
 
 - Freeze code, restart once, then use real MCP calls rather than direct Python handlers.
+- Use restarted live `tools/list` as the only service/tool coverage denominator,
+  and verify every listed tool keeps `taskSupport=forbidden`.
 - Do not claim formal acceptance until every required live call and gate check passes.
 - Classify preview/process formal-artifact rejection as `EXPECTED_REJECTION`,
   then verify the restricted report chain and a separate qualified formal run.
+- Inspect DOCX embedded CJK font relationships, license metadata and glyph
+  coverage, and visually inspect every rendered PNG page.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

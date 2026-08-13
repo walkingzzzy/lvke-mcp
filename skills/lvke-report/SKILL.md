@@ -20,6 +20,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Keep proposal, diff, apply, revision, and basis-fingerprint semantics.
 - Do not present an unreleased draft or generated DOCX as a formally approved deliverable.
+- Require self-contained licensed CJK fonts in formal DOCX output; audit the
+  package and visually inspect every PNG-rendered page before acceptance.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

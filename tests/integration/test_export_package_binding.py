@@ -81,38 +81,38 @@ class ExportPackageBindingTest(unittest.TestCase):
 
     def test_xlsx_reuses_the_given_package(self) -> None:
         exported = tables_service.export_xlsx(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         self.assertEqual(exported["finance_tables_package_id"], self.package_id)
         self.assertTrue(exported["source_package_reused"])
 
     def test_csv_reuses_the_given_package(self) -> None:
         exported = tables_service.export_csv(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         self.assertEqual(exported["finance_tables_package_id"], self.package_id)
         self.assertTrue(exported["source_package_reused"])
 
     def test_exports_record_their_provenance(self) -> None:
         xlsx = tables_service.export_xlsx(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         self.assertEqual(xlsx["source_package_id"], self.package_id)
         self.assertEqual(xlsx["source_run_id"], self.run_id)
         self.assertTrue(xlsx["manifest_hash"])
 
         csv_export = tables_service.export_csv(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         self.assertEqual(csv_export["source_package_id"], self.package_id)
         self.assertEqual(csv_export["source_run_id"], self.run_id)
 
     def test_xlsx_and_csv_bind_the_same_package_as_the_main_pack(self) -> None:
         xlsx = tables_service.export_xlsx(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         csv_export = tables_service.export_csv(
-            self.workspace, self.run_id, "", self.package_id
+            self.workspace, self.run_id, "", self.package_id, "technical"
         )
         self.assertEqual(
             {
@@ -147,7 +147,9 @@ class ExportPackageBindingTest(unittest.TestCase):
 
     def test_omitting_package_id_still_exports(self) -> None:
         # 兼容旧调用：不传 package_id 仍可导出，但会新渲染一个包。
-        exported = tables_service.export_xlsx(self.workspace, self.run_id)
+        exported = tables_service.export_xlsx(
+            self.workspace, self.run_id, validation_scope="technical"
+        )
         self.assertTrue(exported["finance_tables_package_id"])
         self.assertFalse(exported["source_package_reused"])
 

@@ -38,6 +38,8 @@ dependencies = [
   "openpyxl==3.1.5",
   "xlrd==2.0.1",
   "lxml==6.1.1",
+  # fonttools: 按报告实际字形子集化 OFL CJK 字体并嵌入 DOCX，保证隔离渲染可见
+  "fonttools==4.63.0",
   # 财务域 registry / spec_builder（与根 pyproject/uv.lock 版本一致）：
   # pyyaml: industry/policy profile 与 scale/env 参数读取
   # openai: spec_builder 可选 LLM 定规范（无网关时静默回退 flat）
@@ -76,6 +78,7 @@ lvke_mcp = [
   # 领域数据文件(yaml/json)与 server seed 数据随 wheel 打包,保证干净环境可运行
   "domains/**/config/**/*",
   "domains/**/docs/**/*",
+  "domains/**/assets/**/*",
   "servers/*/seed/**/*",
   "config/**/*",
   "runtime/build_metadata.json",

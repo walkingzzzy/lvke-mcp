@@ -22,5 +22,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Public compression must not weaken server-side validation or business gates.
 - Preserve the stable business codes `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED`
   and `EVIDENCE_BINDING_STALE`, including details, blockers, and next actions.
+- Treat those codes as business-envelope outcomes with `system_success=true`
+  and `business_success=false`; MCP input-schema `-32602` rejections remain
+  protocol errors and do not require a business envelope.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

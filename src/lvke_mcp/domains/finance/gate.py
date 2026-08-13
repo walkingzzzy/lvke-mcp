@@ -383,6 +383,160 @@ def assert_acquisition_report_finance_binding(
     }
 
 
+def _assert_formal_export_qualification(
+    workspace_id: str,
+    *,
+    expected_run_id: str = "",
+    strict: bool = True,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Validate a generic FinanceRun before its first formal artifact exists.
+
+    This gate deliberately stops at the immutable run and its deterministic
+    thirteen-table projection. Report publication adds package/XLSX/URI/hash
+    checks in :func:`assert_publish_finance_binding` after those artifacts have
+    been created.
+    """
+
+    blockers: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    bound = str(expected_run_id or "").strip()
+    run_view: dict[str, Any] = {}
+    snapshot: dict[str, Any] = {}
+    if not bound:
+        item = {
+            "code": "finance_binding_missing",
+            "message": "必须明确绑定 finance_run_id",
+        }
+        (blockers if strict else warnings).append(item)
+    else:
+        try:
+            from lvke_mcp.domains.finance import run_store
+
+            run_view = run_store.load_run(workspace_id, bound) or {}
+            snapshot = run_store.load_result_snapshot(workspace_id, bound) or {}
+        except Exception as exc:  # noqa: BLE001
+            blockers.append({
+                "code": "finance_run_unverifiable",
+                "message": f"无法读取绑定的 FinanceRun：{type(exc).__name__}",
+            })
+
+        if not run_view or not snapshot:
+            blockers.append({
+                "code": "finance_run_not_found",
+                "message": "绑定的 FinanceRun 不存在或缺少结果快照",
+                "details": {"run_id": bound},
+            })
+        elif str(run_view.get("workspace_id") or "") != str(workspace_id):
+            blockers.append({
+                "code": "finance_run_workspace_mismatch",
+                "message": "绑定的 FinanceRun 不属于当前工作区",
+            })
+        else:
+            if not run_view.get("consistency_ok"):
+                blockers.append({
+                    "code": "finance_run_consistency_failed",
+                    "message": "绑定的 FinanceRun 勾稽未通过",
+                })
+
+            manifest_data = snapshot.get("model_manifest") or {}
+            if not manifest_data:
+                blockers.append({
+                    "code": "finance_manifest_missing",
+                    "message": "绑定的 FinanceRun 缺少完整 ModelManifest",
+                })
+            else:
+                try:
+                    from lvke_mcp.domains.finance.model_manifest import (
+                        DEFAULT_SPEC_SCHEMA_VERSION,
+                        manifest_from_dict,
+                    )
+
+                    manifest = manifest_from_dict(manifest_data)
+                    if not snapshot.get("valuation_date"):
+                        blockers.append({
+                            "code": "finance_valuation_date_missing",
+                            "message": "绑定的 FinanceRun 缺少 valuation_date",
+                        })
+                    if manifest.spec_schema_version != DEFAULT_SPEC_SCHEMA_VERSION:
+                        blockers.append({
+                            "code": "finance_spec_schema_version_stale",
+                            "message": (
+                                "绑定的 FinanceRun 使用了过期 FinanceSpec schema："
+                                f"{manifest.spec_schema_version}，当前要求 "
+                                f"{DEFAULT_SPEC_SCHEMA_VERSION}"
+                            ),
+                        })
+                    manifest_errors = manifest.validate(
+                        as_of=snapshot.get("valuation_date")
+                    )
+                    if manifest_errors:
+                        blockers.append({
+                            "code": "finance_manifest_invalid",
+                            "message": (
+                                "绑定的 FinanceRun ModelManifest 无效："
+                                f"{manifest_errors}"
+                            ),
+                        })
+                    if snapshot.get("manifest_hash") != manifest.hash:
+                        blockers.append({
+                            "code": "finance_manifest_hash_mismatch",
+                            "message": "manifest_hash 与 ModelManifest 内容不一致",
+                        })
+                except Exception as exc:  # noqa: BLE001
+                    blockers.append({
+                        "code": "finance_manifest_invalid",
+                        "message": (
+                            "绑定的 FinanceRun ModelManifest 无法校验："
+                            f"{type(exc).__name__}"
+                        ),
+                    })
+
+            try:
+                from lvke_mcp.domains.finance import table_render
+
+                quality = table_render.build_all_structured(snapshot).get("_meta") or {}
+            except Exception as exc:  # noqa: BLE001
+                quality = {}
+                blockers.append({
+                    "code": "finance_reference_structure_unverifiable",
+                    "message": f"财务附表结构无法校验：{type(exc).__name__}",
+                })
+            if not quality.get("reference_structure_ready"):
+                blockers.append({
+                    "code": "finance_reference_structure_incomplete",
+                    "message": (
+                        "财务附表不完整："
+                        f"有效 {quality.get('effective_table_count', 0)}/"
+                        f"{quality.get('required_table_count', 13)} 张"
+                    ),
+                })
+
+            open_blocking = [
+                item for item in (run_view.get("issues") or [])
+                if item.get("status") == "open" and item.get("blocking")
+            ]
+            if open_blocking:
+                blockers.append({
+                    "code": "finance_blocking_issues",
+                    "message": (
+                        f"绑定的 FinanceRun 仍有 {len(open_blocking)} 个一致性阻断问题"
+                    ),
+                    "details": {"issues": open_blocking},
+                })
+
+    return (
+        {
+            "ok": not blockers,
+            "blockers": blockers,
+            "warnings": warnings,
+            "bound_run_id": bound or None,
+            "validation_level": "complete" if not blockers else "incomplete",
+        },
+        run_view,
+        snapshot,
+    )
+
+
 def assert_publish_finance_binding(
     workspace_id: str,
     *,
@@ -419,92 +573,18 @@ def assert_publish_finance_binding(
             result["actual_bound_run_id"] = actual_bound or None
         return result
 
-    run_view: dict[str, Any] = {}
-    snapshot: dict[str, Any] = {}
-    if not bound:
-        item = {
-            "code": "finance_binding_missing",
-            "message": "报告必须明确绑定 finance_run_id",
-        }
-        (blockers if strict else warnings).append(item)
-    else:
-        try:
-            from lvke_mcp.domains.finance import run_store, table_render
-            from lvke_mcp.domains.finance.model_manifest import (
-                DEFAULT_SPEC_SCHEMA_VERSION,
-                manifest_from_dict,
-            )
-
-            run_view = run_store.load_run(workspace_id, bound) or {}
-            snapshot = run_store.load_result_snapshot(workspace_id, bound) or {}
-        except Exception as exc:  # noqa: BLE001
-            blockers.append({
-                "code": "finance_run_unverifiable",
-                "message": f"无法读取绑定的 FinanceRun：{type(exc).__name__}",
-            })
-            run_view = {}
-            snapshot = {}
-
-        if not run_view or not snapshot:
-            blockers.append({
-                "code": "finance_run_not_found",
-                "message": "绑定的 FinanceRun 不存在或缺少结果快照",
-                "details": {"run_id": bound},
-            })
-        elif str(run_view.get("workspace_id") or "") != str(workspace_id):
-            blockers.append({
-                "code": "finance_run_workspace_mismatch",
-                "message": "绑定的 FinanceRun 不属于当前工作区",
-            })
-        else:
-            if not run_view.get("consistency_ok"):
-                blockers.append({
-                    "code": "finance_run_consistency_failed",
-                    "message": "绑定的 FinanceRun 勾稽未通过",
-                })
-            manifest_data = snapshot.get("model_manifest") or {}
-            if not manifest_data:
-                blockers.append({
-                    "code": "finance_manifest_missing",
-                    "message": "绑定的 FinanceRun 缺少完整 ModelManifest",
-                })
-            else:
-                manifest = manifest_from_dict(manifest_data)
-                if not snapshot.get("valuation_date"):
-                    blockers.append({
-                        "code": "finance_valuation_date_missing",
-                        "message": "绑定的 FinanceRun 缺少 valuation_date",
-                    })
-                if manifest.spec_schema_version != DEFAULT_SPEC_SCHEMA_VERSION:
-                    blockers.append({
-                        "code": "finance_spec_schema_version_stale",
-                        "message": (
-                            "绑定的 FinanceRun 使用了过期 FinanceSpec schema："
-                            f"{manifest.spec_schema_version}，当前要求 {DEFAULT_SPEC_SCHEMA_VERSION}"
-                        ),
-                    })
-                manifest_errors = manifest.validate(as_of=snapshot.get("valuation_date"))
-                if manifest_errors:
-                    blockers.append({
-                        "code": "finance_manifest_invalid",
-                        "message": f"绑定的 FinanceRun ModelManifest 无效：{manifest_errors}",
-                    })
-                if snapshot.get("manifest_hash") != manifest.hash:
-                    blockers.append({
-                        "code": "finance_manifest_hash_mismatch",
-                        "message": "manifest_hash 与 ModelManifest 内容不一致",
-                    })
-
-            quality = table_render.build_all_structured(snapshot).get("_meta") or {}
-            if not quality.get("reference_structure_ready"):
-                blockers.append({
-                    "code": "finance_reference_structure_incomplete",
-                    "message": (
-                        "财务附表不完整："
-                        f"有效 {quality.get('effective_table_count', 0)}/"
-                        f"{quality.get('required_table_count', 13)} 张"
-                    ),
-                })
+    qualification, run_view, snapshot = _assert_formal_export_qualification(
+        workspace_id,
+        expected_run_id=bound,
+        strict=strict,
+    )
+    blockers.extend(qualification.get("blockers") or [])
+    warnings.extend(qualification.get("warnings") or [])
+    if (
+        run_view
+        and snapshot
+        and str(run_view.get("workspace_id") or "") == str(workspace_id)
+    ):
             from lvke_mcp.adapters.finance_tables_repository import (
                 PACKAGE_STORE,
                 xlsx_path_from_uri,
@@ -557,6 +637,13 @@ def assert_publish_finance_binding(
                     reasons.append("thirteen_table_payload_incomplete")
                 if not bool(technical.get("valid", validation.get("valid"))):
                     reasons.append("technical_validation_failed")
+                if not bool(
+                    package_payload.get(
+                        "validation_complete",
+                        validation.get("validation_complete"),
+                    )
+                ):
+                    reasons.append("formal_export_qualification_incomplete")
                 xlsx_uri = str(package_record.get("resource_uri") or "") + "/xlsx"
                 xlsx_path = xlsx_path_from_uri(xlsx_uri)
                 if xlsx_path is None:
@@ -600,16 +687,6 @@ def assert_publish_finance_binding(
                 bound_xlsx_hash = "sha256:" + hashlib.sha256(
                     xlsx_path.read_bytes()
                 ).hexdigest()
-
-            open_blocking = [
-                item for item in (run_view.get("issues") or [])
-                if item.get("status") == "open" and item.get("blocking")
-            ]
-            if open_blocking:
-                blockers.append({
-                    "code": "finance_blocking_issues",
-                    "message": f"绑定的 FinanceRun 仍有 {len(open_blocking)} 个一致性阻断问题",
-                })
 
     return {
         "ok": not blockers,

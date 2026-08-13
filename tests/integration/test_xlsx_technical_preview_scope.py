@@ -95,24 +95,29 @@ class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertEqual(exported["source_run_id"], self.run_id)
         self.assertTrue(exported["manifest_hash"])
 
-    def test_formal_default_has_no_technical_marking(self) -> None:
+    def test_formal_scope_writes_nothing_when_qualification_is_incomplete(self) -> None:
+        before = sorted(Path(self.tempdir.name).rglob("*.xlsx"))
         exported = self._export("formal")
-        self.assertFalse(exported.get("technical_preview"))
-        workbook = load_workbook(exported["deliverable_path"], read_only=True, data_only=False)
-        try:
-            for sheet in workbook.worksheets:
-                self.assertNotIn("不得作为正式投资决策依据", str(sheet["A2"].value or ""))
-        finally:
-            workbook.close()
+        self.assertEqual(exported["status"], "blocked")
+        self.assertEqual(exported["code"], "tables_validation_failed")
+        self.assertFalse(exported["business_success"])
+        self.assertEqual(exported["resource_uris"], [])
+        self.assertNotIn("xlsx_resource", exported)
+        self.assertNotIn("deliverable_path", exported)
+        self.assertEqual(sorted(Path(self.tempdir.name).rglob("*.xlsx")), before)
 
-    def test_technical_and_formal_artifacts_do_not_overwrite_each_other(self) -> None:
-        formal = self._export("formal")
-        formal_path = Path(formal["deliverable_path"])
-        formal_bytes = formal_path.read_bytes()
+    def test_blocked_formal_export_does_not_change_technical_artifact(self) -> None:
         technical = self._export("technical")
-        self.assertNotEqual(technical["deliverable_path"], formal["deliverable_path"])
-        self.assertNotEqual(technical["xlsx_resource"], formal["xlsx_resource"])
-        self.assertEqual(formal_path.read_bytes(), formal_bytes)
+        technical_path = Path(technical["deliverable_path"])
+        technical_bytes = technical_path.read_bytes()
+        formal = self._export("formal")
+        self.assertEqual(formal["status"], "blocked")
+        self.assertNotIn("xlsx_resource", formal)
+        self.assertEqual(technical_path.read_bytes(), technical_bytes)
+        self.assertEqual(
+            sorted(Path(self.tempdir.name).rglob("*.xlsx")),
+            [technical_path],
+        )
 
 
 if __name__ == "__main__":

@@ -66,10 +66,13 @@ def export_docx(
             artifact_id,
         ) / "report.docx"
         docx_font_audit = audit_docx_fonts(docx_path.read_bytes())
-        if docx_font_audit.get("invalid_locale_font_count"):
+        if (
+            docx_font_audit.get("invalid_locale_font_count")
+            or not docx_font_audit.get("portable_cjk_fonts")
+        ):
             return _failure(
                 "docx_font_audit_failed",
-                "DOCX 字体审计发现 locale 被写入字体名，拒绝交付",
+                "DOCX 字体审计未通过可移植中文渲染门禁，拒绝交付",
             )
     except Exception:  # noqa: BLE001
         return _failure("docx_font_audit_failed", "DOCX 字体审计失败，拒绝交付")

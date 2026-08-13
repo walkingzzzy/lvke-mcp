@@ -15,7 +15,7 @@ The frozen groups are:
 
 - `huangyingyan`: 15 source files under `docs/项目流程`
 - `finance_templates`: 10 original Word/Excel templates
-- `hengli_hotel`: 20 preliminary source files plus one reference report
+- `hengli_hotel`: 21 source files, including preliminary materials and one reference report
 
 Derived formula Markdown, review notes, extraction scripts, and generated
 deliverables are intentionally excluded from P0A.

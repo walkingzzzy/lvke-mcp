@@ -51,6 +51,7 @@ description: Run live conversational acceptance for Lvke MCP services. Use whene
 3. 以实时时间戳保存服务、工具和 schema 基线。
 4. 使用实时工具总数作为唯一覆盖分母；禁止沿用 208、300、305 等历史常量。
 5. 确认通用联网搜索只使用 Tavily；不得回退到已注销的内置 Web Search。
+6. 确认每个实时工具的 `taskSupport=forbidden`；本轮不扩展 MCP Tasks。
 
 ## 逐工具真实调用
 
@@ -117,7 +118,9 @@ MCP 负责事实固化、计算、版本、表格、校验和门禁。Codex 负�
 - 必须实际读取 13 个 CSV 的 Resource 并核验 run/package/hash/lineage。
 - 报告正文必须经过 `propose → diff → apply`。
 - 每个重大数字必须绑定同一 FinanceRun 或合格证据对象。
-- DOCX 必须实际检查中文字体、可见文本、表格、分页和非空内容。
+- DOCX 必须实际检查内嵌 CJK 字体关系、可解混淆字体数据、PostScript 名称、
+  OFL 授权元数据和实际字符 glyph coverage，并逐页渲染 PNG 检查中文可见、
+  表格、分页、裁切、空白页和非空内容。
 - MCP 返回的不可变工件原样物化，不手工改写财务数字以取得通过。
 
 资产收购双轨验收必须分别覆盖：预览正式工件调用得到

@@ -215,8 +215,6 @@ def validate_render(data: dict[str, Any]) -> dict[str, Any]:
                 f"table_quality:{key}:{reason}" for reason in quality["blockers"]
             )
         warnings.extend(f"{key}:{warning}" for warning in quality["warnings"])
-    if data.get("missing_delivery_keys"):
-        blockers.append("renderer_missing_delivery_keys")
     return {
         "valid": not blockers,
         "required_table_count": len(delivery_keys()),
@@ -236,7 +234,7 @@ def validate_render(data: dict[str, Any]) -> dict[str, Any]:
 def formal_delivery_gate(workspace_id: str, run_id: str) -> dict[str, Any]:
     fail_closed = {"validation_complete": False, "bound_run_id": None}
     try:
-        result = finance_gate.assert_publish_finance_binding(
+        result, _run_view, _snapshot = finance_gate._assert_formal_export_qualification(  # noqa: SLF001
             workspace_id,
             expected_run_id=run_id,
             strict=True,

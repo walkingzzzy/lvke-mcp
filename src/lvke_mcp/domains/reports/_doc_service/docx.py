@@ -47,7 +47,69 @@ def _export_docx_via_pandoc(content: str) -> Optional[bytes]:
             data = out_path.read_bytes()
         except OSError:
             return None
-        return data or None
+        return _disable_short_table_header_repeats(data) if data else None
+
+
+def _disable_short_table_header_repeats(docx_bytes: bytes) -> bytes:
+    """Avoid LibreOffice orphan-header pages for tables too short to span pages."""
+
+    import io
+    import zipfile
+
+    from lxml import etree
+
+    document_part = "word/document.xml"
+    w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    namespaces = {"w": w_ns}
+    try:
+        with zipfile.ZipFile(io.BytesIO(docx_bytes), "r") as source:
+            parts = {name: source.read(name) for name in source.namelist()}
+    except (zipfile.BadZipFile, OSError):
+        return docx_bytes
+    document_xml = parts.get(document_part)
+    if not document_xml:
+        return docx_bytes
+    try:
+        root = etree.fromstring(
+            document_xml,
+            parser=etree.XMLParser(resolve_entities=False, no_network=True),
+        )
+    except etree.XMLSyntaxError:
+        return docx_bytes
+    changed = False
+    for table in root.xpath(".//w:tbl", namespaces=namespaces):
+        rows = table.xpath("./w:tr", namespaces=namespaces)
+        if len(rows) > 4:
+            continue
+        for marker in table.xpath("./w:tr/w:trPr/w:tblHeader", namespaces=namespaces):
+            marker.getparent().remove(marker)
+            changed = True
+        for paragraph_properties in table.xpath(
+            ".//w:tc/w:p/w:pPr",
+            namespaces=namespaces,
+        ):
+            spacing = paragraph_properties.find(f"{{{w_ns}}}spacing")
+            if spacing is None:
+                spacing = etree.SubElement(
+                    paragraph_properties,
+                    f"{{{w_ns}}}spacing",
+                )
+            spacing.set(f"{{{w_ns}}}before", "0")
+            spacing.set(f"{{{w_ns}}}after", "0")
+            changed = True
+    if not changed:
+        return docx_bytes
+    parts[document_part] = etree.tostring(
+        root,
+        xml_declaration=True,
+        encoding="UTF-8",
+        standalone=True,
+    )
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for name, data in parts.items():
+            target.writestr(name, data)
+    return output.getvalue()
 
 
 _DOCX_IMAGE_LINE_RE = re.compile(
@@ -412,7 +474,7 @@ def _export_docx_via_python_docx(
                 tr_pr = cells[0]._tc.getparent().get_or_add_trPr()  # noqa: SLF001
                 cant_split = OxmlElement("w:cantSplit")
                 tr_pr.append(cant_split)
-                if row_index == 0:
+                if row_index == 0 and len(table_rows) > 4:
                     repeat = OxmlElement("w:tblHeader")
                     repeat.set(qn("w:val"), "true")
                     tr_pr.append(repeat)

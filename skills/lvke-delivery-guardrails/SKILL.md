@@ -21,6 +21,9 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Preserve evidence, deterministic validation, quality review, revision, and lineage boundaries.
 - Do not add authentication, roles, tenant isolation, RBAC, permission management, or security signoff.
 - Report blockers honestly and distinguish technical completion from formal acceptance.
+- Treat preview/process formal-artifact refusal as `EXPECTED_REJECTION`, not an
+  MCP transport failure; route preview reporting through
+  `report_prepare(finance_binding.kind=asset_acquisition)`.
 - P0A verification does not complete P0B. Keep P0B pending until real dual-track
   approval data is provided, and never record a passing build while work is skipped.
 

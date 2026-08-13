@@ -30,6 +30,11 @@ codex mcp list
 
 For every published parent Skill, run skill-creator's `quick_validate.py`. For every MCP in `SERVER_SPECS`, verify `initialize`, `tools/list`, and one bounded representative call.
 
+Run all commands in the existing `lvke-mcp` Conda environment. Do not create a
+project-local environment and do not invoke `uv`. For formal DOCX, audit the
+embedded CJK font relationships, decodability, PostScript names, OFL metadata,
+and glyph coverage, then render every page to PNG and visually inspect it.
+
 ## Completion Rules
 
 - Unit and integration tests prove source behavior, not Codex discovery.

@@ -184,6 +184,15 @@ wheels = [
 ]
 
 [[package]]
+name = "fonttools"
+version = "4.63.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/69/c97f2c18e0db87d2c7b15da1974dace76ae938f1cfa22e2727a648b7ed43/fonttools-4.63.0.tar.gz", hash = "sha256:caeb583deeb5168e694b65cda8b4ee62abedfa66cf88488734466f2366b9c4e0", size = 3597189, upload-time = "2026-05-14T12:04:30.958758Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/47/c99d5268f354002ce80f8d029cd9d7d872969da1de8b93d32de4dc56d6f4/fonttools-4.63.0-py3-none-any.whl", hash = "sha256:445af2eab030a16b9171ea8bdda7ebf7d96bda2df88ee182a464252f6e05e20d", size = 1164562, upload-time = "2026-05-14T12:04:29.092469Z" },
+]
+
+[[package]]
 name = "h11"
 version = "0.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -350,6 +359,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anyio" },
     { name = "filelock" },
+    { name = "fonttools" },
     { name = "jsonschema" },
     { name = "lxml" },
     { name = "mcp" },
@@ -366,6 +376,7 @@ dependencies = [
 requires-dist = [
     { name = "anyio", specifier = "==4.12.1" },
     { name = "filelock", specifier = "==3.24.3" },
+    { name = "fonttools", specifier = "==4.63.0" },
     { name = "jsonschema", specifier = "==4.26.0" },
     { name = "lxml", specifier = "==6.1.1" },
     { name = "mcp", specifier = "==2.0.0" },

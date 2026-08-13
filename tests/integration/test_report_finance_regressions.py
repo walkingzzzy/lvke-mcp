@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from lvke_mcp.domains.finance import tables_service
+from lvke_mcp.domains.finance import tables_application, tables_service
 from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
 from lvke_mcp.domains.reports import application as report_application
 from lvke_mcp.domains.reports import validation as report_validation
@@ -216,6 +216,28 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
         debt = next(item for item in manifest if item["table_id"] == "debt-service")
         self.assertEqual(debt["run_id"], "run-1")
         self.assertEqual(debt["content_hash"], sha256_json(structured["debt-service"]))
+
+    def test_structured_package_ignores_stale_legacy_missing_keys(self) -> None:
+        structured = {
+            key: {
+                "columns": [{"key": "value", "label": "值"}],
+                "rows": [[index]],
+            }
+            for index, key in enumerate(DELIVERY_TABLE_KEYS, start=1)
+        }
+        validation = tables_application.validate_render({
+            "tables": structured,
+            "table_manifest": tables_application.structured_table_manifest(
+                "run-1",
+                "finance_tables.v3",
+                structured,
+            ),
+            "missing_delivery_keys": list(DELIVERY_TABLE_KEYS),
+        })
+
+        self.assertTrue(validation["valid"], validation)
+        self.assertEqual(validation["missing_delivery_keys"], [])
+        self.assertNotIn("renderer_missing_delivery_keys", validation["blockers"])
 
     def test_partial_finance_package_is_draft_ready_but_not_formal_ready(self) -> None:
         evidence = {"basis_hash": "sha256:" + "c" * 64, "payload": {}}
