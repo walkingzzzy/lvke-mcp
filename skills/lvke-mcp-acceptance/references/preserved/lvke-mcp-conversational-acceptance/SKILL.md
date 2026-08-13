@@ -120,6 +120,13 @@ MCP 负责事实固化、计算、版本、表格、校验和门禁。Codex 负�
 - DOCX 必须实际检查中文字体、可见文本、表格、分页和非空内容。
 - MCP 返回的不可变工件原样物化，不手工改写财务数字以取得通过。
 
+资产收购双轨验收必须分别覆盖：预览正式工件调用得到
+`FORMAL_ARTIFACT_QUALIFICATION_REQUIRED` 并分类为 `EXPECTED_REJECTION`，随后
+通过 `report_prepare(finance_binding.kind=asset_acquisition)` 完成受限报告链；
+正式资格完整的 `formal_candidate` run 才能真实生成并读取 DOCX/XLSX/JSON
+工件。证据 hash 或 version 变化必须得到 `EVIDENCE_BINDING_STALE`，保存新
+Spec 并重新运行后才能继续。
+
 ## 两轨结论
 
 分开报告：

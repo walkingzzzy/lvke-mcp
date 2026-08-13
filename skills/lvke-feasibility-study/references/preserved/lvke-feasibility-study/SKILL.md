@@ -21,4 +21,11 @@ description: Orchestrate a complete Lvke feasibility-study object chain across e
 
 For `source_reconstructed`, set `release_scope=process_acceptance`, propagate all reconstruction metadata, and keep `project_fact_certified=false`. `project_delivery` must return `project_fact_evidence_missing`. Never use controlled assumptions or technical fixtures in formal release.
 
+For asset acquisition previews, bind the report chain with
+`report_prepare.finance_binding.kind=asset_acquisition`. A technically valid
+preview/process-acceptance report is restricted and must expose
+`formal_release_eligible=false`; it cannot be used to create a formal
+acquisition artifact. Formal acquisition artifacts require a separate
+`formal_candidate` run that passes the artifact qualification gate.
+
 Knowledge governance is required only when the run binds a knowledge candidate. Then require accepted review and a KnowledgeRelease before delivery release.

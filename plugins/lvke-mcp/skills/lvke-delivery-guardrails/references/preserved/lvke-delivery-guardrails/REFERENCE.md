@@ -57,10 +57,21 @@ description: >
 ## 推荐验证
 
 ```bash
-uv run python scripts/verify_backend_requirements.py --profile smoke
+conda run -n lvke-mcp python -m pytest -q \
+  tests/integration/test_asset_acquisition_artifact_gates.py \
+  tests/integration/test_build_metadata.py \
+  tests/integration/test_golden_samples_manifest.py
 # 有金标根时：
-LVKE_GOLDEN_DATA_ROOT=... uv run python scripts/golden_samples_manifest.py --verify
+LVKE_GOLDEN_DATA_ROOT=... conda run -n lvke-mcp python \
+  scripts/golden_samples_manifest.py --verify
 ```
+
+资产收购的 `estimate_preview` / `process_acceptance` 调用正式工件接口时，
+稳定分类为 `EXPECTED_REJECTION`，业务码为
+`FORMAL_ARTIFACT_QUALIFICATION_REQUIRED`；证据绑定变化使用
+`EVIDENCE_BINDING_STALE`。预览报告必须走
+`report_prepare(finance_binding.kind=asset_acquisition)`，技术校验通过也不
+代表 `formal_release_eligible=true`。
 
 ## 与产品 Skills 的边界
 

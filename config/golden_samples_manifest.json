@@ -1,0 +1,387 @@
+{
+  "p0a": {
+    "files": [
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/企业回复资料清单.doc",
+        "sample_id": "gold_huangyingyan_01",
+        "sha256": "sha256:8d8035fabd92110f5e1ebfdfe265258fac4a2940ac64beb105f0e8ac17340ae1",
+        "size_bytes": 139776
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/企业回复销售市场分析.doc",
+        "sample_id": "gold_huangyingyan_02",
+        "sha256": "sha256:4a9560f4757a18ddc69e4f20b86f1f3e0f9b5c51e0e800b64323e5e190f1ec56",
+        "size_bytes": 1207296
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/咸宁市咸安区黄鹰岩矿区建筑石灰岩深加工贷款可研资料清单.doc",
+        "sample_id": "gold_huangyingyan_03",
+        "sha256": "sha256:4b2b9558028d750673f0ceeb225d09d74227672d5dfd2117695e0592d0f41121",
+        "size_bytes": 48128
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/施工许可证（1亿）(黄鹰岩)/施工许可证（1亿）(黄鹰岩).ofd",
+        "sample_id": "gold_huangyingyan_04",
+        "sha256": "sha256:f073f4ff1960cbfe92429059b8416cab01b29493bd9aafa9f371ab38f5c20f21",
+        "size_bytes": 7320337
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/施工许可证（1亿）(黄鹰岩)/施工许可证（1亿）(黄鹰岩).pdf",
+        "sample_id": "gold_huangyingyan_05",
+        "sha256": "sha256:bac5a705c41be5f7ccbbba9a2d1485daeeec015112d114beb8b18974e9abdb8a",
+        "size_bytes": 7289342
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/施工许可证（1亿）(黄鹰岩)/施工许可证（1亿）(黄鹰岩)1.jpeg",
+        "sample_id": "gold_huangyingyan_06",
+        "sha256": "sha256:39a901c95489bb3fb462ec951cf19faa5406284aeff1c4474664b5a5c828d7af",
+        "size_bytes": 126718
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/施工许可证（1亿）(黄鹰岩)/施工许可证（1亿）(黄鹰岩)2.jpeg",
+        "sample_id": "gold_huangyingyan_07",
+        "sha256": "sha256:ab6d69f649d4c55e5d88c81fd661abb789d326b42250d5b25fd28872c6b01f99",
+        "size_bytes": 116110
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/湖北黄鹰岩新材料科技有限公司建筑石灰岩深加工绿色工厂项目可行性研究报告（一亿).docx",
+        "sample_id": "gold_huangyingyan_08",
+        "sha256": "sha256:6bdaf2d4399da218bdcdcf7b54fd85e032a8f6f1d6ae79c51265e11bcbcc6161",
+        "size_bytes": 24878559
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/湖北黄鹰岩新材料科技有限公司建筑石灰岩深加工绿色工厂项目项目财务评价.xlsx",
+        "sample_id": "gold_huangyingyan_09",
+        "sha256": "sha256:358e0b4202a9b21ba96b78eeb83006ae6fc78d3a1d829d8de0cd4c580b23565d",
+        "size_bytes": 77709
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/2025年4月1日武汉博旻-黄鹰岩石料购销合同.pdf",
+        "sample_id": "gold_huangyingyan_10",
+        "sha256": "sha256:9d069dd2260d16d5a922ea45bfeb885430419f4f9f4e398c10a6fe8d3295643e",
+        "size_bytes": 2679719
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/2025年4月1日达森聚泰-黄鹰岩石料购销合同.pdf",
+        "sample_id": "gold_huangyingyan_11",
+        "sha256": "sha256:e3d437535fd47bcc5557cd494f471bc06b34f0a7e9f1193c28fa176ab72611c5",
+        "size_bytes": 2789931
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/2025年5月25日金泓建材-黄鹰岩石料购销合同.pdf",
+        "sample_id": "gold_huangyingyan_12",
+        "sha256": "sha256:1771111a502e7576c3c5dad58a0f254c9ce4e07f52ae5a1df14216d34097929b",
+        "size_bytes": 312598
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/G351石料采购合同补充协议（一期）(1).pdf",
+        "sample_id": "gold_huangyingyan_13",
+        "sha256": "sha256:a22811890b85417987b50f86d05c39e17387f1c3422815b0199ef19db8967883",
+        "size_bytes": 1721156
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/G351石料采购合同（一期）.pdf",
+        "sample_id": "gold_huangyingyan_14",
+        "sha256": "sha256:92fbea9f7df743bfc0bcda01d6c024b956a0c5ce8c2a822529e5bcc7f04e8645",
+        "size_bytes": 8598770
+      },
+      {
+        "group": "huangyingyan",
+        "locator": "whole-file",
+        "relative_path": "docs/项目流程/销售合同/合作协议-武汉城发材料有限公司(1).pdf",
+        "sample_id": "gold_huangyingyan_15",
+        "sha256": "sha256:2a6dcd7fa9e052350dfb5dc427b3ba89c930aa1f7fb0ac9e95d9feab86b62560",
+        "size_bytes": 10062715
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/工程投资与资金筹措分析表(房地产房屋售卖）.doc",
+        "sample_id": "gold_finance_templates_01",
+        "sha256": "sha256:763d1a6e079a054519f8d00298dab3bbdeed5ef873932a2657f4f24fd259b846",
+        "size_bytes": 4373982
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/工程投资与资金筹措分析表(房地产房屋售卖）.xlsx",
+        "sample_id": "gold_finance_templates_02",
+        "sha256": "sha256:1f41660ae4b1e47bc9200c2293491c68bc4a89a730f2aad4bd7dceb7356a5370",
+        "size_bytes": 47982
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售一）.doc",
+        "sample_id": "gold_finance_templates_03",
+        "sha256": "sha256:0cabbd0863433a96d98fea8abca62dbec14ec42421df57db4bb1476bdac37342",
+        "size_bytes": 133639
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售一）.xlsx",
+        "sample_id": "gold_finance_templates_04",
+        "sha256": "sha256:44441fd041bff7dba4941b9cad97cda121b43b745521f259eeabf0528f26d3ac",
+        "size_bytes": 103185
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售二）.doc",
+        "sample_id": "gold_finance_templates_05",
+        "sha256": "sha256:3e30aa233cfed7fcad42ad37ef21fe1a4cb2d04b6ec70738b37c12a3dac9ae9d",
+        "size_bytes": 131403
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表(产品出售二）.xlsx",
+        "sample_id": "gold_finance_templates_06",
+        "sha256": "sha256:0ad67de5ee80e3dc6c01d86c9400b9e1d181eddfda27a3b7a0825661b0427577",
+        "size_bytes": 101819
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（厂房出租）.docx",
+        "sample_id": "gold_finance_templates_07",
+        "sha256": "sha256:9358dc9e23cc9802b30343668e3fa4a12ef1f2b56e2f966cacd962024996c017",
+        "size_bytes": 58208
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（厂房出租）.xlsx",
+        "sample_id": "gold_finance_templates_08",
+        "sha256": "sha256:131c8de45f8f1846b3b959ece599fb45e40c50980cd37cc63dec69b1fa26189c",
+        "size_bytes": 232393
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（墓地售卖）.docx",
+        "sample_id": "gold_finance_templates_09",
+        "sha256": "sha256:3ed293f8e6fdfc35d65f944c4ebfac6128fe9110c6fb778f43789bce2746d49f",
+        "size_bytes": 261394
+      },
+      {
+        "group": "finance_templates",
+        "locator": "whole-file",
+        "relative_path": "docs/财务测算表格及文字说明（带公式）(3)/财务测算表格及文字说明（带公式）/投资类项目经济计算表（墓地售卖）.xlsx",
+        "sample_id": "gold_finance_templates_10",
+        "sha256": "sha256:4f0da624dcef266f1bf4af68a3a2d7837440e9f70894f6efd1d04d1bdcb34e8d",
+        "size_bytes": 355737
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店 .pdf",
+        "sample_id": "gold_hengli_hotel_01",
+        "sha256": "sha256:05dc39a16af27472a3d1daa1722ef649819f944e7d7ae585ba27c0a7206c9b66",
+        "size_bytes": 38750739
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/建筑工程施工许可证1.jpg",
+        "sample_id": "gold_hengli_hotel_02",
+        "sha256": "sha256:a5d1f987d178dd628aaf6ba987572ab2545b1a04ed696d187df4ad029fe2768c",
+        "size_bytes": 475023
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/恒立体育酒店不动产权证.jpg",
+        "sample_id": "gold_hengli_hotel_03",
+        "sha256": "sha256:577ad665ce5b23878eff51e76476e8cabeb632a920de78460b85b22eae06c36f",
+        "size_bytes": 1792851
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/恒立体育酒店公司房产证.pdf",
+        "sample_id": "gold_hengli_hotel_04",
+        "sha256": "sha256:e71f8ad311676060b686e660ca2b8c1713b33a4e44fb07bb1c5f4e48f98b6bab",
+        "size_bytes": 492894
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/恒立体育酒店基本情况.docx",
+        "sample_id": "gold_hengli_hotel_05",
+        "sha256": "sha256:db75936eb810a23270a388db148476bb867b10cd0734ba9a7ab3c5ad0ac0b03c",
+        "size_bytes": 14519
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/恒立体育酒店背景.docx",
+        "sample_id": "gold_hengli_hotel_06",
+        "sha256": "sha256:494a3c52cd94bc324eaa6136cb175b79bf7c16624df5ab0ae0143ed54dcf8cc5",
+        "size_bytes": 12947
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/恒立酒店资格文件（附件4.pdf",
+        "sample_id": "gold_hengli_hotel_07",
+        "sha256": "sha256:09971390cfd84f3e369c5c4fc6294af606761231dd3673223c4f84923d086650",
+        "size_bytes": 4557952
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/清吧租赁合同.pdf",
+        "sample_id": "gold_hengli_hotel_08",
+        "sha256": "sha256:20d94cad7d57afa83cba3b61b5234a54854dfcf9eda603c95f92f55371a929de",
+        "size_bytes": 2363481
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/租赁协议/咸宁市恒立-小雨多多超市（运动员教练员之家一楼门面）.pdf",
+        "sample_id": "gold_hengli_hotel_09",
+        "sha256": "sha256:79d6983e1af92cadb950b2ec82720a648ee5ffadc385da4e5c8de0410cf2ee5a",
+        "size_bytes": 867508
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/设施设备维护记录/供水系统保养记录.jpg",
+        "sample_id": "gold_hengli_hotel_10",
+        "sha256": "sha256:1af474cbcd58412b7a0526392d0eb8b9a028396b8804dc1904e5f2e10cbb461c",
+        "size_bytes": 1228489
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/设施设备维护记录/电梯系统保养记录.jpg",
+        "sample_id": "gold_hengli_hotel_11",
+        "sha256": "sha256:fb61fae7eecbab3ee55e601191cea5e8e79ce1704b21123b632ed5cf7f905157",
+        "size_bytes": 1344202
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/设施设备维护记录/电梯系统保养记录2.jpg",
+        "sample_id": "gold_hengli_hotel_12",
+        "sha256": "sha256:b97ccb370cc97b9838bc99fd98f9082ecdee3f7b778d1036ac52d082cd90c2af",
+        "size_bytes": 1321266
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/设施设备维护记录/配电系统保养记录.jpg",
+        "sample_id": "gold_hengli_hotel_13",
+        "sha256": "sha256:c141acaf05f3aa1e47fc0ea610ec0bcbaaabcaaf71cec0826295b08bd02b9905",
+        "size_bytes": 1135896
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/利润表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_14",
+        "sha256": "sha256:e43e9e7b223c3c3345560a39d0e0041f48ffb673e7372616619f842fa00395e3",
+        "size_bytes": 9728
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/利润表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_15",
+        "sha256": "sha256:ff6f783e973d223f99b47b4aeaed5f0d87e241cc0613af61beabb0b2ea9220ab",
+        "size_bytes": 9728
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/现金流量表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_16",
+        "sha256": "sha256:6569006392747edd183f8692550af098c099f67c4f3863aa7bd1a60f4696cc7a",
+        "size_bytes": 26624
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/现金流量表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_17",
+        "sha256": "sha256:537fd833a2e53c1e079c0b3e8d4c4cd7133046acabc976402961c543ae1b328b",
+        "size_bytes": 26624
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/资产负债表_2023年12月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_18",
+        "sha256": "sha256:85f29f9e4bf989277fccb986083c39f555bd94e4d43e6f20d1c8dd4ba1cdd34f",
+        "size_bytes": 12800
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立体育酒店清单/财务状况/资产负债表_2024年9月_咸宁恒立酒店管理有限公司_20241029.xls",
+        "sample_id": "gold_hengli_hotel_19",
+        "sha256": "sha256:836595816245b2bf341d97fb71879e82b992dea2b4a310088f5891b99d19c518",
+        "size_bytes": 12800
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/前期资料/恒立酒店收购项目初步资料.docx",
+        "sample_id": "gold_hengli_hotel_20",
+        "sha256": "sha256:e9a210bba5c29c283b0fa9d1fe3589c8bc43575f8433abb4888feab9d3557115",
+        "size_bytes": 135467
+      },
+      {
+        "group": "hengli_hotel",
+        "locator": "whole-file",
+        "relative_path": "docs/恒立酒店资产收购/恒立酒店资产收购可行性研究报告2024.11.20.doc",
+        "sample_id": "gold_hengli_hotel_21",
+        "sha256": "sha256:a22b94da8de7c19a650a09286958b823fb1cf275f648b38ff0e451324d7d843d",
+        "size_bytes": 10038729
+      }
+    ],
+    "groups": {
+      "finance_templates": 10,
+      "hengli_hotel": 21,
+      "huangyingyan": 15
+    },
+    "sample_count": 46,
+    "status": "frozen"
+  },
+  "p0b": {
+    "expected_results": [],
+    "last_passing_build": null,
+    "status": "pending_business_approval"
+  },
+  "schema_version": "golden_samples_manifest.v1"
+}

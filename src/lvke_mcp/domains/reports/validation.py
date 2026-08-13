@@ -38,23 +38,48 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         expected_chapters=expected_chapters,
     )
     run_id = str(upstream.get("run_id") or "")
+    finance_binding = upstream.get("finance_binding") or {}
+    acquisition_preview = False
+    if str(finance_binding.get("kind") or "") == "asset_acquisition":
+        from lvke_mcp.domains.asset_acquisition.backend import get_run
+
+        acquisition_run = get_run(workspace_id, run_id)
+        acquisition_preview = str(acquisition_run.get("delivery_mode") or "") in {
+            "estimate_preview", "process_acceptance",
+        }
     narrative = finance_gate.verify_narrative_numbers(
         workspace_id,
         content,
         run_id=run_id,
     )
-    binding = finance_gate.assert_publish_finance_binding(
-        workspace_id,
-        expected_run_id=run_id,
-        strict=True,
+    if acquisition_preview:
+        binding = finance_gate.assert_acquisition_report_finance_binding(
+            workspace_id,
+            run_id=run_id,
+            package_id=str(upstream.get("finance_tables_package_id") or ""),
+        )
+    else:
+        binding = finance_gate.assert_publish_finance_binding(
+            workspace_id,
+            expected_run_id=run_id,
+            strict=True,
+        )
+    scope_token = (
+        report_artifacts._FINANCE_VALIDATION_SCOPE.set("technical")
+        if acquisition_preview
+        else None
     )
-    readiness = report_artifacts.build_readiness(
-        workspace_id,
-        persist=False,
-        revision_id=native,
-        document_snapshot=document,
-        expected_chapters=expected_chapters,
-    )
+    try:
+        readiness = report_artifacts.build_readiness(
+            workspace_id,
+            persist=False,
+            revision_id=native,
+            document_snapshot=document,
+            expected_chapters=expected_chapters,
+        )
+    finally:
+        if scope_token is not None:
+            report_artifacts._FINANCE_VALIDATION_SCOPE.reset(scope_token)
 
     blockers: list[str] = []
     bound_preparation_id = str(payload.get("report_preparation_id") or "")
@@ -84,6 +109,10 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         str(item.get("message") or item.get("code") or "")
         for item in (readiness.get("warnings") or [])
     ]
+    warnings.extend(
+        str(item.get("message") or item.get("code") or "")
+        for item in (binding.get("warnings") or [])
+    )
     if native_alias:
         warnings.append("native_revision_id 输入已弃用；请改用 report_revision_id")
     for research_id in upstream.get("research_package_ids") or []:
@@ -103,7 +132,11 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
     blocked = bool(blockers)
     # ``build_readiness`` does not know about every immutable report binding
     # checked above. Keep both views consistent for callers of report_validate.
-    readiness = _synchronize_readiness(readiness, blockers)
+    readiness = _synchronize_readiness(
+        readiness,
+        blockers,
+        formal_release_eligible=not acquisition_preview,
+    )
     return {
         "success": not blocked,
         "transport_success": True,
@@ -112,6 +145,8 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "outcome": "blocked" if blocked else "ok",
         "status": "blocked" if blocked else "ok",
         "valid": not blocked,
+        "technical_ready": not blocked,
+        "formal_release_eligible": not blocked and not acquisition_preview,
         "report_revision_id": record["object_id"],
         "native_revision_id": native,
         "run_id": run_id,
@@ -127,7 +162,8 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "warnings": warnings,
         "blockers": blockers,
         "next_actions": (
-            ["工程校验已通过，可导出 formal_candidate 工件"]
+            (["工程校验已通过；当前仅可导出受限预览报告"] if acquisition_preview else
+             ["工程校验已通过，可导出 formal_candidate 工件"])
             if not blockers
             else ["按 blockers 修订后重新执行 report_validate"]
         ),
@@ -137,6 +173,8 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
 def _synchronize_readiness(
     readiness: dict[str, Any],
     validation_blockers: list[str],
+    *,
+    formal_release_eligible: bool = True,
 ) -> dict[str, Any]:
     """Merge report-level blockers into the returned readiness snapshot.
 
@@ -169,7 +207,9 @@ def _synchronize_readiness(
     codes = sorted(known_codes)
     snapshot["blockers"] = normalized
     snapshot["blocking_issues"] = codes
-    snapshot["publishable"] = not codes
+    snapshot["technical_ready"] = not codes
+    snapshot["formal_release_eligible"] = not codes and formal_release_eligible
+    snapshot["publishable"] = not codes and formal_release_eligible
     return snapshot
 
 

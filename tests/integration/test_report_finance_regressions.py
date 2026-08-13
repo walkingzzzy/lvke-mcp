@@ -74,6 +74,87 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
             {item["code"] for item in result["readiness"]["blockers"]},
         )
 
+    def test_acquisition_preview_is_technical_only_not_formal_release(self) -> None:
+        record = {
+            "object_id": "rev_public",
+            "resource_uri": "lvke://reports/workspaces/ws/revisions/rev_public",
+            "payload": {
+                "native_revision_id": "rev_native",
+                "basis_hash": "sha256:" + "a" * 64,
+                "report_preparation_id": "prep-1",
+                "document_snapshot": {
+                    "content": "# 报告\n\n收购价 2000 万元 [source#page:1]",
+                    "report_type": "generic_feasibility",
+                },
+                "upstream": {
+                    "run_id": "acqrun_preview",
+                    "finance_tables_package_id": "package-preview",
+                    "finance_binding": {
+                        "kind": "asset_acquisition",
+                        "run_id": "acqrun_preview",
+                        "package_id": "package-preview",
+                    },
+                    "outline": [],
+                },
+            },
+        }
+        with (
+            patch.object(report_validation, "resolve_revision_record", return_value=(record, False)),
+            patch.object(
+                report_validation,
+                "supplied_document_snapshot",
+                return_value=record["payload"]["document_snapshot"],
+            ),
+            patch.object(
+                report_validation.doc,
+                "validate_report_structure",
+                return_value={"ok": True, "issues": []},
+            ),
+            patch.object(
+                report_validation.finance_gate,
+                "verify_narrative_numbers",
+                return_value={"ok": True},
+            ),
+            patch(
+                "lvke_mcp.domains.asset_acquisition.backend.get_run",
+                return_value={"delivery_mode": "estimate_preview"},
+            ),
+            patch.object(
+                report_validation.finance_gate,
+                "assert_acquisition_report_finance_binding",
+                return_value={
+                    "ok": True,
+                    "blockers": [],
+                    "warnings": [{"code": "finance_acquisition_preview_only", "message": "preview"}],
+                    "validation_level": "preview",
+                    "formal_release_eligible": False,
+                },
+            ),
+            patch.object(
+                report_validation.report_artifacts,
+                "build_readiness",
+                return_value={
+                    "publishable": True,
+                    "blocking_issues": [],
+                    "blockers": [],
+                    "warnings": [],
+                },
+            ) as readiness,
+            patch.object(
+                report_validation.PREPARATION_STORE,
+                "list",
+                return_value=[{"object_id": "prep-1", "created_at": "2026-08-13T12:00:00Z"}],
+            ),
+        ):
+            result = report_validation.validate_report("ws", "rev_public")
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["technical_ready"])
+        self.assertFalse(result["formal_release_eligible"])
+        self.assertFalse(result["readiness"]["publishable"])
+        self.assertEqual(result["finance_binding"]["validation_level"], "preview")
+        self.assertEqual(readiness.call_args.kwargs["expected_chapters"], [])
+
     def test_render_manifest_describes_structured_tables_not_stale_run_manifest(self) -> None:
         structured = {
             key: {

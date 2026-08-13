@@ -26,6 +26,15 @@ The public product is local MCP plus Codex Skills. It has no HTTP application or
 5. Return stable business states such as `ok`, `partial`, `missing_inputs`, `blocked`, or `upstream_failure`.
 6. Update contract and integration tests for every public behavior change.
 
+Asset-acquisition formal artifact generation must preflight before creating an
+artifact or idempotency record. It requires a succeeded and consistent
+`formal_candidate` run, passed validation, a formally valid Spec and evidence,
+no open blockers, and matching evidence hash/version. Preview and
+process-acceptance attempts are `EXPECTED_REJECTION`; staging creation,
+rendering, publication, and binding failures must clean the current staging
+directory in a `try/finally` lifecycle. Replaying an identical idempotency key
+returns the same artifact; a changed body is an idempotency conflict.
+
 ## Scope
 
 - Use Tavily as the only external web provider.

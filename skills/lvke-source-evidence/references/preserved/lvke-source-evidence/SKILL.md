@@ -37,8 +37,9 @@ description: >
 ## 验证
 
 ```bash
-uv run pytest -q tests/test_source_security.py tests/test_source_files_contract.py
-LVKE_GOLDEN_DATA_ROOT=... uv run python scripts/golden_samples_manifest.py --verify
+conda run -n lvke-mcp python -m pytest -q tests/integration/test_evidence_qualification.py
+LVKE_GOLDEN_DATA_ROOT=... conda run -n lvke-mcp python \
+  scripts/golden_samples_manifest.py --verify
 ```
 
 ## 反模式

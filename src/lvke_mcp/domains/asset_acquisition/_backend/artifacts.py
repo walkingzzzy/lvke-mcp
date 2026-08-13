@@ -28,6 +28,10 @@ from .report_data import (
     render_markdown,
 )
 
+from .evidence import (
+    _bind_spec_evidence,
+)
+
 from .runs import (
     get_run,
 )
@@ -49,21 +53,137 @@ from .xlsx import (
 )
 
 
+_FORMAL_ARTIFACT_REQUIRED = "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED"
+_EVIDENCE_BINDING_STALE = "EVIDENCE_BINDING_STALE"
+
+
+def _artifact_blocked(
+    code: str,
+    message: str,
+    *,
+    details: dict[str, Any] | None = None,
+    next_actions: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": code,
+        "message": message,
+        "details": dict(details or {}),
+        "blockers": [code],
+        "next_actions": list(next_actions or []),
+    }
+
+
+def _preflight_formal_artifact(
+    workspace_id: str,
+    run_id: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Fail closed before any artifact directory or idempotency state is created."""
+
+    run = get_run(workspace_id, run_id)
+    if not run:
+        return None, _artifact_blocked(
+            "RUN_NOT_FOUND",
+            "未找到资产收购运行",
+            details={"run_id": run_id},
+            next_actions=["读取当前工作区的收购运行并使用有效 run_id 重试"],
+        )
+    if run.get("status") != "succeeded" or run.get("consistency_ok") is not True:
+        return None, _artifact_blocked(
+            "RUN_INCONSISTENT",
+            "正式收购工件要求已成功且内部一致的运行",
+            details={
+                "run_id": run_id,
+                "run_status": run.get("status"),
+                "consistency_ok": bool(run.get("consistency_ok")),
+            },
+            next_actions=["修正收购 Spec 或模型错误并重新运行"],
+        )
+
+    state = _load(workspace_id)
+    spec_row = state["specs"].get(str(run.get("spec_id") or "")) or {}
+    spec = spec_row.get("spec") or {}
+    if not isinstance(spec, dict) or _hash(spec) != run.get("spec_hash"):
+        return None, _artifact_blocked(
+            _FORMAL_ARTIFACT_REQUIRED,
+            "运行绑定的正式 Spec 快照缺失或不一致",
+            details={"run_id": run_id, "reason": "spec_snapshot_mismatch"},
+            next_actions=["保存新的 Spec 修订、重新确认并重新运行"],
+        )
+
+    current_evidence = _bind_spec_evidence(workspace_id, spec)
+    evidence_hash_matches = (
+        current_evidence.get("binding_hash") == run.get("evidence_binding_hash")
+    )
+    evidence_version_matches = (
+        current_evidence.get("binding_version") == run.get("evidence_binding_version")
+    )
+    if not evidence_hash_matches or not evidence_version_matches:
+        return None, _artifact_blocked(
+            _EVIDENCE_BINDING_STALE,
+            "运行绑定的证据快照已变化，不能生成正式收购工件",
+            details={
+                "run_id": run_id,
+                "snapshot_binding_hash": run.get("evidence_binding_hash"),
+                "current_binding_hash": current_evidence.get("binding_hash"),
+                "snapshot_binding_version": run.get("evidence_binding_version"),
+                "current_binding_version": current_evidence.get("binding_version"),
+            },
+            next_actions=["保存新的 Spec 修订、重新确认并重新运行后再生成正式工件"],
+        )
+
+    open_blockers = [
+        str(issue.get("code") or "FORMAL_QUALIFICATION_BLOCKED")
+        for issue in (run.get("issues") or [])
+        if isinstance(issue, dict)
+        and issue.get("blocking") is True
+        and issue.get("status") == "open"
+    ]
+    qualification_failures: list[str] = []
+    if run.get("delivery_mode") != "formal_candidate":
+        qualification_failures.append("delivery_mode_not_formal_candidate")
+    if run.get("validation_status") != "passed":
+        qualification_failures.append("validation_not_passed")
+    if run.get("formal_spec_valid") is not True:
+        qualification_failures.append("formal_spec_invalid")
+    if run.get("evidence_formal_ok") is not True or current_evidence.get("formal_ok") is not True:
+        qualification_failures.append("formal_evidence_not_qualified")
+    if open_blockers:
+        qualification_failures.append("open_blocking_issues")
+    if qualification_failures:
+        preview = run.get("delivery_mode") in {"estimate_preview", "process_acceptance"}
+        next_actions = (
+            [
+                "技术预览报告改用 report_prepare，并传 finance_binding.kind=asset_acquisition",
+                "如需正式收购工件，补齐正式证据后保存新 Spec、确认并重新运行",
+            ]
+            if preview
+            else ["关闭正式阻断项，保存新 Spec 修订、重新确认并重新运行"]
+        )
+        return None, _artifact_blocked(
+            _FORMAL_ARTIFACT_REQUIRED,
+            "当前运行不具备正式收购工件资格",
+            details={
+                "run_id": run_id,
+                "delivery_mode": run.get("delivery_mode"),
+                "qualification_failures": qualification_failures,
+                "open_blockers": open_blockers,
+            },
+            next_actions=next_actions,
+        )
+    return run, None
+
+
 def enqueue_artifact(
     workspace_id: str, run_id: str, *, idempotency_key: str = "", request_id: str = "",
 ) -> dict[str, Any]:
     """Create a durable artifact job that can be polled before rendering."""
 
     request_id = request_id or f"req_{uuid.uuid4().hex}"
-    run = get_run(workspace_id, run_id)
-    if not run:
-        return {"ok": False, "error": "run_not_found"}
-    if run.get("status") != "succeeded" or run.get("consistency_ok") is not True:
-        return {
-            "ok": False,
-            "error": "RUN_INCONSISTENT",
-            "reason": "succeeded_consistent_run_required",
-        }
+    run, blocked = _preflight_formal_artifact(workspace_id, run_id)
+    if blocked:
+        return blocked
+    assert run is not None
     required_bindings = (
         "run_id", "spec_hash", "input_hash", "spec_snapshot_hash",
         "evidence_binding_hash", "model_version",
@@ -172,6 +292,43 @@ def _bind_succeeded_artifact(
     return {"ok": True, "binding": actual}
 
 
+def _mark_artifact_binding_failed(
+    workspace_id: str,
+    run_id: str,
+    artifact_id: str,
+    *,
+    request_id: str,
+    details: list[dict[str, Any]] | None = None,
+) -> None:
+    """Persist a failed terminal state when report-side binding does not commit."""
+
+    with _state_guard(workspace_id):
+        state = _load(workspace_id)
+        stored = state["artifacts"].get(artifact_id)
+        if stored:
+            stored.update({
+                "ok": False,
+                "status": "failed",
+                "integrity_status": "failed",
+                "error": {
+                    "code": "ARTIFACT_BINDING_FAILED",
+                    "message": "formal artifact finance binding failed",
+                    "retryable": False,
+                    "details": list(details or []),
+                },
+                "updated_at": _now(),
+            })
+        stored_run = state["runs"].get(run_id)
+        if stored_run:
+            stored_run["lifecycle_status"] = "artifact_binding_failed"
+            stored_run.setdefault("state_history", []).append(_history_event(
+                "artifact_binding_failed",
+                request_id=request_id,
+                artifact_id=artifact_id,
+            ))
+        _save(workspace_id, state)
+
+
 def execute_queued_artifact(
     workspace_id: str,
     artifact_id: str,
@@ -233,11 +390,10 @@ def generate_artifacts(
 ) -> dict[str, Any]:
     """Generate an atomically published, consistency-checked artifact pack."""
 
-    run = get_run(workspace_id, run_id)
-    if not run:
-        return {"ok": False, "error": "run_not_found"}
-    if run.get("status") != "succeeded" or not run.get("consistency_ok"):
-        return {"ok": False, "error": "RUN_INCONSISTENT"}
+    run, blocked = _preflight_formal_artifact(workspace_id, run_id)
+    if blocked:
+        return blocked
+    assert run is not None
     body_hash = _hash({
         "run_id": run_id, "spec_hash": run.get("spec_hash"), "fact_revision": run.get("spec_id"),
         "spec_snapshot_hash": run.get("spec_snapshot_hash"),
@@ -259,21 +415,23 @@ def generate_artifacts(
 
     artifact_id = artifact_id or f"artifact_{uuid.uuid4().hex}"
     artifacts_root = _artifacts_root(workspace_id)
+    created_artifacts_root = not artifacts_root.exists()
     artifacts_root.mkdir(parents=True, exist_ok=True)
     staging = artifacts_root / f".{artifact_id}.staging-{uuid.uuid4().hex}"
     final_root = artifacts_root / artifact_id
-    staging.mkdir(parents=True, exist_ok=False)
-    report_data = build_acquisition_report_data(
-        workspace_id,
-        run,
-    )
-    markdown = render_markdown(run, report_data)
-    md_path = staging / "资产收购可行性研究报告.md"
-    docx_path = staging / "资产收购可行性研究报告.docx"
-    xlsx_path = staging / "资产收购财务模型.xlsx"
-    report_data_path = staging / "资产收购报告数据.json"
-    index_path = staging / "附件索引.json"
+    committed = False
     try:
+        staging.mkdir(parents=True, exist_ok=False)
+        report_data = build_acquisition_report_data(
+            workspace_id,
+            run,
+        )
+        markdown = render_markdown(run, report_data)
+        md_path = staging / "资产收购可行性研究报告.md"
+        docx_path = staging / "资产收购可行性研究报告.docx"
+        xlsx_path = staging / "资产收购财务模型.xlsx"
+        report_data_path = staging / "资产收购报告数据.json"
+        index_path = staging / "附件索引.json"
         md_path.write_text(markdown, encoding="utf-8")
         from lvke_mcp.domains.reports import doc_service as _doc_svc
 
@@ -306,32 +464,27 @@ def generate_artifacts(
         index_path.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
         index["files"].append({"name": index_path.name, "size_bytes": index_path.stat().st_size, "sha256": _file_hash(index_path)})
         os.replace(staging, final_root)
-    finally:
-        if staging.exists():
-            shutil.rmtree(staging, ignore_errors=True)
-
-    row = {
-        "ok": True, "artifact_id": artifact_id,
-        "artifact_job_id": artifact_job_id or f"artifact_job_{uuid.uuid4().hex}",
-        "status": "succeeded", "progress": 100,
-        "type": "asset_acquisition", "run_id": run_id,
-        "spec_hash": run.get("spec_hash"), "fact_revision": run.get("spec_id"),
-        "spec_snapshot_hash": run.get("spec_snapshot_hash"),
-        "evidence_binding_version": run.get("evidence_binding_version"),
-        "evidence_binding_hash": run.get("evidence_binding_hash"),
-        "template_version": "asset_acquisition.v2", "created_at": _now(),
-        "updated_at": _now(), "request_id": request_id,
-        "files": index["files"], "directory": str(final_root),
-        "report_data_hash": report_data.get("report_data_hash"),
-        "numeric_consistency": "passed", "consistency_checks": consistency["checks"],
-        "state_history": [
-            _history_event(
-                "artifact_generated",
-                request_id=request_id, run_id=run_id, artifact_id=artifact_id,
-            ),
-        ],
-    }
-    try:
+        row = {
+            "ok": True, "artifact_id": artifact_id,
+            "artifact_job_id": artifact_job_id or f"artifact_job_{uuid.uuid4().hex}",
+            "status": "succeeded", "progress": 100,
+            "type": "asset_acquisition", "run_id": run_id,
+            "spec_hash": run.get("spec_hash"), "fact_revision": run.get("spec_id"),
+            "spec_snapshot_hash": run.get("spec_snapshot_hash"),
+            "evidence_binding_version": run.get("evidence_binding_version"),
+            "evidence_binding_hash": run.get("evidence_binding_hash"),
+            "template_version": "asset_acquisition.v2", "created_at": _now(),
+            "updated_at": _now(), "request_id": request_id,
+            "files": index["files"], "directory": str(final_root),
+            "report_data_hash": report_data.get("report_data_hash"),
+            "numeric_consistency": "passed", "consistency_checks": consistency["checks"],
+            "state_history": [
+                _history_event(
+                    "artifact_generated",
+                    request_id=request_id, run_id=run_id, artifact_id=artifact_id,
+                ),
+            ],
+        }
         with _state_guard(workspace_id):
             state = _load(workspace_id)
             if scope and (prior := _active_idempotency_record(state["idempotency"], scope)):
@@ -354,50 +507,53 @@ def generate_artifacts(
                     artifact_id=artifact_id,
                 ))
             _save(workspace_id, state)
-    except BaseException:
-        # State publication and the visible directory are one logical commit.
-        # If metadata cannot be committed, do not leave an untracked formal pack.
-        shutil.rmtree(final_root, ignore_errors=True)
-        raise
+        try:
+            binding_result = _bind_succeeded_artifact(
+                workspace_id,
+                run,
+                row,
+            )
+        except BaseException:
+            try:
+                _mark_artifact_binding_failed(
+                    workspace_id,
+                    run_id,
+                    artifact_id,
+                    request_id=request_id,
+                )
+            except Exception:  # noqa: BLE001 - preserve original binding error
+                _LOG.exception(
+                    "failed to persist artifact binding failure; artifact_id=%s",
+                    artifact_id,
+                )
+            raise
+        if not binding_result.get("ok"):
+            mismatches = binding_result.get("mismatches") or []
+            _mark_artifact_binding_failed(
+                workspace_id,
+                run_id,
+                artifact_id,
+                request_id=request_id,
+                details=mismatches,
+            )
+            return {
+                "ok": False, "error": "ARTIFACT_BINDING_FAILED",
+                "reason": binding_result.get("reason") or "finance_binding_mismatch",
+                "mismatches": mismatches,
+            }
 
-    binding_result = _bind_succeeded_artifact(
-        workspace_id,
-        run,
-        row,
-    )
-    if not binding_result.get("ok"):
-        # The artifact is successful only when the report-side binding proves
-        # the same run/spec/fact revision.
-        with _state_guard(workspace_id):
-            state = _load(workspace_id)
-            stored = state["artifacts"].get(artifact_id)
-            if stored:
-                stored.update({
-                    "ok": False, "status": "failed",
-                    "error": {
-                        "code": "ARTIFACT_BINDING_FAILED",
-                        "message": "formal artifact finance binding failed",
-                        "retryable": False,
-                        "details": binding_result.get("mismatches") or [],
-                    },
-                    "updated_at": _now(),
-                })
-            stored_run = state["runs"].get(run_id)
-            if stored_run:
-                stored_run["lifecycle_status"] = "artifact_binding_failed"
-                stored_run.setdefault("state_history", []).append(_history_event(
-                    "artifact_binding_failed", request_id=request_id,
-                    artifact_id=artifact_id,
-                ))
-            _save(workspace_id, state)
-        shutil.rmtree(final_root, ignore_errors=True)
-        return {
-            "ok": False, "error": "ARTIFACT_BINDING_FAILED",
-            "reason": binding_result.get("reason") or "finance_binding_mismatch",
-            "mismatches": binding_result.get("mismatches") or [],
-        }
-
-    return dict(_load(workspace_id)["artifacts"].get(artifact_id) or row)
+        committed = True
+        return dict(_load(workspace_id)["artifacts"].get(artifact_id) or row)
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        if not committed and final_root.exists():
+            shutil.rmtree(final_root, ignore_errors=True)
+        if created_artifacts_root and artifacts_root.exists():
+            try:
+                artifacts_root.rmdir()
+            except OSError:
+                pass
 
 
 def _check_artifact_consistency(

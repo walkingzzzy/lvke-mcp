@@ -20,6 +20,9 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Record exact commands and distinguish unrelated baseline defects from regressions.
 - A passing local test suite does not replace required live MCP conversational acceptance.
+- Use only the existing `lvke-mcp` Conda environment; do not create or invoke a
+  project-local virtual environment or `uv` runtime.
+- Verify P0A with `scripts/golden_samples_manifest.py`; P0B remains
+  `pending_business_approval` until real dual-track approval material is supplied.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

@@ -20,6 +20,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Freeze code, restart once, then use real MCP calls rather than direct Python handlers.
 - Do not claim formal acceptance until every required live call and gate check passes.
+- Classify preview/process formal-artifact rejection as `EXPECTED_REJECTION`,
+  then verify the restricted report chain and a separate qualified formal run.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

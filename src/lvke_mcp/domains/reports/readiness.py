@@ -14,11 +14,17 @@
 from __future__ import annotations
 
 import logging
+from contextvars import ContextVar
 from typing import Any
 
 from lvke_mcp.domains.reports import doc_service as svc
 
 logger = logging.getLogger(__name__)
+
+_FINANCE_VALIDATION_SCOPE: ContextVar[str] = ContextVar(
+    "lvke_report_finance_validation_scope",
+    default="formal",
+)
 
 
 def _latest_evidence_pack(workspace_id: str) -> dict[str, Any]:
@@ -178,7 +184,7 @@ def build_readiness(
             item = {"code": "audit_no_run",
                     "message": "财务已接地但无测算留痕（未落 calculation_run），正文数字不可追溯"}
             (blockers if strict else warnings).append(item)
-        else:
+        elif _FINANCE_VALIDATION_SCOPE.get() == "formal":
             try:
                 from lvke_mcp.domains.finance import gate as finance_gate
 
@@ -191,6 +197,11 @@ def build_readiness(
                 warnings.extend(bind_chk.get("warnings") or [])
             except Exception:  # noqa: BLE001
                 pass
+        else:
+            warnings.append({
+                "code": "finance_preview_only",
+                "message": "财务绑定按技术预览范围校验，不构成正式发布资格",
+            })
 
     # 【P0-6 / 方案 §9.4】财务发布门禁：投资口径歧义未确认、勾稽失败 → 阻断终稿发布。
     if has_finance:

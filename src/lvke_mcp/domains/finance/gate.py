@@ -296,6 +296,93 @@ def _assert_acquisition_publish_finance_binding(
     }
 
 
+def assert_acquisition_report_finance_binding(
+    workspace_id: str,
+    *,
+    run_id: str,
+    package_id: str,
+) -> dict[str, Any]:
+    """Validate an acquisition run for a restricted report draft.
+
+    This is deliberately weaker than the formal publish gate: preview and
+    process-acceptance runs may feed the governed report chain, but they never
+    become formal-release eligible through this check.
+    """
+
+    from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
+    from lvke_mcp.domains.asset_acquisition.tables import get_package_record
+
+    blockers: list[dict[str, Any]] = []
+
+    def block(code: str, message: str, **details: Any) -> None:
+        item: dict[str, Any] = {"code": code, "message": message}
+        if details:
+            item["details"] = details
+        blockers.append(item)
+
+    run = acquisition_service.get_run(workspace_id, run_id)
+    if not run:
+        block("finance_acquisition_run_not_found", "报告绑定的资产收购 run 不存在")
+    elif run.get("status") != "succeeded" or run.get("consistency_ok") is not True:
+        block(
+            "finance_run_consistency_failed",
+            "资产收购 run 尚未成功完成内部勾稽",
+            status=run.get("status"),
+            consistency_ok=run.get("consistency_ok"),
+        )
+
+    package = get_package_record(workspace_id, package_id) if package_id else None
+    payload = (package or {}).get("payload") or {}
+    if package is None:
+        block("acquisition_tables_package_required", "报告必须绑定资产收购十三表 package")
+    else:
+        if str(payload.get("run_id") or "") != run_id:
+            block("acquisition_tables_run_mismatch", "资产收购十三表与报告 run 不一致")
+        if (payload.get("integrity") or {}).get("status") != "passed":
+            block("acquisition_tables_integrity_failed", "资产收购十三表完整性校验未通过")
+        if run:
+            mismatches = [
+                {
+                    "field": field,
+                    "expected": run.get(field),
+                    "actual": payload.get(field),
+                }
+                for field in (
+                    "run_id", "spec_hash", "input_hash", "model_version",
+                    "evidence_binding_hash",
+                )
+                if payload.get(field) != run.get(field)
+            ]
+            if mismatches:
+                block(
+                    "acquisition_tables_binding_mismatch",
+                    "资产收购十三表与 run 的不可变绑定不一致",
+                    mismatches=mismatches,
+                )
+
+    mode = str((run or {}).get("delivery_mode") or "")
+    if mode not in {"estimate_preview", "process_acceptance"}:
+        block(
+            "acquisition_report_preview_mode_required",
+            "受限报告校验仅适用于 estimate_preview 或 process_acceptance",
+            delivery_mode=mode,
+        )
+    return {
+        "ok": not blockers,
+        "blockers": blockers,
+        "warnings": [{
+            "code": "finance_acquisition_preview_only",
+            "message": "当前报告仅可用于技术预览或过程验收，不具备正式发布资格",
+        }],
+        "bound_run_id": run_id,
+        "acquisition_tables_package_id": package_id or None,
+        "artifact_id": None,
+        "gate_type": "asset_acquisition",
+        "validation_level": "preview",
+        "formal_release_eligible": False,
+    }
+
+
 def assert_publish_finance_binding(
     workspace_id: str,
     *,

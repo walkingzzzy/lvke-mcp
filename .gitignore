@@ -45,4 +45,5 @@ lvke产出/
 /pkcs11.txt
 
 # Original client materials and generated research corpus
-/docs/
+/docs/*
+!/docs/ci-golden-corpus.md

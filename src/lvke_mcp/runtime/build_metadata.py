@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,8 @@ def _repo_root() -> Path | None:
 def _metadata_file() -> Path | None:
     """Return the first readable build metadata file.
 
-    查找顺序：显式环境变量 → 包内（wheel/插件安装布局）→ 仓库根（源码树）。
+    查找顺序：显式环境变量 → 包内（wheel/插件安装布局）。源码树不再读取
+    仓库根副本，避免两个生成物生命周期分叉。
     """
 
     configured = str(os.getenv("LVKE_MCP_BUILD_METADATA_FILE") or "").strip()
@@ -46,9 +48,6 @@ def _metadata_file() -> Path | None:
     if configured:
         candidates.append(Path(configured))
     candidates.append(Path(__file__).resolve().parent / BUILD_METADATA_FILENAME)
-    root = _repo_root()
-    if root is not None:
-        candidates.append(root / BUILD_METADATA_FILENAME)
     return next((path for path in candidates if path.is_file()), None)
 
 
@@ -98,6 +97,38 @@ def _resolve_commit(file_metadata: dict[str, Any]) -> str:
     except (OSError, ValueError):
         return ""
     return ""
+
+
+def _git_head(root: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return completed.stdout.strip()
+
+
+def _tracked_worktree_clean(root: Path) -> bool:
+    """Ignore untracked delivery data but reject tracked source modifications."""
+
+    try:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return not completed.stdout.strip()
 
 
 def _resolve_build_time(file_metadata: dict[str, Any]) -> str:
@@ -212,11 +243,27 @@ class BuildMetadata:
 def _resolve() -> BuildMetadata:
     file_metadata = _load_metadata_file()
     path = _metadata_file()
+    build_commit = _resolve_commit(file_metadata)
+    build_time = _resolve_build_time(file_metadata)
+    source = str(path) if path is not None else "environment"
+    root = _repo_root()
+    if root is not None:
+        head = _git_head(root)
+        reasons: list[str] = []
+        if not head or build_commit != head:
+            build_commit = head
+            build_time = ""
+            reasons.append("stale_build_commit")
+        if not _tracked_worktree_clean(root):
+            build_time = ""
+            reasons.append("tracked_worktree_dirty")
+        if reasons:
+            source += ";" + ",".join(reasons)
     return BuildMetadata(
-        build_commit=_resolve_commit(file_metadata),
-        build_time=_resolve_build_time(file_metadata),
+        build_commit=build_commit,
+        build_time=build_time,
         plugin_version=_resolve_plugin_version(file_metadata),
-        source=str(path) if path is not None else "environment",
+        source=source,
     )
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tomllib
@@ -23,11 +24,8 @@ from lvke_mcp.runtime.build_metadata import (  # noqa: E402
     utc_now_iso,
 )
 
-# 源码树与包内各写一份：包内那份随 wheel/插件一起分发，安装后仍可读。
-TARGETS = (
-    ROOT / BUILD_METADATA_FILENAME,
-    ROOT / "src" / "lvke_mcp" / "runtime" / BUILD_METADATA_FILENAME,
-)
+# 单一生成物随 wheel/插件运行代码一起分发；仓库根不再维护第二份副本。
+TARGET = ROOT / "src" / "lvke_mcp" / "runtime" / BUILD_METADATA_FILENAME
 
 
 def _git_sha() -> str:
@@ -57,6 +55,15 @@ def _project_version() -> str:
     return str(project.get("version") or "") if isinstance(project, dict) else ""
 
 
+def _plugin_version() -> str:
+    manifest = ROOT / "plugins" / "lvke-mcp" / ".codex-plugin" / "plugin.json"
+    try:
+        payload = json.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    return str(payload.get("version") or "") if isinstance(payload, dict) else ""
+
+
 def write_build_metadata(
     *,
     commit: str = "",
@@ -71,7 +78,7 @@ def write_build_metadata(
 
     resolved_commit = commit.strip() or _git_sha()
     resolved_time = build_time.strip() or utc_now_iso()
-    resolved_version = plugin_version.strip() or _project_version()
+    resolved_version = plugin_version.strip() or _plugin_version() or _project_version()
 
     missing = [
         name
@@ -91,9 +98,13 @@ def write_build_metadata(
         "plugin_version": resolved_version,
     }
     encoded = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
-    for target in TARGETS:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(encoded, encoding="utf-8")
+    TARGET.parent.mkdir(parents=True, exist_ok=True)
+    temporary = TARGET.with_name(f"{TARGET.name}.{os.getpid()}.tmp")
+    try:
+        temporary.write_text(encoded, encoding="utf-8")
+        os.replace(temporary, TARGET)
+    finally:
+        temporary.unlink(missing_ok=True)
     return payload
 
 
@@ -116,7 +127,7 @@ def main() -> int:
 
     for key in ("build_commit", "build_time", "plugin_version"):
         print(f"{key}={payload[key]}")
-    print("written: " + ", ".join(str(path.relative_to(ROOT)) for path in TARGETS))
+    print("written: " + str(TARGET.relative_to(ROOT)))
     return 0
 
 

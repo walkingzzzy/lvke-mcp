@@ -20,5 +20,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Update producers, consumers, schemas, tests, and migration documentation together.
 - Public compression must not weaken server-side validation or business gates.
+- Preserve the stable business codes `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED`
+  and `EVIDENCE_BINDING_STALE`, including details, blockers, and next actions.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

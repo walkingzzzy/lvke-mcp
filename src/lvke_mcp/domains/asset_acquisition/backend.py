@@ -57,6 +57,7 @@ from lvke_mcp.domains.finance.spec import (  # noqa: F401
 )
 
 from ._backend.artifacts import (  # noqa: F401
+    _preflight_formal_artifact,
     _bind_succeeded_artifact,
     _check_artifact_consistency,
     enqueue_artifact,

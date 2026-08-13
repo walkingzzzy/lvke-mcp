@@ -43,13 +43,28 @@ def _failed(result: dict[str, Any], fallback: str) -> dict[str, Any]:
         "MAX_PRICE_FAILED", "ARTIFACT_GENERATION_FAILED",
     }
     status = "failed" if code in system_failures else "blocked"
+    details = copy.deepcopy(result.get("details") or {})
+    if not details:
+        passthrough = {
+            key: copy.deepcopy(result[key])
+            for key in (
+                "missing", "mismatches", "resource_id", "evidence_status",
+                "consistency",
+            )
+            if key in result
+        }
+        details = passthrough
     return {
-        "success": False, "transport_success": status != "failed",
+        "success": False, "system_success": status != "failed",
+        "transport_success": status != "failed",
         "business_success": False, "completed": False, "outcome": status,
         "status": status, "code": code,
         "message": str(result.get("message") or result.get("reason") or code),
-        "details": copy.deepcopy(result.get("details") or {}),
-        "resource_uris": [], "warnings": [], "blockers": [code], "next_actions": [],
+        "details": details,
+        "resource_uris": [],
+        "warnings": list(result.get("warnings") or []),
+        "blockers": list(result.get("blockers") or [code]),
+        "next_actions": list(result.get("next_actions") or []),
     }
 
 
@@ -58,7 +73,8 @@ def _ok(
     warnings: list[str] | None = None, next_actions: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
-        "success": True, "status": "partial" if warnings else "ok",
+        "success": True, "system_success": True, "transport_success": True,
+        "business_success": True, "status": "partial" if warnings else "ok",
         **({"object_id": object_id} if object_id else {}), **copy.deepcopy(data),
         "resource_uris": list(uris or []), "warnings": list(warnings or []),
         "blockers": [], "next_actions": list(next_actions or []),
@@ -365,7 +381,14 @@ def run_model(
             ["该运行使用 estimate_preview 输入，结果会保留完整度限制"]
             if estimate_preview else []
         ),
-        next_actions=["可创建情景矩阵、求解最高价格或生成工件"],
+        next_actions=(
+            [
+                "可创建情景矩阵或求解最高价格",
+                "技术预览报告通过 report_prepare(finance_binding.kind=asset_acquisition) 生成",
+            ]
+            if estimate_preview
+            else ["可创建情景矩阵、求解最高价格或生成正式工件"]
+        ),
     )
 
 

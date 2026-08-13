@@ -20,6 +20,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Never promote search summaries or uncontrolled files to formal evidence.
 - Keep scanning, workspace isolation, locator, hash, and lineage checks fail-closed.
+- A changed acquisition evidence binding returns `EVIDENCE_BINDING_STALE`; save a
+  new Spec revision and rerun before formal artifact generation.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

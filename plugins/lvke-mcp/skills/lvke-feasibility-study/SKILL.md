@@ -20,6 +20,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Keep every immutable object boundary and explicit confirmation step.
 - Do not claim formal delivery until review and release gates pass.
+- Asset-acquisition preview reports may be technically ready while
+  `formal_release_eligible=false`; formal artifacts require a qualified
+  `formal_candidate` run.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
-

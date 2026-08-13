@@ -78,4 +78,6 @@ lvke_mcp = [
   "domains/**/docs/**/*",
   "servers/*/seed/**/*",
   "config/**/*",
+  "runtime/build_metadata.json",
+  "runtime/skill_inventory.json",
 ]

@@ -34,6 +34,12 @@ description: >
 7. 验收必须实际导出并核验恰好 13 张正式附表的 XLSX、13 个 CSV 和中文可见的 DOCX；测试通过数量不是交付证据。
 8. 本产品没有登录、身份、tenant、角色、RBAC、权限管理或安全签审；不得在验收中增加这些步骤。
 
+14 个服务必须共享同一个构建身份：`build_commit`、`build_time` 和完整
+`plugin_version`。源码 checkout 中只要 metadata commit 不是当前 HEAD 或
+tracked worktree 脏，必须返回 `build_metadata_complete=false`，不得冒用旧
+build time。插件生成、Skill inventory、cachebuster 和冻结提交完成后，才
+写入精确构建 metadata。
+
 用户说“只回答问题”时，不调用工具，也不继续后台测试。范围扩张必须先获得用户明确授权。
 
 ## Agent Coordination Contract

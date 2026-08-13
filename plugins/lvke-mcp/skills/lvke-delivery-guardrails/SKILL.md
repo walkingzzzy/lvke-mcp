@@ -21,5 +21,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Preserve evidence, deterministic validation, quality review, revision, and lineage boundaries.
 - Do not add authentication, roles, tenant isolation, RBAC, permission management, or security signoff.
 - Report blockers honestly and distinguish technical completion from formal acceptance.
+- P0A verification does not complete P0B. Keep P0B pending until real dual-track
+  approval data is provided, and never record a passing build while work is skipped.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

@@ -21,5 +21,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Treat `workspace_id` only as a data namespace, never as an authorization boundary.
 - Keep deterministic validation, immutable lineage, idempotency, and stable error contracts.
 - Do not add login, identity, role, tenant, RBAC, permission, or security-signoff workflows.
+- Preflight formal acquisition eligibility before creating staging or
+  idempotency state, and clean every newly created staging directory on error.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

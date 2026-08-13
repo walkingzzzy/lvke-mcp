@@ -20,5 +20,10 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Use the compressed tool names from dev-docs/config/mcp-compression-migration.json.
 - Preserve workspace scope, object IDs, lineage, and checkpoint/resume behavior.
+- Treat preview/process acquisition artifact rejection as `EXPECTED_REJECTION`;
+  route the restricted report through `report_prepare` with
+  `finance_binding.kind=asset_acquisition`.
+- Require one shared complete build identity across all 14 services after code
+  freeze; stale metadata or a dirty tracked checkout is incomplete.
 
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

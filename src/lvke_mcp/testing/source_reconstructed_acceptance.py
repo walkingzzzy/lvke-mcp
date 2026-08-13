@@ -988,16 +988,6 @@ def run_reconstructed_acquisition_case(
     csv = tables.export_csv(workspace_id, package_id)
     if not xlsx.get("xlsx_resource_uri") or len(csv.get("csv_resource_uris") or []) != 13:
         raise ValueError(f"acquisition table export failed: xlsx={xlsx}; csv={csv}")
-    artifact = backend.generate_artifacts(
-        workspace_id,
-        str(run["run_id"]),
-        idempotency_key=f"hengli-{scenario_id}-artifact",
-    )
-    if not artifact.get("ok") or artifact.get("status") != "succeeded":
-        raise ValueError(f"acquisition artifact generation failed: {artifact}")
-    report_data = backend.build_acquisition_report_data(workspace_id, run)
-    if not report_data.get("report_data_hash"):
-        raise ValueError(f"acquisition report data failed: {report_data}")
     return {
         "workspace_id": workspace_id,
         "source_file_ids": source_file_ids,
@@ -1006,11 +996,9 @@ def run_reconstructed_acquisition_case(
         "finance_spec_id": str(confirmed["spec_id"]),
         "finance_run_id": str(run["run_id"]),
         "finance_tables_package_id": package_id,
-        "acquisition_artifact_id": str(artifact["artifact_id"]),
         "purchase_price_wan": purchase_price,
         "valuation_value_wan": 4027.53,
         "total_investment_wan": _number((run.get("result") or {}).get("total_acquisition_cost_wan")),
-        "report_data": report_data,
         "xlsx_resource_uri": xlsx["xlsx_resource_uri"],
         "csv_resource_uris": list(csv["csv_resource_uris"]),
         "evidence_policy": "source_reconstructed",

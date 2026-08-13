@@ -9,9 +9,13 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
 from importlib import import_module
+from pathlib import Path
+from unittest.mock import patch
 
+from lvke_mcp.runtime import build_metadata as metadata_module
 from lvke_mcp.runtime.build_metadata import (
     INCOMPLETE_CODE,
     BuildMetadata,
@@ -27,7 +31,7 @@ def _meta(**overrides: str) -> BuildMetadata:
     payload = {
         "build_commit": "eff16312d54657a114dca1cf57370ad503be854d",
         "build_time": "2026-08-09T01:15:39Z",
-        "plugin_version": "0.1.0",
+        "plugin_version": "0.1.0+codex.20260809085642",
         "source": "test",
     }
     payload.update(overrides)
@@ -76,10 +80,15 @@ class BuildMetadataCompletenessTest(unittest.TestCase):
 
 
 class BuildMetadataUniformityTest(unittest.TestCase):
-    def test_resolved_build_time_is_utc_timestamp_not_placeholder(self) -> None:
+    def test_current_checkout_reports_honest_metadata_state(self) -> None:
         meta = build_metadata()
         self.assertNotEqual(meta.build_time, "source-checkout")
-        self.assertRegex(meta.build_time, _UTC_ISO)
+        if meta.complete:
+            self.assertRegex(meta.build_time, _UTC_ISO)
+            self.assertTrue(meta.plugin_version.startswith("0.1.0+codex."))
+        else:
+            self.assertEqual(meta.build_time, "")
+            self.assertEqual(meta.startup_report()["code"], INCOMPLETE_CODE)
 
     def test_all_servers_emit_identical_build_metadata(self) -> None:
         seen = set()
@@ -95,6 +104,82 @@ class BuildMetadataUniformityTest(unittest.TestCase):
                 )
             )
         self.assertEqual(len(seen), 1, f"servers disagree on build metadata: {seen}")
+
+
+class BuildMetadataSourceCheckoutTest(unittest.TestCase):
+    def _resolve(
+        self,
+        *,
+        metadata_commit: str = "a" * 40,
+        head: str = "a" * 40,
+        clean: bool = True,
+    ) -> BuildMetadata:
+        fixture = {
+            "build_commit": metadata_commit,
+            "build_time": "2026-08-13T12:00:00Z",
+            "plugin_version": "0.1.0+codex.20260813120000",
+        }
+        with patch.object(metadata_module, "_load_metadata_file", return_value=fixture), patch.object(
+            metadata_module, "_metadata_file", return_value=Path("/fixture/build_metadata.json")
+        ), patch.object(metadata_module, "_repo_root", return_value=Path("/fixture/repo")), patch.object(
+            metadata_module, "_git_head", return_value=head
+        ), patch.object(metadata_module, "_tracked_worktree_clean", return_value=clean):
+            return metadata_module._resolve()
+
+    def test_clean_matching_checkout_is_complete(self) -> None:
+        meta = self._resolve()
+        self.assertTrue(meta.complete)
+        self.assertEqual(meta.build_time, "2026-08-13T12:00:00Z")
+        self.assertEqual(meta.build_commit, "a" * 40)
+
+    def test_stale_metadata_commit_rejects_old_build_time(self) -> None:
+        meta = self._resolve(metadata_commit="b" * 40)
+        self.assertFalse(meta.complete)
+        self.assertEqual(meta.build_commit, "a" * 40)
+        self.assertEqual(meta.build_time, "")
+        self.assertIn("stale_build_commit", meta.source)
+
+    def test_dirty_tracked_checkout_rejects_build_time(self) -> None:
+        meta = self._resolve(clean=False)
+        self.assertFalse(meta.complete)
+        self.assertEqual(meta.build_time, "")
+        self.assertIn("tracked_worktree_dirty", meta.source)
+
+    def test_untracked_files_do_not_make_checkout_dirty(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lvke-build-metadata-") as directory:
+            root = Path(directory)
+            import subprocess
+
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "lvke@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Lvke Test"], cwd=root, check=True)
+            tracked = root / "tracked.txt"
+            tracked.write_text("tracked\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+            (root / "untracked-deliverable.txt").write_text("output\n", encoding="utf-8")
+            self.assertTrue(metadata_module._tracked_worktree_clean(root))
+
+
+class BuildMetadataWriterTest(unittest.TestCase):
+    def test_writer_uses_package_local_target_and_full_plugin_version(self) -> None:
+        from scripts import write_build_metadata as writer
+
+        with tempfile.TemporaryDirectory(prefix="lvke-build-writer-") as directory:
+            root = Path(directory)
+            target = root / "src" / "lvke_mcp" / "runtime" / "build_metadata.json"
+            root_copy = root / "build_metadata.json"
+            root_copy.write_text("sentinel\n", encoding="utf-8")
+            with patch.object(writer, "TARGET", target), patch.object(
+                writer, "_plugin_version", return_value="0.1.0+codex.20260813123456"
+            ):
+                payload = writer.write_build_metadata(
+                    commit="c" * 40,
+                    build_time="2026-08-13T12:34:56Z",
+                )
+            self.assertEqual(payload["plugin_version"], "0.1.0+codex.20260813123456")
+            self.assertTrue(target.is_file())
+            self.assertEqual(root_copy.read_text(encoding="utf-8"), "sentinel\n")
 
 
 if __name__ == "__main__":

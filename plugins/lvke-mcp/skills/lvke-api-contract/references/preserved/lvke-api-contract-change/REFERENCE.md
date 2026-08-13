@@ -29,6 +29,12 @@ description: >
 - [ ] 写操作需要时使用 idempotency key；冲突返回稳定码
 - [ ] 长任务返回 job/checkpoint/resume 信息
 - [ ] 错误：稳定 code + message；request-id
+- [ ] 资产收购正式工件资格不足使用
+  `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED`；运行快照证据变化使用
+  `EVIDENCE_BINDING_STALE`。
+- [ ] 预览/过程验收的正式工件拒绝必须保留 `details`、`blockers`、
+  `next_actions`，返回 `system_success=true`、`business_success=false`，并
+  将报告链指向 `report_prepare(finance_binding.kind=asset_acquisition)`。
 - [ ] 测试：schema、工具注册和行为测试更新
 - [ ] docs 现行入口更新（docs/README 链到的现行文档），非只写历史方案
 ```

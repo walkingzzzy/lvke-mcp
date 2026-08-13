@@ -35,7 +35,7 @@ P0A 通过 **≠** 业务批准 **≠** 正式交付。
 ```bash
 export LVKE_GOLDEN_DATA_ROOT=/absolute/path/to/corpus
 # 或
-uv run python scripts/golden_samples_manifest.py --data-root "$LVKE_GOLDEN_DATA_ROOT" --verify
+conda run -n lvke-mcp python scripts/golden_samples_manifest.py --data-root "$LVKE_GOLDEN_DATA_ROOT" --verify
 ```
 
 约定见 `docs/ci-golden-corpus.md`。无挂载时 **不得** 写 G7 `last_passing_build`。
@@ -44,13 +44,13 @@ uv run python scripts/golden_samples_manifest.py --data-root "$LVKE_GOLDEN_DATA_
 
 ```bash
 # 1) 校验冻结原件 + 合法 P0B 状态
-uv run python scripts/golden_samples_manifest.py --verify
+conda run -n lvke-mcp python scripts/golden_samples_manifest.py --verify
 
 # 2) 业务批准材料齐备后冻结 P0B（APPROVED.json 见 references）
-uv run python scripts/golden_samples_manifest.py --freeze-p0b path/to/APPROVED.json
+conda run -n lvke-mcp python scripts/golden_samples_manifest.py --freeze-p0b path/to/APPROVED.json
 
 # 3) 仅当 p0b.status 已是 frozen 后记录通过构建
-uv run python scripts/golden_samples_manifest.py --record-build path/to/PASSED_BUILD.json
+conda run -n lvke-mcp python scripts/golden_samples_manifest.py --record-build path/to/PASSED_BUILD.json
 ```
 
 脚本：`scripts/golden_samples_manifest.py`  
