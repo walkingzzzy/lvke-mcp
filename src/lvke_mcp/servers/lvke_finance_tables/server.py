@@ -15,7 +15,29 @@ from lvke_mcp.domains.finance import tables_service as service
 SERVER_NAME = "lvke-finance-tables"
 SERVER_VERSION = "0.1.0"
 logger = get_logger(SERVER_NAME)
-_OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}, "status": {"type": "string"}, "validation_complete": {"type": "boolean", "description": "由宿主正式发布门禁决定；表名齐全或 XLSX 写出绝不单独为 true"}, "resource_uris": {"type": "array", "items": {"type": "string"}}, "warnings": {"type": "array", "items": {"type": "string"}}, "blockers": {"type": "array", "items": {"type": "string"}}, "next_actions": {"type": "array", "items": {"type": "string"}}}, "required": ["success", "status", "validation_complete", "resource_uris", "warnings", "blockers", "next_actions"]}
+_OUTPUT = {
+    "type": "object", "additionalProperties": True,
+    "properties": {
+        "success": {"type": "boolean"}, "status": {"type": "string"},
+        "validation_complete": {"type": "boolean", "description": "由宿主正式发布门禁决定；表名齐全或 XLSX 写出绝不单独为 true"},
+        "resource_uris": {"type": "array", "items": {"type": "string"}},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "blockers": {"type": "array", "items": {"type": "string"}},
+        "next_actions": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"],
+    # validation_complete 只有在真的渲染/校验过表包时才有意义。此前它无条件必填，
+    # 于是入参被拒（非法 run_id）这类阻断载荷撞上自己的 schema，被 transport 改写成
+    # invalid_tool_output + system_success=False —— 谎报成服务端故障。成功路径仍必填，
+    # 否则"表名齐全≠正式可用"这个关键约束就被放弃了。
+    "allOf": [{
+        "if": {
+            "properties": {"success": {"const": True}},
+            "required": ["success"],
+        },
+        "then": {"required": ["validation_complete"]},
+    }],
+}
 _VALIDATE_OUTPUT = _OUTPUT
 _BASE = {
     "workspace_id": {"type": "string", "minLength": 1},

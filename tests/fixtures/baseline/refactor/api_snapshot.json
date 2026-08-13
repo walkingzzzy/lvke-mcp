@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-13T11:04:07+0000",
+  "generated_at": "2026-08-13T11:21:05+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
     "module_count": 444,
-    "symbol_count": 4845,
+    "symbol_count": 4846,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -20077,27 +20077,24 @@
           "defined_in": "typing",
           "public_members": []
         },
-        "Awaitable": {
+        "Iterable": {
           "kind": "_SpecialGenericAlias"
         },
-        "Callable": {
-          "kind": "_CallableType"
+        "Mapping": {
+          "kind": "_SpecialGenericAlias"
         },
         "annotations": {
           "kind": "_Feature"
         },
-        "functools": {
-          "kind": "module",
-          "target": "functools"
-        },
-        "guard_identifier_rejections": {
+        "find_rejected_identifier": {
           "kind": "callable",
-          "signature": "(server_name: 'str') -> 'Callable[[Callable], Callable]'",
+          "signature": "(arguments: 'Mapping[str, Any]', input_schema: 'Mapping[str, Any] | None' = None) -> 'str | None'",
           "defined_in": "lvke_mcp.runtime.input_guards"
         },
-        "re": {
-          "kind": "module",
-          "target": "re"
+        "identifier_rejection_payload": {
+          "kind": "callable",
+          "signature": "(field: 'str', server_name: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.input_guards"
         }
       }
     },
@@ -21506,9 +21503,19 @@
           "signature": "(code: 'str', message: 'str', *, trace_id: 'str | None' = None, server_name: 'str | None' = None) -> 'types.CallToolResult'",
           "defined_in": "lvke_mcp.runtime.errors"
         },
+        "find_rejected_identifier": {
+          "kind": "callable",
+          "signature": "(arguments: 'Mapping[str, Any]', input_schema: 'Mapping[str, Any] | None' = None) -> 'str | None'",
+          "defined_in": "lvke_mcp.runtime.input_guards"
+        },
         "hashlib": {
           "kind": "module",
           "target": "hashlib"
+        },
+        "identifier_rejection_payload": {
+          "kind": "callable",
+          "signature": "(field: 'str', server_name: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.input_guards"
         },
         "inspect": {
           "kind": "module",

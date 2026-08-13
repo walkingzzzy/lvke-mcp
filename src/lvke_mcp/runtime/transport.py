@@ -36,6 +36,10 @@ from mcp.types.version import (
 from lvke_mcp.runtime.errors import error_call_result, protocol_error_response
 from lvke_mcp.runtime.coordination import build_coordination
 from lvke_mcp.runtime.build_metadata import build_metadata
+from lvke_mcp.runtime.input_guards import (
+    find_rejected_identifier,
+    identifier_rejection_payload,
+)
 
 
 def _audit_hash(value: Any) -> str:
@@ -522,6 +526,10 @@ class OfficialStdioServer:
                 _schema_validation_message(exc),
             ) from None
 
+        rejected = self._identifier_rejection(spec, name, arguments)
+        if rejected is not None:
+            return rejected
+
         try:
             result = spec.handler(arguments)
             if inspect.isawaitable(result):
@@ -578,6 +586,12 @@ class OfficialStdioServer:
                 types.INVALID_PARAMS,
                 _schema_validation_message(exc),
             ) from None
+
+        rejected = self._identifier_rejection(
+            spec, name, arguments, protocol_version=protocol_version
+        )
+        if rejected is not None:
+            return rejected
 
         try:
             result = spec.handler(arguments)
@@ -870,6 +884,74 @@ class OfficialStdioServer:
             schema_uri=self._tool_schema_uri(tool_name),
             root=True,
         )
+
+    @staticmethod
+    def _constant_output_fields(output_schema: dict[str, Any] | None) -> dict[str, Any]:
+        """取出 outputSchema 中必填且被钉成常量的字段。
+
+        有些工具的必填字段与"这次调用成功没有"无关，而是工具本身的恒定属性
+        （如 ``finance_generate_package`` 的 ``deprecated: {"const": true}``）。
+        这类字段在任何响应里都该出现，包括入参被拒时，因此由此处补齐，
+        而不是把它们从 required 里挪走。
+        """
+
+        if not isinstance(output_schema, dict):
+            return {}
+        properties = output_schema.get("properties")
+        required = output_schema.get("required")
+        if not isinstance(properties, dict) or not isinstance(required, list):
+            return {}
+        constants: dict[str, Any] = {}
+        for field in required:
+            declared = properties.get(str(field))
+            if isinstance(declared, dict) and "const" in declared:
+                constants[str(field)] = declared["const"]
+        return constants
+
+    def _identifier_rejection(
+        self,
+        spec: ToolSpec,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        protocol_version: str | None = None,
+    ) -> types.CallToolResult | None:
+        """把非法标识符在派发前转成业务阻断，而不是让它降级成系统故障。
+
+        ``require_safe_id`` 抛的 ``ValueError`` 若一路冒到下面的兜底 except，会被
+        记成 ``internal_error`` + ``system_success=False``——那是在谎报故障归属：
+        入参不合法是调用方要改参数，不是服务端事故。这里在调 handler 之前用同一条
+        ``_SAFE_ID`` 规则自查，因此错误码能指向调用方**实际提交**的字段名
+        （存储层的 ValueError 只会报它自己的形参名，实测 41/52 次都是通用的
+        ``object_id``，据此生成的码会指向调用方没提交过的字段）。
+
+        返回 ``None`` 表示无越界字段，调用方继续正常派发。
+        """
+
+        field = find_rejected_identifier(arguments, spec.input_schema)
+        if field is None:
+            return None
+        self.logger.info("tool %s rejected identifier field %s", name, field)
+        payload = {
+            **identifier_rejection_payload(field, self.server_name),
+            **self._constant_output_fields(spec.output_schema),
+        }
+        # 仍走 _build_tool_result：该工具自己的 outputSchema 必须能容纳这个阻断
+        # 载荷，否则就会重演"业务拒绝撞自己 schema"的老问题。
+        built = self._build_tool_result(
+            spec,
+            name,
+            payload,
+            True,
+            protocol_version=protocol_version,
+            audit={
+                "started_at": datetime.now().astimezone(),
+                "input_hash": _audit_hash(arguments),
+            },
+        )
+        if isinstance(built, types.InputRequiredResult):  # pragma: no cover
+            return self._legacy_input_required_result()
+        return built
 
     def _error_result(
         self,
