@@ -25,23 +25,44 @@ def _generic_period_checks(
     metrics: dict[str, Any] = {"period_rows_checked": 0, "period_mismatches": 0}
     annual = run.get("annual") or {}
 
+    # 摊销必须按年份从附表6（total_cost）取：income_statement 行本身不带
+    # amortization 字段，而引擎的 EBIT 口径是
+    # revenue − (operating_cost + depreciation + amortization) − tax_surtax
+    # （domains/finance/_finance_model/annual.py 的 tc_y / pb_y）。此处若漏摊销，
+    # 每个计提年都会产出一条差额恒等于当年摊销额的假 P0——高置信度、阻断发布，
+    # 且把排查方向指向财务引擎，而引擎是对的。
+    _amortization_by_year: dict[Any, float] = {}
+    for cost_row in annual.get("total_cost") or []:
+        if not isinstance(cost_row, dict):
+            continue
+        year_key = cost_row.get("year", cost_row.get("period"))
+        amortization = _number(cost_row.get("amortization"))
+        if year_key is not None and amortization is not None:
+            _amortization_by_year[year_key] = amortization
+
+    def _income_statement_ebit(row: dict[str, Any]) -> tuple[float | None, float | None, str]:
+        additive = ("revenue", "operating_cost", "depreciation", "tax_surtax")
+        if any(_number(row.get(key)) is None for key in additive):
+            return None, _number(row.get("ebit")), "ebit"
+        year_key = row.get("year", row.get("period"))
+        # 缺同年摊销时不猜 0：那等于默认"没有摊销"，会把真实的漏提摊销
+        # 伪装成勾稽通过。没有依据就不重算这一行。
+        if year_key not in _amortization_by_year:
+            return None, _number(row.get("ebit")), "ebit"
+        expected = (
+            _number(row.get("revenue"))
+            - _number(row.get("operating_cost"))
+            - _number(row.get("depreciation"))
+            - _amortization_by_year[year_key]
+            - _number(row.get("tax_surtax"))
+        )
+        return expected, _number(row.get("ebit")), "ebit"
+
     collections: list[tuple[str, Iterable[dict[str, Any]], Any]] = [
         (
             "income_statement",
             annual.get("income_statement") or [],
-            lambda row: (
-                _number(row.get("revenue"))
-                - _number(row.get("operating_cost"))
-                - _number(row.get("depreciation"))
-                - _number(row.get("tax_surtax"))
-                if all(
-                    _number(row.get(key)) is not None
-                    for key in ("revenue", "operating_cost", "depreciation", "tax_surtax")
-                )
-                else None,
-                _number(row.get("ebit")),
-                "ebit",
-            ),
+            _income_statement_ebit,
         ),
         (
             "total_cost",
