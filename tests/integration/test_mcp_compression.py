@@ -83,7 +83,9 @@ class McpCompressionTopologyTest(unittest.TestCase):
                     name=tool.name,
                     description=tool.description,
                     inputSchema=server._public_input_schema(  # noqa: SLF001
-                        tool.name, tool.input_schema
+                        tool.name,
+                        tool.input_schema,
+                        public_schema=tool.public_input_schema,
                     ),
                     outputSchema=None,
                     annotations=tool.annotations,
@@ -134,14 +136,89 @@ class McpCompressionTopologyTest(unittest.TestCase):
         ).build_server()
         source_spec = research_server._tools["dr_add_sources"]  # noqa: SLF001
         source_public = research_server._public_input_schema(  # noqa: SLF001
-            source_spec.name, source_spec.input_schema
+            source_spec.name,
+            source_spec.input_schema,
+            public_schema=source_spec.public_input_schema,
         )
         source_items = source_public["properties"]["sources"]["items"]
         self.assertEqual(source_items["type"], "object")
-        self.assertEqual(
-            source_items["x-lvke-schema-pointer"],
-            "#/properties/sources/items",
+        self.assertIn("source_type", source_items["properties"])
+        self.assertIn("allowed_uses", source_items["required"])
+
+    def test_explicit_public_projections_remain_callable_and_full_resources_strict(self) -> None:
+        cases = (
+            (
+                "lvke_mcp.servers.lvke_knowledge_governance.server",
+                "knowledge_submit_candidate",
+                ("properties", "candidate", "properties", "evidence_bindings"),
+            ),
+            (
+                "lvke_mcp.servers.lvke_deep_research.server",
+                "dr_add_sources",
+                ("properties", "sources", "items", "properties", "source_type"),
+            ),
+            (
+                "lvke_mcp.servers.lvke_project_planning.server",
+                "planning_infer_labor_plan",
+                ("properties", "position_requirements", "items", "properties", "annual_workload"),
+            ),
+            (
+                "lvke_mcp.servers.lvke_deliverable_review.server",
+                "review_prepare",
+                ("properties", "target", "properties", "components"),
+            ),
         )
+        for module_name, tool_name, path in cases:
+            with self.subTest(tool=tool_name):
+                server = import_module(module_name).build_server()
+                spec = server._tools[tool_name]  # noqa: SLF001
+                public = server._public_input_schema(  # noqa: SLF001
+                    spec.name,
+                    spec.input_schema,
+                    public_schema=spec.public_input_schema,
+                )
+                node = public
+                for key in path:
+                    node = node[key]
+                self.assertTrue(node)
+                schema_uri = f"lvke://schemas/{server.server_name}/{tool_name}/input"
+                read = asyncio.run(
+                    server._sdk_read_resource(  # noqa: SLF001
+                        None,
+                        types.ReadResourceRequestParams(uri=schema_uri),
+                    )
+                )
+                self.assertEqual(json.loads(read.contents[0].text), spec.input_schema)
+
+        review_server = import_module(
+            "lvke_mcp.servers.lvke_deliverable_review.server"
+        ).build_server()
+        review_spec = review_server._tools["review_prepare"]  # noqa: SLF001
+        review_public = review_server._public_input_schema(  # noqa: SLF001
+            review_spec.name,
+            review_spec.input_schema,
+            public_schema=review_spec.public_input_schema,
+        )
+        target = review_public["properties"]["target"]
+        self.assertIn("combined_deliverable", target["properties"]["target_type"]["enum"])
+        self.assertEqual(target["properties"]["components"]["minItems"], 2)
+        self.assertEqual(target["properties"]["components"]["items"]["required"], ["target_type", "target_id"])
+
+        planning_server = import_module(
+            "lvke_mcp.servers.lvke_project_planning.server"
+        ).build_server()
+        for tool_name in ("planning_prepare", "planning_create", "planning_confirm"):
+            with self.subTest(tool=tool_name):
+                spec = planning_server._tools[tool_name]  # noqa: SLF001
+                public = planning_server._public_input_schema(  # noqa: SLF001
+                    spec.name,
+                    spec.input_schema,
+                    public_schema=spec.public_input_schema,
+                )
+                for branch in public["allOf"]:
+                    payload = branch["then"]["properties"]["payload"]
+                    self.assertTrue(payload["properties"])
+                    self.assertTrue(payload["required"])
 
     def test_stable_schema_resources_and_compact_aggregate_interfaces(self) -> None:
         expected = {

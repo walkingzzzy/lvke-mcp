@@ -172,38 +172,55 @@ def resolve_all_corpora() -> tuple[ResolvedCorpus, ...]:
     return tuple(resolved)
 
 
-def configured_import_roots() -> tuple[Path, ...]:
+def configured_import_root_diagnostics() -> dict[str, Any]:
     explicit = str(os.getenv("LVKE_SOURCE_IMPORT_ROOTS") or "")
     if explicit.strip():
         roots: list[Path] = []
+        invalid: list[dict[str, str]] = []
         for value in explicit.split(os.pathsep):
-            if not value.strip():
+            raw = value.strip()
+            if not raw:
+                continue
+            candidate = Path(raw).expanduser()
+            if not candidate.is_absolute():
+                invalid.append({"path": raw, "reason": "root_not_absolute"})
                 continue
             try:
-                path = Path(value).expanduser().resolve(strict=True)
-            except OSError as exc:
-                raise ExternalCorpusError(
-                    "LVKE_SOURCE_IMPORT_ROOTS contains a missing path",
-                    reason="import_roots_invalid",
-                ) from exc
+                path = candidate.resolve(strict=True)
+            except OSError:
+                invalid.append({"path": raw, "reason": "root_not_found"})
+                continue
+            if candidate.is_symlink():
+                invalid.append({"path": raw, "reason": "root_symlink_or_alias"})
+                continue
             if not path.is_dir():
-                raise ExternalCorpusError(
-                    "LVKE_SOURCE_IMPORT_ROOTS must contain directories",
-                    reason="import_roots_invalid",
-                )
+                invalid.append({"path": raw, "reason": "root_not_directory"})
+                continue
             if path == CONFIG_DIR:
-                raise ExternalCorpusError(
-                    "MCP configuration directory cannot be used as a source import root",
-                    reason="import_roots_invalid",
-                )
+                invalid.append({"path": raw, "reason": "configuration_root_forbidden"})
+                continue
             roots.append(path)
-        if not roots:
-            raise ExternalCorpusError(
-                "LVKE_SOURCE_IMPORT_ROOTS contains no usable directory",
-                reason="import_roots_invalid",
-            )
-        return tuple(dict.fromkeys(roots))
-    return tuple(item.path for item in resolve_all_corpora())
+        return {
+            "roots": tuple(dict.fromkeys(roots)),
+            "invalid_roots": invalid,
+            "source": "LVKE_SOURCE_IMPORT_ROOTS",
+        }
+    return {
+        "roots": tuple(item.path for item in resolve_all_corpora()),
+        "invalid_roots": [],
+        "source": "external_corpora_manifest",
+    }
+
+
+def configured_import_roots() -> tuple[Path, ...]:
+    diagnostics = configured_import_root_diagnostics()
+    roots = tuple(diagnostics["roots"])
+    if roots:
+        return roots
+    raise ExternalCorpusError(
+        "LVKE_SOURCE_IMPORT_ROOTS contains no usable directory",
+        reason="import_roots_invalid",
+    )
 
 
 def _normalized_project_name(value: str) -> str:

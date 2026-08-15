@@ -20,7 +20,19 @@ COMBINED_RULES = {"COMBINED.NUMBERS.MATCH", "COMBINED.CONCLUSIONS.MATCH"}
 
 _NUMBER_PATTERN = re.compile(
     r"(?P<number>-?\d{1,3}(?:,\d{3})*(?:\.\d+)?|-?\d+(?:\.\d+)?)\s*(?:\+|以上|余|多)?\s*"
-    r"(?P<unit>亿元|万元|平方米|平方|㎡|万吨/年|万吨|吨/年|公里|千米|km|KM|个月|%|％|元|间|吨|年|月)"
+    r"(?P<unit>亿元|万元|平方米|平方|㎡|万吨/年|万吨|吨/年|公里|千米|km|KM|个月|%|％|元|间|吨|倍|年|月)"
+)
+
+
+_UNITLESS_RATIO_PATTERN = re.compile(
+    r"(?:"
+    r"(?P<label_before>偿债备付率|利息备付率|DSCR|ICR)\s*"
+    r"(?:为|达到|不低于|最低为|至少)?\s*(?P<number_before>-?\d+(?:\.\d+)?)"
+    r"|"
+    r"(?P<number_after>-?\d+(?:\.\d+)?)\s*(?:的)?\s*"
+    r"(?:最低|最小|目标|要求)?\s*(?P<label_after>偿债备付率|利息备付率|DSCR|ICR)"
+    r")",
+    re.I,
 )
 
 
@@ -41,7 +53,7 @@ _METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("dynamic_payback", re.compile(r"动态(?:投资)?回收期", re.I)),
     ("static_payback", re.compile(r"静态(?:投资)?回收期", re.I)),
     ("payback", re.compile(r"投资回收期|回收期", re.I)),
-    ("discount_rate", re.compile(r"折现率|基准收益率", re.I)),
+    ("discount_rate", re.compile(r"折现率|基准收益率|目标收益率|要求收益率|收益率门槛", re.I)),
     ("bep", re.compile(r"盈亏平衡点|\bBEP\b", re.I)),
     ("purchase_price", re.compile(r"purchase_price|收购价|购买价|成交价", re.I)),
     ("valuation_value", re.compile(r"valuation_value|评估值|估值", re.I)),

@@ -53,7 +53,7 @@ def render(
     asset_type = str(spec.get("asset_type") or "hotel_lease")
     definitions, columns, _required = _table_contract(asset_type)
     tables = _build_tables(run, spec)
-    integrity = _integrity(tables, asset_type=asset_type)
+    integrity = _integrity(tables, asset_type=asset_type, run_id=run_id)
     manifest = [{
         "index": index, "key": key, "name": name, "row_count": len(tables[key]),
         "column_count": len(columns[key]), "table_hash": sha256_json(tables[key]),

@@ -339,7 +339,7 @@ def list_specs(
         key=lambda row: (int(row.get("revision") or 0), str(row.get("created_at") or "")),
         reverse=True,
     )
-    return rows[: max(1, min(int(limit or 50), 100))]
+    return rows[: max(1, min(int(limit or 50), 10_000))]
 
 
 def get_spec(

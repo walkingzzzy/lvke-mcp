@@ -26,6 +26,14 @@ CONTROLLED_UNIT_RULES: dict[str, tuple[str, float, str]] = {
     "GW": ("MW", 1000.0, "受控SI单位字典：1GW=1000MW"),
     "%": ("%", 1.0, "受控比例单位字典：百分数恒等"),
     "倍": ("倍", 1.0, "受控倍数单位字典：单位恒等"),
+    "wan": ("万元", 1.0, "受控英文别名：wan=万元"),
+    "yuan/kWh": ("元/kWh", 1.0, "受控英文别名：yuan/kWh=元/kWh"),
+    "kWh": ("MWh", 0.001, "受控电量单位字典：1MWh=1000kWh"),
+    "10kWh": ("MWh", 0.01, "受控电量单位字典：10kWh=0.01MWh"),
+    "MWh": ("MWh", 1.0, "受控电量单位字典：单位恒等"),
+    "GWh": ("MWh", 1000.0, "受控电量单位字典：1GWh=1000MWh"),
+    "percent": ("%", 1.0, "受控英文别名：percent=%"),
+    "ratio": ("倍", 1.0, "受控英文别名：ratio=倍"),
 }
 
 # Canonical unit forms for Gate 3 comparison (source wording vs expected_unit).
@@ -37,6 +45,8 @@ _UNIT_CANON = {
     "ha": "公顷", "公顷": "公顷",
     "标煤": "吨标煤", "吨标煤": "吨标煤",
     "公里": "km", "千米": "km",
+    "wan": "万元", "yuan": "元", "percent": "%", "ratio": "倍",
+    "10kwh": "10kwh",
 }
 
 
@@ -66,3 +76,55 @@ def _canon_unit(unit: str) -> str:
         token = _normalize_unit(part).lower()
         canon.append(_UNIT_CANON.get(token, token))
     return "/".join(canon)
+
+
+def normalize_controlled_measure(
+    value: int | float,
+    source_unit: str,
+    expected_unit: str,
+) -> dict[str, Any]:
+    """Apply only an explicit controlled identity/conversion rule."""
+
+    source = str(source_unit or "").strip()
+    expected = str(expected_unit or "").strip()
+    if not expected:
+        return {
+            "numeric_value": value,
+            "raw_unit": source or None,
+            "normalized_unit": _canon_unit(source) if source else None,
+            "unit_rule": "expected_unit_not_declared",
+        }
+    if not source:
+        return {
+            "numeric_value": None,
+            "raw_unit": None,
+            "normalized_unit": None,
+            "unit_rule": "source_unit_required",
+        }
+    if _canon_unit(source) == _canon_unit(expected):
+        return {
+            "numeric_value": value,
+            "raw_unit": source,
+            "normalized_unit": _canon_unit(expected),
+            "unit_rule": "canonical_identity",
+        }
+    for rule_source, (target, factor, basis) in CONTROLLED_UNIT_RULES.items():
+        if rule_source.lower() != source.lower():
+            continue
+        if _canon_unit(target) != _canon_unit(expected):
+            continue
+        converted = float(value) * float(factor)
+        return {
+            "numeric_value": int(converted) if converted.is_integer() else converted,
+            "raw_unit": source,
+            "normalized_unit": _canon_unit(expected),
+            "unit_rule": "controlled_conversion",
+            "conversion_factor": factor,
+            "conversion_basis": basis,
+        }
+    return {
+        "numeric_value": None,
+        "raw_unit": source,
+        "normalized_unit": _canon_unit(source),
+        "unit_rule": "unit_incompatible",
+    }

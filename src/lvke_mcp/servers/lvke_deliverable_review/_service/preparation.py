@@ -283,6 +283,21 @@ def _run_from_preparation(
     target = preparation_payload.get("target") or {}
     target_type = str(target.get("target_type") or "")
     snapshot = preparation_payload.get("target_snapshot") or {}
+    bindings = preparation_payload.get("bindings") or {}
+
+    def with_scenario_matrices(run: dict[str, Any]) -> dict[str, Any]:
+        if not run:
+            return run
+        matrices = list(run.get("scenario_matrices") or [])
+        if not matrices:
+            from lvke_mcp.domains.asset_acquisition.backend import get_scenario_matrix
+
+            run_id = str(run.get("run_id") or bindings.get("finance_run_id") or "")
+            matrices = [
+                get_scenario_matrix(workspace_id, run_id, str(matrix_id))
+                for matrix_id in bindings.get("scenario_matrix_ids") or []
+            ]
+        return {**run, "scenario_matrices": [item for item in matrices if item]}
     if target_type == "finance_run":
         return snapshot if isinstance(snapshot, dict) else {}
     if target_type == "acquisition_run":
@@ -298,7 +313,7 @@ def _run_from_preparation(
                 run = {**run, "spec": deepcopy(spec_row.get("spec") or {})}
             except Exception:  # noqa: BLE001 - missing spec remains an explicit incomplete input
                 pass
-        return run
+        return with_scenario_matrices(run)
     run_id = str((preparation_payload.get("bindings") or {}).get("finance_run_id") or "")
     if not run_id:
         return {}
@@ -314,7 +329,9 @@ def _run_from_preparation(
             if run
             else {}
         )
-        return {**run, "spec": deepcopy(spec_row.get("spec") or {})} if run else {}
+        return with_scenario_matrices(
+            {**run, "spec": deepcopy(spec_row.get("spec") or {})} if run else {}
+        )
     from lvke_mcp.domains.finance.run_service import get_workspace_finance_run
 
     run = get_workspace_finance_run(
@@ -336,7 +353,10 @@ def _run_from_preparation(
                 workspace_id,
                 str(acquisition_run.get("spec_id") or ""),
             )
-            return {**acquisition_run, "spec": deepcopy(spec_row.get("spec") or {})}
+            return with_scenario_matrices({
+                **acquisition_run,
+                "spec": deepcopy(spec_row.get("spec") or {}),
+            })
     except Exception:  # noqa: BLE001 - caller records unavailable bound run
         pass
     return run

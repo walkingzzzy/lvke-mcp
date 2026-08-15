@@ -37,6 +37,7 @@ from lvke_mcp.runtime.workspace import workspace_root  # noqa: F401
 from lvke_mcp.runtime.coordination import build_coordination  # noqa: F401
 from lvke_mcp.servers.lvke_source_files.external_corpora import (
     ExternalCorpusError,  # noqa: F401
+    configured_import_root_diagnostics,  # noqa: F401
     configured_import_roots,  # noqa: F401
     resolve_project_corpora,  # noqa: F401
 )
@@ -131,6 +132,7 @@ __all__ = [
     "build_coordination",
     "canonical_json",
     "configured_import_roots",
+    "configured_import_root_diagnostics",
     "inspect_path",
     "paginate_resource_entries",
     "require_safe_id",

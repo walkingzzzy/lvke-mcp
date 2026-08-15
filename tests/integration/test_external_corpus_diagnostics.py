@@ -17,7 +17,11 @@ from pathlib import Path
 from unittest import mock
 
 from lvke_mcp.servers.lvke_source_files._service.imports import resolve_external_corpus
-from lvke_mcp.servers.lvke_source_files.external_corpora import ExternalCorpusError
+from lvke_mcp.servers.lvke_source_files.external_corpora import (
+    ExternalCorpusError,
+    configured_import_root_diagnostics,
+    configured_import_roots,
+)
 
 _MARKER = "registered/marker.md"
 
@@ -77,6 +81,18 @@ class TestExternalCorpusErrorReason(unittest.TestCase):
         """Old callers that pass only a message string continue to work."""
         e = ExternalCorpusError("legacy message")
         self.assertIsInstance(e, RuntimeError)
+
+    def test_valid_import_root_survives_invalid_siblings(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="lvke-valid-root-") as directory:
+            missing = str(Path(directory) / "missing")
+            configured = os.pathsep.join([missing, directory])
+            with mock.patch.dict(
+                os.environ, {"LVKE_SOURCE_IMPORT_ROOTS": configured}, clear=False
+            ):
+                self.assertEqual(configured_import_roots(), (Path(directory).resolve(),))
+                diagnostics = configured_import_root_diagnostics()
+            self.assertEqual(len(diagnostics["invalid_roots"]), 1)
+            self.assertEqual(diagnostics["invalid_roots"][0]["reason"], "root_not_found")
 
 
 class TestResolveExternalCorpusDiagnostics(unittest.TestCase):

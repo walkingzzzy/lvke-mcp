@@ -41,6 +41,7 @@ def _generic_artifact_snapshot(record: dict[str, Any]) -> dict[str, Any]:
         "kind": str(record.get("kind") or ""),
         "template_version": str(record.get("template_version") or ""),
         "basis_fingerprint": str(record.get("basis_fingerprint") or ""),
+        "report_revision_id": str(record.get("report_revision_id") or ""),
         "document_revision_id": str(record.get("document_revision_id") or ""),
         "finance_run_id": str(record.get("finance_run_id") or record.get("run_id") or ""),
         "spec_hash": str(record.get("spec_hash") or ""),
@@ -75,6 +76,21 @@ def _string_ids(*values: Any) -> list[str]:
         for item in (value if isinstance(value, (list, tuple, set)) else [])
         if str(item).strip()
     })
+
+
+def _acquisition_scenario_matrix_ids(workspace_id: str, run_id: str) -> list[str]:
+    if not run_id.startswith("acqrun_"):
+        return []
+    try:
+        from lvke_mcp.domains.asset_acquisition.backend import list_scenario_matrices
+
+        return [
+            str(item.get("matrix_id") or "")
+            for item in list_scenario_matrices(workspace_id, run_id)
+            if item.get("matrix_id")
+        ]
+    except (OSError, ValueError):
+        return []
 
 
 def _artifact_upstream_bindings(record: dict[str, Any]) -> dict[str, Any]:
@@ -112,16 +128,26 @@ def _artifact_upstream_bindings(record: dict[str, Any]) -> dict[str, Any]:
 def _linked_generic_report_revision(
     workspace_id: str,
     artifact: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any], list[str]]:
     native_revision_id = str(artifact.get("document_revision_id") or "")
     if not native_revision_id:
-        return {}, {}
+        return {}, {}, ["report_artifact_revision_missing"]
     try:
         from lvke_mcp.adapters.report_repository import REVISION_STORE
 
-        records = REVISION_STORE.list(workspace_id)
+        exact_revision_id = str(artifact.get("report_revision_id") or "")
+        if exact_revision_id:
+            exact = REVISION_STORE.get(workspace_id, exact_revision_id)
+            if exact is None:
+                return {}, {}, ["report_artifact_revision_not_found"]
+            exact_native = str((exact.get("payload") or {}).get("native_revision_id") or "")
+            if exact_native != native_revision_id:
+                return {}, {}, ["report_artifact_revision_mismatch"]
+            records = [exact]
+        else:
+            records = REVISION_STORE.list(workspace_id)
     except (OSError, ValueError):
-        return {}, {}
+        return {}, {}, ["report_artifact_revision_unavailable"]
     artifact_created_at = _parse_timestamp(artifact.get("created_at"))
     artifact_run_id = str(
         artifact.get("finance_run_id") or artifact.get("run_id") or ""
@@ -140,7 +166,9 @@ def _linked_generic_report_revision(
             continue
         candidates.append(record)
     if not candidates:
-        return {}, {}
+        return {}, {}, ["report_artifact_revision_not_found"]
+    if not str(artifact.get("report_revision_id") or "") and len(candidates) > 1:
+        return {}, {}, ["report_artifact_revision_ambiguous"]
     candidates.sort(
         key=lambda row: (
             str(row.get("created_at") or ""),
@@ -161,7 +189,7 @@ def _linked_generic_report_revision(
         "content_hash": str(revision.get("content_hash") or ""),
         "basis_hash": str(revision.get("basis_hash") or ""),
     }
-    return snapshot, bindings
+    return snapshot, bindings, []
 
 
 def _resolve_report_artifact(
@@ -190,10 +218,12 @@ def _resolve_report_artifact(
         ):
             return None, {}, ["report_artifact_not_current"]
         snapshot = _generic_artifact_snapshot(generic)
-        revision_snapshot, revision_bindings = _linked_generic_report_revision(
+        revision_snapshot, revision_bindings, revision_blockers = _linked_generic_report_revision(
             workspace_id,
             generic,
         )
+        if revision_blockers:
+            return None, {}, revision_blockers
         bindings = _artifact_upstream_bindings(generic)
         for key in ("evidence_pack_ids", "research_package_ids"):
             bindings[key] = _string_ids(bindings.get(key), revision_bindings.get(key))
@@ -202,6 +232,10 @@ def _resolve_report_artifact(
                 bindings[key] = revision_bindings[key]
         bindings["finance_run_id"] = str(
             generic.get("finance_run_id") or generic.get("run_id") or ""
+        )
+        bindings["scenario_matrix_ids"] = _acquisition_scenario_matrix_ids(
+            workspace_id,
+            bindings["finance_run_id"],
         )
         snapshot["upstream_bindings"] = deepcopy(bindings)
         if revision_snapshot:
@@ -228,9 +262,41 @@ def _resolve_report_artifact(
         snapshot = _acquisition_artifact_snapshot(acquisition)
         bindings = _artifact_upstream_bindings(acquisition)
         bindings["finance_run_id"] = str(acquisition.get("run_id") or "")
+        bindings["scenario_matrix_ids"] = _acquisition_scenario_matrix_ids(
+            workspace_id,
+            bindings["finance_run_id"],
+        )
         snapshot["upstream_bindings"] = deepcopy(bindings)
         return snapshot, bindings, []
     return None, {}, ["report_artifact_domain_invalid"]
+
+
+def _resolve_report_artifact_auto(
+    workspace_id: str,
+    artifact_id: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any], str, list[str]]:
+    matches: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    resolution_blockers: list[str] = []
+    for domain in sorted(_REPORT_ARTIFACT_DOMAINS):
+        payload, bindings, blockers = _resolve_report_artifact(
+            workspace_id,
+            artifact_id,
+            artifact_domain=domain,
+        )
+        if payload is not None and not blockers:
+            matches.append((domain, payload, bindings))
+        resolution_blockers.extend(
+            blocker for blocker in blockers
+            if blocker not in {"report_artifact_not_found"}
+        )
+    if len(matches) == 1:
+        domain, payload, bindings = matches[0]
+        return payload, bindings, domain, []
+    if len(matches) > 1:
+        return None, {}, "", ["report_artifact_domain_ambiguous"]
+    if resolution_blockers:
+        return None, {}, "", sorted(set(resolution_blockers))
+    return None, {}, "", ["report_artifact_not_found"]
 
 
 def _combined_bindings_manifest(
@@ -281,6 +347,46 @@ def _combined_bindings_manifest(
     if conflicts:
         aggregate["component_binding_conflicts"] = conflicts
     return aggregate
+
+
+def _combined_lineage_blockers(components: list[dict[str, Any]]) -> list[str]:
+    """Reject only conflicts that make one combined deliverable incoherent."""
+
+    direct_run_ids = {
+        str(component.get("target_id") or "")
+        for component in components
+        if component.get("target_type") in {"finance_run", "acquisition_run"}
+    }
+    direct_revision_ids = {
+        str(component.get("target_id") or "")
+        for component in components
+        if component.get("target_type") == "report_revision"
+    }
+    report_bound_runs: set[str] = set()
+    artifact_bound_revisions: set[str] = set()
+    blockers: list[str] = []
+    for component in components:
+        target_type = str(component.get("target_type") or "")
+        bindings = component.get("bindings") or {}
+        bound_run_id = str(bindings.get("finance_run_id") or "")
+        if target_type in {"report_revision", "report_artifact"} and bound_run_id:
+            report_bound_runs.add(bound_run_id)
+            if direct_run_ids and bound_run_id not in direct_run_ids:
+                blockers.append("combined_report_finance_run_mismatch")
+        if target_type == "report_artifact":
+            bound_revision_id = str(bindings.get("report_revision_id") or "")
+            if bound_revision_id:
+                artifact_bound_revisions.add(bound_revision_id)
+                if direct_revision_ids and bound_revision_id not in direct_revision_ids:
+                    blockers.append("combined_report_artifact_revision_mismatch")
+        if target_type in {"finance_tables_package", "acquisition_tables_package"}:
+            if direct_run_ids and bound_run_id and bound_run_id not in direct_run_ids:
+                blockers.append("combined_table_package_run_mismatch")
+    if len(report_bound_runs) > 1:
+        blockers.append("combined_report_finance_binding_conflict")
+    if direct_revision_ids and artifact_bound_revisions - direct_revision_ids:
+        blockers.append("combined_report_revision_binding_conflict")
+    return sorted(set(blockers))
 
 
 def _resolve_target(
@@ -345,13 +451,32 @@ def _resolve_target(
                 }
                 bindings["source_file_id"] = str(resolution.get("source_file_id") or source_file_id)
     elif target_type == "acquisition_run":
-        from lvke_mcp.domains.asset_acquisition.backend import get_run
+        from lvke_mcp.domains.asset_acquisition.backend import (
+            get_run,
+            get_scenario_matrix,
+            list_scenario_matrices,
+        )
         payload = get_run(
             workspace_id,
             target_id,
         )
         if not payload.get("available") or str(payload.get("run_id") or "") != target_id:
             blockers.append("acquisition_run_not_found")
+        else:
+            matrix_summaries = list_scenario_matrices(workspace_id, target_id)
+            matrices = [
+                get_scenario_matrix(
+                    workspace_id,
+                    target_id,
+                    str(item.get("matrix_id") or ""),
+                )
+                for item in matrix_summaries
+                if item.get("matrix_id")
+            ]
+            payload = {**payload, "scenario_matrices": [item for item in matrices if item]}
+            bindings["scenario_matrix_ids"] = [
+                str(item.get("matrix_id") or "") for item in matrices if item.get("matrix_id")
+            ]
         bindings["finance_run_id"] = target_id
     elif target_type == "acquisition_tables_package":
         from lvke_mcp.domains.asset_acquisition.tables import get_package_record
@@ -360,7 +485,13 @@ def _resolve_target(
         if record is None:
             blockers.append("acquisition_tables_package_not_found")
         else:
-            bindings["finance_run_id"] = str((record.get("payload") or {}).get("run_id") or "")
+            acquisition_run_id = str((record.get("payload") or {}).get("run_id") or "")
+            bindings["finance_run_id"] = acquisition_run_id
+            if acquisition_run_id:
+                bindings["scenario_matrix_ids"] = _acquisition_scenario_matrix_ids(
+                    workspace_id,
+                    acquisition_run_id,
+                )
             resource_uri = str(record.get("resource_uri") or "")
     elif target_type == "report_revision":
         from lvke_mcp.adapters.report_repository import REVISION_STORE
@@ -389,19 +520,28 @@ def _resolve_target(
             payload = {"revision_record": record, "document": document}
             upstream = record_payload.get("upstream") or {}
             bindings = {
+                "report_revision_id": target_id,
                 "finance_run_id": str(upstream.get("run_id") or ""),
                 "finance_tables_package_id": str(upstream.get("finance_tables_package_id") or ""),
                 "evidence_pack_ids": list(upstream.get("evidence_pack_ids") or []),
                 "research_package_ids": list(upstream.get("research_package_ids") or []),
             }
+            bindings["scenario_matrix_ids"] = _acquisition_scenario_matrix_ids(
+                workspace_id,
+                bindings["finance_run_id"],
+            )
             resource_uri = str(record.get("resource_uri") or "")
     elif target_type == "report_artifact":
         artifact_domain = str(target.get("artifact_domain") or "").strip()
-        if artifact_domain not in _REPORT_ARTIFACT_DOMAINS:
-            blockers.append(
-                "report_artifact_domain_required"
-                if not artifact_domain else "report_artifact_domain_invalid"
+        if not artifact_domain:
+            payload, bindings, artifact_domain, artifact_blockers = (
+                _resolve_report_artifact_auto(workspace_id, target_id)
             )
+            blockers.extend(artifact_blockers)
+            if artifact_domain:
+                target["artifact_domain"] = artifact_domain
+        elif artifact_domain not in _REPORT_ARTIFACT_DOMAINS:
+            blockers.append("report_artifact_domain_invalid")
         else:
             target["artifact_domain"] = artifact_domain
             payload, bindings, artifact_blockers = _resolve_report_artifact(
@@ -409,7 +549,22 @@ def _resolve_target(
                 target_id,
                 artifact_domain=artifact_domain,
             )
-            blockers.extend(artifact_blockers)
+            if payload is None and artifact_blockers == ["report_artifact_not_found"]:
+                other_domains = _REPORT_ARTIFACT_DOMAINS - {artifact_domain}
+                mismatched = any(
+                    _resolve_report_artifact(
+                        workspace_id,
+                        target_id,
+                        artifact_domain=other_domain,
+                    )[0] is not None
+                    for other_domain in other_domains
+                )
+                blockers.append(
+                    "report_artifact_domain_mismatch"
+                    if mismatched else "report_artifact_not_found"
+                )
+            else:
+                blockers.extend(artifact_blockers)
     elif target_type == "combined_deliverable":
         component_targets = target.get("components") or []
         if not isinstance(component_targets, list) or len(component_targets) < 2:
@@ -435,6 +590,7 @@ def _resolve_target(
                     components.append(resolved)
             payload = {"components": components}
             bindings = _combined_bindings_manifest(components)
+            blockers.extend(_combined_lineage_blockers(components))
     if payload is None:
         payload = {}
     target_hash = (
@@ -457,7 +613,7 @@ def _acquisition_run_snapshot(run: dict[str, Any]) -> dict[str, Any]:
         "formal_spec_valid", "formal_spec_errors", "spec_id", "spec_hash",
         "input_hash", "spec_snapshot_hash", "evidence_binding_version",
         "evidence_binding_hash", "evidence_status", "evidence_formal_ok",
-        "model_version", "result", "issues", "created_at",
+        "model_version", "result", "issues", "scenario_matrices", "created_at",
     )
     return {
         key: deepcopy(run.get(key))
@@ -531,6 +687,22 @@ def _binding_snapshot(
             "content_hash": (record or {}).get("content_hash"),
             "basis_hash": (record or {}).get("basis_hash"),
         }
+
+    scenario_rows: list[dict[str, Any]] = []
+    for matrix_id in bindings.get("scenario_matrix_ids") or []:
+        try:
+            from lvke_mcp.domains.asset_acquisition.backend import get_scenario_matrix
+
+            matrix = get_scenario_matrix(workspace_id, finance_run_id, str(matrix_id))
+        except (OSError, ValueError):
+            matrix = {}
+        scenario_rows.append({
+            "id": str(matrix_id),
+            "content_hash": sha256_json(matrix) if matrix else None,
+            "matrix_hash": (matrix or {}).get("matrix_hash"),
+        })
+    if scenario_rows:
+        snapshot["scenario_matrices"] = scenario_rows
 
     report_revision_id = str(bindings.get("report_revision_id") or "")
     if report_revision_id:

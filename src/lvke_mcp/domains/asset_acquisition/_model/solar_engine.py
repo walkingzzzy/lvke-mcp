@@ -74,7 +74,10 @@ def _run_solar_acquisition_model(
     debt_rows = _monthly_debt_schedule(
         debt, _number(transaction.get("interest_rate")), tenor, months, repayment,
     )
-    depreciation = _depreciation_schedule(transaction, years)
+    depreciation = _depreciation_schedule(
+        {**transaction, "depreciation_schedule": spec.get("depreciation_schedule")},
+        years,
+    )
     depreciation_values = depreciation.get("annual_depreciation_wan") or [0.0] * years
     degradation = min(max(_number(solar.get("degradation_rate")), 0.0), 1.0)
     curtailment = min(max(_number(solar.get("curtailment_rate")), 0.0), 1.0)
@@ -152,6 +155,17 @@ def _run_solar_acquisition_model(
     equity_irr = _safe_irr(equity_annual)
     payback = payback_period(project_annual, rate=discount_rate)
     monthly_dscr = [row["dscr"] for row in monthly_rows if row.get("dscr") is not None]
+
+    # 构建税前现金流，用于审查器的税费勾稽
+    project_pre_tax_cashflows = [-total_cost]
+    for index in range(years):
+        revenue = annual[index]["revenue_wan"]
+        opex_cost = annual[index]["operating_cost_wan"]
+        maintenance_cost = annual[index]["maintenance_capex_wan"]
+        exit_cash = net_exit if index + 1 == exit_year else 0.0
+        pre_tax_cf = revenue - opex_cost - maintenance_cost + exit_cash
+        project_pre_tax_cashflows.append(pre_tax_cf)
+
     return {
         "available": True, "model_version": "acquisition_model.solar.v1",
         "asset_type": "solar_power", "spec_version": LATEST_SPEC_VERSION,
@@ -163,6 +177,7 @@ def _run_solar_acquisition_model(
         "equity_cashflows_wan": equity_annual, "debt_schedule_monthly": debt_rows,
         "debt_schedule": {"monthly": debt_rows}, "depreciation_schedule": depreciation,
         "tax_schedule": {"income_tax_rate": income_tax_rate, "project_income_tax_wan": project_tax, "equity_income_tax_wan": equity_tax},
+        "project_pre_tax_cashflows_wan": project_pre_tax_cashflows,
         "solar_operation": {
             "installed_capacity_mw": capacity, "base_generation_mwh": base_generation,
             "tariff_yuan_per_kwh": tariff, "curtailment_rate": curtailment,

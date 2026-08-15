@@ -173,7 +173,7 @@ _HOTEL_TRANSACTION_SCHEMA = {
             "enum": ["owner_lessor", "mixed_owner_operator"],
         },
     },
-    "required": ["calculation_granularity"],
+    "required": ["calculation_granularity", "model_start_date"],
 }
 _SOLAR_TRANSACTION_SCHEMA = {
     "type": "object",
@@ -187,6 +187,7 @@ _SOLAR_TRANSACTION_SCHEMA = {
 }
 _COMMON_SPEC_PROPERTIES = {
     "version": {"type": "string", "const": "finance_spec.v3"},
+    "finance_kind": {"type": "string", "const": "asset_acquisition"},
     "industry": {"type": "string"},
     "invest_type": {"type": "string", "const": "asset_acquisition"},
     "selected_scenario_id": {"type": "string", "minLength": 1},
@@ -234,6 +235,26 @@ _COMMON_SPEC_PROPERTIES = {
             "流程验收逐字段依据。confirmation_scope=process_acceptance 时至少一条，"
             "每条七个键齐全且 content_hash 以 sha256: 开头"
         ),
+    },
+    "depreciation_schedule": {
+        "type": "object", "additionalProperties": False,
+        "properties": {
+            "classes": {
+                "type": "array", "items": {
+                    "type": "object", "additionalProperties": False,
+                    "properties": {
+                        "scope_id": _STRING, "name": _STRING,
+                        "original_value_wan": _MONEY, "basis_wan": _MONEY,
+                        "useful_life_years": {"type": "integer", "minimum": 1},
+                        "depreciation_years": {"type": "integer", "minimum": 1},
+                        "residual_rate": _RATE, "salvage_rate": _RATE,
+                        "depreciation_start_year": {"type": "integer", "minimum": 1},
+                    },
+                    "required": ["name"],
+                },
+            },
+        },
+        "required": ["classes"],
     },
 }
 _HOTEL_OPERATION_SCHEMA = {

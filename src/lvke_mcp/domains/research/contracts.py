@@ -17,6 +17,7 @@ SESSION_SCHEMA_VERSION = "research_session.v1"
 RUN_SCHEMA_VERSION = "research_run.v1"
 
 ResearchProfile = Literal["quick", "deep_assist", "deep_standard", "deep_max"]
+ResearchMode = Literal["controlled_material_summary", "public_research", "project_delivery"]
 ResearchMaturity = Literal["none", "draft", "certified"]
 ResearchStage = Literal[
     "clarify",
@@ -97,6 +98,7 @@ class ResearchBudget(JsonContract):
 class ResearchPolicy(JsonContract):
     profile: ResearchProfile = "deep_standard"
     contract_version: str = CONTRACT_VERSION
+    research_mode: ResearchMode = "controlled_material_summary"
     min_rounds: int = 2
     min_query_variants: int = 3
     min_search_calls: int = 20

@@ -151,6 +151,7 @@ def create_scenario_matrix(
     created_at = _now()
     matrix = {
         "ok": True, "matrix_id": matrix_id, "status": "succeeded", "read_only": True,
+        "method": "full_model_rerun",
         "workspace_id": workspace_id, **bound, "dimensions": normalized,
         "combination_count": combination_count, "max_combinations": MAX_SCENARIO_MATRIX_COMBINATIONS,
         "rows": rows, "request_id": request_id, "created_at": created_at,
@@ -209,7 +210,7 @@ def list_scenario_matrices(
     return [
         {key: value.get(key) for key in (
             "matrix_id", "matrix_hash", "run_id", "spec_id", "spec_hash", "input_hash",
-            "combination_count", "status", "created_at",
+            "combination_count", "method", "status", "created_at",
         )}
         for value in rows
     ]

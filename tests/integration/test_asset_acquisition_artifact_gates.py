@@ -11,6 +11,7 @@ from lvke_mcp.domains.asset_acquisition._backend import artifacts
 from lvke_mcp.domains.asset_acquisition._backend import report_data
 from lvke_mcp.domains.asset_acquisition._backend.store import _artifacts_root, _load, _save, _state_guard
 from lvke_mcp.servers.lvke_asset_acquisition import service
+from lvke_mcp.domains.asset_acquisition._model.schedules import _depreciation_schedule
 
 
 class AcquisitionArtifactGateTest(unittest.TestCase):
@@ -64,6 +65,42 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             state["runs"][run_id] = run
             _save("artifact-gate", state)
         return run
+
+    def test_classified_depreciation_schedule_maps_to_model_rows(self) -> None:
+        schedule = _depreciation_schedule(
+            {
+                "depreciation_schedule": {
+                    "classes": [{
+                        "name": "光伏发电设备",
+                        "original_value_wan": 1800,
+                        "useful_life_years": 18,
+                        "residual_rate": 0.05,
+                    }]
+                }
+            },
+            18,
+        )
+        self.assertEqual(len(schedule["classes"]), 1)
+        self.assertEqual(schedule["classes"][0]["basis_wan"], 1800)
+        self.assertAlmostEqual(schedule["annual_depreciation_wan"][0], 95.0)
+        self.assertEqual(len(schedule["annual_depreciation_wan"]), 18)
+
+    def test_solar_candidate_requires_model_start_date_before_run(self) -> None:
+        spec = {
+            "version": "finance_spec.v3",
+            "asset_type": "solar_power",
+            "transaction": {"calculation_granularity": "annual"},
+        }
+        with patch.object(service, "validate", return_value=(True, [])), patch.object(
+            service, "validate_for_formal", return_value=(False, [])
+        ):
+            result = service.validate_spec(spec)
+        self.assertFalse(result["valid"])
+        self.assertEqual(result["code"], "SPEC_VALIDATION_FAILED")
+        self.assertIn(
+            "/transaction/model_start_date",
+            {item.get("path") for item in result["field_errors"]},
+        )
 
     def test_preview_is_blocked_before_staging(self) -> None:
         run = self._run(mode="estimate_preview")

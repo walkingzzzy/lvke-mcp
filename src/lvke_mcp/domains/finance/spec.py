@@ -313,6 +313,31 @@ FINANCE_KINDS = (GENERIC_FINANCE_KIND, ACQUISITION_FINANCE_KIND)
 ACQUISITION_ASSET_TYPES = frozenset({"hotel_lease", "solar_power"})
 
 
+def finance_kind_conflicts(spec: dict[str, Any]) -> list[str]:
+    """Return explicit route contradictions without rewriting caller input."""
+    if not isinstance(spec, dict):
+        return ["finance_kind must be an object"]
+    declared = str(spec.get("finance_kind") or "").strip()
+    asset_type = str(spec.get("asset_type") or "").strip()
+    transaction = spec.get("transaction") if isinstance(spec.get("transaction"), dict) else {}
+    acquisition_fields = any(
+        key in spec and spec.get(key) not in (None, "", [], {})
+        for key in ("asset_type", "transaction", "solar_operation", "hotel_operation", "lease_portfolio", "project_parties", "historical_statements")
+    )
+    if declared and declared not in FINANCE_KINDS:
+        return [f"finance_kind 非法: {declared}"]
+    conflicts: list[str] = []
+    if declared == GENERIC_FINANCE_KIND and acquisition_fields:
+        conflicts.append("PROJECT_ROUTE_CONFLICT:generic_feasibility_with_acquisition_fields")
+    if declared == ACQUISITION_FINANCE_KIND and asset_type not in ACQUISITION_ASSET_TYPES:
+        conflicts.append("PROJECT_ROUTE_CONFLICT:asset_acquisition_requires_supported_asset_type")
+    if asset_type == "solar_power" and declared == GENERIC_FINANCE_KIND:
+        conflicts.append("PROJECT_ROUTE_CONFLICT:solar_power_requires_asset_acquisition")
+    if asset_type == "solar_power" and transaction and str(transaction.get("calculation_granularity") or "annual") != "annual":
+        conflicts.append("PROJECT_ROUTE_CONFLICT:solar_power_requires_annual_granularity")
+    return sorted(set(conflicts))
+
+
 def infer_finance_kind(spec: dict[str, Any]) -> str:
     """Resolve whether a v3 spec is an acquisition or a generic feasibility run.
 

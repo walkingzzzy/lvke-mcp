@@ -23,7 +23,11 @@ from .storage import (
 )
 
 
-def _document_snapshot(workspace_id: str) -> tuple[dict[str, Any], str, dict[str, Any]]:
+def _document_snapshot(
+    workspace_id: str,
+    *,
+    supplied_snapshot: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], str, dict[str, Any]]:
     root = _workspace_root(workspace_id)
     meta_path = root / "workspace_meta.json"
     if not meta_path.is_file():
@@ -35,7 +39,17 @@ def _document_snapshot(workspace_id: str) -> tuple[dict[str, Any], str, dict[str
         raise DeliverableArtifactError(
             "WORKSPACE_STATE_CORRUPT", "工作区元数据必须是对象",
         )
-    revision_id = str(meta.get("current_revision_id") or "")
+    if supplied_snapshot is not None:
+        claimed_workspace = str(supplied_snapshot.get("workspace_id") or workspace_id)
+        content = supplied_snapshot.get("content")
+        revision_id = str(supplied_snapshot.get("revision_id") or "")
+        if claimed_workspace != workspace_id or not isinstance(content, str):
+            raise DeliverableArtifactError(
+                "DOCUMENT_SNAPSHOT_INVALID", "指定研报修订快照无效",
+            )
+    else:
+        revision_id = str(meta.get("current_revision_id") or "")
+        content = None
     if not _SAFE_REVISION_ID.fullmatch(revision_id):
         raise DeliverableArtifactError(
             "DOCUMENT_REVISION_INVALID", "当前文档修订 id 缺失或不合法",
@@ -43,17 +57,18 @@ def _document_snapshot(workspace_id: str) -> tuple[dict[str, Any], str, dict[str
     # 正文路径必须复用写入侧的同一函数（doc_service._revision_dir），
     # 不要在这里重新拼 root / "revisions"：修订正文已迁到交付物根，
     # 两边各自拼路径会造成写得进、读不到（DOCUMENT_REVISION_NOT_FOUND）。
-    report_path = doc_service._revision_dir(workspace_id, revision_id) / "report.md"  # noqa: SLF001
-    try:
-        content = report_path.read_text(encoding="utf-8")
-    except FileNotFoundError as exc:
-        raise DeliverableArtifactError(
-            "DOCUMENT_REVISION_NOT_FOUND", "当前文档修订正文不存在",
-        ) from exc
-    except (OSError, UnicodeError) as exc:
-        raise DeliverableArtifactError(
-            "DOCUMENT_REVISION_UNREADABLE", "当前文档修订正文不可读",
-        ) from exc
+    if content is None:
+        report_path = doc_service._revision_dir(workspace_id, revision_id) / "report.md"  # noqa: SLF001
+        try:
+            content = report_path.read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            raise DeliverableArtifactError(
+                "DOCUMENT_REVISION_NOT_FOUND", "当前文档修订正文不存在",
+            ) from exc
+        except (OSError, UnicodeError) as exc:
+            raise DeliverableArtifactError(
+                "DOCUMENT_REVISION_UNREADABLE", "当前文档修订正文不可读",
+            ) from exc
     metadata_material = {
         "title": str(meta.get("title") or ""),
         "report_type": str(meta.get("report_type") or ""),
@@ -186,11 +201,19 @@ def _source_basis_snapshot(workspace_id: str) -> dict[str, Any]:
     }
 
 
-def _fresh_readiness(workspace_id: str) -> dict[str, Any]:
+def _fresh_readiness(
+    workspace_id: str,
+    *,
+    document_snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     try:
         from lvke_mcp.domains.reports import readiness as report_readiness
 
-        value = report_readiness.build_readiness(workspace_id, persist=False)
+        value = report_readiness.build_readiness(
+            workspace_id,
+            persist=False,
+            document_snapshot=document_snapshot,
+        )
     except Exception as exc:  # noqa: BLE001 - captured as a fail-closed basis error
         return {
             "workspace_id": workspace_id,
@@ -217,8 +240,16 @@ def _fresh_readiness(workspace_id: str) -> dict[str, Any]:
 
 
 def _load_finance_run(workspace_id: str, run_id: str) -> dict[str, Any] | None:
-    if not run_id or run_id.startswith("acqrun_"):
+    if not run_id:
         return None
+    # 资产收购 run 使用专用加载路径
+    if run_id.startswith("acqrun_"):
+        try:
+            from lvke_mcp.domains.asset_acquisition import backend as acquisition_backend
+            return acquisition_backend.get_run(workspace_id, run_id)
+        except Exception as exc:  # noqa: BLE001
+            return {"_load_error": type(exc).__name__, "run_id": run_id}
+    # 通用可研 run 使用原有加载路径
     try:
         from lvke_mcp.domains.finance import run_store
 

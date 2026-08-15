@@ -48,6 +48,7 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
     investment = run.get("investment") if isinstance(run.get("investment"), dict) else {}
     funding = run.get("funding") if isinstance(run.get("funding"), dict) else {}
     params = run.get("params") if isinstance(run.get("params"), dict) else {}
+    raw = run.get("raw") if isinstance(run.get("raw"), dict) else {}
     build_years = max(int(_number(params.get("build_years")) or 1), 1)
     fixed_asset_gross = _number(investment.get("fixed_asset"))
     working_capital_total = _number(investment.get("working_capital"))
@@ -99,7 +100,9 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
                 contributed_capital = capital_total * progress
                 contributed_subsidy = subsidy_total * progress
             net_fixed_assets = 0.0
-            net_intangible_assets = intangible_gross * progress
+            # CIP already contains the complete fixed-asset gross amount,
+            # including the intangible portion split out on commissioning.
+            net_intangible_assets = 0.0
             working_capital = 0.0
         else:
             construction_in_progress = 0.0
@@ -118,6 +121,11 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
             cumulative_profit += _period_value(profits, operating_index, "net_profit")
             if final_period:
                 # The financial plan includes terminal recovery in cash.
+                fixed_recovery = _number(raw.get("terminal_recovery"))
+                if fixed_recovery:
+                    # Derecognize closing book value; only the disposal
+                    # gain/loss changes retained earnings.
+                    cumulative_profit += fixed_recovery - net_fixed_assets
                 net_fixed_assets = 0.0
                 working_capital = 0.0
 
@@ -174,6 +182,7 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
             "working_capital": "investment.working_capital",
             "debt": "annual.debt_service.end",
             "retained_earnings": "cumulative annual.profit_distribution.net_profit",
+            "terminal_disposal_gain": "raw.terminal_recovery-closing fixed-asset book value",
             "cash_deficit": "max(-annual.financial_plan.cash_end|cumulative,0)",
             "equity_residual": "total_assets-total_liabilities",
         },

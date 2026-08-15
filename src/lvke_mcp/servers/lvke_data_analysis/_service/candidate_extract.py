@@ -19,6 +19,97 @@ from .numeric_gates import (
     _numeric_cell_value,
     _numeric_text_measure,
 )
+from .unit_rules import normalize_controlled_measure
+
+
+_FIELD_HEADERS = frozenset({"field", "key", "name", "metric", "parameter", "字段", "参数", "指标", "项目"})
+_VALUE_HEADERS = frozenset({"value", "numeric_value", "amount", "数值", "值", "金额", "取值"})
+_UNIT_HEADERS = frozenset({"unit", "units", "单位", "计量单位"})
+
+
+def _header_kind(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in _FIELD_HEADERS:
+        return "field"
+    if normalized in _VALUE_HEADERS:
+        return "value"
+    if normalized in _UNIT_HEADERS:
+        return "unit"
+    return ""
+
+
+def _structured_csv_candidate(
+    document: dict[str, Any],
+    field: str,
+    aliases: list[str],
+    spec: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve a field/value/unit tuple from one CSV row without proximity guessing."""
+
+    cells = [
+        item for item in (document.get("locators") or [])
+        if isinstance(item, dict)
+        and item.get("kind") == "cell"
+        and item.get("table_kind") == "csv"
+        and item.get("is_header") is not True
+    ]
+    if not cells:
+        return None
+    rows: dict[int, dict[str, dict[str, Any]]] = {}
+    for cell in cells:
+        kind = _header_kind(cell.get("header_name"))
+        if not kind:
+            continue
+        rows.setdefault(int(cell.get("row_index") or 0), {})[kind] = cell
+    alias_set = {str(item).strip().lower() for item in aliases if str(item).strip()}
+    for row_index in sorted(rows):
+        row = rows[row_index]
+        label = row.get("field")
+        value_cell = row.get("value")
+        if label is None or value_cell is None:
+            continue
+        label_value = str(label.get("original_value") or "").strip()
+        if label_value.lower() not in alias_set:
+            continue
+        raw_numeric = _numeric_cell_value(value_cell)
+        unit_cell = row.get("unit")
+        source_unit = str((unit_cell or {}).get("original_value") or "").strip()
+        expected_unit = str(spec.get("expected_unit") or "").strip()
+        measure = (
+            normalize_controlled_measure(raw_numeric, source_unit, expected_unit)
+            if raw_numeric is not None
+            else {
+                "numeric_value": None,
+                "raw_unit": source_unit or None,
+                "normalized_unit": None,
+                "unit_rule": "value_not_numeric",
+            }
+        )
+        gate_passed = measure.get("numeric_value") is not None
+        return {
+            "field": field,
+            "metric": field,
+            "matched_alias": label_value,
+            "source_id": str(document.get("source_id") or ""),
+            "source_type": document.get("source_type"),
+            "formal_use_allowed": document.get("formal_use_allowed"),
+            "candidate_kind": "structured_csv_row",
+            "value": value_cell.get("original_value"),
+            "original_value": value_cell.get("original_value"),
+            "expected_unit": expected_unit or None,
+            "excerpt": f"{label_value},{value_cell.get('original_value')},{source_unit}",
+            "locator": value_cell,
+            "label_locator": label,
+            "unit_locator": unit_cell,
+            "row_index": row_index,
+            **measure,
+            "attribution_gate": {
+                "status": "passed" if gate_passed else "rejected",
+                "reason": None if gate_passed else measure.get("unit_rule"),
+                "method": "csv_same_row_header_mapping",
+            },
+        }
+    return None
 
 
 def _document_segments(document: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
@@ -99,6 +190,18 @@ def extract_candidates(
         for document in documents:
             source_id = str(document.get("source_id") or "")
             if source_filter and source_id not in source_filter:
+                continue
+            structured = _structured_csv_candidate(document, field, aliases, spec)
+            if structured is not None:
+                locator = structured.get("locator") or {}
+                locator_ref = str(locator.get("locator") or locator.get("cell") or "csv")
+                key = (field.lower(), source_id, locator_ref)
+                if key not in seen:
+                    seen.add(key)
+                    found = True
+                    found_value = structured.get("numeric_value") is not None
+                    structured["candidate_id"] = f"candidate_{len(candidates) + 1:03d}"
+                    candidates.append(structured)
                 continue
             for locator, text in _document_segments(document):
                 lowered = text.lower()

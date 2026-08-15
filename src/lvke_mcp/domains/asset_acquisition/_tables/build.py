@@ -118,7 +118,8 @@ def _check(name: str, actual: float, expected: float, tolerance: float, note: st
 
 
 def _integrity(
-    tables: dict[str, list[dict[str, Any]]], *, asset_type: str = "hotel_lease",
+    tables: dict[str, list[dict[str, Any]]], *,
+    asset_type: str = "hotel_lease", run_id: str = "",
 ) -> dict[str, Any]:
     definitions, _columns, required_columns = _table_contract(asset_type)
     blockers: list[str] = []
@@ -127,6 +128,23 @@ def _integrity(
     column_missing: dict[str, dict[str, int]] = {}
     nested_cells: dict[str, int] = {}
     type_errors: dict[str, dict[str, int]] = {}
+    # — hashes_match_run: all tables share the same run_id from transaction_bridge
+    bridge = (tables.get("transaction_bridge") or [{}])[0]
+    declared_run_id = str(bridge.get("run_id") or "")
+    hashes_match = bool(declared_run_id) and (not run_id or declared_run_id == run_id)
+    if not hashes_match:
+        blockers.append(f"hashes_mismatch_run:declared={declared_run_id} expected={run_id}")
+    # — asset-type table isolation: no hotel tables in solar, no solar tables in hotel
+    _SOLAR_ONLY_KEYS = frozenset({"generation_revenue", "other_operating_revenue"})
+    _HOTEL_ONLY_KEYS = frozenset({"hotel_revenue", "lease_revenue"})
+    if asset_type == "solar_power":
+        for key in _HOTEL_ONLY_KEYS:
+            if tables.get(key):
+                blockers.append(f"hotel_table_leak_into_solar:{key}")
+    else:
+        for key in _SOLAR_ONLY_KEYS:
+            if tables.get(key):
+                blockers.append(f"solar_table_leak_into_hotel:{key}")
     for key, _name in definitions:
         rows = tables.get(key) or []
         if not rows:
@@ -245,6 +263,8 @@ def _integrity(
         rollup_max_diff = max(rollup_max_diff, abs(subtotal - float(annual_row.get("project_cf_wan") or 0)))
     checks.append(_check("年度项目现金流=月度合计最大差异", rollup_max_diff, 0, 0.01))
 
+    checks.append(_check("所有表绑定同一 run_id", 1 if hashes_match else 0, 1, 0, f"declared_run_id={declared_run_id} expected_run_id={run_id}"))
+
     failed_checks = [row["name"] for row in checks if row["status"] == "failed"]
     blockers.extend(f"failed_check:{name}" for name in failed_checks)
     blockers = list(dict.fromkeys(blockers))
@@ -260,7 +280,7 @@ def _integrity(
         "failed_checks": failed_checks,
         "blockers": blockers,
         "warnings": warnings,
-        "hashes_match_run": True,
+        "hashes_match_run": hashes_match,
     }
 
 

@@ -24,6 +24,7 @@ DOMAINS = (
     "project-planning",
     "report-generation",
     "zero-material-delivery",
+    "asset-acquisition",
 )
 
 _URI_DOMAIN_ALIASES = {
@@ -127,6 +128,14 @@ def list_resources(
         return service.list_resources(
             workspace_id, resource_type=resource_type, cursor=cursor, limit=limit
         )
+    if domain == "asset-acquisition":
+        service = _module("lvke_mcp.servers.lvke_feasibility_delivery.service")
+        return service.list_asset_resources(
+            workspace_id,
+            resource_type=resource_type,
+            cursor=cursor,
+            limit=limit,
+        )
     service = _module("lvke_mcp.servers.lvke_zero_material_delivery.service")
     return service.list_resources({
         "workspace_id": workspace_id,
@@ -183,6 +192,9 @@ def read_resource(workspace_id: str, uri: str) -> dict[str, Any]:
     if domain == "report-generation":
         server = _module("lvke_mcp.servers.lvke_report_generation.server")
         return server._read_scoped_resource(workspace_id, uri)  # noqa: SLF001
+    if domain == "asset-acquisition":
+        service = _module("lvke_mcp.servers.lvke_feasibility_delivery.service")
+        return service.read_asset_resource(workspace_id, uri)
     service = _module("lvke_mcp.servers.lvke_zero_material_delivery.service")
     return service.read_resource({"workspace_id": workspace_id, "uri": uri})
 

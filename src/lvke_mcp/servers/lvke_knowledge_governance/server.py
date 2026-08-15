@@ -169,6 +169,10 @@ def build_server() -> OfficialStdioServer:
         service.submit_candidate,
         _OUTPUT,
         write,
+        public_input_schema=_schema(
+            {"candidate": _CANDIDATE, "idempotency_key": _KEY},
+            ["candidate", "idempotency_key"],
+        ),
     )
     server.register_tool(
         "knowledge_list_candidates",

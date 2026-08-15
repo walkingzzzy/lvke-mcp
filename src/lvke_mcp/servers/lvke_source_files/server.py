@@ -98,25 +98,28 @@ def _install_task_status_aggregate(
     schema = _schema(
         {
             "task_kind": {"type": "string", "enum": list(_TASK_STATUS_BRANCHES)},
-            "target_id": _ID,
+            "job_id": {**_ID, "pattern": r"^job_"},
+            "upload_id": {**_ID, "pattern": r"^ups_"},
         },
-        ["task_kind", "target_id"],
+        ["task_kind"],
     )
-    schema["allOf"] = [
-        {
-            "if": {
-                "properties": {"task_kind": {"const": kind}},
-                "required": ["task_kind"],
-            },
-            "then": {"properties": {"target_id": {**_ID, "pattern": prefix}}},
-        }
-        for kind, (_name, _id_field, prefix) in _TASK_STATUS_BRANCHES.items()
-    ]
 
     def dispatch(args: dict) -> dict:
         legacy_name, id_field, _prefix = _TASK_STATUS_BRANCHES[str(args["task_kind"])]
+        target_id = str(args.get(id_field) or "")
+        other_id = "upload_id" if id_field == "job_id" else "job_id"
+        if not target_id or args.get(other_id):
+            return {
+                "success": False, "business_success": False,
+                "system_success": True, "transport_success": True,
+                "status": "blocked", "code": "task_status_identifier_invalid",
+                "message": f"task_kind={args['task_kind']} 必须且只能提供 {id_field}",
+                "resource_uris": [], "warnings": [],
+                "blockers": ["task_status_identifier_invalid"],
+                "next_actions": [f"提供与 task_kind 匹配的 {id_field}"],
+            }
         return legacy[legacy_name].handler(
-            {"workspace_id": args["workspace_id"], id_field: args["target_id"]}
+            {"workspace_id": args["workspace_id"], id_field: target_id}
         )
 
     server.register_tool(

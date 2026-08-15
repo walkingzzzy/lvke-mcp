@@ -174,6 +174,22 @@ def register_all(server: OfficialStdioServer) -> None:
         handler=package_service.add_sources,
         output_schema=_PLAN_OUTPUT,
         annotations=_agent_write,
+        # Source descriptors are a client-authored evidence contract.  Publish
+        # their complete discriminated shape so callers can bind an imported
+        # source file without a preliminary schema-resource round trip.
+        public_input_schema={
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "workspace_id": _ws_schema,
+                "task_id": _task_schema,
+                "expected_basis_hash": _basis_schema,
+                "sources": {
+                    "type": "array", "minItems": 1, "maxItems": 200,
+                    "items": _MIXED_SOURCE_DESCRIPTOR,
+                },
+            },
+            "required": ["workspace_id", "task_id", "expected_basis_hash", "sources"],
+        },
     )
     server.register_tool(
         name="dr_remove_sources",

@@ -20,6 +20,7 @@ from .normalize import (
 from .patterns import (
     _FINANCIAL_METRICS,
     _NUMBER_PATTERN,
+    _UNITLESS_RATIO_PATTERN,
     _PATH_PATTERNS,
 )
 
@@ -112,16 +113,24 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
             paragraph_index += 1
             container = "paragraph"
             position = paragraph_index
-        for match in _NUMBER_PATTERN.finditer(line):
-            raw_value = float(match.group("number").replace(",", ""))
-            raw_unit = match.group("unit")
+        occupied_spans: set[tuple[int, int]] = set()
+
+        def append_claim(
+            *,
+            start: int,
+            end: int,
+            text: str,
+            raw_value: float,
+            raw_unit: str,
+            metric_override: str = "",
+        ) -> None:
             value = _canonical_value(raw_value, raw_unit)
             unit = _canonical_unit(raw_unit)
-            context_start = max(0, match.start() - 40)
-            context_end = min(len(line), match.end() + 40)
+            context_start = max(0, start - 40)
+            context_end = min(len(line), end + 40)
             context = line[context_start:context_end]
-            metric = _semantic_near(line, match.start(), match.end(), raw_unit)
-            period = _period_near(line, match.start(), match.end())
+            metric = metric_override or _semantic_near(line, start, end, raw_unit)
+            period = _period_near(line, start, end)
             if unit == "间" and not metric:
                 metric = "room_count"
             if unit == "㎡" and not metric:
@@ -130,7 +139,7 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
                 metric = "market_radius"
             if unit in {"吨", "吨/年"} and not metric:
                 metric = "capacity"
-            if unit == "年" and 1900 <= value <= 2100 and re.search(r"(?:20\d{2})年", match.group(0)):
+            if unit == "年" and 1900 <= value <= 2100 and re.search(r"(?:20\d{2})年", text):
                 claim_type = "date"
             elif metric in _FINANCIAL_METRICS:
                 claim_type = "financial"
@@ -145,19 +154,19 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
                 "paragraph": position if container == "paragraph" else None,
                 "table_row": position if container == "table" else None,
                 "line": line_index,
-                "char_offset_start": match.start(),
-                "char_offset_end": match.end(),
+                "char_offset_start": start,
+                "char_offset_end": end,
                 "text_anchor": line[:160],
             }
             claim_id = "clm_" + sha256_json({
                 "target_id": target_id,
                 "line": line_index,
-                "span": match.span(),
+                "span": (start, end),
                 "text": line,
             }).removeprefix("sha256:")[:24]
             claims.append({
                 "claim_id": claim_id,
-                "text": match.group(0),
+                "text": text,
                 "context": context,
                 "claim_type": claim_type,
                 "metric": metric,
@@ -168,6 +177,30 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
                 "period": period,
                 "location": location,
             })
+            occupied_spans.add((start, end))
+
+        for match in _NUMBER_PATTERN.finditer(line):
+            append_claim(
+                start=match.start(),
+                end=match.end(),
+                text=match.group(0),
+                raw_value=float(match.group("number").replace(",", "")),
+                raw_unit=match.group("unit"),
+            )
+        for match in _UNITLESS_RATIO_PATTERN.finditer(line):
+            number_group = "number_before" if match.group("number_before") else "number_after"
+            start, end = match.span(number_group)
+            if any(not (end <= left or start >= right) for left, right in occupied_spans):
+                continue
+            label = str(match.group("label_before") or match.group("label_after") or "").upper()
+            append_claim(
+                start=start,
+                end=end,
+                text=line[start:end],
+                raw_value=float(match.group(number_group)),
+                raw_unit="",
+                metric_override="icr" if label in {"ICR", "利息备付率"} else "dscr",
+            )
     return claims
 
 

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import os
+import re
 import threading
 import uuid
 from contextlib import contextmanager
@@ -590,7 +593,290 @@ def resolve_reconstructed_evidence_binding(
 
 
 _TEXT_SUFFIXES = frozenset({".md", ".txt", ".json", ".jsonl", ".html"})
+_CSV_SUFFIXES = frozenset({".csv", ".tsv"})
 _PDF_TEXT_BUDGET = 2_000_000
+
+
+def _is_csv(mime: str, path: Path) -> bool:
+    normalized = str(mime or "").lower().split(";", 1)[0].strip()
+    return normalized in {"text/csv", "text/tab-separated-values"} or path.suffix.lower() in _CSV_SUFFIXES
+
+
+def _decode_csv(data: bytes) -> tuple[str, str, str]:
+    """Decode controlled CSV bytes without replacement-character guessing."""
+
+    for encoding in ("utf-8-sig", "gb18030"):
+        try:
+            return data.decode(encoding, errors="strict"), encoding, ""
+        except UnicodeDecodeError:
+            continue
+    return "", "", "csv_encoding_invalid"
+
+
+_CSV_INTEGER = re.compile(r"^[+-]?[0-9]+$")
+_CSV_NUMBER = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$")
+
+
+def _csv_scalar(value: str) -> str | int | float:
+    stripped = str(value).strip()
+    normalized = stripped.replace(",", "")
+    if _CSV_INTEGER.fullmatch(normalized):
+        try:
+            return int(normalized)
+        except ValueError:
+            return stripped
+    if _CSV_NUMBER.fullmatch(normalized):
+        try:
+            return float(normalized)
+        except ValueError:
+            return stripped
+    return stripped
+
+
+# ── Column classification for field-value-unit association ────────────────
+# Exact-match headers for column type detection
+_FIELD_HEADERS: frozenset[str] = frozenset({
+    "项目", "指标", "名称", "内容", "项目名称", "指标名称", "费用项目", "项目内容",
+    "指标名称", "费用类别", "项目类别", "项目/指标", "指标/项目",
+})
+_VALUE_HEADERS: frozenset[str] = frozenset({
+    "金额", "数值", "数量", "值", "价值", "价格", "收入", "成本", "指标值",
+    "数值/金额", "金额/数值", "合计", "小计", "总计", "金额(万元)", "金额(元)",
+    "金额/万元", "数值/万元",
+})
+_UNIT_HEADERS: frozenset[str] = frozenset({
+    "单位", "计量单位", "度量单位", "数量单位", "货币单位", "金额单位",
+})
+
+# Partial-match keywords (fallback when exact match fails)
+_FIELD_KEYWORDS: frozenset[str] = frozenset({"项目", "指标", "名称", "类别", "费用"})
+_VALUE_KEYWORDS: frozenset[str] = frozenset({"金额", "数值", "数量", "价值", "价格", "收入", "成本"})
+_UNIT_KEYWORDS: frozenset[str] = frozenset({"单位"})
+
+# Controlled unit aliases → normalized unit
+_CONTROLLED_UNIT_ALIASES: dict[str, str] = {
+    "万元": "wan",
+    "万": "wan",
+    "w": "wan",
+    "万元人民币": "wan",
+    "mw": "MW",
+    "兆瓦": "MW",
+    "mwh": "MWh",
+    "兆瓦时": "MWh",
+    "万千瓦": "wan_kW",
+    "万千瓦时": "wan_kWh",
+    "千瓦": "kW",
+    "千瓦时": "kWh",
+    "元/kwh": "yuan/kWh",
+    "元/千瓦时": "yuan/kWh",
+    "yuan/kwh": "yuan/kWh",
+    "元/kw": "yuan/kW",
+    "元/千瓦": "yuan/kW",
+    "元/mw": "yuan/MW",
+    "元/兆瓦": "yuan/MW",
+    "万元/mw": "wan/MW",
+    "万元/兆瓦": "wan/MW",
+    "元": "yuan",
+    "元/年": "yuan/year",
+    "%": "percent",
+    "百分比": "percent",
+    "ratio": "ratio",
+    "h": "h",
+    "小时": "h",
+    "年": "year",
+}
+
+# Pattern for splitting "10MW" → (10, "MW") from a combined value cell
+_VALUE_UNIT_SPLIT = re.compile(r"^([+-]?(?:\d+(?:\.\d+)?|\.\d+))\s*(.*)$")
+
+
+def _normalize_unit(raw: str) -> str:
+    """Map a raw unit string to its controlled normal form."""
+    key = raw.strip().lower()
+    direct = _CONTROLLED_UNIT_ALIASES.get(key)
+    if direct:
+        return direct
+    # Fallback: case-insensitive scan
+    for alias, canonical in _CONTROLLED_UNIT_ALIASES.items():
+        if key == alias.lower():
+            return canonical
+    return raw.strip()
+
+
+def _split_value_unit(raw: str) -> tuple[str | int | float, str]:
+    """Split a combined cell like ``10MW`` into ``(10, "MW")``.
+
+    Returns ``(raw_str, "")`` when the raw value has no parseable number prefix.
+    """
+    stripped = raw.strip()
+    m = _VALUE_UNIT_SPLIT.match(stripped)
+    if m:
+        num_str, unit = m.group(1), m.group(2).strip()
+        if "." in num_str:
+            return float(num_str), unit
+        return int(num_str), unit
+    return stripped, ""
+
+
+def _classify_csv_columns(headers: list[str]) -> dict[str, list[int]]:
+    """Classify 0-based column indices into field/value/unit groups.
+
+    Returns ``{"field": [...], "value": [...], "unit": [...]}``.
+    Uses exact header match first, then partial keyword fallback.
+    """
+    field_indices: list[int] = []
+    value_indices: list[int] = []
+    unit_indices: list[int] = []
+
+    for idx, header in enumerate(headers):
+        h = header.strip().lower()
+        if h in _FIELD_HEADERS:
+            field_indices.append(idx)
+        elif h in _UNIT_HEADERS:
+            unit_indices.append(idx)
+        elif h in _VALUE_HEADERS:
+            value_indices.append(idx)
+        else:
+            # Partial keyword matching — only one category wins
+            matched = False
+            for kw in _FIELD_KEYWORDS:
+                if kw in h:
+                    field_indices.append(idx)
+                    matched = True
+                    break
+            if matched:
+                continue
+            for kw in _VALUE_KEYWORDS:
+                if kw in h:
+                    value_indices.append(idx)
+                    matched = True
+                    break
+            if matched:
+                continue
+            for kw in _UNIT_KEYWORDS:
+                if kw in h:
+                    unit_indices.append(idx)
+                    break
+
+    return {
+        "field": field_indices,
+        "value": value_indices,
+        "unit": unit_indices,
+    }
+
+
+def _spreadsheet_column(index: int) -> str:
+    value = max(1, int(index))
+    letters = ""
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def _parse_csv_cells(data: bytes, path: Path, mime: str) -> tuple[list[dict[str, Any]], str, str, str]:
+    """Return stable cell locators plus encoding/delimiter diagnostics.
+
+    A CSV is a table, not prose.  Every non-empty cell receives a stable A1 and
+    row/column locator, the normalized header name and the untouched source
+    value.  Malformed quoting or ragged rows remain visible as ``partial`` and
+    are never flattened into a whole-document text locator.
+    """
+
+    text, encoding, degraded = _decode_csv(data)
+    if degraded:
+        return [], encoding, "", degraded
+    delimiter = "\t" if path.suffix.lower() == ".tsv" or "tab-separated" in mime else ","
+    try:
+        sample = text[:8192]
+        if sample:
+            try:
+                delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+            except csv.Error:
+                # Sniffer failure alone must not flatten a structured partial
+                # result into prose or discard its valid cells.
+                pass
+        rows = list(csv.reader(io.StringIO(text, newline=""), delimiter=delimiter, strict=True))
+    except (csv.Error, UnicodeError):
+        return [], encoding, delimiter, "csv_structure_invalid"
+    if not rows or not any(str(cell).strip() for row in rows for cell in row):
+        return [], encoding, delimiter, "csv_empty"
+    width = len(rows[0])
+    if width <= 0:
+        return [], encoding, delimiter, "csv_header_missing"
+    headers = [str(value).strip() or f"column_{index + 1}" for index, value in enumerate(rows[0])]
+    # Classify columns for field-value-unit association
+    col_class = _classify_csv_columns(headers)
+    field_indices: list[int] = col_class["field"]
+    value_indices: list[int] = col_class["value"]
+    unit_indices: list[int] = col_class["unit"]
+    ragged = any(len(row) != width for row in rows[1:])
+    locators: list[dict[str, Any]] = []
+    for row_index, row in enumerate(rows, start=1):
+        padded = [*row, *([""] * max(0, width - len(row)))]
+        # Determine row-level field name and unit (from classified columns)
+        row_field = ""
+        row_unit = ""
+        if row_index > 1:  # skip header row for field/unit lookup
+            for idx in field_indices:
+                if idx < len(padded) and str(padded[idx]).strip():
+                    row_field = str(padded[idx]).strip()
+                    break
+            for idx in unit_indices:
+                if idx < len(padded) and str(padded[idx]).strip():
+                    row_unit = str(padded[idx]).strip()
+                    break
+        for column_index, raw_value in enumerate(padded[:width], start=1):
+            original = str(raw_value)
+            if not original.strip():
+                continue
+            cell = f"{_spreadsheet_column(column_index)}{row_index}"
+            scalar = _csv_scalar(original)
+            locator = f"csv:{row_index}:{column_index}"
+            # Per-cell enrichment
+            col_idx_0 = column_index - 1
+            is_field_col = col_idx_0 in field_indices
+            is_value_col = col_idx_0 in value_indices
+            is_unit_col = col_idx_0 in unit_indices
+            # field_name: use own value if in a field column, else row-level field
+            cell_field: str | None = original if is_field_col else (row_field or None)
+            # numeric_value: parsed number if cell is numeric, else None
+            cell_numeric: int | float | None = scalar if isinstance(scalar, (int, float)) else None
+            # unit: own value if in unit column, else row-level unit
+            cell_unit_raw: str | None = original if is_unit_col else (row_unit or None)
+            cell_unit_normalized: str | None = _normalize_unit(cell_unit_raw) if cell_unit_raw else None
+            # If the value is not a pure number but has a numeric prefix (e.g. "10MW"),
+            # split it and use the extracted numeric portion
+            if cell_numeric is None and cell_unit_raw is None:
+                parsed_num, parsed_unit = _split_value_unit(original)
+                if isinstance(parsed_num, (int, float)):
+                    cell_numeric = parsed_num
+                    if parsed_unit:
+                        cell_unit_raw = parsed_unit
+                        cell_unit_normalized = _normalize_unit(parsed_unit)
+            locators.append({
+                "kind": "cell",
+                "table_kind": "csv",
+                "locator": locator,
+                "evidence_id": locator,
+                "cell": cell,
+                "row_index": row_index,
+                "column_index": column_index,
+                "header_name": headers[column_index - 1],
+                "is_header": row_index == 1,
+                "original_value": original,
+                "display_value": scalar,
+                "cached_value": scalar,
+                "text": original,
+                "content_hash": "sha256:" + hashlib.sha256(original.encode("utf-8")).hexdigest(),
+                "field_name": cell_field,
+                "numeric_value": cell_numeric,
+                "unit": cell_unit_raw,
+                "unit_normalized": cell_unit_normalized,
+            })
+    if not locators:
+        return [], encoding, delimiter, "csv_empty"
+    return locators, encoding, delimiter, "csv_ragged_rows" if ragged else ""
 
 
 def _is_pdf(mime: str, path: Path) -> bool:
@@ -647,6 +933,8 @@ def _canonical_locator(row: dict[str, Any]) -> str:
     ``document_text`` → ``document_text``；``pdf_page`` → ``pdf_page:<页码>``。
     """
     kind = str(row.get("kind") or "").strip()
+    if kind == "cell" and row.get("locator"):
+        return str(row["locator"])
     if kind == "pdf_page":
         return f"pdf_page:{int(row.get('page') or 0)}"
     return kind or "document_text"
@@ -673,7 +961,14 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     locators: list[dict[str, Any]] = []
     degraded_reason = ""
     ocr_status = "not_required"
-    if mime.startswith("text/") or path.suffix.lower() in _TEXT_SUFFIXES:
+    parser = "mcp-source-parser.v1"
+    csv_encoding = ""
+    csv_delimiter = ""
+    if _is_csv(mime, path):
+        locators, csv_encoding, csv_delimiter, degraded_reason = _parse_csv_cells(data, path, mime)
+        text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
+        parser = "mcp-csv-parser.v1"
+    elif mime.startswith("text/") or path.suffix.lower() in _TEXT_SUFFIXES:
         text = data.decode("utf-8", errors="replace")[:200_000]
         locators = [{"kind": "document_text", "text": text}] if text.strip() else []
     elif _is_pdf(mime, path):
@@ -691,9 +986,35 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
         "locators": _with_canonical_locators(locators),
         "page_count": sum(1 for item in locators if item.get("kind") == "pdf_page"),
         "ocr_status": ocr_status,
-        "parser": "mcp-source-parser.v1",
+        "parser": parser,
         "created_at": _now(),
     }
+    if csv_encoding:
+        analysis["encoding"] = csv_encoding
+    if csv_delimiter:
+        analysis["delimiter"] = csv_delimiter
+    # Enrich CSV analysis with field-value-unit associations
+    if parser == "mcp-csv-parser.v1" and locators:
+        units: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in locators:
+            fn = item.get("field_name")
+            nv = item.get("numeric_value")
+            if fn and nv is not None:
+                dedup_key = f"{fn}|{item.get('row_index')}|{item.get('column_index')}"
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    units.append({
+                        "field_name": fn,
+                        "numeric_value": nv,
+                        "unit": item.get("unit"),
+                        "unit_normalized": item.get("unit_normalized"),
+                        "locator": item.get("locator"),
+                        "row_index": item.get("row_index"),
+                        "column_index": item.get("column_index"),
+                    })
+        if units:
+            analysis["csv_field_units"] = units
     if degraded_reason:
         analysis["degraded_reason"] = degraded_reason
     return analysis

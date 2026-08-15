@@ -331,7 +331,7 @@ def list_artifacts(
     ]
     return [
         row for row in rows if row
-    ][: max(1, min(int(limit or 50), 100))]
+    ][: max(1, min(int(limit or 50), 10_000))]
 
 
 def _resolve_artifact_download(

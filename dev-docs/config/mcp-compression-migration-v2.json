@@ -9,6 +9,24 @@
   "removed_tool_count": 32,
   "added_aggregate_tool_count": 8,
   "net_tool_count_change": -24,
+  "resource_contracts": {
+    "lvke_list_resources": {
+      "arguments": ["workspace_id", "domain", "resource_type", "cursor", "limit"],
+      "discriminator": "domain",
+      "asset_acquisition_resource_types": [
+        "spec", "run", "scenario_matrix", "artifact", "table_package", "xlsx", "csv"
+      ],
+      "pagination": "collection-consistency cursor with snapshot_hash",
+      "workspace_contract": "URI workspace must equal the explicit workspace_id"
+    },
+    "lvke_read_resource": {
+      "arguments": ["workspace_id", "uri"],
+      "binary_encoding": "base64",
+      "asset_acquisition_routes": [
+        "specs", "runs", "scenario-matrices", "artifacts", "table-packages", "xlsx", "csv"
+      ]
+    }
+  },
   "aggregate_contracts": {
     "planning_validate": {
       "arguments": ["workspace_id", "object_kind", "target_id"],
@@ -27,9 +45,10 @@
       "kinds": ["market_case", "revenue_drivers"]
     },
     "source_task_status": {
-      "arguments": ["workspace_id", "task_kind", "target_id"],
+      "arguments": ["workspace_id", "task_kind", "job_id", "upload_id"],
       "discriminator": "task_kind",
-      "kinds": ["parse", "upload"]
+      "kinds": ["parse", "upload"],
+      "identifier_by_kind": {"parse": "job_id", "upload": "upload_id"}
     },
     "delivery_transition": {
       "arguments": ["workspace_id", "operation", "delivery_run_id", "reason", "idempotency_key"],

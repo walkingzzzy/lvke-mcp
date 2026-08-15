@@ -592,63 +592,23 @@
             "upload"
           ]
         },
-        "target_id": {
+        "job_id": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$"
+          "pattern": "^job_"
+        },
+        "upload_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^ups_"
         }
       },
       "required": [
         "workspace_id",
-        "task_kind",
-        "target_id"
+        "task_kind"
       ],
       "type": "object",
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "task_kind": {
-                "const": "parse"
-              }
-            },
-            "required": [
-              "task_kind"
-            ]
-          },
-          "then": {
-            "properties": {
-              "target_id": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^job_"
-              }
-            }
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "task_kind": {
-                "const": "upload"
-              }
-            },
-            "required": [
-              "task_kind"
-            ]
-          },
-          "then": {
-            "properties": {
-              "target_id": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^ups_"
-              }
-            }
-          }
-        }
-      ]
+      "additionalProperties": false
     },
     "name": "source_task_status"
   }

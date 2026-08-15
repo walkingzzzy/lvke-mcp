@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any, Optional
 
-
+from lvke_mcp.domains.reports.headings import canonical_heading_title
 
 from .outline import (
     report_chapter_titles,
@@ -72,8 +72,7 @@ def parse_revision_sections(markdown: str) -> list[dict[str, Any]]:
 
 
 def _anchor_for(title: str) -> str:
-    cleaned = re.sub(r"^[0-9.\s、]+", "", title).strip()
-    return cleaned or title.strip()
+    return canonical_heading_title(title)
 
 
 def _strip_leading_chapter_title(text: str, target_title: str) -> str:
@@ -100,7 +99,8 @@ def merge_single_chapter_proposal(
     if not base_secs:
         return None
     tgt_anchor = _anchor_for(target_title)
-    if not any(s["anchor"] == tgt_anchor for s in base_secs):
+    matching_sections = [s for s in base_secs if s["anchor"] == tgt_anchor]
+    if len(matching_sections) != 1:
         return None
 
     base_lines = base_md.splitlines()
@@ -113,7 +113,7 @@ def merge_single_chapter_proposal(
         out.append("")
     for s in base_secs:
         out.append(f"## {s['title']}")
-        body = body_text if s["anchor"] == tgt_anchor else s["body"]
+        body = body_text if s is matching_sections[0] else s["body"]
         if body:
             out.append("")
             out.append(body)
@@ -127,10 +127,10 @@ def validate_report_structure(
     *,
     expected_chapters: Optional[list[str]] = None,
 ) -> dict[str, Any]:
-    """按结构类型校验章节完整性。
+    """Validate chapter presence, uniqueness and descriptor order.
 
-    返回 ``{ok, missing_chapters, present_chapters, issues}``。缺少任一章节标题
-    即 ``ok=False``。匹配按"章节名包含"宽松判定,容忍编号前缀差异。
+    Chapter-number prefixes are ignored, but the remaining title must match
+    exactly. Duplicate or out-of-order matches fail closed.
     """
     chapters = [
         _anchor_for(str(chapter))
@@ -148,15 +148,30 @@ def validate_report_structure(
     normalized = [_anchor_for(t) for t in section_titles]
     missing: list[str] = []
     present: list[str] = []
+    duplicates: list[str] = []
+    matched_positions: list[int] = []
     for chapter in chapters:
-        if any(chapter in t or t in chapter for t in normalized):
+        positions = [index for index, title in enumerate(normalized) if title == chapter]
+        if len(positions) == 1:
             present.append(chapter)
+            matched_positions.append(positions[0])
+        elif len(positions) > 1:
+            duplicates.append(chapter)
         else:
             missing.append(chapter)
     issues = [f"缺少章节：{c}" for c in missing]
+    issues.extend(f"重复章节：{c}" for c in duplicates)
+    out_of_order = any(
+        current >= following
+        for current, following in zip(matched_positions, matched_positions[1:])
+    )
+    if out_of_order:
+        issues.append("章节顺序与固化大纲不一致")
     return {
-        "ok": not missing,
+        "ok": not issues,
         "missing_chapters": missing,
         "present_chapters": present,
+        "duplicate_chapters": duplicates,
+        "out_of_order": out_of_order,
         "issues": issues,
     }

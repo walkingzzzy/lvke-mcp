@@ -474,4 +474,4 @@ def list_runs(
         key=lambda row: (str(row.get("created_at") or ""), str(row.get("run_id") or "")),
         reverse=True,
     )
-    return rows[: max(1, min(int(limit or 50), 100))]
+    return rows[: max(1, min(int(limit or 50), 10_000))]

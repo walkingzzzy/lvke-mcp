@@ -8,10 +8,47 @@ from typing import Any
 
 import yaml
 
+from lvke_mcp.domains.finance.industry_aliases import normalize_industry
 from lvke_mcp.domains.project_planning import application as service
 from lvke_mcp.runtime.storage import sha256_json
 
 from .base import _candidate, _payload, _put_candidate, _selection
+
+
+def _scale_violations(
+    *,
+    target: Decimal,
+    target_unit: str,
+    land: Decimal,
+    intensity: Decimal,
+    floor: Decimal,
+    footprint: Decimal,
+    green: Decimal,
+    constraints: dict[str, Any],
+    market_selected: dict[str, Any],
+) -> list[str]:
+    violations: list[str] = []
+    market_volume = service._decimal(market_selected.get("computed_target_volume"))
+    market_unit = str(market_selected.get("unit") or "")
+    if market_volume is not None:
+        if target_unit != market_unit:
+            violations.append("market_capacity_unit_mismatch")
+        elif target > market_volume:
+            violations.append("build_capacity_exceeds_selected_market")
+    if floor * intensity < target:
+        violations.append("capacity_floor_area_insufficient")
+    plot_ratio = floor / land
+    plot_min = service._decimal(constraints.get("plot_ratio_min"))
+    plot_max = service._decimal(constraints.get("plot_ratio_max"))
+    if plot_min is None or plot_max is None or plot_ratio < plot_min or plot_ratio > plot_max:
+        violations.append("plot_ratio_constraint_failed")
+    coverage_max = service._decimal(constraints.get("building_coverage_max"))
+    if coverage_max is None or footprint / land > coverage_max:
+        violations.append("building_coverage_constraint_failed")
+    green_min = service._decimal(constraints.get("green_ratio_min"))
+    if green_min is None or green / land < green_min:
+        violations.append("green_ratio_constraint_failed")
+    return violations
 
 
 def _match_field_template(
@@ -31,6 +68,38 @@ def _match_field_template(
     return "", {}
 
 
+def _resolve_industry_key(
+    project: dict[str, Any], aliases: dict[str, tuple[str, ...]]
+) -> tuple[str, str]:
+    """Resolve the planning parameter key from all typed context discriminators."""
+
+    discriminators = (
+        project.get("asset_type"),
+        project.get("industry_code"),
+        project.get("project_type"),
+        project.get("transaction_structure"),
+        project.get("target_type"),
+    )
+    normalized_inputs = [
+        str(value).strip().lower() for value in discriminators if str(value or "").strip()
+    ]
+    for value in normalized_inputs:
+        normalized = normalize_industry(value)
+        if normalized in aliases:
+            return normalized, " ".join(normalized_inputs)
+
+    industry = " ".join(normalized_inputs)
+    selected_key = next(
+        (
+            label
+            for label, tokens in aliases.items()
+            if any(str(token).lower() in industry for token in tokens)
+        ),
+        "",
+    )
+    return selected_key, industry
+
+
 def get_industry_constraints(
     workspace_id: str, project_context_id: str
 ) -> dict[str, Any]:
@@ -42,7 +111,6 @@ def get_industry_constraints(
     path = Path(__file__).resolve().parents[3] / "config" / "industry_params.yaml"
     manifest = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     project = _payload(context)
-    industry = str(project.get("industry_code") or "").lower()
     aliases = {
         "制造": ("manufacturing", "制造"),
         "仓储物流": ("logistics", "warehouse", "仓储", "物流"),
@@ -58,10 +126,7 @@ def get_industry_constraints(
         "公共服务": ("public_service", "public service", "government", "公共服务"),
         "矿产加工": ("mineral", "mineral_processing", "mining", "ore", "矿产", "选矿"),
     }
-    selected_key = next(
-        (label for label, tokens in aliases.items() if any(token in industry for token in tokens)),
-        "",
-    )
+    selected_key, industry = _resolve_industry_key(project, aliases)
     if not selected_key:
         # 线性交通工程（轨道、铁路、公路）的规模由线路长度、车站数、敷设
         # 方式、车辆段决定，本表的容积率/建筑密度/厂房占比等用地口径参数
@@ -172,6 +237,12 @@ def solve_build_scale(
         if error:
             return error
         assert context is not None and market is not None
+        market_selected = (
+            ((_payload(market).get("selection") or {}).get("selected_candidate") or {})
+        )
+        evidence_track, evidence_policy, project_fact_certified = (
+            service._planning_evidence_qualification(context, market)
+        )
         if not 1 <= len(alternatives) <= 20:
             return service._blocked("build_scale_alternatives_invalid", "建设规模方案数量必须为 1..20")
         ids = [str(item.get("candidate_id") or "") for item in alternatives]
@@ -189,15 +260,17 @@ def solve_build_scale(
             footprint = sum((service._decimal(row.get("footprint_m2")) or Decimal("0")) for row in facilities)
             constraints = item.get("constraints") or {}
             green = service._decimal(constraints.get("green_area_m2")) or Decimal("0")
-            violations = []
-            if floor * intensity < target:
-                violations.append("capacity_floor_area_insufficient")
-            if floor / land > (service._decimal(constraints.get("plot_ratio_max")) or Decimal("-1")):
-                violations.append("plot_ratio_constraint_failed")
-            if footprint / land > (service._decimal(constraints.get("building_coverage_max")) or Decimal("-1")):
-                violations.append("building_coverage_constraint_failed")
-            if green / land < (service._decimal(constraints.get("green_ratio_min")) or Decimal("0")):
-                violations.append("green_ratio_constraint_failed")
+            violations = _scale_violations(
+                target=target,
+                target_unit=str((item.get("target_capacity") or {}).get("unit") or ""),
+                land=land,
+                intensity=intensity,
+                floor=floor,
+                footprint=footprint,
+                green=green,
+                constraints=constraints,
+                market_selected=market_selected,
+            )
             solved.append({
                 **item,
                 "feasible": not violations,
@@ -219,7 +292,9 @@ def solve_build_scale(
             "candidates": solved,
             "selection": None,
             "status": "candidate",
-            "evidence_track": _payload(context).get("evidence_track", "real"),
+            "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "parent_object_ids": [project_context_id, market_case_id],
         }
         return _put_candidate(

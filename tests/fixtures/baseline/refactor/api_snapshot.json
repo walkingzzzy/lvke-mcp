@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-13T11:21:05+0000",
+  "generated_at": "2026-08-15T02:11:53+0000",
   "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
-    "module_count": 444,
-    "symbol_count": 4846,
+    "module_count": 446,
+    "symbol_count": 4895,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -592,6 +592,10 @@
           "signature": "(func)",
           "defined_in": "contextlib"
         },
+        "csv": {
+          "kind": "module",
+          "target": "csv"
+        },
         "datetime": {
           "kind": "class",
           "signature": null,
@@ -643,6 +647,10 @@
           "kind": "module",
           "target": "hashlib"
         },
+        "io": {
+          "kind": "module",
+          "target": "io"
+        },
         "json": {
           "kind": "module",
           "target": "json"
@@ -655,6 +663,10 @@
           "kind": "callable",
           "signature": "(workspace_id: 'str', job_id: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.adapters.source_files_repository"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
         },
         "resolve_authoritative_evidence_binding": {
           "kind": "callable",
@@ -4363,6 +4375,61 @@
           "kind": "callable",
           "signature": "(spec: 'dict[str, Any]') -> 'tuple[bool, list[str]]'",
           "defined_in": "lvke_mcp.domains.finance.spec"
+        }
+      }
+    },
+    "lvke_mcp.domains.asset_acquisition.resources": {
+      "importable": true,
+      "symbols": {
+        "Any": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "typing",
+          "public_members": []
+        },
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "backend": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.asset_acquisition.backend"
+        },
+        "base64": {
+          "kind": "module",
+          "target": "base64"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
+        },
+        "list_resources": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 25) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.asset_acquisition.resources"
+        },
+        "paginate_resource_entries": {
+          "kind": "callable",
+          "signature": "(entries: 'Iterable[dict[str, Any]]', *, cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "read_resource": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', uri: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.asset_acquisition.resources"
+        },
+        "require_safe_id": {
+          "kind": "callable",
+          "signature": "(value: 'str', field: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "resolve_resource": {
+          "kind": "callable",
+          "signature": "(uri: 'str') -> 'tuple[str | bytes, str] | None'",
+          "defined_in": "lvke_mcp.domains.asset_acquisition.resources"
+        },
+        "tables": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.asset_acquisition.tables"
         }
       }
     },
@@ -8423,6 +8490,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "assert_acquisition_report_finance_binding": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, run_id: 'str', package_id: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.finance.gate"
+        },
         "assert_publish_finance_binding": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', *, expected_run_id: 'str' = '', strict: 'bool' = True) -> 'dict[str, Any]'",
@@ -10660,6 +10732,11 @@
           "signature": "(*, default=<dataclasses._MISSING_TYPE object>, default_factory=<dataclasses._MISSING_TYPE object>, init=True, repr=True, hash=None, compare=True, metadata=None, kw_only=<dataclasses._MISSING_TYPE object>)",
           "defined_in": "dataclasses"
         },
+        "finance_kind_conflicts": {
+          "kind": "callable",
+          "signature": "(spec: 'dict[str, Any]') -> 'list[str]'",
+          "defined_in": "lvke_mcp.domains.finance.spec"
+        },
         "hashlib": {
           "kind": "module",
           "target": "hashlib"
@@ -12237,6 +12314,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "combine_evidence_policies": {
+          "kind": "callable",
+          "signature": "(values: 'Iterable[Any]', *, empty_policy: 'str' = 'candidate') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
+        },
         "hashlib": {
           "kind": "module",
           "target": "hashlib"
@@ -12244,6 +12326,11 @@
         "json": {
           "kind": "module",
           "target": "json"
+        },
+        "project_fact_may_be_certified": {
+          "kind": "callable",
+          "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.evidence_qualification"
         },
         "require_safe_id": {
           "kind": "callable",
@@ -13214,6 +13301,10 @@
         "doc_service": {
           "kind": "module",
           "target": "lvke_mcp.domains.reports.doc_service"
+        },
+        "headings": {
+          "kind": "module",
+          "target": "lvke_mcp.domains.reports.headings"
         }
       }
     },
@@ -14879,6 +14970,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "canonical_heading_title": {
+          "kind": "callable",
+          "signature": "(title: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.domains.reports.headings"
+        },
         "default_report_markdown": {
           "kind": "callable",
           "signature": "(title: 'str' = '可行性研究报告', report_type: 'str' = '') -> 'str'",
@@ -15074,6 +15170,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "heading_titles_match": {
+          "kind": "callable",
+          "signature": "(left: 'str', right: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.domains.reports.headings"
+        },
         "re": {
           "kind": "module",
           "target": "re"
@@ -15167,6 +15268,11 @@
           "kind": "callable",
           "signature": "(workspace_id: 'str', revision_id: 'str' = '') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.reports._service.generation"
+        },
+        "sha256_json": {
+          "kind": "callable",
+          "signature": "(value: 'Any') -> 'str'",
+          "defined_in": "lvke_mcp.runtime.storage"
         },
         "start": {
           "kind": "callable",
@@ -16336,6 +16442,119 @@
           "kind": "constant",
           "value_type": "str"
         },
+        "Path": {
+          "kind": "class",
+          "signature": "(*args, **kwargs)",
+          "defined_in": "pathlib._local",
+          "public_members": [
+            "absolute",
+            "anchor",
+            "as_posix",
+            "as_uri",
+            "chmod",
+            "cwd",
+            "drive",
+            "exists",
+            "expanduser",
+            "from_uri",
+            "full_match",
+            "glob",
+            "group",
+            "hardlink_to",
+            "home",
+            "is_absolute",
+            "is_block_device",
+            "is_char_device",
+            "is_dir",
+            "is_fifo",
+            "is_file",
+            "is_junction",
+            "is_mount",
+            "is_relative_to",
+            "is_reserved",
+            "is_socket",
+            "is_symlink",
+            "iterdir",
+            "joinpath",
+            "lchmod",
+            "lstat",
+            "match",
+            "mkdir",
+            "name",
+            "open",
+            "owner",
+            "parent",
+            "parents",
+            "parser",
+            "parts",
+            "read_bytes",
+            "read_text",
+            "readlink",
+            "relative_to",
+            "rename",
+            "replace",
+            "resolve",
+            "rglob",
+            "rmdir",
+            "root",
+            "samefile",
+            "stat",
+            "stem",
+            "suffix",
+            "suffixes",
+            "symlink_to",
+            "touch",
+            "unlink",
+            "walk",
+            "with_name",
+            "with_segments",
+            "with_stem",
+            "with_suffix",
+            "write_bytes",
+            "write_text"
+          ]
+        },
+        "TTFont": {
+          "kind": "class",
+          "signature": "(file: 'str | os.PathLike[str] | BinaryIO | None' = None, res_name_or_index: 'str | int | None' = None, sfntVersion: 'str' = '\\x00\\x01\\x00\\x00', flavor: 'str | None' = None, checkChecksums: 'int' = 0, verbose: 'bool | None' = None, recalcBBoxes: 'bool' = True, allowVID: 'Any' = NotImplemented, ignoreDecompileErrors: 'bool' = False, recalcTimestamp: 'bool' = True, fontNumber: 'int' = -1, lazy: 'bool | None' = None, quiet: 'bool | None' = None, _tableCache: 'MutableMapping[tuple[Tag, bytes], DefaultTable] | None' = None, cfg: 'Mapping[str, Any] | AbstractConfig' = {}) -> 'None'",
+          "defined_in": "fontTools.ttLib.ttFont",
+          "public_members": [
+            "XMLSavingOptions",
+            "close",
+            "ensureDecompiled",
+            "get",
+            "getBestCmap",
+            "getGlyphID",
+            "getGlyphIDMany",
+            "getGlyphName",
+            "getGlyphNameMany",
+            "getGlyphNames",
+            "getGlyphNames2",
+            "getGlyphOrder",
+            "getGlyphSet",
+            "getReverseGlyphMap",
+            "getTableData",
+            "has_key",
+            "importXML",
+            "isLoaded",
+            "keys",
+            "normalizeLocation",
+            "reorderGlyphs",
+            "save",
+            "saveXML",
+            "setGlyphOrder"
+          ]
+        },
+        "TTLibError": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "fontTools.ttLib",
+          "public_members": [
+            "add_note",
+            "args",
+            "with_traceback"
+          ]
+        },
         "WESTERN_FONT": {
           "kind": "constant",
           "value_type": "str"
@@ -16365,13 +16584,47 @@
           "signature": "(docx_bytes: 'bytes') -> 'tuple[bytes, dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.reports.docx_fonts"
         },
+        "posixpath": {
+          "kind": "module",
+          "target": "posixpath"
+        },
         "re": {
           "kind": "module",
           "target": "re"
         },
+        "subset": {
+          "kind": "module",
+          "target": "fontTools.subset"
+        },
+        "uuid": {
+          "kind": "module",
+          "target": "uuid"
+        },
         "zipfile": {
           "kind": "module",
           "target": "zipfile"
+        }
+      }
+    },
+    "lvke_mcp.domains.reports.headings": {
+      "importable": true,
+      "symbols": {
+        "annotations": {
+          "kind": "_Feature"
+        },
+        "canonical_heading_title": {
+          "kind": "callable",
+          "signature": "(title: 'str') -> 'str'",
+          "defined_in": "lvke_mcp.domains.reports.headings"
+        },
+        "heading_titles_match": {
+          "kind": "callable",
+          "signature": "(left: 'str', right: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.domains.reports.headings"
+        },
+        "re": {
+          "kind": "module",
+          "target": "re"
         }
       }
     },
@@ -16408,6 +16661,11 @@
         "hashlib": {
           "kind": "module",
           "target": "hashlib"
+        },
+        "heading_titles_match": {
+          "kind": "callable",
+          "signature": "(left: 'str', right: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.domains.reports.headings"
         },
         "list_sections": {
           "kind": "callable",
@@ -16468,6 +16726,17 @@
           "signature": "(*args, **kwargs)",
           "defined_in": "typing",
           "public_members": []
+        },
+        "ContextVar": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "_contextvars",
+          "public_members": [
+            "get",
+            "name",
+            "reset",
+            "set"
+          ]
         },
         "annotations": {
           "kind": "_Feature"
@@ -17873,6 +18142,9 @@
             "verified_quantitative_claims"
           ]
         },
+        "ResearchMode": {
+          "kind": "_LiteralGenericAlias"
+        },
         "ResearchPlan": {
           "kind": "class",
           "signature": "(topic: 'str', industry: 'str' = '', region: 'str' = '', nodes: 'list[ResearchPlanNode]' = <factory>, source: 'str' = '', filtered_finance: 'list[str]' = <factory>, augmentation_suggestions: 'list[dict[str, Any]]' = <factory>) -> None",
@@ -17907,7 +18179,7 @@
         },
         "ResearchPolicy": {
           "kind": "class",
-          "signature": "(profile: 'ResearchProfile' = 'deep_standard', contract_version: 'str' = '1.0', min_rounds: 'int' = 2, min_query_variants: 'int' = 3, min_search_calls: 'int' = 20, min_raw_hits: 'int' = 100, min_unique_candidates: 'int' = 50, min_extracted_sources: 'int' = 30, min_independent_domains: 'int' = 20, min_independent_publishers: 'int' = 20, min_core_node_coverage: 'float' = 1.0, min_overall_node_coverage: 'float' = 0.85, max_empty_core_nodes: 'int' = 0, max_provider_error_rate: 'float' = 0.2, min_ab_source_ratio: 'float' = 0.7, min_primary_source_ratio: 'float' = 0.3, min_independent_sources_for_core_claim: 'int' = 2, min_independent_sources_for_quant_claim: 'int' = 3, min_verified_quantitative_claims: 'int' = 3, max_unsupported_core_claims: 'int' = 0, max_dead_cited_sources: 'int' = 0, require_exact_quote_for_quant_claim: 'bool' = True, min_report_body_chars: 'int' = 6000, min_supported_factual_chars: 'int' = 2500, min_net_non_extractive_research_chars: 'int' = 2000, min_net_research_content_ratio: 'float' = 0.25, min_substantive_sections: 'int' = 6, min_substantive_section_chars: 'int' = 400, min_cited_sources: 'int' = 15, min_report_factual_paragraphs: 'int' = 15, min_report_quantitative_statements: 'int' = 3, min_factual_paragraph_citation_coverage: 'float' = 1.0, min_report_section_alignment: 'float' = 0.8, min_multi_source_synthesis_ratio: 'float' = 0.3, max_unknown_citation_ids: 'int' = 0, max_unused_references: 'int' = 0, max_unsupported_cited_paragraphs: 'int' = 0, max_unsupported_quantitative_statements: 'int' = 0, max_quantitative_source_floor_failures: 'int' = 0, max_near_duplicate_factual_paragraphs: 'int' = 0, max_malformed_cited_paragraphs: 'int' = 0, max_extractive_paragraph_ratio: 'float' = 0.4, max_fallback_section_ratio: 'float' = 0.25, max_prompt_injection_findings: 'int' = 0, max_sensitive_data_findings: 'int' = 0, require_methodology: 'bool' = True, require_limitations: 'bool' = True, require_conflict_disclosure: 'bool' = True, reject_finance_redline: 'bool' = True, search_concurrency: 'int' = 4, extract_concurrency: 'int' = 4, allow_provider_fallback: 'bool' = True, budget: 'ResearchBudget' = <factory>) -> None",
+          "signature": "(profile: 'ResearchProfile' = 'deep_standard', contract_version: 'str' = '1.0', research_mode: 'ResearchMode' = 'controlled_material_summary', min_rounds: 'int' = 2, min_query_variants: 'int' = 3, min_search_calls: 'int' = 20, min_raw_hits: 'int' = 100, min_unique_candidates: 'int' = 50, min_extracted_sources: 'int' = 30, min_independent_domains: 'int' = 20, min_independent_publishers: 'int' = 20, min_core_node_coverage: 'float' = 1.0, min_overall_node_coverage: 'float' = 0.85, max_empty_core_nodes: 'int' = 0, max_provider_error_rate: 'float' = 0.2, min_ab_source_ratio: 'float' = 0.7, min_primary_source_ratio: 'float' = 0.3, min_independent_sources_for_core_claim: 'int' = 2, min_independent_sources_for_quant_claim: 'int' = 3, min_verified_quantitative_claims: 'int' = 3, max_unsupported_core_claims: 'int' = 0, max_dead_cited_sources: 'int' = 0, require_exact_quote_for_quant_claim: 'bool' = True, min_report_body_chars: 'int' = 6000, min_supported_factual_chars: 'int' = 2500, min_net_non_extractive_research_chars: 'int' = 2000, min_net_research_content_ratio: 'float' = 0.25, min_substantive_sections: 'int' = 6, min_substantive_section_chars: 'int' = 400, min_cited_sources: 'int' = 15, min_report_factual_paragraphs: 'int' = 15, min_report_quantitative_statements: 'int' = 3, min_factual_paragraph_citation_coverage: 'float' = 1.0, min_report_section_alignment: 'float' = 0.8, min_multi_source_synthesis_ratio: 'float' = 0.3, max_unknown_citation_ids: 'int' = 0, max_unused_references: 'int' = 0, max_unsupported_cited_paragraphs: 'int' = 0, max_unsupported_quantitative_statements: 'int' = 0, max_quantitative_source_floor_failures: 'int' = 0, max_near_duplicate_factual_paragraphs: 'int' = 0, max_malformed_cited_paragraphs: 'int' = 0, max_extractive_paragraph_ratio: 'float' = 0.4, max_fallback_section_ratio: 'float' = 0.25, max_prompt_injection_findings: 'int' = 0, max_sensitive_data_findings: 'int' = 0, require_methodology: 'bool' = True, require_limitations: 'bool' = True, require_conflict_disclosure: 'bool' = True, reject_finance_redline: 'bool' = True, search_concurrency: 'int' = 4, extract_concurrency: 'int' = 4, allow_provider_fallback: 'bool' = True, budget: 'ResearchBudget' = <factory>) -> None",
           "defined_in": "lvke_mcp.domains.research.contracts",
           "public_members": [
             "allow_provider_fallback",
@@ -17963,6 +18235,7 @@
             "require_exact_quote_for_quant_claim",
             "require_limitations",
             "require_methodology",
+            "research_mode",
             "search_concurrency",
             "to_dict"
           ]
@@ -19667,6 +19940,10 @@
           "kind": "module",
           "target": "os"
         },
+        "subprocess": {
+          "kind": "module",
+          "target": "subprocess"
+        },
         "timezone": {
           "kind": "class",
           "signature": null,
@@ -20296,7 +20573,7 @@
         "DOMAINS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 11
+          "length": 12
         },
         "annotations": {
           "kind": "_Feature"
@@ -21375,9 +21652,11 @@
         },
         "ToolSpec": {
           "kind": "class",
-          "signature": "(name: 'str', description: 'str', input_schema: 'dict[str, Any]', output_schema: 'dict[str, Any] | None', handler: 'ToolHandler', annotations: 'types.ToolAnnotations | None', task_support: \"Literal['forbidden', 'optional', 'required']\") -> None",
+          "signature": "(name: 'str', description: 'str', input_schema: 'dict[str, Any]', output_schema: 'dict[str, Any] | None', handler: 'ToolHandler', annotations: 'types.ToolAnnotations | None', task_support: \"Literal['forbidden', 'optional', 'required']\", public_input_schema: 'dict[str, Any] | None' = None) -> None",
           "defined_in": "lvke_mcp.runtime.transport",
-          "public_members": []
+          "public_members": [
+            "public_input_schema"
+          ]
         },
         "ValidationError": {
           "kind": "class",
@@ -21418,6 +21697,10 @@
           "kind": "callable",
           "signature": "() -> 'BuildMetadata'",
           "defined_in": "lvke_mcp.runtime.build_metadata"
+        },
+        "copy": {
+          "kind": "module",
+          "target": "copy"
         },
         "dataclass": {
           "kind": "callable",
@@ -23787,6 +24070,11 @@
           "kind": "module",
           "target": "json"
         },
+        "list_resources": {
+          "kind": "callable",
+          "signature": "(params: 'dict[str, Any]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_asset_acquisition.service"
+        },
         "project_fact_may_be_certified": {
           "kind": "callable",
           "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
@@ -23795,6 +24083,11 @@
         "re": {
           "kind": "module",
           "target": "re"
+        },
+        "read_resource": {
+          "kind": "callable",
+          "signature": "(params: 'dict[str, Any]') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_asset_acquisition.service"
         },
         "render_tables": {
           "kind": "callable",
@@ -24900,6 +25193,11 @@
           "kind": "callable",
           "signature": "(workspace_id: 'str', task_id: 'str', field_specs: 'list[dict[str, Any]]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.candidate_extract"
+        },
+        "normalize_controlled_measure": {
+          "kind": "callable",
+          "signature": "(value: 'int | float', source_unit: 'str', expected_unit: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.unit_rules"
         }
       }
     },
@@ -24915,7 +25213,7 @@
         "CONTROLLED_UNIT_RULES": {
           "kind": "container",
           "value_type": "dict",
-          "length": 14
+          "length": 22
         },
         "NORMALIZED_COMPARE_STORE": {
           "kind": "JSONArtifactStore"
@@ -25253,7 +25551,7 @@
         "CONTROLLED_UNIT_RULES": {
           "kind": "container",
           "value_type": "dict",
-          "length": 14
+          "length": 22
         },
         "annotations": {
           "kind": "_Feature"
@@ -25261,6 +25559,11 @@
         "controlled_unit_rules": {
           "kind": "callable",
           "signature": "() -> 'list[dict[str, Any]]'",
+          "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.unit_rules"
+        },
+        "normalize_controlled_measure": {
+          "kind": "callable",
+          "signature": "(value: 'int | float', source_unit: 'str', expected_unit: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_data_analysis._service.unit_rules"
         },
         "re": {
@@ -25351,7 +25654,7 @@
         "CONTROLLED_UNIT_RULES": {
           "kind": "container",
           "value_type": "dict",
-          "length": 14
+          "length": 22
         },
         "Decimal": {
           "kind": "class",
@@ -30167,6 +30470,11 @@
           "kind": "module",
           "target": "json"
         },
+        "list_asset_resources": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, resource_type: 'str' = '', cursor: 'str' = '', limit: 'int' = 50) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_feasibility_delivery.service"
+        },
         "list_resources": {
           "kind": "callable",
           "signature": "(args: 'dict[str, Any]') -> 'dict[str, Any]'",
@@ -30186,6 +30494,11 @@
           "kind": "callable",
           "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
           "defined_in": "lvke_mcp.runtime.evidence_qualification"
+        },
+        "read_asset_resource": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', uri: 'str') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_feasibility_delivery.service"
         },
         "read_resource": {
           "kind": "callable",
@@ -31892,6 +32205,11 @@
           "signature": "(workspace_id: 'str', project_context_id: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_project_planning._lifecycle.build_scale"
         },
+        "normalize_industry": {
+          "kind": "callable",
+          "signature": "(industry: str) -> str",
+          "defined_in": "lvke_mcp.domains.finance.industry_aliases"
+        },
         "service": {
           "kind": "module",
           "target": "lvke_mcp.domains.project_planning.application"
@@ -32482,6 +32800,10 @@
         "copy": {
           "kind": "module",
           "target": "copy"
+        },
+        "json": {
+          "kind": "module",
+          "target": "json"
         },
         "types": {
           "kind": "module",
@@ -33805,6 +34127,11 @@
           "kind": "module",
           "target": "binascii"
         },
+        "configured_import_root_diagnostics": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora"
+        },
         "configured_import_roots": {
           "kind": "callable",
           "signature": "() -> 'tuple[Path, ...]'",
@@ -34517,6 +34844,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "configured_import_root_diagnostics": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora"
+        },
         "configured_import_roots": {
           "kind": "callable",
           "signature": "() -> 'tuple[Path, ...]'",
@@ -34757,6 +35089,11 @@
           "kind": "callable",
           "signature": "(value: 'Any') -> 'str'",
           "defined_in": "lvke_mcp.runtime.storage"
+        },
+        "configured_import_root_diagnostics": {
+          "kind": "callable",
+          "signature": "() -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_source_files.external_corpora"
         },
         "configured_import_roots": {
           "kind": "callable",
@@ -35526,6 +35863,11 @@
           "signature": "(*args, **kwargs)",
           "defined_in": "typing",
           "public_members": []
+        },
+        "REPORT_CHAPTERS": {
+          "kind": "container",
+          "value_type": "tuple",
+          "length": 9
         },
         "annotations": {
           "kind": "_Feature"

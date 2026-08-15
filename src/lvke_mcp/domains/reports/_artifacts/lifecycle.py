@@ -196,6 +196,9 @@ def _create(
     kind: str,
     template_version: str,
     operation_id: str = "",
+    report_revision_id: str = "",
+    document_snapshot: dict[str, Any] | None = None,
+    expected_run_id: str = "",
 ) -> dict[str, Any]:
     workspace_id = _validate_workspace_id(workspace_id)
     _require_workspace(workspace_id)
@@ -216,6 +219,13 @@ def _create(
                 and str(item.get("kind") or "") == kind
             ), None)
             if isinstance(existing, dict):
+                if str(existing.get("report_revision_id") or "") != str(
+                    report_revision_id or ""
+                ):
+                    raise DeliverableArtifactError(
+                        "IDEMPOTENCY_CONFLICT",
+                        "相同工件操作标识已绑定其他研报修订",
+                    )
                 replay = _refresh_record_locked(
                     workspace_id,
                     state,
@@ -225,6 +235,9 @@ def _create(
         basis, content, context = _capture_basis(
             workspace_id,
             template_version=template_version,
+            report_revision_id=report_revision_id,
+            document_snapshot=document_snapshot,
+            expected_run_id=expected_run_id,
         )
         readiness = (basis.get("readiness") or {}).get("snapshot") or {}
         if kind == "formal":
@@ -265,6 +278,9 @@ def _create(
         second_basis, _second_content, second_context = _capture_basis(
             workspace_id,
             template_version=template_version,
+            report_revision_id=report_revision_id,
+            document_snapshot=document_snapshot,
+            expected_run_id=expected_run_id,
         )
         if second_basis.get("fingerprint") != basis.get("fingerprint"):
             raise DeliverableArtifactError(
@@ -292,6 +308,9 @@ def _create(
             final_basis, _final_content, final_context = _capture_basis(
                 workspace_id,
                 template_version=template_version,
+                report_revision_id=report_revision_id,
+                document_snapshot=document_snapshot,
+                expected_run_id=expected_run_id,
             )
             if final_basis.get("fingerprint") != second_basis.get("fingerprint"):
                 raise DeliverableArtifactError(
@@ -327,6 +346,7 @@ def _create(
             "ok": True,
             "current": True,
             "template_version": template_version,
+            "report_revision_id": report_revision_id,
             "basis_fingerprint": final_basis.get("fingerprint"),
             "basis": final_basis,
             "document_revision_id": (final_basis.get("document") or {}).get(
@@ -394,6 +414,42 @@ def create_deliverable_artifact(
     )
 
 
+def _create_revision_bound_draft_export(
+    workspace_id: str,
+    *,
+    report_revision_id: str,
+    document_snapshot: dict[str, Any],
+    expected_run_id: str = "",
+    template_version: str = DEFAULT_TEMPLATE_VERSION,
+) -> dict[str, Any]:
+    return _create(
+        workspace_id,
+        kind="draft",
+        template_version=template_version,
+        report_revision_id=report_revision_id,
+        document_snapshot=document_snapshot,
+        expected_run_id=expected_run_id,
+    )
+
+
+def _create_revision_bound_deliverable_artifact(
+    workspace_id: str,
+    *,
+    report_revision_id: str,
+    document_snapshot: dict[str, Any],
+    expected_run_id: str = "",
+    template_version: str = DEFAULT_TEMPLATE_VERSION,
+) -> dict[str, Any]:
+    return _create(
+        workspace_id,
+        kind="formal",
+        template_version=template_version,
+        report_revision_id=report_revision_id,
+        document_snapshot=document_snapshot,
+        expected_run_id=expected_run_id,
+    )
+
+
 def _invalidate_locked(
     workspace_id: str,
     state: dict[str, Any],
@@ -452,9 +508,25 @@ def _refresh_record_locked(
             "details": copy.deepcopy(failure),
         })
     try:
+        report_revision_id = str(record.get("report_revision_id") or "")
+        supplied_snapshot = None
+        expected_run_id = str(record.get("finance_run_id") or record.get("run_id") or "")
+        if report_revision_id:
+            from lvke_mcp.adapters.report_repository import REVISION_STORE
+
+            revision = REVISION_STORE.get(workspace_id, report_revision_id)
+            supplied_snapshot = (revision or {}).get("payload", {}).get("document_snapshot")
+            if not isinstance(supplied_snapshot, dict):
+                raise DeliverableArtifactError(
+                    "DOCUMENT_SNAPSHOT_INVALID",
+                    "工件绑定的研报修订快照不存在",
+                )
         current_basis, _content, _context = _capture_basis(
             workspace_id,
             template_version=str(record.get("template_version") or DEFAULT_TEMPLATE_VERSION),
+            report_revision_id=report_revision_id,
+            document_snapshot=supplied_snapshot,
+            expected_run_id=expected_run_id,
         )
         reasons.extend(_basis_change_reasons(record.get("basis") or {}, current_basis))
     except DeliverableArtifactError as exc:

@@ -71,10 +71,23 @@ def _capture_basis(
     workspace_id: str,
     *,
     template_version: str,
+    report_revision_id: str = "",
+    document_snapshot: dict[str, Any] | None = None,
+    expected_run_id: str = "",
 ) -> tuple[dict[str, Any], str, dict[str, Any]]:
-    document, content, meta = _document_snapshot(workspace_id)
+    document, content, meta = _document_snapshot(
+        workspace_id,
+        supplied_snapshot=document_snapshot,
+    )
     readiness = _without_volatile_timestamps(
-        _fresh_readiness(workspace_id)
+        _fresh_readiness(
+            workspace_id,
+            document_snapshot=(
+                {**document_snapshot, "workspace_id": workspace_id}
+                if isinstance(document_snapshot, dict)
+                else None
+            ),
+        )
     )
     sources = _source_basis_snapshot(workspace_id)
 
@@ -96,7 +109,7 @@ def _capture_basis(
         "finance_binding",
     )
     binding = binding_value if isinstance(binding_value, dict) else {}
-    run_id = str(binding.get("finance_run_id") or "")
+    run_id = str(expected_run_id or binding.get("finance_run_id") or "")
     if not run_id:
         # MCP 边界无持久化 finance_binding：绑定退化为最新 run（MCP gate 语义）。
         try:
@@ -131,6 +144,7 @@ def _capture_basis(
         "report_type": str(meta.get("report_type") or ""),
         "doc_kind": meta_doc_kind or doc_service.DEFAULT_DOC_KIND,
         "template_version": template_version,
+        "report_revision_id": str(report_revision_id or ""),
         "document": document,
         "sources": sources,
         "readiness": {
@@ -185,13 +199,19 @@ def _readiness_blockers(readiness: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None:
     """Validate immutable inputs and readiness evidence for a formal artifact."""
-    if basis.get("doc_kind") != "feasibility" or basis.get("report_type") == "asset_acquisition":
+    finance = basis.get("finance") or {}
+    if (
+        basis.get("doc_kind") != "feasibility"
+        or basis.get("report_type") == "asset_acquisition"
+        or finance.get("run_kind") == "asset_acquisition"
+    ):
         raise DeliverableArtifactError(
             "FORMAL_ARTIFACT_TYPE_UNSUPPORTED",
             "通用正式工件仅支持非资产收购可行性研究报告",
             details={
                 "doc_kind": basis.get("doc_kind"),
                 "report_type": basis.get("report_type"),
+                "finance_run_kind": finance.get("run_kind"),
             },
         )
 
@@ -233,7 +253,6 @@ def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None
                 error=appendix_file.get("error"),
             ))
 
-    finance = basis.get("finance") or {}
     run = finance.get("run_snapshot")
     binding = finance.get("binding_snapshot") or {}
     run_id = str(finance.get("run_id") or "")

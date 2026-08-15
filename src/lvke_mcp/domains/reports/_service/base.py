@@ -7,6 +7,7 @@ from typing import Any
 
 
 from lvke_mcp.domains.reports import read_model as report_read_model
+from lvke_mcp.domains.reports.headings import heading_titles_match
 
 
 _TASK_TERMINAL = {"done", "completed", "partial", "failed", "cancelled"}
@@ -88,7 +89,7 @@ def _merge_section_patch(
     level = int(descriptor.get("depth") or 1)
     level = min(6, max(1, level))
     first_heading = _HEADING_RE.match(patch)
-    if first_heading and first_heading.group(2).strip() == title:
+    if first_heading and heading_titles_match(first_heading.group(2), title):
         replacement = patch
     else:
         replacement = f"{'#' * (int(span['level']) if span else level)} {title}\n\n{patch}"

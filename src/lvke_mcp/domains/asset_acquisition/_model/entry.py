@@ -116,7 +116,10 @@ def run_acquisition_model(
         if isinstance(cost, dict) else annual_owner_opex,
         years,
     )
-    depreciation = _depreciation_schedule(transaction, years)
+    depreciation = _depreciation_schedule(
+        {**transaction, "depreciation_schedule": spec.get("depreciation_schedule")},
+        years,
+    )
     depreciation_values = depreciation["annual_depreciation_wan"]
     tax_spec = spec.get("tax") or {}
     income_tax_rate = min(max(_number((tax_spec or {}).get("income_tax_rate"), 0.0), 0.0), 1.0)

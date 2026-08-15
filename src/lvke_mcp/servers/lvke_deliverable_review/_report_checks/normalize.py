@@ -72,7 +72,7 @@ def _metric_unit_compatible(metric: str, unit: str) -> bool:
     if metric in {"payback", "static_payback", "dynamic_payback"}:
         return canonical in {"年", "月", "个月"}
     if metric in {"dscr", "icr"}:
-        return canonical == "%"
+        return canonical in {"", "倍"}  # 无量纲或"倍"，不接受 %
     if metric == "room_count":
         return canonical == "间"
     if metric == "area":
@@ -86,12 +86,17 @@ def _metric_unit_compatible(metric: str, unit: str) -> bool:
 
 def _semantic_near(text: str, start: int, end: int, unit: str) -> str:
     candidates: list[tuple[int, int, int, str]] = []
+    # Only punctuation is a reliable clause boundary here.  Chinese
+    # conjunctions are also part of canonical metric names (for example
+    # ``设备及工器具购置费``); treating ``及/和/与`` as separators truncates
+    # that label and can bind its amount to the following metric instead.
+    clause_markers = ("，", ",", "；", ";", "。")
     clause_start = max(
-        (text.rfind(marker, 0, start) for marker in ("，", ",", "；", ";", "。")),
+        (text.rfind(marker, 0, start) for marker in clause_markers),
         default=-1,
     ) + 1
     following = [
-        position for marker in ("，", ",", "；", ";", "。")
+        position for marker in clause_markers
         if (position := text.find(marker, end)) >= 0
     ]
     clause_end = min(following) if following else len(text)

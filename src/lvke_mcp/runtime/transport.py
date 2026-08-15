@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import inspect
@@ -135,6 +136,7 @@ class ToolSpec:
     handler: ToolHandler
     annotations: types.ToolAnnotations | None
     task_support: Literal["forbidden", "optional", "required"]
+    public_input_schema: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -197,10 +199,13 @@ class OfficialStdioServer:
         output_schema: dict[str, Any] | None = None,
         annotations: types.ToolAnnotations | None = None,
         task_support: Literal["forbidden", "optional", "required"] = "forbidden",
+        public_input_schema: dict[str, Any] | None = None,
     ) -> None:
         if name in self._tools:
             raise ValueError(f"tool already registered: {name}")
         Draft202012Validator.check_schema(input_schema)
+        if public_input_schema is not None:
+            Draft202012Validator.check_schema(public_input_schema)
         if output_schema is not None:
             Draft202012Validator.check_schema(output_schema)
         if task_support not in {"forbidden", "optional", "required"}:
@@ -212,13 +217,14 @@ class OfficialStdioServer:
                 openWorldHint=False,
             )
         self._tools[name] = ToolSpec(
-            name,
-            description,
-            input_schema,
-            output_schema,
-            handler,
-            annotations,
-            task_support,
+            name=name,
+            description=description,
+            input_schema=input_schema,
+            output_schema=output_schema,
+            handler=handler,
+            annotations=annotations,
+            task_support=task_support,
+            public_input_schema=public_input_schema,
         )
 
     def register_resource_provider(
@@ -373,7 +379,11 @@ class OfficialStdioServer:
                 types.Tool(
                     name=spec.name,
                     description=spec.description,
-                    inputSchema=self._public_input_schema(spec.name, spec.input_schema),
+                    inputSchema=self._public_input_schema(
+                        spec.name,
+                        spec.input_schema,
+                        public_schema=spec.public_input_schema,
+                    ),
                     # Full output schemas remain authoritative for server-side
                     # validation.  Repeating them in tools/list accounted for a
                     # large part of the model context and is not required for
@@ -875,10 +885,22 @@ class OfficialStdioServer:
         self,
         tool_name: str,
         schema: dict[str, Any],
+        *,
+        public_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Publish a compact projection while retaining the full validator."""
 
-        rooted = schema if schema.get("type") == "object" else {"type": "object", **schema}
+        # A deliberately authored projection is already bounded and preserves
+        # the fields a client needs to form a first valid call.  Do not run it
+        # through the generic size compressor: that would turn its nested
+        # discriminators back into the opaque stubs it exists to avoid.
+        if public_schema is not None:
+            result = copy.deepcopy(public_schema)
+            result.setdefault("x-lvke-schema-uri", self._tool_schema_uri(tool_name))
+            return result
+
+        selected = schema
+        rooted = selected if selected.get("type") == "object" else {"type": "object", **selected}
         return self._compact_public_schema(
             rooted,
             schema_uri=self._tool_schema_uri(tool_name),

@@ -556,8 +556,8 @@ def _report_artifact_text(
             else:
                 from lvke_mcp.domains.reports import artifacts as deliverable_artifacts
 
-                resolved = deliverable_artifacts.read_artifact_candidate_download(
-                    workspace_id, artifact_id, name, 
+                resolved = deliverable_artifacts.read_artifact_download(
+                    workspace_id, artifact_id, name,
                 )
                 content = resolved.get("content") or b""
             if name.lower().endswith(".docx"):

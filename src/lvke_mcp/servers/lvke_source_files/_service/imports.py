@@ -14,6 +14,7 @@ from typing import Any
 from lvke_mcp.adapters import source_files_repository as source_api
 from lvke_mcp.servers.lvke_source_files.external_corpora import (
     ExternalCorpusError,
+    configured_import_root_diagnostics,
     configured_import_roots,
     resolve_project_corpora,
 )
@@ -289,7 +290,7 @@ def import_local_path(
             shutil.copyfileobj(source_stream, target, length=1024 * 1024)
             target.flush()
             os.fsync(target.fileno())
-        return _commit_and_parse(
+        result = _commit_and_parse(
             workspace_id,
             staged,
             original_filename=original_filename,
@@ -299,5 +300,16 @@ def import_local_path(
             expected_size=source.stat().st_size,
             parse_immediately=parse_immediately,
         )
+        diagnostics = configured_import_root_diagnostics()
+        invalid_roots = list(diagnostics.get("invalid_roots") or [])
+        if invalid_roots:
+            result["import_root_diagnostics"] = {
+                "source": diagnostics.get("source"),
+                "ignored_invalid_roots": invalid_roots,
+            }
+            result.setdefault("warnings", []).append(
+                f"已忽略 {len(invalid_roots)} 个无效本地导入根"
+            )
+        return result
     finally:
         staged.unlink(missing_ok=True)

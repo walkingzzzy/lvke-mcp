@@ -22,6 +22,7 @@ from .base import (
     _decimal,
     _envelope,
     _idempotent_mutation,
+    _planning_evidence_qualification,
     _planning_view,
 )
 from .market import _confirmed_market_basis
@@ -243,7 +244,9 @@ def create_build_scale_case(
         if error:
             return error
         assert context is not None and market is not None
-        evidence_track = str((context.get("payload") or {}).get("evidence_track") or "real")
+        evidence_track, evidence_policy, project_fact_certified = (
+            _planning_evidence_qualification(context, market)
+        )
         target = _decimal(target_capacity.get("value"))
         land = _decimal(land_area_m2)
         intensity = _decimal(capacity_intensity_per_m2)
@@ -310,6 +313,8 @@ def create_build_scale_case(
             "facilities": facilities,
             "calculations": calculations,
             "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
             "selection": selection,
@@ -346,6 +351,8 @@ def create_build_scale_case(
             calculations=calculations,
             planning_conversion_ledger=payload["planning_conversion_ledger"],
             evidence_track=evidence_track,
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             idempotent_replay=False,
         )
 
@@ -385,7 +392,9 @@ def create_cost_driver_set(
             return _blocked("cost_driver_basis_not_found", "ProjectContext 或 BuildScaleCase 不存在")
         if (scale.get("payload") or {}).get("project_context_id") != project_context_id:
             return _blocked("planning_basis_mismatch", "BuildScaleCase 与 ProjectContext 不属于同一 basis")
-        evidence_track = str((context.get("payload") or {}).get("evidence_track") or "real")
+        evidence_track, evidence_policy, project_fact_certified = (
+            _planning_evidence_qualification(context, scale)
+        )
         amount_fields = (
             "construction_wan", "civil_wan", "equipment_wan", "installation_wan",
             "other_wan", "reserve_wan", "interest_wan", "working_capital_wan",
@@ -435,6 +444,8 @@ def create_cost_driver_set(
             "annual_operating_cost_wan": round(sum(cost_items.values()), 2),
             "project_total_investment_wan": float(project_total.quantize(Decimal("0.01"))),
             "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
@@ -463,6 +474,8 @@ def create_cost_driver_set(
             cost_driver_set=_planning_view(record, "cost_driver_set_id"),
             finance_spec_ledger=ledger,
             evidence_track=evidence_track,
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             idempotent_replay=False,
         )
 
@@ -500,7 +513,9 @@ def create_labor_plan(
             return _blocked("labor_plan_basis_not_found", "ProjectContext 或 BuildScaleCase 不存在")
         if (scale.get("payload") or {}).get("project_context_id") != project_context_id:
             return _blocked("planning_basis_mismatch", "BuildScaleCase 与 ProjectContext 不属于同一 basis")
-        evidence_track = str((context.get("payload") or {}).get("evidence_track") or "real")
+        evidence_track, evidence_policy, project_fact_certified = (
+            _planning_evidence_qualification(context, scale)
+        )
         finance_rows: list[dict[str, Any]] = []
         wage_total = Decimal("0")
         welfare_total = Decimal("0")
@@ -562,6 +577,8 @@ def create_labor_plan(
             "annual_wage_wan": float(wage_total),
             "annual_welfare_wan": float(welfare_total),
             "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
@@ -590,6 +607,8 @@ def create_labor_plan(
             labor_plan=_planning_view(record, "labor_plan_id"),
             finance_spec_ledger=ledger,
             evidence_track=evidence_track,
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             idempotent_replay=False,
         )
 

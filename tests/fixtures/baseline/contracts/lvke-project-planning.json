@@ -660,14 +660,169 @@
         },
         "position_requirements": {
           "type": "array",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_infer_labor_plan/input",
-          "x-lvke-schema-pointer": "#/properties/position_requirements",
           "minItems": 1,
           "maxItems": 200,
           "items": {
             "type": "object",
-            "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_infer_labor_plan/input",
-            "x-lvke-schema-pointer": "#/properties/position_requirements/items"
+            "additionalProperties": false,
+            "properties": {
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "annual_workload": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "workload_unit": {
+                "type": "string",
+                "minLength": 1
+              },
+              "capacity_per_person_shift": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "shift_count": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10
+              },
+              "coverage_factor": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10
+              },
+              "automation_adjustment": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 10
+              },
+              "avg_wage_yuan": {
+                "type": "number",
+                "minimum": 0
+              },
+              "welfare_rate": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "annual_growth_rate": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 10
+              },
+              "evidence_bindings": {
+                "type": "array",
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source_type": {
+                      "type": "string",
+                      "enum": [
+                        "web_snapshot",
+                        "controlled_file",
+                        "technical_fixture",
+                        "selected_fact",
+                        "source_reconstructed",
+                        "search_summary"
+                      ]
+                    },
+                    "content_hash": {
+                      "type": "string",
+                      "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                    },
+                    "locator": {
+                      "oneOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "object",
+                          "minProperties": 1
+                        },
+                        {
+                          "type": "array",
+                          "minItems": 1
+                        }
+                      ],
+                      "description": "证据定位符，需能在 EvidencePack 的 sources[].locators 或 fact_candidates[].locator 中解析到。比较前两侧都会重归一化：结构化对象/数组按 canonical JSON（sort_keys=True, separators=(\",\",\":\"), ensure_ascii=False）序列化；JSON 字符串先 loads 再同样序列化。因此 json.dumps 的默认写法（带空格）、indent 缩进、键序不同、ensure_ascii=True 都能匹配，无需自行紧凑化。纯字符串 locator 按原文精确匹配（仅去首尾空白），数值类型需一致（1 与 1.0 不等价）。"
+                    },
+                    "evidence_track": {
+                      "type": "string",
+                      "enum": [
+                        "real",
+                        "source_reconstructed",
+                        "technical_fixture",
+                        "controlled_assumption"
+                      ]
+                    },
+                    "reconstruction_id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source_uri": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "source_kind": {
+                      "type": "string",
+                      "enum": [
+                        "client_report",
+                        "finance_template",
+                        "historical_statement",
+                        "scenario_note"
+                      ]
+                    },
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "table_extract",
+                        "formula_replay",
+                        "explicit_mapping"
+                      ]
+                    },
+                    "limitations": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "source_id",
+                    "source_type",
+                    "content_hash",
+                    "locator",
+                    "evidence_track"
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "category",
+              "name",
+              "annual_workload",
+              "workload_unit",
+              "capacity_per_person_shift",
+              "shift_count",
+              "coverage_factor",
+              "automation_adjustment",
+              "avg_wage_yuan",
+              "welfare_rate",
+              "evidence_bindings"
+            ]
           }
         },
         "idempotency_key": {
@@ -1311,19 +1466,179 @@
       "additionalProperties": false,
       "allOf": [
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
-          "x-lvke-schema-pointer": "#/allOf/0"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "market_case"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "evidence_pack_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                    "x-lvke-schema-pointer": "#/allOf/0/then/properties/payload/properties/candidates",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                      "x-lvke-schema-pointer": "#/allOf/0/then/properties/payload/properties/candidates/items"
+                    }
+                  }
+                },
+                "required": [
+                  "evidence_pack_id",
+                  "candidates"
+                ]
+              }
+            }
+          }
         },
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
-          "x-lvke-schema-pointer": "#/allOf/1"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "revenue_drivers"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "market_case_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "candidates": {
+                    "type": "array",
+                    "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                    "x-lvke-schema-pointer": "#/allOf/1/then/properties/payload/properties/candidates",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                      "x-lvke-schema-pointer": "#/allOf/1/then/properties/payload/properties/candidates/items"
+                    }
+                  }
+                },
+                "required": [
+                  "market_case_id",
+                  "candidates"
+                ]
+              }
+            }
+          }
         },
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
-          "x-lvke-schema-pointer": "#/allOf/2"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "cost_drivers"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "build_scale_case_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "invest_breakdown": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "construction_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "civil_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "equipment_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "installation_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "other_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "reserve_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "interest_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "working_capital_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "construction_wan",
+                      "civil_wan",
+                      "equipment_wan",
+                      "installation_wan",
+                      "other_wan",
+                      "reserve_wan",
+                      "interest_wan",
+                      "working_capital_wan"
+                    ]
+                  },
+                  "operating_cost_items": {
+                    "type": "array",
+                    "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                    "x-lvke-schema-pointer": "#/allOf/2/then/properties/payload/properties/operating_cost_items",
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object",
+                      "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
+                      "x-lvke-schema-pointer": "#/allOf/2/then/properties/payload/properties/operating_cost_items/items"
+                    }
+                  }
+                },
+                "required": [
+                  "build_scale_case_id",
+                  "invest_breakdown",
+                  "operating_cost_items"
+                ]
+              }
+            }
+          }
         },
         {
           "if": {
@@ -1409,9 +1724,257 @@
           }
         },
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input",
-          "x-lvke-schema-pointer": "#/allOf/4"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "option_comparison"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "equipment",
+                      "building",
+                      "process",
+                      "site",
+                      "operating_model"
+                    ]
+                  },
+                  "criteria": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "criterion_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "weight": {
+                          "type": "number",
+                          "exclusiveMinimum": 0,
+                          "maximum": 1
+                        },
+                        "direction": {
+                          "type": "string",
+                          "enum": [
+                            "higher_is_better",
+                            "lower_is_better"
+                          ]
+                        },
+                        "unit": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "criterion_id",
+                        "label",
+                        "weight",
+                        "direction",
+                        "unit"
+                      ]
+                    }
+                  },
+                  "options": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "option_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "values": {
+                          "type": "object",
+                          "minProperties": 1,
+                          "additionalProperties": {
+                            "type": "number"
+                          }
+                        },
+                        "evidence_bindings": {
+                          "type": "object",
+                          "minProperties": 1,
+                          "additionalProperties": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "source_id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "source_type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "web_snapshot",
+                                    "controlled_file",
+                                    "technical_fixture",
+                                    "selected_fact",
+                                    "source_reconstructed",
+                                    "search_summary"
+                                  ]
+                                },
+                                "content_hash": {
+                                  "type": "string",
+                                  "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                                },
+                                "locator": {
+                                  "oneOf": [
+                                    {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    {
+                                      "type": "object",
+                                      "minProperties": 1
+                                    },
+                                    {
+                                      "type": "array",
+                                      "minItems": 1
+                                    }
+                                  ]
+                                },
+                                "evidence_track": {
+                                  "type": "string",
+                                  "enum": [
+                                    "real",
+                                    "source_reconstructed",
+                                    "technical_fixture",
+                                    "controlled_assumption"
+                                  ]
+                                },
+                                "reconstruction_id": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "source_uri": {
+                                  "type": "string",
+                                  "minLength": 1
+                                },
+                                "source_kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "client_report",
+                                    "finance_template",
+                                    "historical_statement",
+                                    "scenario_note"
+                                  ]
+                                },
+                                "method": {
+                                  "type": "string",
+                                  "enum": [
+                                    "table_extract",
+                                    "formula_replay",
+                                    "explicit_mapping"
+                                  ]
+                                },
+                                "limitations": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "required": [
+                                "source_id",
+                                "source_type",
+                                "content_hash",
+                                "locator",
+                                "evidence_track"
+                              ]
+                            }
+                          }
+                        },
+                        "constraint_results": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "boolean"
+                          },
+                          "default": {}
+                        },
+                        "notes": {
+                          "type": "string",
+                          "maxLength": 10000
+                        }
+                      },
+                      "required": [
+                        "option_id",
+                        "name",
+                        "values",
+                        "evidence_bindings",
+                        "constraint_results"
+                      ]
+                    }
+                  },
+                  "mandatory_constraints": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "constraint_id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "label": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "constraint_id",
+                        "label"
+                      ]
+                    },
+                    "default": []
+                  },
+                  "basis_object_ids": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "default": []
+                  }
+                },
+                "required": [
+                  "category",
+                  "criteria",
+                  "options"
+                ]
+              }
+            }
+          }
         }
       ],
       "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_prepare/input"
@@ -1468,9 +2031,141 @@
       "additionalProperties": false,
       "allOf": [
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_create/input",
-          "x-lvke-schema-pointer": "#/allOf/0"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "revenue_drivers"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "market_case_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "revenue_spec": {
+                    "type": "object",
+                    "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_create/input",
+                    "x-lvke-schema-pointer": "#/allOf/0/then/properties/payload/properties/revenue_spec"
+                  },
+                  "op_years": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "estimate_preview",
+                      "review_candidate"
+                    ],
+                    "default": "estimate_preview"
+                  },
+                  "flat_evidence_binding": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "source_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_type": {
+                        "type": "string",
+                        "enum": [
+                          "web_snapshot",
+                          "controlled_file",
+                          "technical_fixture",
+                          "selected_fact",
+                          "source_reconstructed",
+                          "search_summary"
+                        ]
+                      },
+                      "content_hash": {
+                        "type": "string",
+                        "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                      },
+                      "locator": {
+                        "oneOf": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "object",
+                            "minProperties": 1
+                          },
+                          {
+                            "type": "array",
+                            "minItems": 1
+                          }
+                        ]
+                      },
+                      "evidence_track": {
+                        "type": "string",
+                        "enum": [
+                          "real",
+                          "source_reconstructed",
+                          "technical_fixture",
+                          "controlled_assumption"
+                        ]
+                      },
+                      "reconstruction_id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_uri": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "source_kind": {
+                        "type": "string",
+                        "enum": [
+                          "client_report",
+                          "finance_template",
+                          "historical_statement",
+                          "scenario_note"
+                        ]
+                      },
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "table_extract",
+                          "formula_replay",
+                          "explicit_mapping"
+                        ]
+                      },
+                      "limitations": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "source_id",
+                      "source_type",
+                      "content_hash",
+                      "locator",
+                      "evidence_track"
+                    ]
+                  }
+                },
+                "required": [
+                  "market_case_id",
+                  "revenue_spec",
+                  "op_years"
+                ]
+              }
+            }
+          }
         },
         {
           "if": {
@@ -1603,14 +2298,371 @@
           }
         },
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_create/input",
-          "x-lvke-schema-pointer": "#/allOf/2"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "cost_drivers"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "build_scale_case_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "invest_breakdown": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "construction_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "civil_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "equipment_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "installation_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "other_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "reserve_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "interest_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "working_capital_wan": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "construction_wan",
+                      "civil_wan",
+                      "equipment_wan",
+                      "installation_wan",
+                      "other_wan",
+                      "reserve_wan",
+                      "interest_wan",
+                      "working_capital_wan"
+                    ]
+                  },
+                  "operating_cost_items": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "annual_amount_wan": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "basis": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "evidence_bindings": {
+                          "type": "array",
+                          "maxItems": 100,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "source_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_type": {
+                                "type": "string",
+                                "enum": [
+                                  "web_snapshot",
+                                  "controlled_file",
+                                  "technical_fixture",
+                                  "selected_fact",
+                                  "source_reconstructed",
+                                  "search_summary"
+                                ]
+                              },
+                              "content_hash": {
+                                "type": "string",
+                                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                              },
+                              "locator": {
+                                "oneOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  {
+                                    "type": "object",
+                                    "minProperties": 1
+                                  },
+                                  {
+                                    "type": "array",
+                                    "minItems": 1
+                                  }
+                                ]
+                              },
+                              "evidence_track": {
+                                "type": "string",
+                                "enum": [
+                                  "real",
+                                  "source_reconstructed",
+                                  "technical_fixture",
+                                  "controlled_assumption"
+                                ]
+                              },
+                              "reconstruction_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_uri": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_kind": {
+                                "type": "string",
+                                "enum": [
+                                  "client_report",
+                                  "finance_template",
+                                  "historical_statement",
+                                  "scenario_note"
+                                ]
+                              },
+                              "method": {
+                                "type": "string",
+                                "enum": [
+                                  "table_extract",
+                                  "formula_replay",
+                                  "explicit_mapping"
+                                ]
+                              },
+                              "limitations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "source_id",
+                              "source_type",
+                              "content_hash",
+                              "locator",
+                              "evidence_track"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "annual_amount_wan",
+                        "basis",
+                        "evidence_bindings"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "build_scale_case_id",
+                  "invest_breakdown",
+                  "operating_cost_items"
+                ]
+              }
+            }
+          }
         },
         {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_create/input",
-          "x-lvke-schema-pointer": "#/allOf/3"
+          "if": {
+            "properties": {
+              "object_kind": {
+                "const": "labor_plan"
+              }
+            },
+            "required": [
+              "object_kind"
+            ]
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "build_scale_case_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "positions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "headcount": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "avg_wage_yuan": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "welfare_rate": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        "annual_growth_rate": {
+                          "type": "number",
+                          "minimum": -1,
+                          "maximum": 10
+                        },
+                        "evidence_bindings": {
+                          "type": "array",
+                          "maxItems": 100,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "source_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_type": {
+                                "type": "string",
+                                "enum": [
+                                  "web_snapshot",
+                                  "controlled_file",
+                                  "technical_fixture",
+                                  "selected_fact",
+                                  "source_reconstructed",
+                                  "search_summary"
+                                ]
+                              },
+                              "content_hash": {
+                                "type": "string",
+                                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                              },
+                              "locator": {
+                                "oneOf": [
+                                  {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  {
+                                    "type": "object",
+                                    "minProperties": 1
+                                  },
+                                  {
+                                    "type": "array",
+                                    "minItems": 1
+                                  }
+                                ]
+                              },
+                              "evidence_track": {
+                                "type": "string",
+                                "enum": [
+                                  "real",
+                                  "source_reconstructed",
+                                  "technical_fixture",
+                                  "controlled_assumption"
+                                ]
+                              },
+                              "reconstruction_id": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_uri": {
+                                "type": "string",
+                                "minLength": 1
+                              },
+                              "source_kind": {
+                                "type": "string",
+                                "enum": [
+                                  "client_report",
+                                  "finance_template",
+                                  "historical_statement",
+                                  "scenario_note"
+                                ]
+                              },
+                              "method": {
+                                "type": "string",
+                                "enum": [
+                                  "table_extract",
+                                  "formula_replay",
+                                  "explicit_mapping"
+                                ]
+                              },
+                              "limitations": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "required": [
+                              "source_id",
+                              "source_type",
+                              "content_hash",
+                              "locator",
+                              "evidence_track"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "name",
+                        "headcount",
+                        "avg_wage_yuan",
+                        "welfare_rate",
+                        "evidence_bindings"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "build_scale_case_id",
+                  "positions"
+                ]
+              }
+            }
+          }
         }
       ],
       "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/planning_create/input"

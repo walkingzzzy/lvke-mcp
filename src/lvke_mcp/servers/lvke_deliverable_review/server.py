@@ -174,6 +174,25 @@ _TARGET = {
     "x-lvke-schema-uri": _REVIEW_TARGET_SCHEMA_URI,
     "examples": [{"target_type": "report_revision", "target_id": "rrv_example"}],
 }
+_PUBLIC_TARGET = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "target_type": {"type": "string", "enum": _TARGET_TYPES},
+        "target_id": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "file_path": {"type": "string", "minLength": 1, "maxLength": 4096},
+        "source_file_id": _ID,
+        "artifact_domain": _ARTIFACT_DOMAIN,
+        "components": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 20,
+            "items": _COMPONENT_TARGET,
+        },
+    },
+    "required": ["target_type", "target_id"],
+    "x-lvke-schema-uri": _REVIEW_TARGET_SCHEMA_URI,
+}
 _RULE_PACK_LIST = {
     "type": "array",
     "items": {"type": "string", "enum": _RULE_PACK_IDS},
@@ -389,6 +408,18 @@ def build_server() -> OfficialStdioServer:
         service.prepare,
         _output_schema(),
         write,
+        # Combined targets need their component contract inline.  The complete
+        # public projection makes the supported combined_deliverable route
+        # discoverable instead of looking like an opaque Resource-only value.
+        public_input_schema=_write_schema(
+            {
+                "target": _PUBLIC_TARGET,
+                "rule_pack_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+                "industry_overlays": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
+                "project_context": {"type": "object"},
+            },
+            ["target"],
+        ),
     )
     server.register_tool(
         "review_start",

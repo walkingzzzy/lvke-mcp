@@ -195,7 +195,7 @@ class McpCompressionRound2Test(unittest.TestCase):
                 new_args = {
                     "workspace_id": old_args["workspace_id"],
                     discriminator: kind,
-                    "target_id": old_args[id_field],
+                    **({id_field: old_args[id_field]} if server_key == "source" else {"target_id": old_args[id_field]}),
                 }
                 self.assertEqual(
                     _stable(server._tools[aggregate].handler(new_args)),  # noqa: SLF001
@@ -265,8 +265,14 @@ class McpCompressionRound2Test(unittest.TestCase):
 
         source = self.servers["source"]
         status_schema = source._tools["source_task_status"].input_schema  # noqa: SLF001
-        mismatch = {"workspace_id": "round2-ws", "task_kind": "parse", "target_id": "ups_wrong"}
+        mismatch = {"workspace_id": "round2-ws", "task_kind": "parse", "job_id": "ups_wrong"}
         self.assertTrue(list(Draft202012Validator(status_schema).iter_errors(mismatch)))
+        ambiguous = {
+            "workspace_id": "round2-ws", "task_kind": "parse",
+            "job_id": "job_missing", "upload_id": "ups_missing",
+        }
+        response = source._tools["source_task_status"].handler(ambiguous)  # noqa: SLF001
+        self.assertEqual(response["code"], "task_status_identifier_invalid")
 
         delivery = self.servers["delivery"]
         transition = delivery._tools["delivery_transition"].input_schema  # noqa: SLF001

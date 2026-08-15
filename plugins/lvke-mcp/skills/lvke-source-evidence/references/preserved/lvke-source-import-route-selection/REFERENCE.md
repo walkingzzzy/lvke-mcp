@@ -42,7 +42,7 @@ description: >
    source_import_local_path(workspace_id, local_path=绝对路径, idempotency_key)
    → source_file_id
 
-4. source_task_status / source_file_get 确认解析状态
+4. source_task_status(task_kind="parse", job_id=<job_id>) / source_file_get 确认解析状态
    → "已解析" 不等于 "已采信"
 
 5. analysis_ingest(source_snapshot_ids) → 进入证据链

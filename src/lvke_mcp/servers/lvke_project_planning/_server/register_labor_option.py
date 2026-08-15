@@ -68,6 +68,18 @@ def _register_labor(
         ),
         _OUTPUT,
         write,
+        public_input_schema=_schema(
+            {
+                "project_context_id": _STRING,
+                "build_scale_case_id": _STRING,
+                "position_requirements": {
+                    "type": "array", "minItems": 1, "maxItems": 200,
+                    "items": _LABOR_REQUIREMENT,
+                },
+                "idempotency_key": _KEY,
+            },
+            ["project_context_id", "build_scale_case_id", "position_requirements", "idempotency_key"],
+        ),
     )
     server.register_tool(
         "planning_validate_labor_plan",

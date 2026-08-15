@@ -9,6 +9,7 @@ operation namespaces.
 from __future__ import annotations
 
 import copy
+import json
 
 from mcp import types
 
@@ -83,6 +84,40 @@ def _discriminated_payload_schema(
         for kind, spec in branch_specs.items()
     ]
     return schema
+
+
+def _public_discriminated_payload_schema(
+    server: OfficialStdioServer,
+    tool_name: str,
+    schema: dict,
+) -> dict:
+    """Inline each branch's argument names without duplicating huge subtrees."""
+
+    public = copy.deepcopy(schema)
+    schema_uri = server._tool_schema_uri(tool_name)  # noqa: SLF001
+    for index, branch in enumerate(public.get("allOf", [])):
+        payload = branch["then"]["properties"]["payload"]
+        projected_properties = {}
+        for property_name, property_schema in payload.get("properties", {}).items():
+            size = len(json.dumps(property_schema, ensure_ascii=False, separators=(",", ":")))
+            if size <= 256:
+                projected_properties[property_name] = property_schema
+                continue
+            projected_properties[property_name] = server._compact_public_schema(  # noqa: SLF001
+                property_schema,
+                schema_uri=schema_uri,
+                pointer=(
+                    f"#/allOf/{index}/then/properties/payload/properties/"
+                    f"{property_name}"
+                ),
+            )
+        branch["then"]["properties"]["payload"] = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": projected_properties,
+            "required": list(payload.get("required", [])),
+        }
+    return public
 
 
 def _install_round2_aggregates(
@@ -172,6 +207,9 @@ def _install_round2_aggregates(
         dispatch_confirm,
         _OUTPUT,
         write,
+        public_input_schema=_public_discriminated_payload_schema(
+            server, "planning_confirm", confirm_schema
+        ),
     )
 
     def install_payload_tool(
@@ -211,7 +249,15 @@ def _install_round2_aggregates(
             )
 
         server.register_tool(
-            public_name, description, schema, dispatch, _OUTPUT, write
+            public_name,
+            description,
+            schema,
+            dispatch,
+            _OUTPUT,
+            write,
+            public_input_schema=_public_discriminated_payload_schema(
+                server, public_name, schema
+            ),
         )
         return schema
 

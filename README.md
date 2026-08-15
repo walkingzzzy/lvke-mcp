@@ -63,6 +63,11 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 第二轮 32 项迁移见
 [`dev-docs/config/mcp-compression-migration-v2.json`](dev-docs/config/mcp-compression-migration-v2.json)。
 
+统一 Resource 入口为 `lvke-feasibility-delivery.lvke_list_resources` 和
+`lvke_read_resource`。`asset-acquisition` 域可分页列举并读取 spec、run、scenario
+matrix、工件、十三表 package、XLSX 和 13 个 CSV；URI 中的 workspace 必须与显式
+`workspace_id` 一致，二进制内容以 base64 返回。
+
 工作簿聚合契约为 `source_inspect_workbook(workspace_id, file_id, operation,
 sheet?, range?, options?)`；旧路径调用须先 `source_import_local_path`。地图聚合入口
 公开 `geo_query(..., limit?)`，距离矩阵的确定性模式固定为

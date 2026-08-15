@@ -15,6 +15,141 @@ from lvke_mcp.domains.reports.read_model import (
     supplied_document_snapshot,
 )
 
+# ── 九章实质内容契约 ──────────────────────────────────────────────────
+# 各章有效中文字符下限（标题/目录/引用列表/表格单元格不计入）
+_CHAPTER_MIN_CHARS: dict[str, tuple[int, ...]] = {
+    "asset_acquisition": (1000, 1500, 1800, 2200, 1200, 2000, 1400, 1000, 800),
+}
+
+# 资产收购报告必须覆盖的主题（按章节索引）
+_CHAPTER_REQUIRED_THEMES: dict[str, tuple[tuple[str, ...], ...]] = {
+    "asset_acquisition": (
+        ("标的范围", "交易结构", "报价"),
+        ("项目背景", "建设必要性", "交易主体"),
+        ("需求分析", "建设规模", "运营数据", "区域消纳"),
+        ("总体建设方案", "并网条件", "技术尽调", "运营运维"),
+        ("投资估算", "资金筹措", "购买价分摊", "融资"),
+        ("财务分析", "收益指标", "最高收购价", "敏感性"),
+        ("政策风险", "市场风险", "技术风险", "财务风险", "实施风险", "运营风险", "社会环境风险"),
+        ("保障措施", "交割条件", "运营保障"),
+        ("结论", "投决建议", "建议"),
+    ),
+}
+
+# 第 7 章必须覆盖的七类风险关键词
+_REQUIRED_RISK_CATEGORIES = (
+    "政策风险", "市场风险", "技术风险", "财务风险",
+    "实施风险", "运营风险", "社会环境风险",
+)
+
+# 需要含特定表格的章节
+_CHAPTER_REQUIRED_TABLES: dict[str, tuple[int, ...]] = {
+    "asset_acquisition": (1, 3, 5, 6),  # 第1/3/5/6章
+}
+
+
+def _cn_chars(text: str) -> int:
+    """Count Chinese characters in a text string."""
+    import re
+    return len(re.findall(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]", text))
+
+
+def _split_chapters(markdown: str) -> list[str]:
+    """Split markdown into chapters by heading level 1/2."""
+    import re
+    lines = markdown.split("\n")
+    chapters: list[str] = []
+    current: list[str] = []
+    for line in lines:
+        if re.match(r"^#{1,2}\s+", line) and current:
+            chapters.append("\n".join(current))
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        chapters.append("\n".join(current))
+    return chapters
+
+
+def _validate_chapter_content(
+    content: str,
+    report_type: str,
+    chapters: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate chapter-level content contract for word count, themes, tables.
+
+    Returns ``{chapter_index: {...}, "blockers": [...], "warnings": [...]}``.
+    """
+    import re
+
+    min_chars = _CHAPTER_MIN_CHARS.get(report_type)
+    required_themes = _CHAPTER_REQUIRED_THEMES.get(report_type)
+    required_tables = _CHAPTER_REQUIRED_TABLES.get(report_type)
+
+    if not min_chars:
+        return {"chapter_results": {}, "blockers": [], "warnings": []}
+
+    # Split markdown into chapters
+    raw_chapters = _split_chapters(content)
+    results: dict[str, dict[str, Any]] = {}
+    blockers: list[str] = []
+    warnings: list[str] = []
+
+    for idx, (raw_ch, min_cn) in enumerate(zip(raw_chapters, min_chars), 1):
+        # Remove table cells (|...|), citation references [^...], heading markers
+        clean = re.sub(r"\|[^|]*\|", "", raw_ch)
+        clean = re.sub(r"\[\^[^\]]*\]", "", clean)
+        clean = re.sub(r"^#{1,6}\s+", "", clean, flags=re.MULTILINE)
+        cn_count = _cn_chars(clean)
+        key = f"chapter_{idx}"
+
+        result: dict[str, Any] = {
+            "chinese_chars": cn_count,
+            "min_required": min_cn,
+            "chars_ok": cn_count >= min_cn,
+        }
+
+        # Theme coverage
+        if required_themes and idx - 1 < len(required_themes):
+            themes = required_themes[idx - 1]
+            covered = [t for t in themes if t in raw_ch]
+            missing = [t for t in themes if t not in raw_ch]
+            result["required_themes"] = list(themes)
+            result["covered_themes"] = covered
+            result["missing_themes"] = missing
+            result["themes_ok"] = len(missing) == 0
+            if missing:
+                blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_{idx}_themes_missing:{','.join(missing)}")
+
+        # Risk categories (chapter 7 only)
+        if idx == 7:
+            risk_covered = [r for r in _REQUIRED_RISK_CATEGORIES if r in raw_ch]
+            risk_missing = [r for r in _REQUIRED_RISK_CATEGORIES if r not in raw_ch]
+            result["risk_categories_covered"] = risk_covered
+            result["risk_categories_missing"] = risk_missing
+            result["risk_ok"] = len(risk_missing) == 0
+            if risk_missing:
+                blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_7_risk_missing:{','.join(risk_missing)}")
+
+        # Required tables (chapters 1, 3, 5, 6)
+        if required_tables and idx in required_tables:
+            has_table = bool(re.search(r"\|.*\|.*\|", raw_ch))
+            result["has_required_table"] = has_table
+            if not has_table:
+                blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_{idx}_table_missing")
+
+        # Word count check
+        if not result["chars_ok"]:
+            blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_{idx}_chars:{cn_count}<{min_cn}")
+
+        results[key] = result
+
+    return {
+        "chapter_results": results,
+        "blockers": sorted(set(blockers)),
+        "warnings": sorted(set(warnings)),
+    }
+
 
 def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
     record, native_alias = resolve_revision_record(workspace_id, revision_id)
@@ -81,7 +216,19 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         if scope_token is not None:
             report_artifacts._FINANCE_VALIDATION_SCOPE.reset(scope_token)
 
+    # Collect all report-level blockers/warnings before applying chapter/content gates.
     blockers: list[str] = []
+    warnings: list[str] = []
+
+    # ── 九章实质内容契约校验 ────────────────────────────────────────────
+    chapter_content = _validate_chapter_content(
+        content,
+        report_type,
+        expected_chapters,
+    )
+    blockers.extend(chapter_content.get("blockers") or [])
+    warnings.extend(chapter_content.get("warnings") or [])
+
     bound_preparation_id = str(payload.get("report_preparation_id") or "")
     preparations = sorted(
         PREPARATION_STORE.list(workspace_id),
@@ -105,10 +252,11 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         str(item.get("code") or "readiness_blocker")
         for item in (readiness.get("blockers") or [])
     )
-    warnings = [
+    readiness_warnings = [
         str(item.get("message") or item.get("code") or "")
         for item in (readiness.get("warnings") or [])
     ]
+    warnings.extend(readiness_warnings)
     warnings.extend(
         str(item.get("message") or item.get("code") or "")
         for item in (binding.get("warnings") or [])
@@ -153,6 +301,7 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "finance_tables_package_id": str(upstream.get("finance_tables_package_id") or ""),
         "basis_hash": str(payload.get("basis_hash") or record.get("basis_hash") or ""),
         "structure": structure,
+        "chapter_content": chapter_content,
         "finance_narrative": narrative,
         "finance_binding": binding,
         "readiness": readiness,

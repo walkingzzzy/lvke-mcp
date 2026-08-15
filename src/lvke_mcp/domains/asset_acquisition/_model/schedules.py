@@ -71,6 +71,27 @@ def _depreciation_schedule(transaction: dict[str, Any], years: int) -> dict[str,
         if isinstance(item, dict) and item.get("included", True)
         and (_number(item.get("depreciable_basis_wan")) > 0 or _number(item.get("value_wan")) > 0)
     ]
+    # Confirmed acquisition specs may carry the PPA/depreciation classification
+    # at the spec root. Normalize that contract into the model's transaction
+    # schedule instead of silently emitting an all-zero table when asset_scope
+    # is intentionally reserved for transaction-boundary evidence.
+    classified = transaction.get("depreciation_schedule")
+    if not candidates and isinstance(classified, dict):
+        for index, item in enumerate(classified.get("classes") or []):
+            if not isinstance(item, dict):
+                continue
+            original = item.get("original_value_wan", item.get("basis_wan"))
+            life = item.get("useful_life_years", item.get("depreciation_years"))
+            candidate = {
+                "scope_id": item.get("scope_id") or item.get("name") or f"classified-asset-{index + 1}",
+                "depreciable_basis_wan": original,
+                "depreciation_years": life,
+                "residual_rate": item.get("residual_rate", item.get("salvage_rate", 0.0)),
+                "depreciation_start_year": item.get("depreciation_start_year", 1),
+                "included": True,
+            }
+            if _number(original) > 0 and int(_number(life)) > 0:
+                candidates.append(candidate)
     if not candidates and _number(transaction.get("depreciable_basis_wan")) > 0:
         candidates = [{
             "scope_id": "transaction-depreciable-basis",

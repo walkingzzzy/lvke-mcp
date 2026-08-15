@@ -18,8 +18,176 @@
         },
         "candidate": {
           "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_submit_candidate/input",
-          "x-lvke-schema-pointer": "#/properties/candidate"
+          "additionalProperties": false,
+          "properties": {
+            "candidate_type": {
+              "type": "string",
+              "enum": [
+                "accepted_revision",
+                "high_quality_section",
+                "review_experience",
+                "procedure",
+                "domain_rule"
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "content": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "layer": {
+              "type": "string",
+              "enum": [
+                "semantic",
+                "procedural",
+                "episodic"
+              ]
+            },
+            "knowledge_type": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "scope": {
+              "type": "string",
+              "enum": [
+                "global",
+                "industry",
+                "project_type",
+                "case",
+                "workspace"
+              ]
+            },
+            "scope_key": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "industry": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "project_type": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "section_id": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "source_revision_id": {
+              "type": "string",
+              "maxLength": 256
+            },
+            "source_diff_hash": {
+              "type": "string",
+              "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+            },
+            "rubric_assessment_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+            },
+            "previous_rubric_assessment_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "maxItems": 24,
+              "uniqueItems": true
+            },
+            "evidence_bindings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "source_type": {
+                    "type": "string",
+                    "enum": [
+                      "source_snapshot",
+                      "evidence_pack",
+                      "report_revision",
+                      "review_finding",
+                      "knowledge_snapshot",
+                      "technical_fixture",
+                      "source_reconstructed",
+                      "search_summary"
+                    ]
+                  },
+                  "resource_uri": {
+                    "type": "string",
+                    "pattern": "^lvke://",
+                    "maxLength": 8192
+                  },
+                  "content_hash": {
+                    "type": "string",
+                    "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                  },
+                  "locator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "evidence_track": {
+                    "type": "string",
+                    "enum": [
+                      "real",
+                      "source_reconstructed",
+                      "technical_fixture",
+                      "controlled_assumption"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "source_type",
+                  "resource_uri",
+                  "content_hash",
+                  "locator",
+                  "evidence_track"
+                ]
+              },
+              "minItems": 1,
+              "maxItems": 20
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "supersedes_memory_id": {
+              "type": "string",
+              "maxLength": 160
+            },
+            "conflict_key": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          "required": [
+            "candidate_type",
+            "title",
+            "content",
+            "layer",
+            "knowledge_type",
+            "scope",
+            "rubric_assessment_id",
+            "evidence_bindings",
+            "confidence"
+          ]
         },
         "idempotency_key": {
           "type": "string",

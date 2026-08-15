@@ -367,11 +367,34 @@ def _acquisition_checks(
 
     sensitivity = result.get("sensitivity") or run.get("sensitivity") or {}
     scenarios = result.get("scenarios") or run.get("scenarios") or {}
-    if sensitivity or scenarios:
+    scenario_matrices = (
+        result.get("scenario_matrices") or run.get("scenario_matrices") or []
+    )
+    if sensitivity or scenarios or scenario_matrices:
         methods = {
             str(value.get("method") or "")
-            for value in (sensitivity, scenarios) if isinstance(value, dict) and value
+            for value in (sensitivity, scenarios)
+            if isinstance(value, dict) and value
         }
+        matrix_rows = (
+            scenario_matrices
+            if isinstance(scenario_matrices, list)
+            else [scenario_matrices]
+        )
+        for matrix in matrix_rows:
+            if not isinstance(matrix, dict) or not matrix:
+                continue
+            rows = [row for row in matrix.get("rows") or [] if isinstance(row, dict)]
+            complete_rerun = (
+                matrix.get("status") == "succeeded"
+                and bool(rows)
+                and all(row.get("scenario_spec_hash") and row.get("result_hash") for row in rows)
+            )
+            methods.add(
+                str(matrix.get("method") or "full_model_rerun")
+                if complete_rerun
+                else "incomplete_scenario_matrix"
+            )
         executed.add("FIN.SENSITIVITY.RERUN")
         if methods != {"full_model_rerun"}:
             findings.append(_finding(

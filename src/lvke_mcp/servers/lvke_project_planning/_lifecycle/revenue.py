@@ -31,6 +31,9 @@ def prepare_revenue_drivers(
         if error:
             return error
         assert context is not None and market is not None
+        evidence_track, evidence_policy, project_fact_certified = (
+            service._planning_evidence_qualification(context, market)
+        )
         if not 1 <= len(candidates) <= 20:
             return service._blocked("revenue_candidates_invalid", "收入候选数量必须为 1..20")
         ids = [str(item.get("candidate_id") or "") for item in candidates]
@@ -59,7 +62,9 @@ def prepare_revenue_drivers(
             "candidates": prepared,
             "selection": None,
             "status": "candidate",
-            "evidence_track": _payload(context).get("evidence_track", "real"),
+            "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "parent_object_ids": [project_context_id, market_case_id],
         }
         return _put_candidate(

@@ -10,13 +10,13 @@ from lvke_mcp.adapters.project_planning_repository import (
     PROJECT_CONTEXT_STORE,
     RESOURCE_STORES as _RESOURCE_STORES,
 )
-
 from .base import (
     _blocked,
     _decimal,
     _envelope,
     _idempotent_mutation,
     _planning_view,
+    _planning_evidence_qualification,
 )
 
 
@@ -258,6 +258,9 @@ def prepare_option_comparison(
             for option in scored_options
         ]
         leader = ranked[0]["option_id"] if ranked else None
+        evidence_track, evidence_policy, project_fact_certified = (
+            _planning_evidence_qualification(context, *basis_records)
+        )
         payload = {
             "object_type": "OptionComparison",
             "project_context_id": project_context_id,
@@ -270,7 +273,9 @@ def prepare_option_comparison(
             "selection_required": True,
             "selection": None,
             "status": "candidate",
-            "evidence_track": (context.get("payload") or {}).get("evidence_track", "real"),
+            "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "basis_object_ids": request_payload["basis_object_ids"],
             "parent_object_ids": [project_context_id, *request_payload["basis_object_ids"]],
             "next_actions": [
@@ -303,6 +308,9 @@ def prepare_option_comparison(
                 "project_context_id": project_context_id,
                 "basis_object_ids": request_payload["basis_object_ids"],
             },
+            evidence_track=evidence_track,
+            evidence_policy=evidence_policy,
+            project_fact_certified=project_fact_certified,
             idempotent_replay=False,
         )
 

@@ -517,13 +517,10 @@ def _tool_run_monte_carlo(args: dict) -> dict:
                 _op_cost_scale=scales.get("operating_cost_scale", 1.0),
                 _construction_scale=scales.get("construction_scale", 1.0),
             )
-            blocking = [
-                item for item in finance_model.check_consistency(result)
-                if isinstance(item, dict) and not item.get("ok") and item.get("blocking", True)
-            ]
-            if blocking:
-                result = dict(result)
-                result["available"] = False
+            # Scenario economics can legitimately breach DSCR/ICR or the base
+            # investment working-capital target. Those are scenario outcomes,
+            # not a failure to recompute the deterministic model. The model's
+            # own ``available`` flag remains authoritative for sample validity.
             return result
 
         summary = run_monte_carlo(

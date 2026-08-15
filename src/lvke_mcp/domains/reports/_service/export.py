@@ -42,16 +42,39 @@ def export_docx(
                 "report_validation_blocked",
                 "研报校验或上游 basis 已失效，拒绝生成正式候选工件",
             )
+        if not validation.get("formal_release_eligible"):
+            return _failure(
+                "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+                "当前修订不具备正式交付资格（formal_release_eligible=False），仅可导出 draft 草稿",
+            )
     from lvke_mcp.domains.reports import artifacts
+
+    payload = record.get("payload") or {}
+    document_snapshot = payload.get("document_snapshot")
+    if not isinstance(document_snapshot, dict) or not isinstance(
+        document_snapshot.get("content"), str,
+    ):
+        return _failure(
+            "document_snapshot_missing",
+            "指定研报修订缺少不可变正文快照，拒绝导出",
+        )
+    resolved_revision_id = str(record.get("object_id") or revision_id)
+    expected_run_id = str((payload.get("upstream") or {}).get("run_id") or "")
 
     try:
         created = (
-            artifacts.create_deliverable_artifact(
+            artifacts._create_revision_bound_deliverable_artifact(  # noqa: SLF001
                 workspace_id,
+                report_revision_id=resolved_revision_id,
+                document_snapshot=document_snapshot,
+                expected_run_id=expected_run_id,
             )
             if kind == "formal_candidate"
-            else artifacts.create_draft_export(
+            else artifacts._create_revision_bound_draft_export(  # noqa: SLF001
                 workspace_id,
+                report_revision_id=resolved_revision_id,
+                document_snapshot=document_snapshot,
+                expected_run_id=expected_run_id,
             )
         )
     except Exception as exc:  # noqa: BLE001
@@ -118,6 +141,7 @@ def export_docx(
         "success": True,
         "status": "ok",
         "artifact_id": artifact_id,
+        "report_revision_id": resolved_revision_id,
         "artifact_kind": created.get("kind"),
         "docx_font_audit": docx_font_audit,
         "validation_complete": kind == "formal_candidate",

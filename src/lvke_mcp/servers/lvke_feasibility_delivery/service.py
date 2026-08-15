@@ -1478,6 +1478,24 @@ def list_resources(args: dict[str, Any]) -> dict[str, Any]:
     return _envelope(True, "ok", **paginate_resource_entries(entries, cursor=str(args.get("cursor") or ""), limit=int(args.get("limit") or 50)))
 
 
+def list_asset_resources(
+    workspace_id: str,
+    *,
+    resource_type: str = "",
+    cursor: str = "",
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Expose asset-acquisition resources through the delivery aggregator."""
+    from lvke_mcp.domains.asset_acquisition import resources
+
+    return resources.list_resources(
+        workspace_id,
+        resource_type=resource_type,
+        cursor=cursor,
+        limit=limit,
+    )
+
+
 @_guard_identifiers
 def read_resource(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
@@ -1487,6 +1505,13 @@ def read_resource(args: dict[str, Any]) -> dict[str, Any]:
         if record is not None and record.get("workspace_id") == workspace_id:
             return _envelope(True, "ok", object_type=object_type, resource=record, resource_uris=[uri])
     return _blocked("resource_not_found", "交付 Resource 不存在或不属于当前工作区")
+
+
+def read_asset_resource(workspace_id: str, uri: str) -> dict[str, Any]:
+    """Read an asset-acquisition resource through the delivery aggregator."""
+    from lvke_mcp.domains.asset_acquisition import resources
+
+    return resources.read_resource(workspace_id, uri)
 
 
 def resolve_resource(uri: str) -> tuple[str, str] | None:

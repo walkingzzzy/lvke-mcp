@@ -30,6 +30,9 @@ def infer_labor_plan(
         scale = service.BUILD_SCALE_STORE.get(workspace_id, build_scale_case_id)
         if context is None or scale is None or _payload(scale).get("status") != "confirmed":
             return service._blocked("labor_plan_basis_not_confirmed", "必须绑定已确认 ProjectContext 与 BuildScaleCase")
+        evidence_track, evidence_policy, project_fact_certified = (
+            service._planning_evidence_qualification(context, scale)
+        )
         positions = []
         traces = []
         for index, row in enumerate(position_requirements):
@@ -75,7 +78,9 @@ def infer_labor_plan(
             "positions": positions,
             "calculation_trace": traces,
             "status": "candidate",
-            "evidence_track": _payload(context).get("evidence_track", "real"),
+            "evidence_track": evidence_track,
+            "evidence_policy": evidence_policy,
+            "project_fact_certified": project_fact_certified,
             "parent_object_ids": [project_context_id, build_scale_case_id],
         }
         return _put_candidate(

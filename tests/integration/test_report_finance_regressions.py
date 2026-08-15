@@ -4,13 +4,111 @@ import unittest
 from unittest.mock import patch
 
 from lvke_mcp.domains.finance import tables_application, tables_service
+from lvke_mcp.domains.finance.advanced_analysis import (
+    build_balance_sheet_schedule,
+    run_monte_carlo,
+)
 from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
 from lvke_mcp.domains.reports import application as report_application
+from lvke_mcp.domains.reports import read_model as report_read_model
 from lvke_mcp.domains.reports import validation as report_validation
+from lvke_mcp.domains.reports._doc_service.structure import (
+    merge_single_chapter_proposal,
+    validate_report_structure,
+)
 from lvke_mcp.runtime.storage import sha256_json
 
 
 class ReportAndFinanceRegressionTest(unittest.TestCase):
+    def test_balance_sheet_does_not_double_count_cip_intangibles_or_terminal_disposal(self) -> None:
+        run = {
+            "params": {"build_years": 1},
+            "investment": {"fixed_asset": 1000, "working_capital": 100},
+            "funding": {"capital": 1000, "loan": 0, "subsidy": 0},
+            "raw": {"terminal_recovery": 120},
+            "annual": {
+                "financial_plan": [
+                    {"period": 1, "phase": "建设期", "cumulative": 0},
+                    {"period": 2, "phase": "运营期", "cumulative": 1040},
+                ],
+                "depreciation_table": [{"net_value": 100}],
+                "amortization_table": [{"base": 0, "amortization": 0}],
+                "profit_distribution": [{"net_profit": 20}],
+                "debt_service": [{"end": 0}],
+            },
+        }
+        schedule = build_balance_sheet_schedule(run)
+
+        self.assertTrue(schedule["formal_ready"], schedule)
+        self.assertEqual(schedule["rows"][0]["net_intangible_assets_wan"], 0.0)
+        self.assertEqual(schedule["rows"][0]["equity_reconciliation_delta_wan"], 0.0)
+        self.assertEqual(schedule["rows"][1]["cumulative_retained_earnings_wan"], 40.0)
+        self.assertEqual(schedule["rows"][1]["equity_reconciliation_delta_wan"], 0.0)
+
+    def test_monte_carlo_keeps_available_scenarios_with_risk_breaches(self) -> None:
+        summary = run_monte_carlo(
+            distributions=[{
+                "field": "revenue_scale", "distribution": "uniform", "low": 0.9, "high": 1.1,
+            }],
+            sample_count=10,
+            seed=7,
+            rerun=lambda scales: {
+                "available": True,
+                "indicators": {
+                    "project_irr_pct": scales["revenue_scale"] * 10,
+                    "npv_wan": scales["revenue_scale"] * 100,
+                },
+                "risk_breaches": ["icr_below_threshold"],
+            },
+        )
+
+        self.assertTrue(summary["available"])
+        self.assertEqual(summary["successful_sample_count"], 10)
+        self.assertEqual(summary["failure_categories"], {})
+    def test_numbered_heading_is_read_and_replaced_without_duplication(self) -> None:
+        base = (
+            "# 报告\n\n"
+            "## 6. 财务分析\n\n旧财务内容\n\n"
+            "## 7. 风险分析\n\n旧风险内容\n\n"
+            "## 8. 结论与建议\n\n旧结论\n"
+        )
+
+        span = report_read_model.section_span(base, "风险分析")
+        self.assertIsNotNone(span)
+        self.assertIn("旧风险内容", str((span or {})["content"]))
+
+        merged = merge_single_chapter_proposal(base, "风险分析", "新的风险内容")
+        self.assertIsNotNone(merged)
+        self.assertEqual(str(merged).count("## 7. 风险分析"), 1)
+        self.assertIn("新的风险内容", str(merged))
+        self.assertNotIn("旧风险内容", str(merged))
+
+        structure = validate_report_structure(
+            str(merged),
+            expected_chapters=["财务分析", "风险分析", "结论与建议"],
+        )
+        self.assertTrue(structure["ok"], structure)
+
+    def test_duplicate_or_out_of_order_chapters_fail_structure_validation(self) -> None:
+        duplicate = (
+            "## 1. 项目概况\n\nA\n\n"
+            "## 2. 风险分析\n\nB\n\n"
+            "## 7. 风险分析\n\nC\n"
+        )
+        result = validate_report_structure(
+            duplicate, expected_chapters=["项目概况", "风险分析"]
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["duplicate_chapters"], ["风险分析"])
+        self.assertIsNone(report_read_model.section_span(duplicate, "风险分析"))
+
+        out_of_order = "## 2. 风险分析\n\nB\n\n## 1. 项目概况\n\nA\n"
+        result = validate_report_structure(
+            out_of_order, expected_chapters=["项目概况", "风险分析"]
+        )
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["out_of_order"])
+
     def test_report_validate_synchronizes_outer_blockers_into_readiness(self) -> None:
         record = {
             "object_id": "rev_public",

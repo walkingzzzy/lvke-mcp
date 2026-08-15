@@ -75,7 +75,10 @@ def _run_monthly_acquisition_model(
     debt_rows = _monthly_debt_schedule(
         debt, _number(transaction.get("interest_rate")), int(_number(transaction.get("tenor"))), months, repayment,
     )
-    depreciation = _depreciation_schedule(transaction, years)
+    depreciation = _depreciation_schedule(
+        {**transaction, "depreciation_schedule": spec.get("depreciation_schedule")},
+        years,
+    )
     annual_depreciation = depreciation.get("annual_depreciation_wan") or [0.0] * years
     cost = spec.get("cost") or {}
     cost_items = cost.get("cost_items") if isinstance(cost, dict) else {}

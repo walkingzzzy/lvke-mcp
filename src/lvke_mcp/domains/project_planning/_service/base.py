@@ -13,6 +13,10 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any, Callable
 
 from filelock import FileLock
+from lvke_mcp.runtime.evidence_qualification import (
+    combine_evidence_policies,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.workspace import workspace_root
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 from lvke_mcp.adapters.project_planning_repository import IDEMPOTENCY_STORE
@@ -186,6 +190,44 @@ def _decimal(value: Any) -> Decimal | None:
     except (InvalidOperation, TypeError, ValueError):
         return None
     return parsed if parsed.is_finite() else None
+
+
+def _planning_evidence_qualification(
+    *parents: dict[str, Any],
+) -> tuple[str, str, bool]:
+    """Derive one fail-closed evidence qualification from immediate parents."""
+
+    payloads = [
+        parent.get("payload")
+        if isinstance(parent.get("payload"), dict)
+        else parent
+        for parent in parents
+        if isinstance(parent, dict)
+    ]
+    fallback_track = next(
+        (
+            str(payload.get("evidence_track"))
+            for payload in reversed(payloads)
+            if payload.get("evidence_track")
+        ),
+        "real",
+    )
+    evidence_policy = combine_evidence_policies(
+        payloads,
+        empty_policy=fallback_track,
+    )
+    evidence_track = (
+        evidence_policy
+        if evidence_policy
+        in {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}
+        else fallback_track
+    )
+    project_fact_certified = project_fact_may_be_certified(
+        evidence_policy,
+        own_qualification_passed=True,
+        parents=payloads,
+    )
+    return evidence_track, evidence_policy, project_fact_certified
 
 
 def _contains_object_id(value: Any, object_id: str) -> bool:

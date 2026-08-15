@@ -30,6 +30,16 @@ from .planning import (
 _PACKAGE_STATUS_RANK = {"completed": 2, "partial": 1}
 
 
+def _canonical_content_hash(value: Any) -> str:
+    """Normalize equivalent SHA-256 wire forms without accepting malformed hashes."""
+
+    normalized = str(value or "").strip().lower()
+    digest = normalized.removeprefix("sha256:")
+    if len(digest) == 64 and all(char in "0123456789abcdef" for char in digest):
+        return digest
+    return normalized
+
+
 def _citation_consistency_issues(
     workspace_id: str,
     citations: list[Any],
@@ -45,7 +55,9 @@ def _citation_consistency_issues(
                 continue
             source_id = str(source.get("source_id") or "")
             if source_id:
-                known_sources[source_id] = str(source.get("content_hash") or "").lower()
+                known_sources[source_id] = _canonical_content_hash(
+                    source.get("content_hash")
+                )
     issues: list[str] = []
     for index, citation in enumerate(citations):
         if not isinstance(citation, dict):
@@ -77,7 +89,7 @@ def _citation_consistency_issues(
             ):
                 issues.append(f"citation_resource_uri_mismatch:{index}")
         expected_hash = known_sources[cited_id]
-        supplied_hash = str(citation.get("content_hash") or "").lower()
+        supplied_hash = _canonical_content_hash(citation.get("content_hash"))
         if supplied_hash and expected_hash and supplied_hash != expected_hash:
             issues.append(f"citation_content_hash_mismatch:{index}:{cited_id}")
     return sorted(set(issues))
@@ -194,6 +206,7 @@ def start_agent(args: dict[str, Any]) -> dict[str, Any]:
         "lineage": str(args.get("continued_from_task_id") or ""),
         "chapters": [str(item) for item in (args.get("chapters") or [])],
         "profile": str(args.get("profile") or "quick"),
+        "research_mode": str(args.get("research_mode") or "controlled_material_summary"),
         "verify_urls": bool(args.get("verify_urls", False)),
         "output_contract": args.get("output_contract") if isinstance(args.get("output_contract"), dict) else {},
         "resumed_from_checkpoint_id": str(args.get("resumed_from_checkpoint_id") or ""),
@@ -522,6 +535,23 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     missing = list(metrics["missing_fields"])
     conflicts = list(metrics["conflicts"])
     coverage = metrics["citation_coverage"]
+    blockers: list[str] = []
+    if not metrics["source_count"]:
+        blockers.append("research_source_missing")
+    if metrics["usable_source_count"] < 1:
+        blockers.append("research_usable_source_missing")
+    if conflicts:
+        blockers.append("research_conflict_unresolved")
+    if missing:
+        blockers.extend(f"missing_field:{item}" for item in missing)
+    if coverage is not None and float(coverage) < 0.8:
+        blockers.append("research_citation_coverage_insufficient")
+    # ── research_mode 门 ────────────────────────────────────────────────
+    # 默认沿用已固化研究包的模式；只有显式更严格的模式才允许覆盖。
+    persisted_mode = str(payload.get("research_mode") or "controlled_material_summary")
+    requested_mode = str(args.get("research_mode") or persisted_mode)
+    mode_rank = {"controlled_material_summary": 0, "public_research": 1, "project_delivery": 2}
+    research_mode = requested_mode if mode_rank.get(requested_mode, -1) >= mode_rank.get(persisted_mode, 0) else persisted_mode
     quality_passed = bool(
         metrics["source_count"] > 0
         and metrics["usable_source_count"] >= 1
@@ -529,12 +559,40 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         and not missing
         and (coverage is None or float(coverage) >= 0.8)
     )
+    # project_delivery 模式要求更严格的证据条件
+    project_delivery_blockers: list[str] = []
+    if research_mode == "project_delivery":
+        if metrics["source_count"] < 6:
+            project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:source_count<6")
+        if metrics["usable_source_count"] < 6:
+            project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:usable_source_count<6")
+        independent_publishers = int(args.get("independent_publishers", 0))
+        if independent_publishers < 3:
+            project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:independent_publishers<3")
+        query_angles = int(args.get("query_angles", 0))
+        if query_angles < 3:
+            project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:query_angles<3")
+        if coverage is None or float(coverage) < 1.0:
+            project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:core_coverage<100%")
+        # Verify per-source metadata completeness
+        citations = list(args.get("citations") or artifacts.get("sources") or [])
+        incomplete_sources = [
+            f"source_missing_metadata:{i}"
+            for i, src in enumerate(citations)
+            if isinstance(src, dict)
+            and (not src.get("content_hash") or not src.get("locator") or not src.get("source_type"))
+        ]
+        if incomplete_sources:
+            project_delivery_blockers.extend(incomplete_sources)
+        if project_delivery_blockers:
+            quality_passed = False
     accepted = quality_passed or (accepted_limitations and bool(limitations or evidence_policy == "source_reconstructed"))
-    if not accepted:
+    if not accepted or project_delivery_blockers:
+        all_blockers = list(set(blockers + project_delivery_blockers)) if project_delivery_blockers else blockers
         return {
             "success": False, "status": "blocked", "code": "research_quality_failed",
             "message": "研究质量尚未通过，或未明确接受资料限制", "resource_uris": [source["resource_uri"]],
-            "warnings": [], "blockers": ["research_quality_failed"],
+            "warnings": [], "blockers": all_blockers or ["research_quality_failed"],
             "next_actions": ["补齐来源、引用覆盖和缺失字段，或显式 accept_material_limitations=true"],
             "quality": metrics,
         }

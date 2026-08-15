@@ -96,6 +96,8 @@ from ._artifacts.lifecycle import (  # noqa: F401
     _invalidate_locked,
     _persist_new_record,
     _refresh_record_locked,
+    _create_revision_bound_deliverable_artifact,
+    _create_revision_bound_draft_export,
     create_deliverable_artifact,
     create_draft_export,
 )

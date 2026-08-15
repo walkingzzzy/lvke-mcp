@@ -7,6 +7,9 @@ from unittest.mock import patch
 
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE, QUALITY_REVIEW_STORE
 from lvke_mcp.domains.research import application
+from lvke_mcp.domains.research._service.agent_lifecycle import (
+    _citation_consistency_issues,
+)
 
 
 class DeepResearchQualityTest(unittest.TestCase):
@@ -22,6 +25,35 @@ class DeepResearchQualityTest(unittest.TestCase):
         else:
             os.environ["LVKE_MCP_DATA_DIR"] = self.previous
         self.tempdir.cleanup()
+
+    def test_citation_audit_accepts_equivalent_sha256_wire_forms(self) -> None:
+        digest = "a" * 64
+        issues = _citation_consistency_issues(
+            self.workspace,
+            [{
+                "source_id": "source-1",
+                "locator": "document_text",
+                "content_hash": f"sha256:{digest}",
+            }],
+            [{"sources": [{"source_id": "source-1", "content_hash": digest}]}],
+            ["source-1"],
+        )
+
+        self.assertEqual(issues, [])
+        mismatch = _citation_consistency_issues(
+            self.workspace,
+            [{
+                "source_id": "source-1",
+                "locator": "document_text",
+                "content_hash": f"sha256:{'b' * 64}",
+            }],
+            [{"sources": [{"source_id": "source-1", "content_hash": digest}]}],
+            ["source-1"],
+        )
+        self.assertEqual(
+            mismatch,
+            ["citation_content_hash_mismatch:0:source-1"],
+        )
 
     def test_submit_persists_quality_summary_and_market_bindings(self) -> None:
         started = application.start_agent({

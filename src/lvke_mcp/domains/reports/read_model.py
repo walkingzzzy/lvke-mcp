@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from lvke_mcp.adapters.report_repository import REVISION_STORE
+from lvke_mcp.domains.reports.headings import heading_titles_match
 
 _SECTION_ID_RE = re.compile(r"^sec_[a-z0-9][a-z0-9_-]{2,79}$")
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$", re.MULTILINE)
@@ -102,8 +103,9 @@ def revision_sections(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 def section_span(content: str, title: str) -> dict[str, Any] | None:
     headings = list(_HEADING_RE.finditer(content))
+    matches: list[dict[str, Any]] = []
     for index, match in enumerate(headings):
-        if match.group(2).strip() != title:
+        if not heading_titles_match(match.group(2), title):
             continue
         level = len(match.group(1))
         end = len(content)
@@ -111,14 +113,16 @@ def section_span(content: str, title: str) -> dict[str, Any] | None:
             if len(following.group(1)) <= level:
                 end = following.start()
                 break
-        return {
+        matches.append({
             "start": match.start(),
             "end": end,
             "level": level,
             "heading": match.group(0).strip(),
             "content": content[match.start():end],
-        }
-    return None
+        })
+    # Duplicate canonical headings are ambiguous. Fail closed instead of
+    # reading or replacing an arbitrary occurrence.
+    return matches[0] if len(matches) == 1 else None
 
 
 def section_content(content: str, title: str) -> tuple[str, bool]:

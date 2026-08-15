@@ -299,25 +299,198 @@
     "inputSchema": {
       "properties": {
         "workspace_id": {
-          "type": "string"
+          "type": "string",
+          "description": "工作区 ID（必填）"
         },
         "task_id": {
-          "type": "string"
+          "type": "string",
+          "description": "dr_start 返回的 task_id"
         },
         "expected_basis_hash": {
           "type": "string",
-          "pattern": "^sha256:[0-9a-f]{64}$"
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "dr_get_plan 返回的当前不可变 basis_hash"
         },
         "sources": {
           "type": "array",
-          "x-lvke-schema-uri": "lvke://schemas/lvke-deep-research/dr_add_sources/input",
-          "x-lvke-schema-pointer": "#/properties/sources",
           "minItems": 1,
           "maxItems": 200,
           "items": {
             "type": "object",
-            "x-lvke-schema-uri": "lvke://schemas/lvke-deep-research/dr_add_sources/input",
-            "x-lvke-schema-pointer": "#/properties/sources/items"
+            "additionalProperties": false,
+            "description": "混合来源描述符。source_type 为判别式；各类型必填字段一致：source_type、object_id、resource_uri、content_hash、locator、evidence_track、allowed_uses。另按类型约束 resource_uri 所属域：source_snapshot→lvke://data-acquisition/；source_file→lvke://source-files/；evidence_pack→lvke://data-analysis/。technical_fixture 的 evidence_track 恒为 technical_fixture 且只允许 technical_validation 用途；source_reconstructed 的 evidence_track 恒为 source_reconstructed。",
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "enum": [
+                  "source_snapshot",
+                  "source_file",
+                  "evidence_pack",
+                  "archive_chapter",
+                  "reviewed_knowledge",
+                  "policy_record",
+                  "industry_record",
+                  "source_reconstructed",
+                  "technical_fixture"
+                ],
+                "description": "判别式：source_snapshot=不可变网页/项目文件快照；source_file=已导入并解析的受控项目文件；evidence_pack=已固化证据包；archive_chapter=历史档案章节；reviewed_knowledge=已复核知识发布版；policy_record=政策记录；industry_record=行业记录；source_reconstructed=依据现有资料重建；technical_fixture=仅限技术金标验证"
+              },
+              "object_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "resource_uri": {
+                "type": "string",
+                "pattern": "^lvke://.+"
+              },
+              "content_hash": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "locator": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "evidence_track": {
+                "type": "string",
+                "enum": [
+                  "real",
+                  "source_reconstructed",
+                  "technical_fixture",
+                  "controlled_assumption"
+                ]
+              },
+              "allowed_uses": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "discovery",
+                    "fact_extraction",
+                    "evidence_candidate",
+                    "technical_validation",
+                    "narrative_context",
+                    "estimate_preview"
+                  ]
+                }
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "source_type",
+              "object_id",
+              "resource_uri",
+              "content_hash",
+              "locator",
+              "evidence_track",
+              "allowed_uses"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source_type": {
+                      "const": "source_snapshot"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "resource_uri": {
+                      "type": "string",
+                      "pattern": "^lvke://data-acquisition/.+",
+                      "description": "source_snapshot 的 Resource URI 必须来自 lvke://data-acquisition/"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source_type": {
+                      "const": "source_file"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "resource_uri": {
+                      "type": "string",
+                      "pattern": "^lvke://source-files/.+",
+                      "description": "source_file 的 Resource URI 必须来自 lvke://source-files/"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source_type": {
+                      "const": "evidence_pack"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "resource_uri": {
+                      "type": "string",
+                      "pattern": "^lvke://data-analysis/.+",
+                      "description": "evidence_pack 的 Resource URI 必须来自 lvke://data-analysis/"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source_type": {
+                      "const": "technical_fixture"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "evidence_track": {
+                      "type": "string",
+                      "const": "technical_fixture"
+                    },
+                    "allowed_uses": {
+                      "type": "array",
+                      "minItems": 1,
+                      "uniqueItems": true,
+                      "items": {
+                        "type": "string",
+                        "const": "technical_validation"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "source_type": {
+                      "const": "source_reconstructed"
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "evidence_track": {
+                      "type": "string",
+                      "const": "source_reconstructed"
+                    }
+                  }
+                }
+              }
+            ]
           }
         }
       },

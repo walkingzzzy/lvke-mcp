@@ -195,51 +195,6 @@
         },
         "target": {
           "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/review-target",
-          "x-lvke-schema-pointer": "#"
-        },
-        "rule_pack_ids": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "core-deliverable",
-              "finance-core",
-              "report-core",
-              "combined-core",
-              "generic-feasibility",
-              "amusement-feasibility",
-              "asset-acquisition",
-              "hotel-acquisition",
-              "solar-acquisition",
-              "mineral-processing"
-            ]
-          },
-          "maxItems": 10,
-          "uniqueItems": true
-        },
-        "industry_overlays": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "core-deliverable",
-              "finance-core",
-              "report-core",
-              "combined-core",
-              "generic-feasibility",
-              "amusement-feasibility",
-              "asset-acquisition",
-              "hotel-acquisition",
-              "solar-acquisition",
-              "mineral-processing"
-            ]
-          },
-          "maxItems": 10,
-          "uniqueItems": true
-        },
-        "project_context": {
-          "type": "object",
           "additionalProperties": false,
           "properties": {
             "target_type": {
@@ -256,64 +211,103 @@
                 "combined_deliverable"
               ]
             },
-            "industry_code": {
+            "target_id": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 128
+              "maxLength": 4096
             },
-            "project_type": {
+            "file_path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "source_file_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "artifact_domain": {
               "type": "string",
               "enum": [
                 "generic_feasibility",
                 "asset_acquisition"
-              ]
-            },
-            "transaction_structure": {
-              "type": "string",
-              "enum": [
-                "new_build",
-                "operation_lease",
-                "asset_acquisition",
-                "equity_acquisition",
-                "ppp",
-                "other"
-              ]
-            },
-            "asset_type": {
-              "type": "string",
-              "enum": [
-                "general",
-                "amusement_park",
-                "solar_power",
-                "hotel_lease",
-                "mineral_processing"
-              ]
-            },
-            "evidence_track": {
-              "type": "string",
-              "enum": [
-                "real",
-                "source_reconstructed",
-                "technical_fixture",
-                "controlled_assumption"
               ],
-              "default": "real"
+              "description": "报告工件所属的唯一存储域；用于阻止跨域同 ID 歧义。"
             },
-            "review_purpose": {
-              "type": "string",
-              "enum": [
-                "process_acceptance",
-                "project_delivery"
-              ]
-            },
-            "release_scope": {
-              "type": "string",
-              "enum": [
-                "process_acceptance",
-                "project_delivery"
-              ]
+            "components": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "target_type": {
+                    "type": "string",
+                    "enum": [
+                      "finance_run",
+                      "finance_tables_package",
+                      "finance_xlsx",
+                      "finance_xlsx_source",
+                      "acquisition_run",
+                      "acquisition_tables_package",
+                      "report_revision",
+                      "report_artifact"
+                    ]
+                  },
+                  "target_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "file_path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "source_file_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "artifact_domain": {
+                    "type": "string",
+                    "enum": [
+                      "generic_feasibility",
+                      "asset_acquisition"
+                    ],
+                    "description": "报告工件所属的唯一存储域；用于阻止跨域同 ID 歧义。"
+                  }
+                },
+                "required": [
+                  "target_type",
+                  "target_id"
+                ]
+              }
             }
-          }
+          },
+          "required": [
+            "target_type",
+            "target_id"
+          ],
+          "x-lvke-schema-uri": "lvke://schemas/review-target"
+        },
+        "rule_pack_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10
+        },
+        "industry_overlays": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10
+        },
+        "project_context": {
+          "type": "object"
         }
       },
       "required": [

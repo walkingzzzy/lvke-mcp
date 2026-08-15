@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from lvke_mcp.runtime.storage import sha256_json
+
 from lvke_mcp.adapters.report_repository import (
     BINDING_STORE,
     PREPARATION_STORE,
@@ -322,11 +324,18 @@ def status(
         native_revision = str(document.get("revision_id") or "")
         payload = {
             **prior,
+            "task_id": task_id,
             "native_revision_id": native_revision,
             "task_status": "agent_drafted",
             "document_snapshot": document,
         }
-        revision = REVISION_STORE.put(
+        revision = _existing_status_revision(
+            workspace_id,
+            task_id=task_id,
+            native_revision_id=native_revision,
+            task_status="agent_drafted",
+            payload=payload,
+        ) or REVISION_STORE.put(
             workspace_id,
             payload,
             producer="lvke-report-generation.report_status",
@@ -382,7 +391,13 @@ def status(
             "task_status": task_status,
             "document_snapshot": document,
         }
-        revision = REVISION_STORE.put(
+        revision = _existing_status_revision(
+            workspace_id,
+            task_id=task_id,
+            native_revision_id=native_revision,
+            task_status=task_status,
+            payload=payload,
+        ) or REVISION_STORE.put(
             workspace_id, payload, producer="lvke-report-generation.report_status",
             status="partial" if task_status == "partial" else ("ok" if task_status in {"done", "completed"} else task_status),
             source_ids=[str(binding_payload.get("report_preparation_id") or "")],
@@ -408,6 +423,38 @@ def status(
         "blockers": [str(task.get("error") or "report_generation_failed")] if task_status == "failed" else [],
         "next_actions": ["终态后调用 report_validate，再导出 draft 或 formal_candidate"],
     }
+
+
+def _existing_status_revision(
+    workspace_id: str,
+    *,
+    task_id: str,
+    native_revision_id: str,
+    task_status: str,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return the immutable status projection already created for this state."""
+
+    expected_hash = sha256_json(payload)
+    candidates = sorted(
+        REVISION_STORE.list(workspace_id),
+        key=lambda item: str(item.get("created_at") or ""),
+        reverse=True,
+    )
+    for record in candidates:
+        if str(record.get("producer") or "") != "lvke-report-generation.report_status":
+            continue
+        record_payload = record.get("payload") or {}
+        if str(record_payload.get("native_revision_id") or "") != native_revision_id:
+            continue
+        if str(record_payload.get("task_status") or "") != task_status:
+            continue
+        bound_task = str(record_payload.get("task_id") or "")
+        if bound_task and bound_task != task_id:
+            continue
+        if str(record.get("content_hash") or "") == expected_hash:
+            return record
+    return None
 
 
 def readiness(

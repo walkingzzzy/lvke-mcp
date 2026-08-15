@@ -13,7 +13,11 @@ from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certifie
 from lvke_mcp.domains.asset_acquisition import backend as acquisition_service
 from lvke_mcp.domains.asset_acquisition.model import AcquisitionModelError
 from lvke_mcp.domains.finance.spec import validate, validate_for_formal
-from lvke_mcp.runtime.storage import JSONArtifactStore, require_safe_id, sha256_json
+from lvke_mcp.runtime.storage import (
+    JSONArtifactStore,
+    require_safe_id,
+    sha256_json,
+)
 from lvke_mcp.runtime.source_reconstruction import SOURCE_RECONSTRUCTED, validate_reconstruction_records
 from lvke_mcp.domains.asset_acquisition import tables
 
@@ -119,6 +123,9 @@ def _mutation(
 def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     valid, errors = validate(spec)
     formal_valid, formal_errors = validate_for_formal(spec)
+    from lvke_mcp.domains.finance.spec import finance_kind_conflicts
+
+    route_conflicts = finance_kind_conflicts(spec)
     transaction = spec.get("transaction") if isinstance(spec, dict) else {}
     asset_type = str(spec.get("asset_type") or "hotel_lease")
     hotel_contract = (
@@ -133,7 +140,7 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         and str(transaction.get("calculation_granularity") or "annual").lower() == "annual"
     )
     acquisition_contract = hotel_contract or solar_contract
-    blockers = [*errors]
+    blockers = [*errors, *route_conflicts]
     reconstruction_errors = []
     if isinstance(spec, dict) and str(spec.get("evidence_policy") or "") == SOURCE_RECONSTRUCTED:
         reconstruction_errors = validate_reconstruction_records(spec.get("reconstruction_records"))
@@ -206,6 +213,19 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "expected_one_of": ["owner_lessor", "mixed_owner_operator"],
             "actual": transaction.get("operating_mode") if isinstance(transaction, dict) else None,
         })
+    model_start_date_missing = bool(
+        asset_type == "solar_power" and isinstance(transaction, dict) and not str(
+        transaction.get("model_start_date") or ""
+        ).strip()
+    )
+    if model_start_date_missing:
+        blockers.append("solar_power requires transaction.model_start_date")
+        field_errors.append({
+            "path": "/transaction/model_start_date",
+            "code": "required_for_model",
+            "message": "solar_power requires transaction.model_start_date",
+            "stage": "candidate",
+        })
     opening_date_missing = bool(
         asset_type == "hotel_lease"
         and isinstance(transaction, dict)
@@ -235,10 +255,17 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     field_errors = deduplicated_field_errors
     if field_errors and not acquisition_contract:
         blockers.append("acquisition_mode_invalid")
-    accepted = bool(valid and acquisition_contract and not opening_date_missing and not reconstruction_errors)
+    accepted = bool(
+        valid and acquisition_contract and not route_conflicts and not opening_date_missing
+        and not model_start_date_missing and not reconstruction_errors
+    )
     response_code = None
     if not accepted:
-        response_code = "SPEC_VALIDATION_FAILED" if opening_date_missing else "acquisition_mode_invalid"
+        response_code = (
+            "PROJECT_ROUTE_CONFLICT"
+            if route_conflicts
+            else ("SPEC_VALIDATION_FAILED" if opening_date_missing or model_start_date_missing else "acquisition_mode_invalid")
+        )
     return {
         "success": accepted, "transport_success": True,
         "business_success": accepted, "completed": accepted,
@@ -246,7 +273,10 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "status": "ok" if accepted else "blocked",
         "code": response_code,
         "valid": accepted,
-        "formal_valid": bool(formal_valid and acquisition_contract and not opening_date_missing),
+        "formal_valid": bool(
+            formal_valid and acquisition_contract
+            and not opening_date_missing and not model_start_date_missing
+        ),
         "validation_errors": errors, "formal_validation_errors": formal_errors,
         "field_errors": field_errors,
         "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
@@ -362,7 +392,7 @@ def run_model(
     if run.get("model_version") not in {"acquisition_model.v3", "acquisition_model.solar.v1"}:
         return _failed({"error": "ACQUISITION_MODEL_UNSUPPORTED"}, "ACQUISITION_MODEL_UNSUPPORTED")
     run_id = str(run["run_id"])
-    estimate_preview = run.get("delivery_mode") == "estimate_preview"
+    restricted_preview = run.get("delivery_mode") in {"estimate_preview", "process_acceptance"}
     return _ok(
         {"run_id": run_id, "spec_id": run.get("spec_id"), "spec_hash": run.get("spec_hash"),
          "input_hash": run.get("input_hash"), "model_version": run.get("model_version"),
@@ -378,15 +408,15 @@ def run_model(
         }, "idempotent_replay": bool(run.get("idempotent_replay"))},
         object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)],
         warnings=(
-            ["该运行使用 estimate_preview 输入，结果会保留完整度限制"]
-            if estimate_preview else []
+            ["该运行使用受限输入，结果仅可进入技术报告链"]
+            if restricted_preview else []
         ),
         next_actions=(
             [
                 "可创建情景矩阵或求解最高价格",
-                "技术预览报告通过 report_prepare(finance_binding.kind=asset_acquisition) 生成",
+                "受限结果仅可通过 report_prepare(finance_binding.kind=asset_acquisition) 进入技术报告链，不具备正式工件资格",
             ]
-            if estimate_preview
+            if restricted_preview
             else ["可创建情景矩阵、求解最高价格或生成正式工件"]
         ),
     )
@@ -545,50 +575,25 @@ def export_tables_csv(
 def resolve_resource(
     uri: str,
 ) -> tuple[str | bytes, str] | None:
-    table_resource = tables.resolve_resource(uri)
-    if table_resource is not None:
-        return table_resource
-    prefix = "lvke://asset-acquisition/workspaces/"
-    if not uri.startswith(prefix):
-        return None
-    parts = uri[len(prefix):].split("/")
-    if len(parts) != 3:
-        return None
-    workspace_id, segment, object_id = parts
-    try:
-        require_safe_id(workspace_id, "workspace_id")
-        require_safe_id(object_id, "object_id")
-    except ValueError:
-        return None
-    if segment == "specs":
-        record = acquisition_service.get_spec(
-            workspace_id, object_id,
-        )
-    elif segment == "runs":
-        record = acquisition_service.get_run(
-            workspace_id, object_id,
-        )
-    elif segment == "artifacts":
-        record = acquisition_service.get_artifact(
-            workspace_id, object_id,
-        )
-    elif segment == "scenario-matrices":
-        record = next((
-            acquisition_service.get_scenario_matrix(
-                workspace_id,
-                str(row.get("run_id") or ""),
-                object_id,
-            )
-            for row in acquisition_service.list_runs(
-                workspace_id, limit=100,
-            )
-            if any(item.get("matrix_id") == object_id for item in acquisition_service.list_scenario_matrices(
-                workspace_id,
-                str(row.get("run_id") or ""),
-            ))
-        ), {})
-    else:
-        return None
-    if not record:
-        return None
-    return json.dumps(record, ensure_ascii=False, indent=2, default=str), "application/json"
+    from lvke_mcp.domains.asset_acquisition import resources
+
+    return resources.resolve_resource(uri)
+
+
+def list_resources(params: dict[str, Any]) -> dict[str, Any]:
+    """列举资产收购资源，兼容原服务层调用入口。"""
+    from lvke_mcp.domains.asset_acquisition import resources
+
+    return resources.list_resources(
+        str(params["workspace_id"]),
+        resource_type=str(params.get("resource_type") or ""),
+        cursor=str(params.get("cursor") or ""),
+        limit=int(params.get("limit") or 25),
+    )
+
+
+def read_resource(params: dict[str, Any]) -> dict[str, Any]:
+    """读取资产收购资源，兼容原服务层调用入口。"""
+    from lvke_mcp.domains.asset_acquisition import resources
+
+    return resources.read_resource(str(params["workspace_id"]), str(params["uri"]))
