@@ -66,6 +66,13 @@ LVKE_GOLDEN_DATA_ROOT=... conda run -n lvke-mcp python \
   scripts/golden_samples_manifest.py --verify
 ```
 
+进入资产收购受控假设预览轨的唯一方式是在 spec 里显式声明
+`delivery_mode=estimate_preview` 并补全 `controlled_assumptions`（每条含
+`field`、`value`、`unit`、`basis`、`impact`、`sensitivity`、
+`validation_condition`）。缺任一必填键仍按正式门禁返回
+`SPEC_VALIDATION_FAILED`；确认后 `confirmation_scope=estimate_preview` 且
+`formal_release_eligible=false`，不得据此认证项目事实。
+
 资产收购的 `estimate_preview` / `process_acceptance` 调用正式工件接口时，
 稳定分类为 `EXPECTED_REJECTION`，业务码为
 `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED`；证据绑定变化使用

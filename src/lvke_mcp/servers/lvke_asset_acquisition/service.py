@@ -126,6 +126,10 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     from lvke_mcp.domains.finance.spec import finance_kind_conflicts
 
     route_conflicts = finance_kind_conflicts(spec)
+    declared_delivery_mode = str(spec.get("delivery_mode") or "") if isinstance(spec, dict) else ""
+    preview_eligible = bool(
+        isinstance(spec, dict) and acquisition_service._is_estimate_preview_spec(spec)  # noqa: SLF001
+    )
     transaction = spec.get("transaction") if isinstance(spec, dict) else {}
     asset_type = str(spec.get("asset_type") or "hotel_lease")
     hotel_contract = (
@@ -279,6 +283,14 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         ),
         "validation_errors": errors, "formal_validation_errors": formal_errors,
         "field_errors": field_errors,
+        "delivery_mode": declared_delivery_mode or "formal_candidate",
+        "preview_eligible": preview_eligible,
+        # 技术校验通过绝不等于正式资格；预览轨恒为 false。
+        "formal_release_eligible": bool(
+            formal_valid and acquisition_contract and not route_conflicts
+            and not preview_eligible and not opening_date_missing
+            and not model_start_date_missing
+        ),
         "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
         # 只排除重建来源不够：controlled_assumption / technical_fixture 同样
         # 不能认证项目事实，且不采信 spec 自报。
@@ -290,7 +302,14 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "spec_hash": acquisition_service._hash(spec),  # noqa: SLF001
         "resource_uris": [], "warnings": [], "blockers": blockers,
         "next_actions": (
-            ["补齐 field_errors 中的正式主体、资产边界、历史报表和证据后再确认"]
+            (
+                ["预览资格已满足；确认后 confirmation_scope=estimate_preview，不得用于正式交付"]
+                if preview_eligible
+                else [
+                    "补齐 field_errors 中的正式主体、资产边界、历史报表和证据后再确认",
+                    "或声明 delivery_mode=estimate_preview 并补全 controlled_assumptions 走受限技术预览",
+                ]
+            )
             if accepted and not formal_valid
             else ([] if accepted else ["按资产类型修正 FinanceSpec v3 收购计算粒度和运营字段后重新校验"])
         ),
@@ -346,6 +365,7 @@ def confirm_spec(
          "evidence_binding_hash": row.get("evidence_binding_hash"),
          "confirmation_status": "confirmed",
          "confirmation_scope": row.get("confirmation_scope") or "formal_input",
+         "formal_release_eligible": not (estimate_preview or process_acceptance),
          "project_fact_certified": False if process_acceptance else None,
          "business_decision_status": "not_selected" if process_acceptance else None,
          "idempotent_replay": bool(row.get("idempotent_replay"))},

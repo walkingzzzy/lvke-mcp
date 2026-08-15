@@ -227,6 +227,11 @@ def _solar_acquisition_spec(
 ) -> dict[str, Any]:
     """Build the acquisition-domain solar spec from explicit/controlled inputs."""
     values = _field_values(assumption_package)
+    assumption_units = {
+        str(item.get("name")): str(item.get("unit") or "")
+        for item in assumption_package.get("fields") or []
+        if isinstance(item, dict)
+    }
 
     def number(*names: str, default: float = 0.0) -> float:
         for name in names:
@@ -248,8 +253,31 @@ def _solar_acquisition_spec(
     financing_ratio = number("financing_ratio", "loan_ratio", default=0.60)
     interest_rate = number("interest_rate", "loan_rate", default=0.05)
     tenor = int(number("tenor", "loan_years", default=10.0))
+    controlled = [
+        {
+            "field": field, "value": value, "unit": assumption_units.get(source_name) or unit,
+            "basis": "零材料受控行业种子或句中明确输入，无项目原始资料支撑",
+            "impact": impact, "sensitivity": sensitivity,
+            "validation_condition": "须以权属、并网协议、PPA、历史发电与财务报表替换后重算",
+        }
+        for field, value, unit, impact, sensitivity, source_name in (
+            ("transaction.purchase_price", purchase, "万元", "决定收购成本与全部收益指标", "critical", "purchase_price_wan"),
+            ("solar_operation.installed_capacity_mw", capacity, "MW", "决定发电规模与折旧基数", "critical", "installed_capacity_mw"),
+            ("solar_operation.annual_generation_mwh", generation, "MWh", "直接决定售电收入", "critical", "annual_generation_mwh"),
+            ("solar_operation.tariff_yuan_per_kwh", tariff, "元/kWh", "直接决定售电单价", "critical", "tariff_yuan_per_kwh"),
+            ("solar_operation.annual_opex_wan", opex, "万元/年", "影响经营净现金流", "high", "annual_opex_wan"),
+            ("solar_operation.maintenance_capex_wan", maintenance, "万元/年", "影响维护资本支出", "medium", "maintenance_capex_wan"),
+            ("solar_operation.remaining_operating_years", years, "年", "决定运营期与退出年度", "high", "remaining_operating_years"),
+            ("transaction.financing_ratio", financing_ratio, "比例", "决定杠杆与偿债压力", "high", "financing_ratio"),
+            ("transaction.interest_rate", interest_rate, "比例/年", "决定利息与 DSCR", "high", "interest_rate"),
+            ("transaction.tenor", tenor, "年", "决定偿债期限分布", "medium", "tenor"),
+            ("decision_thresholds.target_project_irr", target_irr, "比例", "作为收益判据门槛", "high", "target_project_irr"),
+            ("decision_thresholds.minimum_dscr", minimum_dscr, "倍", "作为偿债安全门槛", "high", "minimum_dscr"),
+        )
+    ]
     return {
         "version": "finance_spec.v3", "finance_kind": "asset_acquisition",
+        "delivery_mode": "estimate_preview", "controlled_assumptions": controlled,
         "asset_type": "solar_power", "industry": "solar_power",
         "invest_type": "asset_acquisition", "confirmation_status": "candidate",
         "selected_scenario_id": "base",

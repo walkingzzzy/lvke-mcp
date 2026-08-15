@@ -222,6 +222,33 @@ _COMMON_SPEC_PROPERTIES = {
             "每条七个键齐全且 content_hash 以 sha256: 开头"
         ),
     },
+    "delivery_mode": {
+        "type": "string",
+        "enum": ["estimate_preview", "process_acceptance", "formal_candidate"],
+        "description": (
+            "交付轨声明。estimate_preview 必须同时提供完整 controlled_assumptions，"
+            "确认后 confirmation_scope=estimate_preview，永不取得正式发布资格；"
+            "process_acceptance 走来源重建；formal_candidate 需正式主体与证据齐备。"
+        ),
+    },
+    "controlled_assumptions": {
+        "type": "array",
+        "items": {
+            "type": "object", "additionalProperties": True,
+            "properties": {
+                "field": _STRING, "value": {}, "unit": _STRING, "basis": _STRING,
+                "impact": _STRING, "sensitivity": _STRING, "validation_condition": _STRING,
+            },
+            "required": [
+                "field", "value", "unit", "basis", "impact", "sensitivity",
+                "validation_condition",
+            ],
+        },
+        "description": (
+            "受控假设逐字段依据。delivery_mode=estimate_preview 时至少一条，"
+            "缺任一必填键即不构成预览资格，确认与运行仍按正式门禁拒绝。"
+        ),
+    },
     "reconstructed_source_ids": {"type": "array", "items": _STRING},
     "unresolved_inputs": {"type": "array", "items": _STRING},
     "release_limitations": {"type": "array", "items": _STRING},
