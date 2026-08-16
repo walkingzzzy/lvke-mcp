@@ -14,7 +14,7 @@ from typing import Any, Iterable
 
 from lvke_mcp.runtime.storage import sha256_json
 
-ENGINE_VERSION = "lvke-deliverable-review-engine.v1.2"
+ENGINE_VERSION = "lvke-deliverable-review-engine.v1.3"
 RECALC_ENV_VERSION = "libreoffice-headless.required.v1"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

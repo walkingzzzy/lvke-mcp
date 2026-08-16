@@ -235,6 +235,7 @@ def _acquisition_checks(
         holiday_years = int(_number(tax_spec.get("tax_holiday_years")) or 0)
         half_years = int(_number(tax_spec.get("tax_half_years")) or 0)
         hotel_years = ((result.get("hotel_operation") or {}).get("years") or [])
+        annual_summary = result.get("annual_summary") or []
         for index, row in enumerate(debt):
             opening = _number(row.get("opening_principal_wan"))
             principal = _number(row.get("principal_wan"))
@@ -273,11 +274,21 @@ def _acquisition_checks(
                 else:
                     effective_rate = income_tax_rate
                 taxable = max(ebitda - float(depreciation_value) - float(interest), 0.0)
-                maintenance = _number(
-                    (hotel_years[index] if index < len(hotel_years) else {}).get(
-                        "maintenance_capex_wan"
-                    )
-                ) or 0.0
+                annual_row = (
+                    annual_summary[index]
+                    if index < len(annual_summary) and isinstance(annual_summary[index], dict)
+                    else {}
+                )
+                if "maintenance_capex_wan" in annual_row:
+                    # An explicit zero is authoritative. Solar and current
+                    # acquisition engines normalize annual operating cash items here.
+                    maintenance = _number(annual_row.get("maintenance_capex_wan")) or 0.0
+                else:
+                    maintenance = _number(
+                        (hotel_years[index] if index < len(hotel_years) else {}).get(
+                            "maintenance_capex_wan"
+                        )
+                    ) or 0.0
                 recurring_cfads = ebitda - taxable * effective_rate - maintenance
                 if service > _tolerance(service):
                     dscrs.append(recurring_cfads / service)

@@ -198,6 +198,86 @@ class AcceptanceRegressionTest(unittest.TestCase):
         self.assertTrue(result["has_more"])
         self.assertIsNotNone(result["next_cursor"])
 
+    def test_solar_debt_coverage_uses_annual_summary_maintenance_capex(self) -> None:
+        run = {
+            "available": True,
+            "spec": {
+                "transaction": {"financing_ratio": 0.5, "tenor": 1},
+                "tax": {"income_tax_rate": 0.25},
+            },
+            "result": {
+                "purchase_price_wan": 100,
+                "transaction_tax_wan": 0,
+                "total_acquisition_cost_wan": 100,
+                "owner_revenue_wan": [50],
+                "owner_operating_cost_wan": [10],
+                "depreciation_schedule": {"annual_depreciation_wan": [5]},
+                "annual_summary": [{"maintenance_capex_wan": 4}],
+                "debt_schedule": {"monthly": [{
+                    "month": month + 1,
+                    "opening_principal_wan": 50 - month * (50 / 12),
+                    "principal_wan": 50 / 12,
+                    "interest_wan": 5 / 12,
+                    "debt_service_wan": 55 / 12,
+                    "closing_principal_wan": 50 - (month + 1) * (50 / 12),
+                } for month in range(12)]},
+                "indicators": {
+                    "minimum_dscr": (40 - (40 - 5 - 5) * 0.25 - 4) / 55,
+                    "minimum_icr": 40 / 5,
+                },
+            },
+        }
+        source_rules = {
+            rule: {"rule_id": rule}
+            for rule in (
+                "FIN.DEBT.ROLLFORWARD", "FIN.DEBT.COVERAGE", "FR-FIN-002",
+                "FR-LOAN-002", "FR-LOAN-004",
+            )
+        }
+        findings, _incomplete, executed, _metrics = _acquisition_checks(
+            run, "solar-run", source_rules, [],
+        )
+        self.assertIn("FIN.DEBT.COVERAGE", executed)
+        self.assertFalse(
+            any(row["rule_id"] == "FIN.DEBT.COVERAGE" for row in findings),
+            findings,
+        )
+
+    def test_solar_debt_coverage_still_detects_tampered_dscr(self) -> None:
+        run = {
+            "available": True,
+            "spec": {
+                "transaction": {"financing_ratio": 0.5, "tenor": 1},
+                "tax": {"income_tax_rate": 0.25},
+            },
+            "result": {
+                "purchase_price_wan": 100,
+                "transaction_tax_wan": 0,
+                "total_acquisition_cost_wan": 100,
+                "owner_revenue_wan": [50],
+                "owner_operating_cost_wan": [10],
+                "depreciation_schedule": {"annual_depreciation_wan": [5]},
+                "annual_summary": [{"maintenance_capex_wan": 4}],
+                "debt_schedule": {"monthly": [{
+                    "month": month + 1,
+                    "opening_principal_wan": 50 - month * (50 / 12),
+                    "principal_wan": 50 / 12,
+                    "interest_wan": 5 / 12,
+                    "debt_service_wan": 55 / 12,
+                    "closing_principal_wan": 50 - (month + 1) * (50 / 12),
+                } for month in range(12)]},
+                "indicators": {"minimum_dscr": 0.9, "minimum_icr": 8},
+            },
+        }
+        source_rules = {"FIN.DEBT.COVERAGE": {"rule_id": "FIN.DEBT.COVERAGE"}}
+        findings, _incomplete, _executed, _metrics = _acquisition_checks(
+            run, "solar-run", source_rules, [],
+        )
+        self.assertTrue(
+            any(row["rule_id"] == "FIN.DEBT.COVERAGE" for row in findings),
+            findings,
+        )
+
     def test_scenario_matrix_is_a_full_model_rerun_input(self) -> None:
         matrix = {
             "matrix_id": "matrix-1",
