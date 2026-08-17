@@ -563,7 +563,7 @@ openpyxl 每次 `save()` 都把当前时钟写进 `docProps/core.xml`。于是�
 | zero-material → feasibility-delivery | **门禁不对称**：零材料无 `release` 工具、无 release 门禁，`assurance_level` 硬编码 `estimate_preview`；合并还会把协议 lister 的潜在跨 workspace 风险搬进中央 Resource 网关进程，扩大未来误配置的影响面 |
 | knowledge-governance → deliverable-review | 已有跨域读取耦合（`knowledge` 侧直接声明了一个指向 `deliverable-review/rubric_assessments` 的 store），但审查侧是 11k 行最大 server，再并入会加重启动期校验 |
 
-**结论：14 个进程维持不变。** `server_manifest.py` 硬断言 14，`MCP_INDEPENDENCE_PLAN.md` 把"独立可运行"列为验收前提，而本轮又证明合并在目标维度上无收益——三个理由指向同一结论。
+**结论：14 个进程维持不变。** `server_manifest.py` 硬断言 14，[`MCP_INDEPENDENCE_PLAN.md`](../architecture/MCP_INDEPENDENCE_PLAN.md) 把“独立可运行”列为验收前提，而本轮又证明合并在目标维度上无收益——三个理由指向同一结论。
 
 ---
 

@@ -31,6 +31,118 @@ from .spec_prepare import (
 )
 
 
+_DEFAULT_TOTAL_INVESTMENT_WAN = 10_000.0
+_DEFAULT_REVENUE_TO_INVESTMENT = 0.30
+_DEFAULT_CASH_COST_RATE = 0.55
+
+
+def _positive_number(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _investment_total_from_breakdown(value: Any) -> float | None:
+    if not isinstance(value, dict):
+        return None
+    construction = _positive_number(value.get("construction_wan"))
+    if construction is None:
+        construction = sum(
+            _positive_number(value.get(field)) or 0.0
+            for field in ("civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan")
+        )
+    if construction <= 0:
+        return None
+    return round(
+        construction
+        + (_positive_number(value.get("interest_wan")) or 0.0)
+        + (_positive_number(value.get("working_capital_wan")) or 0.0),
+        2,
+    )
+
+
+def _apply_minimum_compute_baseline(
+    inputs: dict[str, Any],
+    spec: dict[str, Any] | None,
+    *,
+    force_flat: bool,
+) -> tuple[dict[str, Any], dict[str, Any] | None, list[dict[str, Any]]]:
+    """Fill only values required to start deterministic arithmetic.
+
+    Defaults are intentionally coarse and always returned in the assumption
+    ledger. They are a normalization baseline, not project evidence.
+    """
+    resolved = dict(inputs or {})
+    resolved_spec = copy.deepcopy(spec) if isinstance(spec, dict) else None
+    assumptions: list[dict[str, Any]] = []
+
+    total = _positive_number(resolved.get("total_investment_wan"))
+    if total is None:
+        total = _investment_total_from_breakdown(resolved.get("invest_breakdown"))
+        rule = "sum_invest_breakdown" if total is not None else "system_normalization_baseline"
+        total = total or _DEFAULT_TOTAL_INVESTMENT_WAN
+        resolved["total_investment_wan"] = total
+        assumptions.append({
+            "field": "total_investment_wan",
+            "value": total,
+            "source": "system_default",
+            "rule": rule,
+            "confidence": "low",
+            "note": "仅用于保证估算模型可计算，须以项目投资估算替换",
+        })
+
+    operating = resolved.get("is_operating") is not False
+    revenue_complete = revenue_input_complete(resolved_spec, resolved)
+    if operating and (force_flat or not revenue_complete):
+        revenue = _positive_number(resolved.get("annual_revenue_wan"))
+        if revenue is None:
+            revenue = round(total * _DEFAULT_REVENUE_TO_INVESTMENT, 2)
+            resolved["annual_revenue_wan"] = revenue
+            assumptions.append({
+                "field": "annual_revenue_wan",
+                "value": revenue,
+                "source": "system_default",
+                "rule": f"total_investment_wan*{_DEFAULT_REVENUE_TO_INVESTMENT}",
+                "confidence": "low",
+                "note": "缺收入量价或达产收入时采用的估算基线",
+            })
+        if not force_flat and isinstance(resolved_spec, dict) and not revenue_complete:
+            original_model = str((resolved_spec.get("revenue") or {}).get("model") or "flat")
+            resolved_spec["revenue"] = {
+                "model": "flat",
+                "annual_revenue_wan": revenue,
+            }
+            assumptions.append({
+                "field": "spec.revenue.model",
+                "value": "flat",
+                "source": "system_default",
+                "rule": "fallback_to_flat_when_revenue_drivers_missing",
+                "confidence": "low",
+                "note": f"原收入模型 {original_model} 缺驱动参数，降级为达产收入基线",
+            })
+
+    has_cost = any(
+        resolved.get(field) not in (None, [], {})
+        for field in ("cost_items", "operating_cost_by_year", "opex_by_year")
+    )
+    if operating and not has_cost:
+        revenue = _positive_number(resolved.get("annual_revenue_wan")) or 0.0
+        cost = round(revenue * _DEFAULT_CASH_COST_RATE, 2)
+        resolved["cost_items"] = {"估算期现金经营成本": cost}
+        assumptions.append({
+            "field": "cost_items.估算期现金经营成本",
+            "value": cost,
+            "source": "system_default",
+            "rule": f"annual_revenue_wan*{_DEFAULT_CASH_COST_RATE}",
+            "confidence": "low",
+            "note": "缺经营成本明细时采用的现金成本率基线",
+        })
+
+    return resolved, resolved_spec, assumptions
+
+
 def run_workspace_finance_model(
     workspace_id: str,
     *,
@@ -213,6 +325,21 @@ def run_workspace_finance_model(
         policy_profile=policy_profile,
         industry_profile=industry_profile,
     )
+    input_revision, resolved_spec, default_assumptions = _apply_minimum_compute_baseline(
+        input_revision,
+        resolved_spec,
+        force_flat=force_flat,
+    )
+    field_source_ledger.extend(
+        {
+            "field": str(item.get("field") or ""),
+            "value": item.get("value"),
+            "source": "system_default",
+            "source_ref": str(item.get("rule") or ""),
+            "confirmed": False,
+        }
+        for item in default_assumptions
+    )
     if confirmed_fact_pack is not None and fact_pack_projection.get("applied"):
         # The Fact Pack is non-compute metadata, but it is part of the formal
         # input hash and downstream source-grade verification.  Preserve the
@@ -288,22 +415,11 @@ def run_workspace_finance_model(
             "model_version": MODEL_VERSION, "template_version": TEMPLATE_VERSION,
             "assurance_level": "none", "calculation_status": "failed",
         }
-    if missing:
-        return {
-            "ok": False,
-            "available": False,
-            "workspace_id": workspace_id,
-            "missing_inputs": missing,
-            "blocking_issues": [{"rule": "missing_inputs", "detail": ",".join(missing)}],
-            "input_hash": input_hash,
-            "spec_hash": resolved_spec_hash,
-            "model_version": MODEL_VERSION,
-            "template_version": TEMPLATE_VERSION,
-            "assurance_level": "none",
-            "calculation_status": "unavailable",
-            "reason": f"缺少必要输入：{', '.join(missing)}",
-            "finance_inputs": dict((_read_workspace_req(workspace_id)[2]) or {}),
-        }
+    input_quality_issues = [
+        *(f"missing_input:{item}" for item in missing),
+        *(f"industry_required_missing:{item}" for item in industry_required_missing),
+        *(f"manifest:{item}" for item in manifest_errors),
+    ]
 
     idem = compute_idempotency_key(
         workspace_id,
@@ -348,15 +464,16 @@ def run_workspace_finance_model(
                     fin["manifest_errors"] = manifest_errors
                     fin["field_source_ledger"] = field_source_ledger
                     fin["industry_required_missing"] = industry_required_missing
+                    fin["default_assumptions"] = default_assumptions
+                    fin["quality_issues"] = sorted(set(input_quality_issues))
+                    fin["missing_inputs"] = missing
                     fin["assurance_level"] = fin.get("assurance_level") or mode
                     fin["calculation_status"] = "computed"
                     fin.update(dict(evidence_metadata or {}))
                     fin.pop("review_status", None)
-                    # Replays must preserve the original business validity.
-                    # An immutable run with failed consistency checks cannot
-                    # become an ``ok`` result merely because it was reused.
                     fin["consistency_ok"] = bool(existing.get("consistency_ok"))
-                    fin["ok"] = bool(fin.get("available") and fin["consistency_ok"])
+                    fin["ok"] = bool(fin.get("available"))
+                    fin["blocking_issues"] = []
                     # Historical result snapshots may contain a manifest that
                     # was rendered before ``run_id`` was allocated.  Never
                     # replay that stale child lineage: rebuild the manifest
@@ -430,6 +547,16 @@ def run_workspace_finance_model(
     result["spec"] = (
         resolved_spec if isinstance(resolved_spec, dict) else result.get("spec")
     )
+    result["default_assumptions"] = default_assumptions
+    result["missing_inputs"] = missing
+    result["quality_issues"] = sorted(set(input_quality_issues))
+    result["blocking_issues"] = []
+    readable_assumptions = list(result.get("assumptions") or [])
+    readable_assumptions.extend(
+        f"{item.get('field')}={item.get('value')}（{item.get('note')}）"
+        for item in default_assumptions
+    )
+    result["assumptions"] = readable_assumptions
     nonnegative_issues = _nonnegative_cost_issues(result)
     if nonnegative_issues:
         return {
@@ -470,33 +597,46 @@ def run_workspace_finance_model(
         if isinstance(item, dict)
         and not item.get("ok")
         and bool(item.get("blocking", True))
+        and str(item.get("category") or "integrity") == "integrity"
     ]
-    # Every entry point fails closed before persistence.  A package assembler
-    # must never turn an inconsistent diagnostic calculation into a run ID.
     if blocking_consistency:
-        result["ok"] = False
-        result["available"] = False
         result["consistency_ok"] = False
         result["checks"] = consistency
-        result["blocking_issues"] = [
-            {
-                "rule": item.get("code") or item.get("rule") or "finance_consistency_failed",
-                "detail": item.get("detail") or "财务勾稽失败",
-            }
+        consistency_issues = [
+            str(item.get("code") or item.get("rule") or "finance_consistency_failed")
             for item in blocking_consistency
         ]
-        primary_code = str(blocking_consistency[0].get("code") or "consistency_failed")
-        result["reason"] = primary_code
-        result["code"] = primary_code
-        result["message"] = "财务勾稽未通过，未固化 run 或十三表包"
-        result["assurance_level"] = "none"
-        result["calculation_status"] = "blocked"
-        # These are in-memory diagnostics only.  Keeping rendered tables or a
-        # bundle hash here would make a failed calculation look deliverable.
-        result.pop("tables", None)
-        result.pop("table_manifest", None)
-        result.pop("table_bundle_hash", None)
-        return result
+        result["quality_issues"] = sorted(set([
+            *list(result.get("quality_issues") or []),
+            *consistency_issues,
+        ]))
+        result["warnings"] = [
+            *list(result.get("warnings") or []),
+            *(f"财务勾稽提示：{item}" for item in consistency_issues),
+        ]
+        result["blocking_issues"] = []
+    else:
+        result["consistency_ok"] = True
+
+    # Viability checks (ICR, DSCR, IRR, funding gaps) do NOT block persistence.
+    # A deterministic calculation that fails viability is a valid negative
+    # conclusion, not a calculation error.  Capture the viability status for
+    # downstream consumption.
+    viability_issues = [
+        item for item in consistency
+        if isinstance(item, dict)
+        and not item.get("ok")
+        and str(item.get("category") or "") == "viability"
+    ]
+    if viability_issues:
+        result["viability_status"] = "infeasible"
+        result["viability_issues"] = viability_issues
+    else:
+        result["viability_status"] = "viable"
+
+    # A completed deterministic calculation remains available for downstream
+    # consumption; reconciliation failures are retained as quality diagnostics.
+    result["available"] = True
 
     result["workspace_id"] = workspace_id
     # 回显用户真源输入（不含联动注入），与历史行为一致

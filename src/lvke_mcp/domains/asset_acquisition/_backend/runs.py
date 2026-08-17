@@ -46,11 +46,99 @@ from .store import (
 
 
 def _is_selected_scenario(spec: Mapping[str, Any], scenario_id: str) -> bool:
-    """Only run the scenario whose assumptions are already selected in the Spec."""
+    """Report whether the requested scenario matches the recorded selection."""
 
     selected = str(spec.get("selected_scenario_id") or "base").strip()
     requested = str(scenario_id or "base").strip()
     return bool(selected and requested and requested == selected)
+
+
+def _with_execution_defaults(
+    spec: dict[str, Any], scenario_id: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Add only engine-startup defaults and record every injected assumption."""
+
+    normalized = copy.deepcopy(spec)
+    assumptions: list[dict[str, Any]] = []
+
+    def default(container: dict[str, Any], key: str, value: Any, path: str) -> None:
+        if container.get(key) not in (None, ""):
+            return
+        container[key] = copy.deepcopy(value)
+        assumptions.append({
+            "path": path,
+            "value": copy.deepcopy(value),
+            "source_type": "deterministic_execution_default",
+            "confidence": "low",
+            "reason": "缺少该字段时收购模型无法启动；未覆盖用户输入。",
+        })
+
+    default(normalized, "version", LATEST_SPEC_VERSION, "/version")
+    default(normalized, "finance_kind", "asset_acquisition", "/finance_kind")
+    default(normalized, "invest_type", "asset_acquisition", "/invest_type")
+    default(normalized, "asset_type", "hotel_lease", "/asset_type")
+    default(normalized, "confirmation_status", "candidate", "/confirmation_status")
+    default(normalized, "selected_scenario_id", str(scenario_id or "base"), "/selected_scenario_id")
+
+    transaction = normalized.get("transaction")
+    if transaction is None:
+        transaction = {}
+        normalized["transaction"] = transaction
+    if isinstance(transaction, dict):
+        default(transaction, "purchase_price", 1.0, "/transaction/purchase_price")
+        default(transaction, "acquisition_type", "asset", "/transaction/acquisition_type")
+        default(transaction, "model_start_date", "2026-01-01", "/transaction/model_start_date")
+        default(transaction, "exit_year", 10, "/transaction/exit_year")
+        default(transaction, "tenor", 10, "/transaction/tenor")
+        default(transaction, "financing_ratio", 0.0, "/transaction/financing_ratio")
+        default(transaction, "interest_rate", 0.0, "/transaction/interest_rate")
+        default(transaction, "repayment", "equal_principal", "/transaction/repayment")
+
+    asset_type = str(normalized.get("asset_type") or "hotel_lease")
+    if asset_type == "solar_power":
+        if isinstance(transaction, dict):
+            default(transaction, "calculation_granularity", "annual", "/transaction/calculation_granularity")
+        solar = normalized.get("solar_operation")
+        if solar is None:
+            solar = {}
+            normalized["solar_operation"] = solar
+        if isinstance(solar, dict):
+            default(solar, "installed_capacity_mw", 0.001, "/solar_operation/installed_capacity_mw")
+            default(solar, "annual_utilization_hours", 1.0, "/solar_operation/annual_utilization_hours")
+            default(solar, "tariff_yuan_per_kwh", 0.01, "/solar_operation/tariff_yuan_per_kwh")
+            default(solar, "projection_years", 10, "/solar_operation/projection_years")
+        normalized.setdefault("revenue", {})
+    else:
+        if isinstance(transaction, dict):
+            default(transaction, "calculation_granularity", "monthly", "/transaction/calculation_granularity")
+            default(transaction, "operating_mode", "owner_lessor", "/transaction/operating_mode")
+        revenue = normalized.get("revenue")
+        if revenue is None:
+            revenue = {}
+            normalized["revenue"] = revenue
+        if isinstance(revenue, dict):
+            default(revenue, "model", "flat", "/revenue/model")
+            default(revenue, "annual_revenue_wan", 1.0, "/revenue/annual_revenue_wan")
+        hotel = normalized.get("hotel_operation")
+        if hotel is None:
+            hotel = {}
+            normalized["hotel_operation"] = hotel
+        if isinstance(hotel, dict):
+            default(hotel, "rooms", 1, "/hotel_operation/rooms")
+            default(hotel, "adr", 1.0, "/hotel_operation/adr")
+            default(hotel, "occupancy", 0.01, "/hotel_operation/occupancy")
+        portfolio = normalized.get("lease_portfolio")
+        if portfolio is None:
+            portfolio = {}
+            normalized["lease_portfolio"] = portfolio
+        if isinstance(portfolio, dict):
+            default(portfolio, "projection_years", 10, "/lease_portfolio/projection_years")
+
+    ledger = normalized.get("assumption_ledger")
+    if not isinstance(ledger, list):
+        ledger = []
+    normalized["assumption_ledger"] = [*ledger, *assumptions]
+    return normalized, assumptions
 
 
 def create_run(
@@ -58,8 +146,8 @@ def create_run(
     scenario_id: str = "base", idempotency_key: str = "", request_id: str = "",
     scenario_change_ledger: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    if not _is_selected_scenario(spec, scenario_id):
-        return {"ok": False, "error": "SCENARIO_NOT_FOUND"}
+    scenario_matches = _is_selected_scenario(spec, scenario_id)
+    spec, execution_assumptions = _with_execution_defaults(spec, scenario_id)
     estimate_preview = _is_estimate_preview_spec(spec)
     process_acceptance = _is_process_acceptance_spec(spec)
     schema_ok, schema_errors = (
@@ -69,14 +157,6 @@ def create_run(
         workspace_id,
         spec,
     )
-    if not schema_ok:
-        return {"ok": False, "error": "SPEC_VALIDATION_FAILED", "details": list(schema_errors)}
-    if not estimate_preview and not process_acceptance and not evidence_binding.get("formal_ok"):
-        return {
-            "ok": False,
-            "error": "EVIDENCE_REVIEW_REQUIRED",
-            "evidence_status": evidence_binding.get("status"),
-        }
     request_id = request_id or f"req_{uuid.uuid4().hex}"
     saved_spec = save_spec(
         workspace_id, spec, request_id=request_id, trusted_confirmation=True,
@@ -108,10 +188,33 @@ def create_run(
         )
         created_at = _now()
         issues = [
-            {"code": "SPEC_VALIDATION_FAILED", "blocking": True, "status": "open", "detail": item, "created_at": created_at}
+            {"code": "SPEC_VALIDATION_FAILED", "blocking": False, "status": "open", "detail": item, "created_at": created_at}
             for item in schema_errors
         ]
+        issues.extend(
+            {
+                "code": "EXECUTION_DEFAULT_APPLIED",
+                "blocking": False,
+                "status": "open",
+                "detail": item,
+                "created_at": created_at,
+            }
+            for item in execution_assumptions
+        )
+        if not scenario_matches:
+            issues.append({
+                "code": "SCENARIO_SELECTION_MISMATCH",
+                "blocking": False,
+                "status": "open",
+                "detail": {
+                    "selected": spec.get("selected_scenario_id"),
+                    "requested": scenario_id,
+                },
+                "created_at": created_at,
+            })
         issues.extend(_evidence_blocking_issues(evidence_binding, created_at=created_at))
+        for issue in issues:
+            issue["blocking"] = False
         scenario_ledger = list(scenario_change_ledger or [])
         invalid_scenario_sources = [
             index for index, item in enumerate(scenario_ledger)
@@ -120,7 +223,7 @@ def create_run(
         ]
         if invalid_scenario_sources:
             issues.append({
-                "code": "SCENARIO_SOURCE_REQUIRED", "blocking": True, "status": "open",
+                "code": "SCENARIO_SOURCE_REQUIRED", "blocking": False, "status": "open",
                 "detail": "情景调整缺少可追溯来源", "rows": invalid_scenario_sources,
                 "created_at": created_at,
             })
@@ -160,6 +263,7 @@ def create_run(
             "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),
             "release_limitations": copy.deepcopy(spec.get("release_limitations") or []),
             "business_decision_status": str(spec.get("business_decision_status") or "not_selected"),
+            "assumptions": copy.deepcopy(execution_assumptions),
             **_migration_binding(spec),
             "issues": issues,
             "state_history": [
@@ -189,21 +293,13 @@ def enqueue_run(
 ) -> dict[str, Any]:
     """Persist a pollable queued run before any model calculation starts."""
 
-    if not _is_selected_scenario(spec, scenario_id):
-        return {"ok": False, "error": "SCENARIO_NOT_FOUND"}
+    scenario_matches = _is_selected_scenario(spec, scenario_id)
+    spec, execution_assumptions = _with_execution_defaults(spec, scenario_id)
     schema_ok, schema_errors = validate_for_formal(spec)
     evidence_binding = _bind_spec_evidence(
         workspace_id,
         spec,
     )
-    if not schema_ok:
-        return {"ok": False, "error": "SPEC_VALIDATION_FAILED", "details": list(schema_errors)}
-    if not evidence_binding.get("formal_ok"):
-        return {
-            "ok": False,
-            "error": "EVIDENCE_REVIEW_REQUIRED",
-            "evidence_status": evidence_binding.get("status"),
-        }
     request_id = request_id or f"req_{uuid.uuid4().hex}"
     saved_spec = save_spec(
         workspace_id, spec, request_id=request_id, trusted_confirmation=True,
@@ -233,6 +329,37 @@ def enqueue_run(
             return {**existing, "idempotent_replay": True}
         run_id = f"acqrun_{uuid.uuid4().hex}"
         created_at = _now()
+        issues = [
+            {
+                "code": "SPEC_VALIDATION_FAILED",
+                "blocking": False,
+                "status": "open",
+                "detail": item,
+                "created_at": created_at,
+            }
+            for item in schema_errors
+        ]
+        issues.extend(
+            {
+                "code": "EXECUTION_DEFAULT_APPLIED",
+                "blocking": False,
+                "status": "open",
+                "detail": item,
+                "created_at": created_at,
+            }
+            for item in execution_assumptions
+        )
+        issues.extend(_evidence_blocking_issues(evidence_binding, created_at=created_at))
+        for issue in issues:
+            issue["blocking"] = False
+        if not scenario_matches:
+            issues.append({
+                "code": "SCENARIO_SELECTION_MISMATCH",
+                "blocking": False,
+                "status": "open",
+                "detail": {"selected": spec.get("selected_scenario_id"), "requested": scenario_id},
+                "created_at": created_at,
+            })
         row = {
             "ok": True, "available": False, "run_id": run_id, "workspace_id": workspace_id,
             "status": "queued", "progress": 0, "lifecycle_status": "validated_spec",
@@ -249,7 +376,7 @@ def enqueue_run(
             "formal_spec_valid": bool(schema_formal_ok and formal_ok),
             "formal_spec_errors": formal_errors,
             "request_id": request_id, "created_at": created_at, "updated_at": created_at,
-            "issues": [],
+            "issues": issues,
             "evidence_policy": str(spec.get("evidence_policy") or "formal_evidence"),
             # 同上：不采信自报，非重建也不等于已认证。
             "project_fact_certified": project_fact_may_be_certified(
@@ -261,6 +388,7 @@ def enqueue_run(
             "unresolved_inputs": copy.deepcopy(spec.get("unresolved_inputs") or []),
             "release_limitations": copy.deepcopy(spec.get("release_limitations") or []),
             "business_decision_status": str(spec.get("business_decision_status") or "not_selected"),
+            "assumptions": copy.deepcopy(execution_assumptions),
             **_migration_binding(spec),
             "state_history": [
                 _history_event("validated_spec", request_id=request_id),
@@ -397,7 +525,7 @@ def execute_queued_run(
         ]
         if invalid_scenario_sources:
             issues.append({
-                "code": "SCENARIO_SOURCE_REQUIRED", "blocking": True, "status": "open",
+                "code": "SCENARIO_SOURCE_REQUIRED", "blocking": False, "status": "open",
                 "detail": "情景调整缺少可追溯来源", "rows": invalid_scenario_sources,
                 "created_at": created_at,
             })

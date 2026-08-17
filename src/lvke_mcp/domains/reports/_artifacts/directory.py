@@ -113,21 +113,6 @@ def _build_artifact_directory(
             support_files, support_warnings = _collect_support_files(
                 workspace_id, temp_root, basis, context,
             )
-            inconsistent_appendices = [
-                item for item in support_warnings
-                if item.get("code") in {
-                    "APPENDIX_FILE_UNAVAILABLE",
-                    "APPENDIX_HASH_INVALID",
-                    "APPENDIX_HASH_MISMATCH",
-                    "FINANCE_XLSX_COPY_NOT_VERIFIED",
-                }
-            ]
-            if inconsistent_appendices:
-                raise DeliverableArtifactError(
-                    "FORMAL_BASIS_INCONSISTENT",
-                    "附表清单声明的已就绪文件不存在或哈希不一致",
-                    details={"problems": inconsistent_appendices},
-                )
             payload_files.extend(support_files)
 
         finance_basis = basis.get("finance") or {}

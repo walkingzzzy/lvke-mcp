@@ -323,13 +323,23 @@ def assert_acquisition_report_finance_binding(
     run = acquisition_service.get_run(workspace_id, run_id)
     if not run:
         block("finance_acquisition_run_not_found", "报告绑定的资产收购 run 不存在")
-    elif run.get("status") != "succeeded" or run.get("consistency_ok") is not True:
+    elif run.get("status") != "succeeded":
         block(
             "finance_run_consistency_failed",
-            "资产收购 run 尚未成功完成内部勾稽",
+            "资产收购 run 尚未成功完成或完整性勾稽未通过",
             status=run.get("status"),
             consistency_ok=run.get("consistency_ok"),
         )
+    else:
+        _integrity = str(run.get("integrity_status") or "")
+        if not _integrity:
+            _integrity = "passed" if run.get("consistency_ok") else "failed"
+        if _integrity != "passed":
+            block(
+                "finance_run_consistency_failed",
+                "资产收购 run 完整性勾稽未通过",
+                integrity_status=_integrity,
+            )
 
     package = get_package_record(workspace_id, package_id) if package_id else None
     payload = (package or {}).get("payload") or {}
@@ -432,10 +442,15 @@ def _assert_formal_export_qualification(
                 "message": "绑定的 FinanceRun 不属于当前工作区",
             })
         else:
-            if not run_view.get("consistency_ok"):
+            # Use integrity_status with backward-compatible fallback to
+            # consistency_ok for old records that lack the new field.
+            _integrity = str(run_view.get("integrity_status") or "")
+            if not _integrity:
+                _integrity = "passed" if run_view.get("consistency_ok") else "failed"
+            if _integrity != "passed":
                 blockers.append({
                     "code": "finance_run_consistency_failed",
-                    "message": "绑定的 FinanceRun 勾稽未通过",
+                    "message": "绑定的 FinanceRun 完整性勾稽未通过",
                 })
 
             manifest_data = snapshot.get("model_manifest") or {}

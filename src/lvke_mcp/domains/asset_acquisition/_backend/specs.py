@@ -187,36 +187,30 @@ def confirm_saved_spec(
         candidate = copy.deepcopy(source.get("spec") or {})
         if confirmation_scope not in {"project_candidate", "process_acceptance"}:
             return {"ok": False, "error": "CONFIRMATION_SCOPE_INVALID"}
+        confirmation_quality_issues: list[dict[str, Any]] = []
         if (
             confirmation_scope == "project_candidate"
             and str(candidate.get("evidence_policy") or "") == "source_reconstructed"
         ):
-            return {"ok": False, "error": "PROJECT_FACT_EVIDENCE_MISSING"}
+            confirmation_quality_issues.append({
+                "code": "PROJECT_FACT_EVIDENCE_MISSING",
+                "message": "重建来源尚不能认证为项目事实；确认修订仍会创建。",
+            })
         if confirmation_scope == "process_acceptance":
             candidate.update({
                 "confirmation_scope": "process_acceptance",
                 "project_fact_certified": False,
                 "business_decision_status": "not_selected",
             })
-            # P1-018：原先只回一个不透明的错误码，调用方不知道 6 项条件差哪一项。
-            # 判定不变（gaps 为空等价于原 _is_process_acceptance_spec），只把缺项列出来。
             gaps = process_acceptance_gaps(candidate)
             if gaps:
-                return {
-                    "ok": False,
-                    "error": "PROCESS_ACCEPTANCE_BASIS_INCOMPLETE",
-                    "message": "process_acceptance 确认所需的重建依据不完整：" + "；".join(gaps),
-                    "details": {
-                        "gaps": gaps,
-                        "required_reconstruction_record_fields": list(RECONSTRUCTION_RECORD_FIELDS),
-                        "required_process_acceptance_basis_fields": list(PROCESS_ACCEPTANCE_BASIS_FIELDS),
-                        "next_action": (
-                            "在 acquisition_save_spec 的 spec 里补全 reconstruction_records "
-                            "与 process_acceptance_basis，再调用 acquisition_confirm_spec "
-                            "并传 confirmation_scope=process_acceptance"
-                        ),
-                    },
-                }
+                confirmation_quality_issues.append({
+                    "code": "PROCESS_ACCEPTANCE_BASIS_INCOMPLETE",
+                    "message": "process_acceptance 重建依据不完整；确认修订仍会创建。",
+                    "gaps": gaps,
+                    "required_reconstruction_record_fields": list(RECONSTRUCTION_RECORD_FIELDS),
+                    "required_process_acceptance_basis_fields": list(PROCESS_ACCEPTANCE_BASIS_FIELDS),
+                })
         formal_candidate = mark_spec_confirmed(candidate)
         estimate_preview = _is_estimate_preview_spec(candidate)
         process_acceptance = _is_process_acceptance_spec(candidate)
@@ -229,18 +223,16 @@ def confirm_saved_spec(
             workspace_id,
             candidate,
         )
-        if not schema_ok:
-            return {
-                "ok": False,
-                "error": "SPEC_VALIDATION_FAILED",
-                "details": list(schema_errors),
-            }
+        confirmation_quality_issues.extend(
+            {"code": "SPEC_VALIDATION_FAILED", "message": str(item)}
+            for item in schema_errors
+        )
         if not estimate_preview and not process_acceptance and not evidence_binding.get("formal_ok"):
-            return {
-                "ok": False,
-                "error": "EVIDENCE_REVIEW_REQUIRED",
+            confirmation_quality_issues.append({
+                "code": "EVIDENCE_REVIEW_REQUIRED",
+                "message": "证据尚未达到正式复核条件；确认修订仍会创建。",
                 "evidence_status": evidence_binding.get("status"),
-            }
+            })
         scope = f"confirm-spec:{idempotency_key}" if idempotency_key else ""
         prior = _active_idempotency_record(state["idempotency"], scope) if scope else None
         if prior:
@@ -312,6 +304,8 @@ def confirm_saved_spec(
                 "note": str(note or ""),
                 "confirmed_at": now, "request_id": request_id,
             },
+            "quality_issues": confirmation_quality_issues,
+            "schema_valid": bool(schema_ok),
             "request_id": request_id,
             "created_at": now,
         }

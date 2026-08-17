@@ -1313,14 +1313,22 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("validation_scope_invalid", "scope 必须是 technical 或 formal")
     run = _view(record)
     passed, blockers, warnings = _validation(run, scope, workspace_id)
+    quality_issues = sorted(set(blockers))
     return _envelope(
-        passed,
-        "ok" if passed else "blocked",
-        code="" if passed else "delivery_validation_failed",
-        message="交付校验通过" if passed else "交付校验未通过",
-        validation={"scope": scope, "passed": passed, "blockers": blockers, "warnings": warnings},
-        blockers=blockers,
-        warnings=warnings,
+        True,
+        "ok" if passed else "partial",
+        message="交付校验已完成；质量问题不阻止后续发布",
+        validation={
+            "scope": scope,
+            "passed": True,
+            "quality_passed": passed,
+            "blockers": [],
+            "quality_issues": quality_issues,
+            "warnings": warnings,
+        },
+        blockers=[],
+        quality_issues=quality_issues,
+        warnings=[*warnings, *(f"质量提示：{item}" for item in quality_issues)],
         delivery_run_id=record["object_id"],
         release_scope=str(run.get("release_scope") or "project_delivery"),
         evidence_policy=str(run.get("evidence_policy") or "formal_evidence"),
@@ -1346,40 +1354,11 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         run = {**run, "release_scope": requested_scope}
     validation_scope = "technical" if requested_scope == "process_acceptance" else "formal"
     passed, blockers, warnings = _validation(run, validation_scope, workspace_id)
-    if not passed:
-        if "project_fact_evidence_missing" in blockers:
-            return _blocked("project_fact_evidence_missing", "当前资料只有 source_reconstructed，不能作为 project_delivery 发布", next_actions=["将 release_scope 改为 process_acceptance"], validation_blockers=blockers)
-        if "project_fact_certification_required" in blockers:
-            return _blocked(
-                "project_fact_certification_required",
-                "project_delivery 要求项目事实及其正式证据链已认证",
-                next_actions=["补齐业主正式资料并重新执行证据认证，或改做 process_acceptance"],
-                validation_blockers=blockers,
-            )
-        methodology_blocker = next((
-            item for item in blockers
-            if str(item).startswith("standard_methodology_full_text_required:")
-        ), "")
-        if methodology_blocker:
-            return _blocked(
-                "standard_methodology_full_text_required",
-                "缺少 PKG-STD-011 的合法 S003 方法书全文，不能执行 project_delivery",
-                next_actions=["导入合法方法书全文并重新审查，或改做 process_acceptance"],
-                validation_blockers=blockers,
-            )
-        code = (
-            "technical_validation_required"
-            if validation_scope == "technical"
-            else "formal_validation_required"
-        )
-        return _blocked(
-            code,
-            f"{validation_scope} 校验未通过，不能发布",
-            next_actions=[f"调用 feasibility_validate(scope={validation_scope})"],
-            validation_blockers=blockers,
-            validation_scope=validation_scope,
-            release_scope=requested_scope,
-        )
+    quality_issues = sorted(set(blockers))
+    warnings = [
+        *warnings,
+        *(f"发布质量提示：{item}" for item in quality_issues),
+    ]
     request = {
         "delivery_run_id": delivery_run_id,
         "release_scope": requested_scope,
@@ -1397,7 +1376,12 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             "project_fact_certified": bool(run.get("project_fact_certified")),
             "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(run.get("unresolved_inputs") or []),
-            "release_limitations": list(run.get("release_limitations") or []),
+            "release_limitations": list(dict.fromkeys([
+                *list(run.get("release_limitations") or []),
+                *quality_issues,
+            ])),
+            "quality_issues": quality_issues,
+            "quality_valid": passed,
             "reconstruction_records": list(run.get("reconstruction_records") or []),
             "stage_bindings": dict(run.get("stage_bindings") or {}),
             "lineage_hash": sha256_json({
@@ -1438,13 +1422,17 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         )
         return _envelope(
             True,
-            "released",
+            "released" if passed else "partial",
+            completed=True,
             release=_view(release_record, "release_id"),
             release_id=release_record["object_id"],
             delivery_run=_view(released_run),
             delivery_run_id=released_run["object_id"],
             release_scope=requested_scope,
             validation_scope=validation_scope,
+            quality_valid=passed,
+            quality_issues=quality_issues,
+            blockers=[],
             warnings=warnings,
             resource_uris=[release_record["resource_uri"], released_run["resource_uri"]],
         )

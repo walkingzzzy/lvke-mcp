@@ -51,11 +51,12 @@ _ASYNC_LOCK = threading.Lock()
 
 def _ok(**data: Any) -> dict[str, Any]:
     status = str(data.pop("status", "ok"))
-    business_success = status in {"ok", "accepted"}
+    business_success = status in {"ok", "accepted", "partial", "incomplete"}
     return {
         "success": business_success, "transport_success": True,
         "system_success": True, "business_success": business_success,
-        "completed": status == "ok", "outcome": status, "status": status,
+        "completed": status in {"ok", "partial", "incomplete"},
+        "outcome": status, "status": status,
         **data, "resource_uris": list(data.get("resource_uris") or []),
         "warnings": list(data.get("warnings") or []),
         "blockers": list(data.get("blockers") or []),
@@ -370,17 +371,19 @@ def _shadow_comparison(state: dict[str, Any], validation_complete: bool) -> dict
 
 
 def _review_envelope_status(state: dict[str, Any]) -> str:
-    """Map the projected review verdict to the public business envelope."""
+    """Keep review verdicts as diagnostics once a review object was produced."""
 
-    if state.get("incomplete_reasons") or state.get("overall_verdict") == "incomplete":
-        return "incomplete"
+    quality_issues = [
+        *list(state.get("incomplete_reasons") or []),
+        *list(state.get("blockers") or []),
+    ]
     if (
         state.get("invalidated")
-        or state.get("overall_verdict") == "fail"
+        or state.get("overall_verdict") in {"fail", "incomplete"}
         or state.get("active_blocking_finding_ids")
-        or state.get("active_blocking_finding_ids")
+        or quality_issues
     ):
-        return "blocked"
+        return "partial"
     return "ok"
 
 

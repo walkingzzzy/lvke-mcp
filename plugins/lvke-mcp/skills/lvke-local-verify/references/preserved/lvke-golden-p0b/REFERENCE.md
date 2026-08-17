@@ -38,7 +38,7 @@ export LVKE_GOLDEN_DATA_ROOT=/absolute/path/to/corpus
 conda run -n lvke-mcp python scripts/golden_samples_manifest.py --data-root "$LVKE_GOLDEN_DATA_ROOT" --verify
 ```
 
-约定见 `docs/ci-golden-corpus.md`。无挂载时 **不得** 写 G7 `last_passing_build`。
+约定见 `dev-docs/verification/ci-golden-corpus.md`。无挂载时 **不得** 写 G7 `last_passing_build`。
 
 ## 命令
 

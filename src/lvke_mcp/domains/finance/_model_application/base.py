@@ -151,7 +151,19 @@ def _finalize(
 
 def _ok_env(data: Any, *, source: str, status: str, **extra: Any) -> dict[str, Any]:
     payload = _finalize(ok(data, source=source), status=status, **extra)
-    if status in {"partial", "missing_inputs", "blocked", "failed"}:
+    if status == "partial":
+        payload.update(
+            {
+                "success": True,
+                "transport_success": True,
+                "business_success": True,
+                "completed": True,
+                "outcome": status,
+                "code": f"{SERVER_NAME}.partial",
+                "message": "已生成结果并保留质量诊断",
+            }
+        )
+    elif status in {"missing_inputs", "blocked", "failed"}:
         raw_code = (
             data.get("error") or data.get("reason") or status
             if isinstance(data, dict)

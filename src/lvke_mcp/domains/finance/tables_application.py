@@ -222,12 +222,12 @@ def validate_render(data: dict[str, Any]) -> dict[str, Any]:
         "missing_delivery_keys": missing,
         "blockers": blockers,
         "warnings": (
-            [*warnings, "十三表结构、列级或期间校验未通过，禁止宣称正式交付"]
+            [*warnings, "十三表结构、列级或期间校验存在质量问题，结果仍可生成并应披露限制"]
             if blockers
             else warnings
         ),
         "table_quality": table_quality,
-        "note": "表名齐全、CSV/XLSX 写出都不等于完整交付；完整性仍由跨工件门禁和结构化勾稽共同决定。",
+        "note": "表名、CSV/XLSX 与跨工件勾稽结果用于质量分级，不阻止表包和导出生成。",
     }
 
 
@@ -269,7 +269,13 @@ def delivery_assessment(
 ) -> dict[str, Any]:
     validation = validate_render(data)
     run = get_run(workspace_id, run_id)
-    run_consistency_ok = bool(run.get("available") and run.get("consistency_ok"))
+    # Use integrity_status (new) with backward-compatible fallback to
+    # available && consistency_ok for old records that lack the field.
+    integrity_status = str(run.get("integrity_status") or "")
+    if not integrity_status:
+        run_consistency_ok = bool(run.get("available") and run.get("consistency_ok"))
+    else:
+        run_consistency_ok = integrity_status == "passed"
     if not run_consistency_ok:
         validation["blockers"] = [
             *validation.get("blockers", []),
@@ -277,6 +283,7 @@ def delivery_assessment(
         ]
         validation["valid"] = False
     validation["run_consistency_ok"] = run_consistency_ok
+    validation["integrity_status"] = integrity_status or ("passed" if run_consistency_ok else "failed")
     validation["run_quality_checks"] = list(run.get("checks") or [])
     try:
         workbook_assessment = assess_finance_delivery_quality(run)
@@ -480,48 +487,40 @@ def validate_tables(
             ),
         },
     )
-    technical_success = bool(result["valid"])
-    business_success = (
-        technical_success
-        if scope == "technical"
-        else bool(technical_success and result["validation_complete"])
-    )
     selected_blockers = (
         list(result.get("technical_blockers") or [])
         if scope == "technical"
         else list(result.get("blockers") or [])
     )
-    if not technical_success:
-        next_actions = ["回到财务模型修正输入并生成新 run_id；表服务不得重算"]
-    elif scope == "formal" and not result["validation_complete"]:
-        next_actions = [
-            "修正 gate_blockers 中的 run、manifest、表格或工件一致性问题后重新校验"
-        ]
-    elif scope == "technical":
-        next_actions = ["技术结构校验通过；该结果不代表跨工件完整性校验通过"]
-    else:
-        next_actions = ["跨工件完整性校验已通过"]
     selected_validation = (
         result["technical_validation"]
         if scope == "technical"
         else result["formal_validation"]
     )
+    quality_issues = sorted(set(selected_blockers))
     return {
-        "success": business_success,
+        "success": True,
         "transport_success": True,
         "system_success": True,
-        "business_success": business_success,
-        "status": "ok" if business_success else "blocked",
+        "business_success": True,
+        "completed": True,
+        "outcome": "partial" if quality_issues else "ok",
+        "status": "partial" if quality_issues else "ok",
         "validation_scope": scope,
         "run_id": run_id,
         "validation": selected_validation,
         "technical_validation": result["technical_validation"],
         "formal_validation": result["formal_validation"],
         "validation_complete": bool(result["validation_complete"]),
+        "quality_valid": not quality_issues,
+        "quality_issues": quality_issues,
         "resource_uris": [],
-        "warnings": result["warnings"],
-        "blockers": selected_blockers,
-        "next_actions": next_actions,
+        "warnings": [
+            *list(result["warnings"]),
+            *(f"质量提示：{item}" for item in quality_issues),
+        ],
+        "blockers": [],
+        "next_actions": ["校验已完成；质量问题不阻止表包或导出生成"],
     }
 
 

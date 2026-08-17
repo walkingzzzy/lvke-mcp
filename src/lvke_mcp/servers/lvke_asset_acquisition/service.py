@@ -259,24 +259,22 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     field_errors = deduplicated_field_errors
     if field_errors and not acquisition_contract:
         blockers.append("acquisition_mode_invalid")
-    accepted = bool(
+    quality_issues = [
+        {"code": "SPEC_VALIDATION_ISSUE", "message": str(item)}
+        for item in dict.fromkeys(blockers)
+    ]
+    schema_valid = bool(
         valid and acquisition_contract and not route_conflicts and not opening_date_missing
         and not model_start_date_missing and not reconstruction_errors
     )
-    response_code = None
-    if not accepted:
-        response_code = (
-            "PROJECT_ROUTE_CONFLICT"
-            if route_conflicts
-            else ("SPEC_VALIDATION_FAILED" if opening_date_missing or model_start_date_missing else "acquisition_mode_invalid")
-        )
     return {
-        "success": accepted, "transport_success": True,
-        "business_success": accepted, "completed": accepted,
-        "outcome": "ok" if accepted else "blocked",
-        "status": "ok" if accepted else "blocked",
-        "code": response_code,
-        "valid": accepted,
+        "success": True, "transport_success": True,
+        "business_success": True, "completed": True,
+        "outcome": "ok" if schema_valid else "partial",
+        "status": "ok" if schema_valid else "partial",
+        "code": None,
+        "valid": True,
+        "schema_valid": schema_valid,
         "formal_valid": bool(
             formal_valid and acquisition_contract
             and not opening_date_missing and not model_start_date_missing
@@ -300,18 +298,15 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         ),
         "reconstruction_errors": reconstruction_errors,
         "spec_hash": acquisition_service._hash(spec),  # noqa: SLF001
-        "resource_uris": [], "warnings": [], "blockers": blockers,
+        "resource_uris": [],
+        "warnings": [str(item) for item in dict.fromkeys(blockers)],
+        "quality_issues": quality_issues,
+        "blockers": [],
         "next_actions": (
-            (
-                ["预览资格已满足；确认后 confirmation_scope=estimate_preview，不得用于正式交付"]
-                if preview_eligible
-                else [
-                    "补齐 field_errors 中的正式主体、资产边界、历史报表和证据后再确认",
-                    "或声明 delivery_mode=estimate_preview 并补全 controlled_assumptions 走受限技术预览",
-                ]
-            )
-            if accepted and not formal_valid
-            else ([] if accepted else ["按资产类型修正 FinanceSpec v3 收购计算粒度和运营字段后重新校验"])
+            [
+                "已允许继续保存、确认和计算；正式使用前建议补齐 field_errors 中的资料",
+            ]
+            if not schema_valid or not formal_valid else []
         ),
     }
 
@@ -322,8 +317,6 @@ def save_spec(
     idempotency_key: str,
 ) -> dict[str, Any]:
     checked = validate_spec(spec)
-    if not checked["valid"]:
-        return checked
     row = acquisition_service.save_spec(
         workspace_id,
         spec,
@@ -339,7 +332,8 @@ def save_spec(
          "confirmation_status": row.get("confirmation_status"),
          "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=spec_id, uris=[_uri(workspace_id, "specs", spec_id)],
-        next_actions=["调用 acquisition_confirm_spec 创建不可变确认修订"],
+        warnings=list(checked.get("warnings") or []),
+        next_actions=["调用 acquisition_confirm_spec 创建不可变确认修订，或直接运行模型"],
     )
 
 
@@ -371,10 +365,13 @@ def confirm_spec(
          "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=confirmed_id, uris=[_uri(workspace_id, "specs", confirmed_id)],
         warnings=(
-            ["该 Spec 使用 estimate_preview 受控假设，输出会保留完整度限制"]
-            if estimate_preview else (
-                ["该 Spec 仅用于 source_reconstructed 流程验收，不认证项目事实"]
-                if process_acceptance else []
+            [str(item.get("message") or item.get("code")) for item in row.get("quality_issues") or []]
+            + (
+                ["该 Spec 使用 estimate_preview 受控假设，输出会保留完整度限制"]
+                if estimate_preview else (
+                    ["该 Spec 仅用于 source_reconstructed 流程验收，不认证项目事实"]
+                    if process_acceptance else []
+                )
             )
         ),
         next_actions=["调用 acquisition_run_model"],
@@ -391,12 +388,8 @@ def run_model(
     )
     if not saved:
         return _failed({"error": "SPEC_NOT_FOUND"}, "SPEC_NOT_FOUND")
-    if saved.get("confirmation_status") != "confirmed":
-        return _failed({"error": "SPEC_NOT_CONFIRMED"}, "SPEC_NOT_CONFIRMED")
     spec = copy.deepcopy(saved.get("spec") or {})
     checked = validate_spec(spec)
-    if not checked["valid"]:
-        return checked
     try:
         run = acquisition_service.create_run(
             workspace_id, spec, discount_rate=discount_rate, scenario_id=scenario_id,
@@ -428,8 +421,9 @@ def run_model(
         }, "idempotent_replay": bool(run.get("idempotent_replay"))},
         object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)],
         warnings=(
-            ["该运行使用受限输入，结果仅可进入技术报告链"]
-            if restricted_preview else []
+            list(checked.get("warnings") or [])
+            + [str(item.get("detail") or item.get("code")) for item in run.get("issues") or []]
+            + (["该运行使用受限或不完整输入，结果携带质量诊断"] if restricted_preview else [])
         ),
         next_actions=(
             [

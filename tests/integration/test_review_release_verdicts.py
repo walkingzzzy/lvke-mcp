@@ -6,7 +6,11 @@ import unittest
 from pathlib import Path
 
 from lvke_mcp.servers.lvke_deliverable_review import rules
+from lvke_mcp.servers.lvke_deliverable_review._service.base import (
+    _review_envelope_status,
+)
 from lvke_mcp.servers.lvke_deliverable_review._service.events import _project_events
+from lvke_mcp.servers.lvke_deliverable_review._service.lifecycle import get_review
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_project_context
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
@@ -68,6 +72,30 @@ class ReviewReleaseVerdictsTest(unittest.TestCase):
             "standard_methodology_full_text_required:PKG-STD-011",
             state["blockers"],
         )
+
+    def test_failed_release_verdict_is_returned_as_successful_partial_review(self) -> None:
+        workspace_id = "review-partial-envelope"
+        review_id = "review_partial_envelope"
+        state = self._append_passed_review(
+            workspace_id,
+            review_id,
+            evidence_track="controlled_assumption",
+            review_purpose="project_delivery",
+        )
+
+        self.assertEqual(_review_envelope_status(state), "partial")
+        result = get_review({"workspace_id": workspace_id, "review_id": review_id})
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["business_success"])
+        self.assertTrue(result["completed"])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["blockers"], [])
+        self.assertIn(
+            "controlled_assumption_release_forbidden",
+            result["quality_issues"],
+        )
+        self.assertEqual(result["release_verdict"], "incomplete")
 
     def test_process_acceptance_keeps_controlled_assumption_as_limitation(self) -> None:
         state = self._append_passed_review(

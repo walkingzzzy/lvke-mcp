@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """模块化重构护栏：行数、消费者清单、导入图与分层边扫描。
 
-对应 MODULARIZATION_PLAN.md §2/§7/§8。本脚本只做**观测与门禁**，不改代码：
+对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §2/§7/§8。本脚本只做**观测与门禁**，不改代码：
 
   1. 行数统计     —— 全部 ``src/lvke_mcp`` Python 文件，标出 ``--long-threshold`` 之上的文件。
   2. 消费者清单   —— 对每个模块统计 ``src``/``tests``/``scripts`` 里引用它的文件，
@@ -329,7 +329,7 @@ def build_document(long_threshold: int) -> dict:
     return {
         "schema": "module_metrics.v1",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "plan_ref": "MODULARIZATION_PLAN.md §2/§7/§8",
+        "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §2/§7/§8",
         "long_threshold": long_threshold,
         "summary": {
             "file_count": data["file_count"],

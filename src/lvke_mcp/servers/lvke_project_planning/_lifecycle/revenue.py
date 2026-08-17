@@ -140,7 +140,19 @@ def validate_revenue_drivers(
         return error
     candidates = _payload(record).get("candidates") or []
     if not candidates:
-        return service._blocked("revenue_candidates_missing", "收入候选为空")
+        return service._envelope(
+            success=True,
+            status="partial",
+            code="revenue_candidates_missing",
+            valid=False,
+            blockers=[],
+            warnings=["收入候选为空；后续流程仍可继续，但无法形成有依据的收入选择。"],
+            quality_issues=[{
+                "code": "revenue_candidates_missing",
+                "path": "/candidates",
+                "blocking": False,
+            }],
+        )
     blockers: list[str] = []
     for item in candidates:
         if item.get("mode", "estimate_preview") == "review_candidate" and (
@@ -155,11 +167,17 @@ def validate_revenue_drivers(
             ):
                 blockers.append("flat_revenue_reconstruction_binding_incomplete")
     if blockers:
+        unique = sorted(set(blockers))
         return service._envelope(
-            success=False,
-            status="blocked",
+            success=True,
+            status="partial",
             code="revenue_driver_validation_failed",
-            blockers=sorted(set(blockers)),
+            blockers=[],
+            warnings=["收入驱动证据或重建绑定不完整；候选仍可确认和进入下游。"],
+            quality_issues=[
+                {"code": item, "blocking": False}
+                for item in unique
+            ],
             valid=False,
         )
     return service._envelope(success=True, status="ok", valid=True)

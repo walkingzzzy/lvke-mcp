@@ -1,7 +1,7 @@
 {
   "schema": "module_metrics.v1",
   "generated_at": "2026-08-08T07:54:27+0000",
-  "plan_ref": "MODULARIZATION_PLAN.md §2/§7/§8",
+  "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §2/§7/§8",
   "long_threshold": 800,
   "summary": {
     "file_count": 435,

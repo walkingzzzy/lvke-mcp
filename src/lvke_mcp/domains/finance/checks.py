@@ -1,4 +1,4 @@
-﻿"""Consistency / release checks facade (P0-6)."""
+"""Consistency / release checks facade (P0-6)."""
 
 from __future__ import annotations
 
@@ -24,13 +24,14 @@ def run_checks(
         checks.append(
             {
                 "rule": "投资口径无歧义",
+                "category": "delivery",
                 "ok": False,
                 "detail": scope.get("reason") or "LEGACY_INVESTMENT_SCOPE_AMBIGUOUS",
                 "blocking": True,
             }
         )
     elif scope.get("status") == "clear":
-        checks.append({"rule": "投资口径无歧义", "ok": True, "detail": scope.get("reason") or "clear"})
+        checks.append({"rule": "投资口径无歧义", "category": "delivery", "ok": True, "detail": scope.get("reason") or "clear"})
 
     # Timeline present
     tl = result.get("timeline") or {}
@@ -39,6 +40,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "统一时间轴期间数=计算期",
+                "category": "integrity",
                 "ok": ok_tl,
                 "detail": f"timeline.calc_years={tl.get('calc_years')} params={((result.get('params') or {}).get('calc_years'))}",
             }
@@ -50,6 +52,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "流动资金分项为业务周转驱动",
+                "category": "integrity",
                 "ok": False,
                 "detail": "当前为汇总反解分项（ratio_backsolve），不得标分项法完成",
                 "blocking": False,
@@ -59,6 +62,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "流动资金分项为业务周转驱动",
+                "category": "integrity",
                 "ok": True,
                 "detail": f"turnover_days overall={((wc.get('days') or {}).get('overall'))}",
             }
@@ -71,6 +75,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "财务计划无资金缺口年",
+                "category": "viability",
                 "ok": len(gaps) == 0,
                 "detail": f"缺口年数 {len(gaps)}/{len(fp)}",
                 "blocking": False,
@@ -83,6 +88,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "非经营性项目生命周期资金平衡",
+                "category": "viability",
                 "ok": bool(nob.get("balanced")),
                 "detail": f"lifecycle_gap={nob.get('lifecycle_gap')}",
                 "blocking": False,
@@ -96,6 +102,7 @@ def run_checks(
         checks.append(
             {
                 "rule": "利息备付率ICR>=1",
+                "category": "viability",
                 "ok": len(weak) == 0,
                 "detail": f"ICR<1 年数 {len(weak)}",
                 "blocking": False,

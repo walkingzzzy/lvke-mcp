@@ -114,13 +114,15 @@ def create_revenue_driver_set(
                 blockers=missing,
                 field_errors={f"/revenue_spec/{field}": {"code": "required"} for field in missing},
             )
+        quality_issues = list((selection or {}).get("quality_issues") or [])
         if model == "flat" and mode == "review_candidate":
             binding = flat_evidence_binding or {}
             if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
-                return _blocked(
-                    "flat_revenue_formal_evidence_required",
-                    "flat 在 review_candidate 模式必须绑定正式原始资料 locator 与 hash",
-                )
+                quality_issues.append({
+                    "code": "flat_revenue_formal_evidence_required",
+                    "path": "/flat_evidence_binding",
+                    "blocking": False,
+                })
             if str(binding.get("evidence_track") or "") == "source_reconstructed":
                 required_reconstruction = (
                     "reconstruction_id", "source_uri", "source_kind", "method", "limitations",
@@ -129,10 +131,11 @@ def create_revenue_driver_set(
                     field not in binding or binding.get(field) in (None, "")
                     for field in required_reconstruction
                 ):
-                    return _blocked(
-                        "flat_revenue_reconstruction_binding_incomplete",
-                        "source_reconstructed flat 收入必须绑定重建 ID、URI、来源类型、方法和限制",
-                    )
+                    quality_issues.append({
+                        "code": "flat_revenue_reconstruction_binding_incomplete",
+                        "path": "/flat_evidence_binding",
+                        "blocking": False,
+                    })
         from lvke_mcp.domains.finance.revenue_models import expand
 
         expanded = expand({"revenue": normalized_spec}, op_years)
@@ -141,6 +144,15 @@ def create_revenue_driver_set(
             _decimal(value) is None or _decimal(value) < 0 for value in revenue_series
         ):
             return _blocked("revenue_expansion_invalid", "收入模型未生成有效的非负逐年序列")
+        release_limitations = sorted({
+            *[str(item) for item in (selection or {}).get("release_limitations") or []],
+            *[str(item.get("code") or "") for item in quality_issues],
+        } - {""})
+        normalized_selection = {
+            **dict(selection or {}),
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
+        }
         payload = {
             "object_type": "RevenueDriverSet",
             "project_context_id": project_context_id,
@@ -164,7 +176,9 @@ def create_revenue_driver_set(
             ],
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
-            "selection": selection,
+            "selection": normalized_selection,
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
             "parent_object_ids": [
                 project_context_id,
                 market_case_id,
@@ -188,7 +202,11 @@ def create_revenue_driver_set(
         )
         return _envelope(
             success=True,
-            status="ok",
+            status="partial" if quality_issues else "ok",
+            blockers=[],
+            warnings=["flat 收入证据绑定不完整；收入对象已固化为质量受限候选。"] if quality_issues else [],
+            quality_issues=quality_issues,
+            release_limitations=release_limitations,
             resource_uris=[record["resource_uri"]],
             next_actions=payload["next_actions"],
             revenue_driver_set_id=record["object_id"],
@@ -254,12 +272,17 @@ def create_build_scale_case(
             return _blocked("build_scale_inputs_invalid", "目标产能、用地和单位面积产能必须大于 0")
         market_selected = (((market.get("payload") or {}).get("selection") or {}).get("selected_candidate") or {})
         market_volume = _decimal(market_selected.get("computed_target_volume"))
+        quality_issues: list[dict[str, Any]] = []
         if (
             market_volume is not None
             and str(target_capacity.get("unit") or "") == str(market_selected.get("unit") or "")
             and target > market_volume
         ):
-            return _blocked("build_capacity_exceeds_selected_market", "目标产能超过已选择市场需求量")
+            quality_issues.append({
+                "code": "build_capacity_exceeds_selected_market",
+                "path": "/target_capacity/value",
+                "blocking": False,
+            })
         required_floor = (target / intensity).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         floor_total = sum((_decimal(item.get("floor_area_m2")) or Decimal("0")) for item in facilities)
         footprint_total = sum((_decimal(item.get("footprint_m2")) or Decimal("0")) for item in facilities)
@@ -279,28 +302,35 @@ def create_build_scale_case(
             failures.append("building_coverage_constraint_failed")
         if green_min is None or green_area is None or green_area / land < green_min:
             failures.append("green_ratio_constraint_failed")
-        if failures:
-            return _envelope(
-                success=False,
-                status="blocked",
-                code="build_scale_constraints_failed",
-                message="建设规模未同时满足产能、用地与规划约束",
-                blockers=failures,
-                calculations={
-                    "required_floor_area_m2": float(required_floor),
-                    "facility_floor_area_m2": float(floor_total),
-                    "plot_ratio": float(plot_ratio),
-                    "building_coverage": float(coverage),
-                },
-            )
+        quality_issues.extend(
+            {"code": code, "blocking": False}
+            for code in failures
+        )
         calculations = {
             "required_floor_area_m2": float(required_floor),
             "facility_floor_area_m2": float(floor_total),
             "facility_footprint_m2": float(footprint_total),
             "plot_ratio": float(plot_ratio.quantize(Decimal("0.000001"))),
             "building_coverage": float(coverage.quantize(Decimal("0.000001"))),
-            "green_ratio": float((green_area / land).quantize(Decimal("0.000001"))),
+            "green_ratio": (
+                float((green_area / land).quantize(Decimal("0.000001")))
+                if green_area is not None
+                else None
+            ),
             "capacity_margin": float((floor_total * intensity - target).quantize(Decimal("0.01"))),
+        }
+        existing_selection = dict(selection or {})
+        combined_quality_issues = [
+            *list(existing_selection.get("quality_issues") or []),
+            *quality_issues,
+        ]
+        normalized_selection = {
+            **existing_selection,
+            "quality_issues": combined_quality_issues,
+            "release_limitations": sorted({
+                *[str(item) for item in existing_selection.get("release_limitations") or []],
+                *[str(item.get("code") or "") for item in combined_quality_issues],
+            } - {""}),
         }
         payload = {
             "object_type": "BuildScaleCase",
@@ -317,7 +347,9 @@ def create_build_scale_case(
             "project_fact_certified": project_fact_certified,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
-            "selection": selection,
+            "selection": normalized_selection,
+            "quality_issues": combined_quality_issues,
+            "release_limitations": normalized_selection["release_limitations"],
             "parent_object_ids": [
                 project_context_id,
                 market_case_id,
@@ -342,7 +374,12 @@ def create_build_scale_case(
         )
         return _envelope(
             success=True,
-            status="ok",
+            status="partial" if combined_quality_issues else "ok",
+            blockers=[],
+            warnings=["建设规模约束未完全满足；选择已固化并保留质量诊断。"] if combined_quality_issues else [],
+            quality_issues=combined_quality_issues,
+            release_limitations=normalized_selection["release_limitations"],
+            feasible=not failures,
             resource_uris=[record["resource_uri"]],
             next_actions=["基于 BuildScaleCase 编制投资和定员驱动，不把估算规模冒充设计成果"],
             build_scale_case_id=record["object_id"],
@@ -400,28 +437,70 @@ def create_cost_driver_set(
             "other_wan", "reserve_wan", "interest_wan", "working_capital_wan",
         )
         amounts = {field: _decimal(invest_breakdown.get(field)) for field in amount_fields}
-        if any(value is None or value < 0 for value in amounts.values()):
-            return _blocked("investment_breakdown_invalid", "投资明细字段必须完整且非负")
-        construction_components = sum(
-            amounts[field] for field in ("civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan")
+        quality_issues = list((selection or {}).get("quality_issues") or [])
+        invalid_amount_fields = [
+            field for field, value in amounts.items() if value is None or value < 0
+        ]
+        quality_issues.extend(
+            {
+                "code": "investment_breakdown_invalid",
+                "path": f"/invest_breakdown/{field}",
+                "blocking": False,
+            }
+            for field in invalid_amount_fields
         )
-        assert amounts["construction_wan"] is not None
-        if abs(amounts["construction_wan"] - construction_components) > Decimal("0.01"):
-            return _blocked("investment_breakdown_inconsistent", "建设投资与工程、其他费、预备费明细不闭合")
+        construction_fields = (
+            "civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan",
+        )
+        construction_components = (
+            sum((amounts[field] for field in construction_fields), Decimal("0"))
+            if all(amounts[field] is not None and amounts[field] >= 0 for field in construction_fields)
+            else None
+        )
+        construction_total = amounts["construction_wan"]
+        if (
+            construction_total is not None
+            and construction_total >= 0
+            and construction_components is not None
+            and abs(construction_total - construction_components) > Decimal("0.01")
+        ):
+            quality_issues.append({
+                "code": "investment_breakdown_inconsistent",
+                "path": "/invest_breakdown/construction_wan",
+                "blocking": False,
+            })
         cost_items: dict[str, float] = {}
         for index, item in enumerate(operating_cost_items):
             name = str(item.get("name") or "").strip()
             amount = _decimal(item.get("annual_amount_wan"))
             if not name or amount is None or amount < 0:
-                return _blocked("operating_cost_item_invalid", f"第 {index + 1} 条经营成本无效")
+                quality_issues.append({
+                    "code": "operating_cost_item_invalid",
+                    "path": f"/operating_cost_items/{index}",
+                    "blocking": False,
+                })
+                continue
             if name in cost_items:
-                return _blocked("operating_cost_item_duplicate", "经营成本科目名称不得重复")
+                quality_issues.append({
+                    "code": "operating_cost_item_duplicate",
+                    "path": f"/operating_cost_items/{index}/name",
+                    "blocking": False,
+                })
+                continue
             cost_items[name] = float(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
         if len(cost_items) < 3:
-            return _blocked("operating_cost_detail_insufficient", "经营成本至少需要三个可审计科目")
-        project_total = sum(
-            amounts[field]
-            for field in ("construction_wan", "interest_wan", "working_capital_wan")
+            quality_issues.append({
+                "code": "operating_cost_detail_insufficient",
+                "path": "/operating_cost_items",
+                "blocking": False,
+            })
+        project_total_parts = [
+            amounts[field] for field in ("construction_wan", "interest_wan", "working_capital_wan")
+        ]
+        project_total = (
+            sum(project_total_parts, Decimal("0"))
+            if all(value is not None and value >= 0 for value in project_total_parts)
+            else None
         )
         ledger = [
             {
@@ -435,6 +514,15 @@ def create_cost_driver_set(
                 "value": cost_items,
             },
         ]
+        release_limitations = sorted({
+            *[str(item) for item in (selection or {}).get("release_limitations") or []],
+            *[str(item.get("code") or "") for item in quality_issues],
+        } - {""})
+        normalized_selection = {
+            **dict(selection or {}),
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
+        }
         payload = {
             "object_type": "CostDriverSet",
             "project_context_id": project_context_id,
@@ -442,14 +530,20 @@ def create_cost_driver_set(
             "invest_breakdown": invest_breakdown,
             "operating_cost_items": operating_cost_items,
             "annual_operating_cost_wan": round(sum(cost_items.values()), 2),
-            "project_total_investment_wan": float(project_total.quantize(Decimal("0.01"))),
+            "project_total_investment_wan": (
+                float(project_total.quantize(Decimal("0.01")))
+                if project_total is not None
+                else None
+            ),
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
-            "selection": selection,
+            "selection": normalized_selection,
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
             "parent_object_ids": [
                 project_context_id,
                 build_scale_case_id,
@@ -466,7 +560,11 @@ def create_cost_driver_set(
         )
         return _envelope(
             success=True,
-            status="ok",
+            status="partial" if quality_issues else "ok",
+            blockers=[],
+            warnings=["投资或经营成本明细不完整；对象已固化并保留原始输入。"] if quality_issues else [],
+            quality_issues=quality_issues,
+            release_limitations=release_limitations,
             resource_uris=[record["resource_uri"]],
             next_actions=["将投资与成本 ledger 合并进 FinanceSpec，并由财务服务重新校验"],
             cost_driver_set_id=record["object_id"],
@@ -521,19 +619,26 @@ def create_labor_plan(
         welfare_total = Decimal("0")
         headcount_total = 0
         names: set[str] = set()
+        quality_issues = list((selection or {}).get("quality_issues") or [])
         for index, item in enumerate(positions):
             name = str(item.get("name") or "").strip()
             category = str(item.get("category") or "").strip()
             headcount = item.get("headcount")
             wage = _decimal(item.get("avg_wage_yuan"))
             welfare_rate = _decimal(item.get("welfare_rate"))
-            if (
-                not name or not category or name in names
-                or not isinstance(headcount, int) or isinstance(headcount, bool) or headcount <= 0
-                or wage is None or wage < 0
-                or welfare_rate is None or welfare_rate < 0 or welfare_rate > 1
-            ):
-                return _blocked("labor_position_invalid", f"第 {index + 1} 条岗位定员无效或重复")
+            valid = (
+                bool(name) and bool(category) and name not in names
+                and isinstance(headcount, int) and not isinstance(headcount, bool) and headcount > 0
+                and wage is not None and wage >= 0
+                and welfare_rate is not None and Decimal("0") <= welfare_rate <= Decimal("1")
+            )
+            if not valid:
+                quality_issues.append({
+                    "code": "labor_position_invalid",
+                    "path": f"/positions/{index}",
+                    "blocking": False,
+                })
+                continue
             names.add(name)
             base = Decimal(headcount) * wage / Decimal("10000")
             wage_total += base
@@ -548,7 +653,11 @@ def create_labor_plan(
                 }
             )
         if not finance_rows:
-            return _blocked("labor_positions_required", "至少需要一个岗位类别")
+            quality_issues.append({
+                "code": "labor_positions_required",
+                "path": "/positions",
+                "blocking": False,
+            })
         wage_total = wage_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         welfare_total = welfare_total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         ledger = [
@@ -568,6 +677,15 @@ def create_labor_plan(
                 "value": float(welfare_total),
             },
         ]
+        release_limitations = sorted({
+            *[str(item) for item in (selection or {}).get("release_limitations") or []],
+            *[str(item.get("code") or "") for item in quality_issues],
+        } - {""})
+        normalized_selection = {
+            **dict(selection or {}),
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
+        }
         payload = {
             "object_type": "LaborPlan",
             "project_context_id": project_context_id,
@@ -582,7 +700,9 @@ def create_labor_plan(
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
-            "selection": selection,
+            "selection": normalized_selection,
+            "quality_issues": quality_issues,
+            "release_limitations": release_limitations,
             "parent_object_ids": [
                 project_context_id,
                 build_scale_case_id,
@@ -599,7 +719,11 @@ def create_labor_plan(
         )
         return _envelope(
             success=True,
-            status="ok",
+            status="partial" if quality_issues else "ok",
+            blockers=[],
+            warnings=["人员数量或工资参数不完整；对象已固化并保留原始岗位输入。"] if quality_issues else [],
+            quality_issues=quality_issues,
+            release_limitations=release_limitations,
             resource_uris=[record["resource_uri"]],
             next_actions=["将 labor_plan 与工资福利 ledger 合并到 CostDriverSet/FinanceSpec，冲突时 fail closed"],
             labor_plan_id=record["object_id"],

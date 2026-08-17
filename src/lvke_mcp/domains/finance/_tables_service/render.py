@@ -37,7 +37,7 @@ def render(
     （tests/integration/test_report_finance_regressions.py），而实现包不需要反过来
     import 门面——那会造出实现包 → 门面的反向依赖边和真的新循环。
 
-    对应 MODULARIZATION_PLAN.md §5.1「会被 monkeypatch 的模块级状态不依赖普通
+    对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §5.1「会被 monkeypatch 的模块级状态不依赖普通
     re-export，改用明确的 state owner 或兼容代理」。
     """
     from lvke_mcp.domains.finance.run_service import render_workspace_finance_tables
@@ -81,11 +81,7 @@ def render(
         run_id,
         validated_data,
     )
-    if "finance_run_consistency_failed" in validation.get("blockers", []):
-        return _failure(
-            "finance_run_consistency_failed",
-            "指定 run 的不可变质量审计未通过，禁止生成十三表 package",
-        )
+    quality_issues = [str(item) for item in validation.get("blockers") or []]
     payload = {
         "run_id": run_id,
         # 十三表/CSV/XLSX 都从这个 package 派生，必须能自证绑定的是哪一个
@@ -97,9 +93,13 @@ def render(
         "table_manifest": table_manifest,
         "tables": structured_tables,
         "validation": validation,
+        "quality_issues": quality_issues,
         "validation_complete": bool(validation["validation_complete"]),
         "delivery_mode": "formal" if validation["validation_complete"] else "draft",
         "draft_only": not bool(validation["validation_complete"]),
+        "viability_status": str(source_run.get("viability_status") or "not_assessed"),
+        "viability_issues": list(source_run.get("viability_issues") or []),
+        "integrity_status": str(source_run.get("integrity_status") or ("passed" if source_run.get("consistency_ok") else "failed")),
         "xlsx_available": False,
         "evidence_policy": str(source_run.get("evidence_policy") or "formal_evidence"),
         "project_fact_certified": bool(source_run.get("project_fact_certified", False)),

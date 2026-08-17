@@ -198,6 +198,44 @@ class FeasibilityDeliveryTest(unittest.TestCase):
         self.assertTrue(reopened["success"])
         self.assertIn("market", reopened["stale_stages"])
 
+    def test_low_quality_release_still_creates_restricted_record(self) -> None:
+        started = service.start({
+            "workspace_id": self.workspace,
+            "delivery_mode": "review_candidate",
+            "idempotency_key": "release-low-quality-start",
+        })
+
+        validated = service.validate({
+            "workspace_id": self.workspace,
+            "delivery_run_id": started["delivery_run_id"],
+            "scope": "formal",
+        })
+        self.assertTrue(validated["success"], validated)
+        self.assertEqual(validated["status"], "partial")
+        self.assertFalse(validated["validation"]["quality_passed"])
+        self.assertEqual(validated["blockers"], [])
+        self.assertTrue(validated["quality_issues"])
+
+        released = service.release({
+            "workspace_id": self.workspace,
+            "delivery_run_id": started["delivery_run_id"],
+            "release_scope": "project_delivery",
+            "release_note": "低质量发布记录回归",
+            "idempotency_key": "release-low-quality-record",
+        })
+        self.assertTrue(released["success"], released)
+        self.assertTrue(released["completed"], released)
+        self.assertEqual(released["status"], "partial")
+        self.assertFalse(released["quality_valid"])
+        self.assertEqual(released["blockers"], [])
+        self.assertTrue(released["quality_issues"])
+        self.assertTrue(released["release_id"].startswith("fdrp_"))
+        self.assertEqual(
+            released["release"]["release_limitations"],
+            released["quality_issues"],
+        )
+        self.assertEqual(released["delivery_run"]["status"], "released")
+
     def test_idempotency_conflict_is_blocked(self) -> None:
         args = {
             "workspace_id": self.workspace,

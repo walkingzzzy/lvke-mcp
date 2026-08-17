@@ -2,7 +2,7 @@
   "schema": "baseline_samples.v1",
   "captured_at": "2026-08-05T20:29:48+0800",
   "protocol_version": "2025-11-25",
-  "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §29.2",
+  "plan_ref": "dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md §29.2",
   "domains": [
     "finance",
     "finance-tables",

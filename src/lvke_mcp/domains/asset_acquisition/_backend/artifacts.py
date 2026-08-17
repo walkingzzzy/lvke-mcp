@@ -78,7 +78,7 @@ def _preflight_formal_artifact(
     workspace_id: str,
     run_id: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """Fail closed before any artifact directory or idempotency state is created."""
+    """Check whether a calculable run exists and collect non-blocking quality diagnostics."""
 
     run = get_run(workspace_id, run_id)
     if not run:
@@ -88,28 +88,41 @@ def _preflight_formal_artifact(
             details={"run_id": run_id},
             next_actions=["读取当前工作区的收购运行并使用有效 run_id 重试"],
         )
-    if run.get("status") != "succeeded" or run.get("consistency_ok") is not True:
+    if run.get("status") != "succeeded" or not isinstance(run.get("result"), dict):
         return None, _artifact_blocked(
-            "RUN_INCONSISTENT",
-            "正式收购工件要求已成功且内部一致的运行",
+            "RUN_UNAVAILABLE",
+            "资产收购运行尚未成功产生可读取结果",
             details={
                 "run_id": run_id,
                 "run_status": run.get("status"),
-                "consistency_ok": bool(run.get("consistency_ok")),
+                "has_result": isinstance(run.get("result"), dict),
             },
-            next_actions=["修正收购 Spec 或模型错误并重新运行"],
+            next_actions=["完成或重新执行该运行后再生成工件"],
         )
 
+    quality_issues: list[dict[str, Any]] = []
+    if run.get("consistency_ok") is not True:
+        quality_issues.append({
+            "code": "RUN_INCONSISTENT",
+            "message": "运行一致性检查未通过；工件仍会生成并披露该限制。",
+        })
     state = _load(workspace_id)
     spec_row = state["specs"].get(str(run.get("spec_id") or "")) or {}
     spec = spec_row.get("spec") or {}
-    if not isinstance(spec, dict) or _hash(spec) != run.get("spec_hash"):
+    if not isinstance(spec, dict):
         return None, _artifact_blocked(
-            _FORMAL_ARTIFACT_REQUIRED,
-            "运行绑定的正式 Spec 快照缺失或不一致",
-            details={"run_id": run_id, "reason": "spec_snapshot_mismatch"},
-            next_actions=["保存新的 Spec 修订、重新确认并重新运行"],
+            "SPEC_SNAPSHOT_MISSING",
+            "运行绑定的 Spec 快照实体缺失，无法构造工件",
+            details={"run_id": run_id},
+            next_actions=["恢复运行绑定的 Spec 快照后重试"],
         )
+    if _hash(spec) != run.get("spec_hash"):
+        quality_issues.append({
+            "code": "SPEC_SNAPSHOT_MISMATCH",
+            "message": "当前 Spec 快照哈希与运行绑定值不一致；工件仍基于运行结果生成。",
+            "expected": run.get("spec_hash"),
+            "actual": _hash(spec),
+        })
 
     current_evidence = _bind_spec_evidence(workspace_id, spec)
     evidence_hash_matches = (
@@ -119,18 +132,14 @@ def _preflight_formal_artifact(
         current_evidence.get("binding_version") == run.get("evidence_binding_version")
     )
     if not evidence_hash_matches or not evidence_version_matches:
-        return None, _artifact_blocked(
-            _EVIDENCE_BINDING_STALE,
-            "运行绑定的证据快照已变化，不能生成正式收购工件",
-            details={
-                "run_id": run_id,
-                "snapshot_binding_hash": run.get("evidence_binding_hash"),
-                "current_binding_hash": current_evidence.get("binding_hash"),
-                "snapshot_binding_version": run.get("evidence_binding_version"),
-                "current_binding_version": current_evidence.get("binding_version"),
-            },
-            next_actions=["保存新的 Spec 修订、重新确认并重新运行后再生成正式工件"],
-        )
+        quality_issues.append({
+            "code": _EVIDENCE_BINDING_STALE,
+            "message": "运行绑定的证据快照已变化；工件仍会生成并披露该限制。",
+            "snapshot_binding_hash": run.get("evidence_binding_hash"),
+            "current_binding_hash": current_evidence.get("binding_hash"),
+            "snapshot_binding_version": run.get("evidence_binding_version"),
+            "current_binding_version": current_evidence.get("binding_version"),
+        })
 
     open_blockers = [
         str(issue.get("code") or "FORMAL_QUALIFICATION_BLOCKED")
@@ -151,26 +160,15 @@ def _preflight_formal_artifact(
     if open_blockers:
         qualification_failures.append("open_blocking_issues")
     if qualification_failures:
-        preview = run.get("delivery_mode") in {"estimate_preview", "process_acceptance"}
-        next_actions = (
-            [
-                "技术预览报告改用 report_prepare，并传 finance_binding.kind=asset_acquisition",
-                "如需正式收购工件，补齐正式证据后保存新 Spec、确认并重新运行",
-            ]
-            if preview
-            else ["关闭正式阻断项，保存新 Spec 修订、重新确认并重新运行"]
-        )
-        return None, _artifact_blocked(
-            _FORMAL_ARTIFACT_REQUIRED,
-            "当前运行不具备正式收购工件资格",
-            details={
-                "run_id": run_id,
-                "delivery_mode": run.get("delivery_mode"),
-                "qualification_failures": qualification_failures,
-                "open_blockers": open_blockers,
-            },
-            next_actions=next_actions,
-        )
+        quality_issues.append({
+            "code": _FORMAL_ARTIFACT_REQUIRED,
+            "message": "正式资格未满足；工件仍会生成并携带限制说明。",
+            "delivery_mode": run.get("delivery_mode"),
+            "qualification_failures": qualification_failures,
+            "open_blockers": open_blockers,
+        })
+    run = dict(run)
+    run["artifact_quality_issues"] = quality_issues
     return run, None
 
 
@@ -442,10 +440,11 @@ def generate_artifacts(
             run, markdown, docx_path, xlsx_path, report_data_path=report_data_path,
         )
         if consistency["status"] != "passed":
-            return {
-                "ok": False, "error": "ARTIFACT_MISMATCH", "reason": "numeric_or_binding_mismatch",
+            run.setdefault("artifact_quality_issues", []).append({
+                "code": "ARTIFACT_MISMATCH",
+                "message": "工件数值或绑定一致性检查未通过；文件仍会发布并保留检查结果。",
                 "consistency": consistency,
-            }
+            })
         files = [md_path, docx_path, xlsx_path, report_data_path]
         index = {
             "artifact_id": artifact_id, "run_id": run_id,
@@ -456,6 +455,7 @@ def generate_artifacts(
             "model_version": run.get("model_version"), "generated_at": _now(),
             "report_data_hash": report_data.get("report_data_hash"),
             "numeric_consistency": consistency,
+            "quality_issues": run.get("artifact_quality_issues") or [],
             "files": [
                 {"name": path.name, "size_bytes": path.stat().st_size, "sha256": _file_hash(path)}
                 for path in files
@@ -477,7 +477,9 @@ def generate_artifacts(
             "updated_at": _now(), "request_id": request_id,
             "files": index["files"], "directory": str(final_root),
             "report_data_hash": report_data.get("report_data_hash"),
-            "numeric_consistency": "passed", "consistency_checks": consistency["checks"],
+            "numeric_consistency": consistency["status"],
+            "consistency_checks": consistency["checks"],
+            "quality_issues": run.get("artifact_quality_issues") or [],
             "state_history": [
                 _history_event(
                     "artifact_generated",

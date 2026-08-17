@@ -313,6 +313,14 @@ def review_combined(
             adverse.append({"reason": "negative_cumulative_surplus", "rows": negative_plan[:20]})
         if run.get("consistency_ok") is False:
             adverse.append({"reason": "finance_consistency_failed", "run_id": run.get("run_id")})
+        # Also check integrity_status for new runs
+        integrity_status = str(run.get("integrity_status") or "")
+        if integrity_status and integrity_status != "passed":
+            adverse.append({"reason": "integrity_failed", "integrity_status": integrity_status, "run_id": run.get("run_id")})
+        # Check viability_status: infeasible runs should not claim success
+        viability_status = str(run.get("viability_status") or "not_assessed")
+        if viability_status == "infeasible":
+            adverse.append({"reason": "viability_infeasible", "run_id": run.get("run_id")})
     positive = bool(re.search(r"(?:项目|本项目|财务).{0,30}(?:可行|具备偿债能力|建议实施|值得投资|风险可控)", all_content, re.S))
     negative = bool(re.search(r"(?:不可行|不具备偿债能力|不建议实施|风险不可控)", all_content))
     if positive and adverse:

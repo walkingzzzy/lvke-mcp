@@ -237,6 +237,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 preparation_integrity_reasons,
             )
         current = _project(workspace_id, review_id, check_freshness=False)
+        quality_issues = sorted(set(str(item) for item in (current.get("blockers") or [])))
         response_status = (
             "accepted" if execution == "async"
             else _review_envelope_status(current)
@@ -251,7 +252,13 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             validation_status=current.get("validation_status"),
             validation_complete=bool(current.get("validation_complete")),
             resource_uris=[_review_uri(workspace_id, review_id)],
-            blockers=current.get("blockers") or [], warnings=current.get("warnings") or [],
+            blockers=[],
+            quality_issues=quality_issues,
+            release_limitations=quality_issues,
+            warnings=[
+                *list(current.get("warnings") or []),
+                *(f"质量提示：{item}" for item in quality_issues),
+            ],
             next_actions=["调用 review_get 查询深度校验进度"] if execution == "async" else ["处理 findings 或导出不可变校验结果"],
         )
     return _write("review_start", args, execute)
@@ -270,6 +277,7 @@ def get_review(args: dict[str, Any] | str, review_id: str = "") -> dict[str, Any
         code = "review_not_found" if str(exc) in {"review_not_found", "invalid review_id"} else str(exc)
         return _blocked(code, _message(code))
     _resume_async_review_if_needed(workspace_id, state)
+    quality_issues = sorted(set(str(item) for item in (state.get("blockers") or [])))
     return _ok(
         status=_review_envelope_status(state),
         review=state, review_id=state["review_id"], review_status=state["review_status"],
@@ -282,7 +290,13 @@ def get_review(args: dict[str, Any] | str, review_id: str = "") -> dict[str, Any
         shadow_comparison=state.get("shadow_comparison") or {},
         finding_counts=state["finding_counts"],
         active_finding_counts=state["active_finding_counts"], coverage=state.get("coverage") or {},
-        blockers=state.get("blockers") or [], warnings=state.get("warnings") or [],
+        blockers=[],
+        quality_issues=quality_issues,
+        release_limitations=quality_issues,
+        warnings=[
+            *list(state.get("warnings") or []),
+            *(f"质量提示：{item}" for item in quality_issues),
+        ],
         resource_uris=[_review_uri(workspace_id, review_id)],
         next_actions=_next_actions(state),
     )

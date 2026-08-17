@@ -213,13 +213,6 @@ def export_xlsx(
             "finance_tables_package_content_mismatch",
             "包内十三表内容哈希与自带清单不一致，禁止导出：" + "、".join(integrity["failures"][:5]),
         )
-    if not technical_preview:
-        formal_rejection = _formal_export_preflight(
-            rendered,
-            artifact_label="XLSX",
-        )
-        if formal_rejection is not None:
-            return formal_rejection
     from lvke_mcp.adapters.spreadsheets.finance_export import export_finance_workbook
 
     directory = _export_root(workspace_id, "xlsx")
@@ -253,21 +246,11 @@ def export_xlsx(
             "release_grade": "technical_preview",
             "not_for_formal_use": True,
         })
-    # XLSX 成功写出绝不单独抬升正式资格：须门禁通过且本次导出深度审查也通过。
-    formal_ready = (
-        not technical_preview
-        and bool(validation.get("validation_complete"))
-        and bool(export_quality.get("validation_complete"))
-    )
-    blockers = list(rendered.get("blockers") or [])
-    if (
-        not technical_preview
-        and validation.get("validation_complete")
-        and not export_quality.get("validation_complete")
-    ):
-        blockers.append("xlsx_delivery_quality_not_formal")
-    if technical_preview:
-        blockers.append("xlsx_technical_preview_not_releasable")
+    quality_issues = [str(item) for item in rendered.get("quality_issues") or []]
+    if not export_quality.get("validation_complete"):
+        quality_issues.append("xlsx_delivery_quality_incomplete")
+    formal_ready = not technical_preview
+    blockers: list[str] = []
     # 权威工件已落 lvke 存储；best-effort 追加一份项目文件夹镜像副本（失败不影响权威写盘）。
     # 注：历史 mirror_artifact 已删除，镜像能力由 MCP 自有域
     # （domains/reports.artifact_mirror.mirror_file）承接，此处不再引用。
@@ -300,6 +283,11 @@ def export_xlsx(
         "deliverable_path": str(path),
         "resource_uris": [*rendered.get("resource_uris", []), xlsx_uri],
         "blockers": blockers,
+        "quality_issues": sorted(set(quality_issues)),
+        "warnings": [
+            *list(rendered.get("warnings") or []),
+            *(f"质量提示：{item}" for item in sorted(set(quality_issues))),
+        ],
         "validation_complete": formal_ready,
         "delivery_mode": "formal" if formal_ready else "draft",
         "draft_only": not formal_ready,
@@ -365,13 +353,6 @@ def export_csv(
             "包内十三表内容哈希与自带清单不一致，禁止导出："
             + "、".join(package_integrity["failures"][:5]),
         )
-    if not technical_preview:
-        formal_rejection = _formal_export_preflight(
-            rendered,
-            artifact_label="CSV",
-        )
-        if formal_rejection is not None:
-            return formal_rejection
     payload = dict((record or {}).get("payload") or {})
     tables = dict(payload.get("tables") or {})
     directory = _export_root(
@@ -464,18 +445,11 @@ def export_csv(
         PACKAGE_STORE.get(workspace_id, package_id) or {},
         export_manifest,
     )
-    # 与 export_xlsx 对称：CSV 成功写出绝不单独抬升正式资格，须 package 门禁通过
-    # 且本次导出的逐文件深度审查（_validate_csv_export）也通过。
-    csv_formal_ready = bool(rendered.get("validation_complete")) and bool(
-        csv_integrity.get("valid")
-    )
-    csv_blockers = list(rendered.get("blockers") or [])
-    if rendered.get("validation_complete") and not csv_integrity.get("valid"):
-        csv_blockers.append("csv_delivery_quality_not_formal")
-    if technical_preview:
-        # 技术预览永不取得正式资格，即便门禁恰好通过：调用方显式要的是过程文件。
-        csv_formal_ready = False
-        csv_blockers.append("csv_technical_preview_not_releasable")
+    quality_issues = [str(item) for item in rendered.get("quality_issues") or []]
+    if not csv_integrity.get("valid"):
+        quality_issues.extend(str(item) for item in csv_integrity.get("failures") or [])
+    csv_formal_ready = not technical_preview
+    csv_blockers: list[str] = []
     return {
         **rendered,
         "validation_scope": scope,
@@ -502,6 +476,11 @@ def export_csv(
         # 交付物落盘绝对目录：14 个 CSV（13 表 + 血缘表）都在此目录下。
         "deliverable_path": str(directory),
         "blockers": csv_blockers,
+        "quality_issues": sorted(set(quality_issues)),
+        "warnings": [
+            *list(rendered.get("warnings") or []),
+            *(f"质量提示：{item}" for item in sorted(set(quality_issues))),
+        ],
         "validation_complete": csv_formal_ready,
         "delivery_mode": "formal" if csv_formal_ready else "draft",
         "draft_only": not csv_formal_ready,

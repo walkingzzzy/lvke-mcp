@@ -163,16 +163,18 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
         ):
             result = report_validation.validate_report("ws", "rev_public")
 
-        self.assertFalse(result["valid"])
-        self.assertIn("finance_binding_blocked", result["blockers"])
-        self.assertFalse(result["readiness"]["publishable"])
-        self.assertIn("finance_binding_blocked", result["readiness"]["blocking_issues"])
+        self.assertTrue(result["valid"])
+        self.assertFalse(result["quality_valid"])
+        self.assertIn("finance_binding_blocked", result["quality_issues"])
+        self.assertEqual(result["blockers"], [])
+        self.assertTrue(result["readiness"]["publishable"])
+        self.assertEqual(result["readiness"]["blocking_issues"], [])
         self.assertIn(
             "finance_binding_blocked",
-            {item["code"] for item in result["readiness"]["blockers"]},
+            {item["code"] for item in result["readiness"]["quality_issues"]},
         )
 
-    def test_acquisition_preview_is_technical_only_not_formal_release(self) -> None:
+    def test_acquisition_preview_records_release_limitation_without_blocking(self) -> None:
         record = {
             "object_id": "rev_public",
             "resource_uri": "lvke://reports/workspaces/ws/revisions/rev_public",
@@ -248,10 +250,48 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertTrue(result["technical_ready"])
-        self.assertFalse(result["formal_release_eligible"])
-        self.assertFalse(result["readiness"]["publishable"])
+        self.assertTrue(result["formal_release_eligible"])
+        self.assertTrue(result["readiness"]["publishable"])
+        self.assertEqual(result["blockers"], [])
         self.assertEqual(result["finance_binding"]["validation_level"], "preview")
+        self.assertIn("preview", result["warnings"])
         self.assertEqual(readiness.call_args.kwargs["expected_chapters"], [])
+
+    def test_report_readiness_keeps_partial_validation_actionable(self) -> None:
+        revision = {
+            "object_id": "rrv_partial",
+            "payload": {},
+        }
+        validation = {
+            "success": True,
+            "status": "partial",
+            "run_id": "run-1",
+            "finance_tables_package_id": "ftp-1",
+            "basis_hash": "sha256:" + "a" * 64,
+            "readiness": {"publishable": True},
+            "resource_uris": ["lvke://reports/workspaces/ws/revisions/rrv_partial"],
+            "warnings": ["质量提示：research_package_required"],
+            "blockers": [],
+            "quality_issues": ["research_package_required"],
+            "next_actions": ["可直接导出"],
+        }
+        with (
+            patch.object(report_application.REVISION_STORE, "get", return_value=revision),
+            patch(
+                "lvke_mcp.domains.reports._service.generation.validate",
+                return_value=validation,
+            ),
+        ):
+            result = report_application.readiness("ws", "rrv_partial")
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["business_success"])
+        self.assertTrue(result["completed"])
+        self.assertTrue(result["ready"])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["blockers"], [])
+        self.assertEqual(result["quality_issues"], ["research_package_required"])
+        self.assertEqual(result["release_limitations"], ["research_package_required"])
 
     def test_render_manifest_describes_structured_tables_not_stale_run_manifest(self) -> None:
         structured = {
@@ -337,7 +377,7 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
         self.assertEqual(validation["missing_delivery_keys"], [])
         self.assertNotIn("renderer_missing_delivery_keys", validation["blockers"])
 
-    def test_partial_finance_package_is_draft_ready_but_not_formal_ready(self) -> None:
+    def test_partial_finance_package_is_generated_with_quality_diagnostics(self) -> None:
         evidence = {"basis_hash": "sha256:" + "c" * 64, "payload": {}}
         research = {"status": "done", "basis_hash": "sha256:" + "d" * 64}
         package = {
@@ -379,10 +419,12 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertTrue(result["draft_ready"])
-        self.assertFalse(result["formal_ready"])
+        self.assertTrue(result["formal_ready"])
         self.assertTrue(result["ready"])
-        self.assertIn("finance_tables_package_not_formal", result["formal_blockers"])
-        self.assertFalse(stored["formal_ready"])
+        self.assertEqual(result["formal_blockers"], [])
+        self.assertIn("finance_tables_package_not_formal", result["quality_issues"])
+        self.assertTrue(stored["formal_ready"])
+        self.assertIn("finance_tables_package_not_formal", stored["quality_issues"])
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
 
     # 1. 资金筹措合计 == 总投资
     fund_sum = round(fund["capital"] + fund["loan"] + fund["subsidy"], 2)
-    checks.append({"rule": "资金筹措合计=总投资", "ok": abs(fund_sum - inv["total"]) < 1.0,
+    checks.append({"rule": "资金筹措合计=总投资", "category": "integrity", "ok": abs(fund_sum - inv["total"]) < 1.0,
                    "detail": f"筹措合计 {_fmt(fund_sum)} vs 总投资 {_fmt(inv['total'])} 万元"})
 
     # 2. 项目现金流表 IRR == 主要技经指标 IRR（三处一致的核心）
@@ -33,7 +33,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         cfs = [x["net_cashflow"] for x in (annual.get("project_cashflow") or [])]
         try:
             irr_tbl = round(_irr(cfs) * 100, 2)
-            checks.append({"rule": "现金流表IRR=技经指标IRR", "ok": abs(irr_tbl - ind["project_irr_pct"]) < 0.5,
+            checks.append({"rule": "现金流表IRR=技经指标IRR", "category": "integrity", "ok": abs(irr_tbl - ind["project_irr_pct"]) < 0.5,
                            "detail": f"现金流表 {irr_tbl}% vs 指标表 {ind['project_irr_pct']}%"})
         except Exception:  # noqa: BLE001
             pass
@@ -43,13 +43,13 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
     if tc:
         ok3 = all(abs(x["total_cost"] - (x["operating_cost"] + x["depreciation"] + x["amortization"] + x["interest"])) < 1.0
                   for x in tc)
-        checks.append({"rule": "总成本=经营成本+折旧+摊销+利息", "ok": ok3, "detail": f"逐年校验 {len(tc)} 年"})
+        checks.append({"rule": "总成本=经营成本+折旧+摊销+利息", "category": "integrity", "ok": ok3, "detail": f"逐年校验 {len(tc)} 年"})
 
     # 4. 建设期利息汇总 == 投资估算中的建设期利息
     idc = annual.get("interest_during_construction") or []
     if idc:
         idc_sum = round(sum(x["interest"] for x in idc), 2)
-        checks.append({"rule": "建设期利息汇总=投资估算利息", "ok": abs(idc_sum - inv["interest"]) < 1.0,
+        checks.append({"rule": "建设期利息汇总=投资估算利息", "category": "integrity", "ok": abs(idc_sum - inv["interest"]) < 1.0,
                        "detail": f"汇总 {_fmt(idc_sum)} vs 估算 {_fmt(inv['interest'])} 万元"})
 
     # 5. 流动资金分项净额（流动资产−流动负债）== 投资估算流动资金（附表3 勾稽）
@@ -67,6 +67,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         working_capital_ok = abs(delta) <= 0.01
         check = {
             "rule": "流动资金分项净额=投资估算流动资金",
+            "category": "integrity",
             "ok": working_capital_ok,
             "detail": f"分项净额 {_fmt(net)} vs 估算 {_fmt(stated)} 万元，差额 {_fmt(delta)} 万元",
         }
@@ -87,7 +88,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
             abs((dep_tbl[i]["depreciation"] + (amort_tbl[i]["amortization"] if i < len(amort_tbl) else 0.0))
                 - (tc[i]["depreciation"] + tc[i]["amortization"])) < 1.0
             for i in range(min(len(dep_tbl), len(tc))))
-        checks.append({"rule": "折旧表+摊销表=总成本表折旧摊销", "ok": ok6,
+        checks.append({"rule": "折旧表+摊销表=总成本表折旧摊销", "category": "integrity", "ok": ok6,
                        "detail": f"逐年校验 {min(len(dep_tbl), len(tc))} 年（附表6-2/6-3↔附表6）"})
 
     # 7.【H1】资本金现金流建设期股东净投入 == 非流动投资资金缺口。
@@ -176,6 +177,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         ok9 = False
 
     checks.append({"rule": "投资构成分项合计=总投资",
+                   "category": "integrity",
                    "ok": ok9,
                    "severity": "warning" if (gap >= 1.0 and gap < inv["total"] * 0.01) else ("error" if gap >= inv["total"] * 0.01 else None),
                    "blocking": gap >= inv["total"] * 0.01,
@@ -189,7 +191,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
     if tc and pd_rows:
         n = min(len(tc), len(pd_rows))
         ok11 = all(abs(pd_rows[i]["total_cost"] - tc[i]["total_cost"]) < 1.0 for i in range(n))
-        checks.append({"rule": "附表7利润表总成本=附表6总成本(含息)", "ok": ok11,
+        checks.append({"rule": "附表7利润表总成本=附表6总成本(含息)", "category": "integrity", "ok": ok11,
                        "detail": f"逐年校验 {n} 年(利润表已计运营期利息)"})
 
     # 12.【P0-5】财务计划现金流量表三活动自洽：经营净现金 − 投资净流出 − 还本付息 == 当期净现金流。
@@ -199,7 +201,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         ok12 = all(
             abs((x["operating_net"] + x["finance_in"] - x["invest_out"] - x["debt_service"]) - x["net_cashflow"]) < 1.0
             for x in fp)
-        checks.append({"rule": "财务计划现金流三活动合计=当期净现金流", "ok": ok12,
+        checks.append({"rule": "财务计划现金流三活动合计=当期净现金流", "category": "integrity", "ok": ok12,
                        "detail": f"逐年校验 {len(fp)} 期(投资/融资/经营三活动自洽)"})
 
     # 13.【P0-4】附表9 逐行组成合计 == 净现金流:营收−现金经营成本−税金−调整所得税−建设投资−流资增加+回收。
@@ -211,7 +213,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                       - (p.get("income_tax") or 0.0) - (p.get("construction") or 0.0) - (p.get("wc_change") or 0.0)
                       + (p.get("recover") or 0.0), 2) - p["net_cashflow"]) < 1.0
             for p in proj)
-        checks.append({"rule": "附表9组成合计=净现金流", "ok": ok13,
+        checks.append({"rule": "附表9组成合计=净现金流", "category": "integrity", "ok": ok13,
                        "detail": f"逐年复核 {len(proj)} 期(营收−成本−税−调整所得税−建设投资−流资+回收)"})
 
     # 14.【P0 附加税同源】达产年 附表5.税金及附加 == 附表9.税金及附加（运营期）
@@ -228,6 +230,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
             t9 = float(op_proj[0].get("tax_surtax") or 0.0)
             checks.append({
                 "rule": "附表5税金及附加=附表9税金及附加",
+                "category": "integrity",
                 "ok": ok14,
                 "detail": f"运营期逐年比对 {n} 年；首年 附表5={_fmt(t5)} vs 附表9={_fmt(t9)} 万元",
                 "blocking": True,
@@ -247,6 +250,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                 ok14b = abs(float(ind_tax) - t5_peak) < 1.0
                 checks.append({
                     "rule": "indicators附加税=附表5税金及附加",
+                    "category": "integrity",
                     "ok": ok14b,
                     "detail": (
                         f"indicators={_fmt(ind_tax)} vs 附表5达产年(第{peak_idx+1}运营年,"
@@ -264,6 +268,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         ok15 = abs(sum_ci - fund_cap) < max(fund_cap * 0.01, 1.0)
         checks.append({
             "rule": "附表10资本金投入合计=筹措资本金",
+            "category": "integrity",
             "ok": ok15,
             "detail": f"sum(capital_invest)={_fmt(sum_ci)} vs funding.capital={_fmt(fund_cap)} 万元",
             "blocking": True,
@@ -280,6 +285,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         ok16 = bool(has_bal and has_rate and has_end)
         checks.append({
             "rule": "附表2建设期利息含期初利率期末",
+            "category": "integrity",
             "ok": ok16,
             "detail": f"begin={has_bal} rate={has_rate} end={has_end} rows={len(idc_ann)}",
             "blocking": True,
@@ -290,7 +296,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
     if det:
         seg_sum = round(det["engineering_total"] + det["other_total"] + det["contingency_total"], 2)
         constr = inv.get("construction") or 0.0
-        checks.append({"rule": "投资明细三段合计=建设投资",
+        checks.append({"rule": "投资明细三段合计=建设投资", "category": "integrity",
                        "ok": abs(seg_sum - constr) < max(constr * 0.01, 1.0),
                        "detail": f"三段合计 {_fmt(seg_sum)}(工程{_fmt(det['engineering_total'])}"
                                  f"+其他{_fmt(det['other_total'])}+预备{_fmt(det['contingency_total'])}) "
@@ -328,9 +334,10 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                 icr_issues.append(f"第{year}年ICR={icr:.2f}")
                 checks.append({
                     "rule": "利息备付率ICR>=1",
+                    "category": "viability",
                     "ok": False,
                     "severity": severity,
-                    "blocking": bool(icr < 0.8 and not gap_support_active),
+                    "blocking": False,
                     "detail": f"第{year}年ICR={icr:.2f}<1,偿债风险(当年EBITDA不足以覆盖利息)"
                 })
 
@@ -338,6 +345,7 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
                 dscr_issues.append(f"第{year}年DSCR={dscr:.2f}")
                 checks.append({
                     "rule": "偿债备付率DSCR>=1",
+                    "category": "viability",
                     "ok": False,
                     "severity": "warning",
                     "blocking": False,
@@ -348,9 +356,10 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
         if len(icr_issues) > 3:
             checks.append({
                 "rule": "利息备付率ICR>=1",
+                "category": "viability",
                 "ok": False,
                 "severity": "error",
-                "blocking": not gap_support_active,
+                "blocking": False,
                 "detail": (
                     f"ICR<1年数: {len(icr_issues)}年,偿债能力严重不足,建议调整融资结构"
                     + ("；年度据实财政支持已覆盖必要偿债缺口，但不改变经营能力风险" if gap_support_active else "")

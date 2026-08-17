@@ -167,9 +167,19 @@ def validate_cost_drivers(
     if len(items) < 3:
         errors.append("/operating_cost_items")
     if errors:
+        unique = sorted(set(errors))
         return service._envelope(
-            success=False, status="blocked", code="cost_driver_validation_failed",
-            blockers=sorted(set(errors)), valid=False
+            success=True,
+            status="partial",
+            code="cost_driver_validation_failed",
+            blockers=[],
+            warnings=["投资或运营成本驱动不完整；候选仍可确认和进入下游。"],
+            quality_issues=[
+                {"code": "cost_driver_validation_failed", "path": path, "blocking": False}
+                for path in unique
+            ],
+            field_errors={path: {"code": "invalid_or_missing_value"} for path in unique},
+            valid=False,
         )
     return service._envelope(success=True, status="ok", valid=True)
 
@@ -186,17 +196,31 @@ def confirm_cost_drivers(
     )
     if error:
         return error
-    if len(str(confirmation_reason or "").strip()) < 10:
-        return service._blocked("cost_confirmation_reason_insufficient", "确认理由至少 10 个字符")
+    reason = str(confirmation_reason or "").strip()
     payload = _payload(record)
     items, errors = _calculated_cost_items(payload.get("operating_cost_items") or [])
+    quality_issues: list[dict[str, Any]] = []
+    if len(reason) < 10:
+        quality_issues.append({
+            "code": "cost_confirmation_reason_insufficient",
+            "path": "/confirmation_reason",
+            "blocking": False,
+        })
     if errors:
-        return service._blocked("cost_driver_not_calculable", "成本候选仍缺少计算输入")
+        quality_issues.extend(
+            {"code": "cost_driver_not_calculable", "path": path, "blocking": False}
+            for path in errors
+        )
     return service.create_cost_driver_set(
         workspace_id, payload["project_context_id"], payload["build_scale_case_id"],
-        payload["invest_breakdown"], items,
+        payload["invest_breakdown"], items if not errors else payload.get("operating_cost_items") or [],
         parent_candidate_id=cost_driver_set_id,
-        selection={"confirmation_reason": confirmation_reason.strip()}, idempotency_key=idempotency_key
+        selection={
+            "confirmation_reason": reason,
+            "quality_issues": quality_issues,
+            "release_limitations": [item["code"] for item in quality_issues],
+        },
+        idempotency_key=idempotency_key
     )
 
 

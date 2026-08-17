@@ -1,7 +1,7 @@
 {
   "schema": "api_snapshot.v1",
   "generated_at": "2026-08-15T02:11:53+0000",
-  "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
+  "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
     "module_count": 446,

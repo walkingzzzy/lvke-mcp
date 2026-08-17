@@ -44,6 +44,9 @@ def _tool_run_model(args: dict) -> dict:
 
 
 def _legacy_tool_run_model(args: dict) -> dict:
+    # Legacy imports share the governed application path so gate semantics cannot diverge.
+    return _tool_run_model(args)
+
     wsid = _ws(args)
     if not wsid:
         return _err_env(f"{SERVER_NAME}.invalid_argument", "workspace_id 必填")
@@ -128,6 +131,8 @@ def _legacy_tool_run_model(args: dict) -> dict:
         basis_of_estimate_hash = ""
         force_flat = bool(args.get("force_flat") or False)
         stored_spec = None
+        preflight_warnings: list[str] = []
+        preflight_field_errors: list[dict[str, Any]] = []
         if spec_id and (spec is not None or force_flat):
             return _err_env(
                 f"{SERVER_NAME}.invalid_argument",
@@ -143,15 +148,7 @@ def _legacy_tool_run_model(args: dict) -> dict:
             if spec is None:
                 return _err_env(f"{SERVER_NAME}.spec_invalid", "FinanceSpec 快照无效", status="blocked")
             if mode == "review_candidate" and stored_payload.get("confirmation_status") != "confirmed":
-                return _ok_env(
-                    {"available": False, "error": "spec_confirmation_required", "spec_id": spec_id},
-                    source=f"{SERVER_NAME}.finance_run_model",
-                    status="blocked",
-                    blockers=["spec_confirmation_required"],
-                    next_actions=["先调用 finance_confirm_spec 确认候选 Spec"],
-                    run_id=None,
-                    missing_inputs=[],
-                )
+                preflight_warnings.append("spec_confirmation_required")
             if mode == "review_candidate":
                 boe_record = (
                     BASIS_OF_ESTIMATE_STORE.get(
@@ -170,23 +167,10 @@ def _legacy_tool_run_model(args: dict) -> dict:
                     or boe_payload.get("spec_id") != spec_id
                     or not boe_payload.get("formal_ready")
                 ):
-                    return _ok_env(
-                        {
-                            "available": False,
-                            "error": "basis_of_estimate_required",
-                            "spec_id": spec_id,
-                        },
-                        source=f"{SERVER_NAME}.finance_run_model",
-                        status="blocked",
-                        blockers=["basis_of_estimate_required"],
-                        next_actions=[
-                            "调用 finance_build_basis_of_estimate，完整绑定重大输入来源与选择理由"
-                        ],
-                        run_id=None,
-                        missing_inputs=[],
-                    )
-                basis_of_estimate_id = boe_record["object_id"]
-                basis_of_estimate_hash = boe_record["basis_hash"]
+                    preflight_warnings.append("basis_of_estimate_required")
+                else:
+                    basis_of_estimate_id = boe_record["object_id"]
+                    basis_of_estimate_hash = boe_record["basis_hash"]
             elif basis_of_estimate_id:
                 boe_record = BASIS_OF_ESTIMATE_STORE.get(
                     wsid, basis_of_estimate_id
@@ -201,37 +185,14 @@ def _legacy_tool_run_model(args: dict) -> dict:
                     or boe_payload.get("spec_id") != spec_id
                     or not boe_payload.get("technical_ready")
                 ):
-                    return _ok_env(
-                        {
-                            "available": False,
-                            "error": "basis_of_estimate_invalid",
-                            "spec_id": spec_id,
-                        },
-                        source=f"{SERVER_NAME}.finance_run_model",
-                        status="blocked",
-                        blockers=["basis_of_estimate_invalid"],
-                        next_actions=["使用同一 spec 的完整 BoE，或省略它运行 estimate preview"],
-                        run_id=None,
-                        missing_inputs=[],
-                    )
-                basis_of_estimate_hash = boe_record["basis_hash"]
+                    preflight_warnings.append("basis_of_estimate_invalid")
+                    basis_of_estimate_id = ""
+                else:
+                    basis_of_estimate_hash = boe_record["basis_hash"]
         if spec is None and not force_flat:
-            return _ok_env(
-                {
-                    "ok": False,
-                    "available": False,
-                    "error": "spec_required",
-                    "message": "finance_run_model 需要已固化 spec；请先调用 finance_prepare_spec",
-                },
-                source=f"{SERVER_NAME}.finance_run_model",
-                status="blocked",
-                blockers=["spec_required：缺已固化 FinanceSpec"],
-                next_actions=[
-                    "先调用 finance_prepare_spec 固化 spec，或显式 force_flat=true"
-                ],
-                run_id=None,
-                missing_inputs=[],
-            )
+            spec = {}
+            force_flat = True
+            preflight_warnings.append("spec_required_defaulted_to_deterministic_baseline")
         stored_payload = stored_spec.get("payload") if stored_spec else {}
         input_revision = args.get("input_revision") if isinstance(args.get("input_revision"), dict) else stored_payload.get("input_revision")
         input_revision_id = args.get("input_revision_id", stored_payload.get("input_revision_id"))
@@ -239,37 +200,9 @@ def _legacy_tool_run_model(args: dict) -> dict:
         if spec_id and not isinstance(input_revision, dict):
             input_revision = {}
         if spec_id and not input_revision.get("total_investment_wan"):
-            return _ok_env(
-                {
-                    "available": False,
-                    "error": "missing_inputs",
-                    "missing_inputs": ["total_investment_wan"],
-                    "spec_id": spec_id,
-                },
-                source=f"{SERVER_NAME}.finance_run_model",
-                status="missing_inputs",
-                blockers=["缺少必要输入：total_investment_wan"],
-                next_actions=["重新 prepare 并确认包含总投资的 FinanceSpec"],
-                run_id=None,
-                spec_id=spec_id,
-                missing_inputs=["total_investment_wan"],
-            )
+            preflight_warnings.append("missing_input:total_investment_wan")
         if not _revenue_input_complete(spec, input_revision):
-            return _ok_env(
-                {
-                    "available": False,
-                    "error": "revenue_inputs_required",
-                    "missing_inputs": ["annual_revenue_wan_or_revenue_driver"],
-                    "spec_id": spec_id,
-                },
-                source=f"{SERVER_NAME}.finance_run_model",
-                status="missing_inputs",
-                blockers=["revenue_inputs_required"],
-                next_actions=["补充 annual_revenue_wan 或完整收入模型后重新 prepare/confirm"],
-                run_id=None,
-                spec_id=spec_id,
-                missing_inputs=["annual_revenue_wan_or_revenue_driver"],
-            )
+            preflight_warnings.append("missing_input:annual_revenue_wan_or_revenue_driver")
         if (
             mode == "review_candidate"
             and isinstance(input_revision, dict)
@@ -293,24 +226,13 @@ def _legacy_tool_run_model(args: dict) -> dict:
                 if turnover.get(name) is None and turnover.get(f"{name}_days") is None
             ]
             if has_working_capital and missing_turnover:
-                return _ok_env(
-                    {
-                        "available": False,
-                        "error": "working_capital_turnover_required",
-                        "missing_inputs": [f"wc_turnover.{name}" for name in missing_turnover],
-                        "field_errors": [{
-                            "path": f"/input_revision/wc_turnover/{name}",
-                            "code": "required_for_review_candidate",
-                            "message": f"正式候选缺少 {name} 周转参数",
-                        } for name in missing_turnover],
-                    },
-                    source=f"{SERVER_NAME}.finance_run_model",
-                    status="missing_inputs",
-                    blockers=["working_capital_turnover_required"],
-                    next_actions=["补充 wc_turnover 分项周转天数后重新运行"],
-                    run_id=None,
-                    missing_inputs=[f"wc_turnover.{name}" for name in missing_turnover],
-                )
+                preflight_warnings.append("working_capital_turnover_required")
+                preflight_field_errors.extend({
+                    "path": f"/input_revision/wc_turnover/{name}",
+                    "code": "required_for_review_candidate",
+                    "message": f"正式候选缺少 {name} 周转参数；运行将使用底层确定性解析规则。",
+                    "blocking": False,
+                } for name in missing_turnover)
 
         IDEMPOTENCY_STORE.put(
             wsid,
@@ -354,6 +276,21 @@ def _legacy_tool_run_model(args: dict) -> dict:
             ),
             selected_scenario_id=str(args.get("selected_scenario_id") or "base"),
         )
+        data = dict(data)
+        if preflight_warnings:
+            data["quality_issues"] = [
+                *list(data.get("quality_issues") or []),
+                *[
+                    {"code": item, "blocking": False, "source": "legacy_run_preflight"}
+                    for item in preflight_warnings
+                ],
+            ]
+            data["warnings"] = [*list(data.get("warnings") or []), *preflight_warnings]
+        if preflight_field_errors:
+            data["field_errors"] = [
+                *list(data.get("field_errors") or []),
+                *preflight_field_errors,
+            ]
         run_id = str(data.get("run_id") or "") or None
         if data.get("available") and not run_id:
             data = dict(data)
@@ -372,28 +309,35 @@ def _legacy_tool_run_model(args: dict) -> dict:
         if uri:
             data["resource_uri"] = uri  # 兼容旧调用方
         missing = _str_list(data.get("missing_inputs"))
-        if data.get("available") and data.get("consistency_ok") is False:
-            status = "blocked"
-            blockers = _blocking_rules(data) or ["finance_consistency_failed"]
-            next_actions = ["修正财务勾稽问题后重新运行；当前 run 不可进入十三表正式候选"]
-        elif data.get("available") and run_id:
-            status = "ok"
+        if data.get("available") and run_id:
+            quality_codes = [
+                str(item.get("rule") or item.get("code") or item)
+                for item in (data.get("blocking_issues") or [])
+            ]
+            if data.get("consistency_ok") is False:
+                quality_codes.append("finance_consistency_failed")
+            quality_codes.extend(f"missing_input:{item}" for item in missing)
+            quality_codes.extend(preflight_warnings)
+            quality_codes = list(dict.fromkeys(code for code in quality_codes if code))
+            status = "partial" if quality_codes else "ok"
             blockers: list[str] = []
             next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表"]
-        elif missing:
-            # 缺关键输入：如实 missing_inputs，不生成 IRR。
-            status = "missing_inputs"
-            blockers = [f"缺少必要输入：{item}" for item in missing]
-            next_actions = ["补齐缺失输入后重试 finance_run_model"]
+            if quality_codes:
+                data["quality_issues"] = [
+                    *list(data.get("quality_issues") or []),
+                    *[
+                        {"code": code, "blocking": False, "source": "legacy_run_projection"}
+                        for code in quality_codes
+                    ],
+                ]
+                next_actions.append("正式使用前复核 quality_issues、field_errors 与 assumptions")
         else:
-            status = "blocked"
-            blockers = _blocking_rules(data) or [
-                str(data.get("reason") or "run_not_available")
-            ]
+            status = "failed"
+            blockers = []
             next_actions = (
-                ["检查财务审计存储后重试；不得使用未持久化结果生成十三表"]
+                ["检查财务审计存储后重试；当前计算结果未形成可读取的 FinanceRun"]
                 if data.get("reason") == "finance_run_persistence_failed"
-                else ["按 blocking_issues 修正输入或 spec 后重试"]
+                else ["检查计算或持久化错误后重试"]
             )
         result = _ok_env(
             data,

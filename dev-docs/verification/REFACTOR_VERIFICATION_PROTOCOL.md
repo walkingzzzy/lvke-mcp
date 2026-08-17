@@ -1,6 +1,6 @@
 # 模块化重构验证协议
 
-> 配套文档：`MODULARIZATION_PLAN.md`（目标、波次、文件清单）
+> 配套文档：[`MODULARIZATION_PLAN.md`](../plans/MODULARIZATION_PLAN.md)（目标、波次、文件清单）
 > 本文只写「怎么验证、什么算通过」。方案文档不再重复验证细节。
 
 ## 1. 基线

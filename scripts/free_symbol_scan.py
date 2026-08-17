@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """自由符号解析校验：搬移后的模块不能引用任何解析不到的名字。
 
-对应 MODULARIZATION_PLAN.md §5.2「纯搬移 PR」。
+对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §5.2「纯搬移 PR」。
 
 ``split_fidelity.py`` 比较的是**搬移后定义体的 AST**。它能证明「函数体没被
 改写」，但证明不了「函数体里的名字还能解析」——模块级常量留在 base 模块、

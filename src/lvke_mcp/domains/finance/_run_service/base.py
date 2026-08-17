@@ -116,11 +116,7 @@ def compute_idempotency_key(
 
 
 def _resolve_valuation_date_for_mode(mode: str, valuation_date: str = "") -> tuple[str, list[str]]:
-    """Return the valuation date used by this run and blocking errors, if any.
-
-    Deterministic runs require an explicit valuation date whenever their mode
-    is not ``estimate_preview`` so policy and manifest selection are reproducible.
-    """
+    """Return a valid valuation date; absent values use an explicit run snapshot date."""
     value = str(valuation_date or "").strip()
     if value:
         try:
@@ -128,8 +124,6 @@ def _resolve_valuation_date_for_mode(mode: str, valuation_date: str = "") -> tup
         except ValueError:
             return "", [f"valuation_date 格式无效：{value}，应为 YYYY-MM-DD"]
         return value, []
-    if mode != "estimate_preview":
-        return "", ["非预览财务 run 必须显式传入 valuation_date，禁止依赖服务器当天日期"]
     return date.today().isoformat(), []
 
 

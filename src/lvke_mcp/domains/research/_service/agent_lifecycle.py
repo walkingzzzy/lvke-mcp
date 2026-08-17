@@ -374,24 +374,22 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         dict(item) for item in (args.get("market_field_bindings") or [])
         if isinstance(item, dict)
     ]
-    blockers: list[str] = []
+    quality_issues: list[str] = []
     if not report_md:
-        blockers.append("report_required")
+        quality_issues.append("report_missing")
+        report_md = (
+            "# 研究说明\n\n"
+            "当前可用资料不足，尚未形成完整研究正文。本研究包仍予固化，"
+            "供后续报告生成，并将缺失项作为限制条件披露。\n"
+        )
     if not citations:
-        blockers.append("citations_required")
+        quality_issues.append("citations_missing")
     if not evidence_pack_ids and not source_snapshot_ids:
-        blockers.append("source_basis_required")
+        quality_issues.append("source_basis_missing")
     evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
     for evidence_id, evidence_record in zip(evidence_pack_ids, evidence_records):
         if evidence_record is None:
-            blockers.append(f"evidence_pack_not_found:{evidence_id}")
-    if blockers:
-        return {
-            "success": False, "status": "blocked", "code": "agent_submission_incomplete",
-            "message": "研究提交缺少正文、引用或来源依据", "resource_uris": [],
-            "warnings": [], "blockers": blockers,
-            "next_actions": ["补齐 report_md、citations 和 evidence_pack_id/source_snapshot_id 后重试"],
-        }
+            quality_issues.append(f"evidence_pack_not_found:{evidence_id}")
     artifacts = {
         "report": report_md,
         "sources": citations,
@@ -403,7 +401,10 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
             "source_count": len(citations),
             "usable_source_count": int(quality_summary.get("usable_source_count") or 0),
             "citation_coverage": quality_summary.get("citation_coverage"),
-            "missing_fields": [str(item) for item in quality_summary.get("missing_fields") or []],
+            "missing_fields": [
+                *[str(item) for item in quality_summary.get("missing_fields") or []],
+                *quality_issues,
+            ],
             "conflicts": [dict(item) for item in quality_summary.get("conflicts") or [] if isinstance(item, dict)],
             "submitted_by_agent": True,
         },
@@ -441,13 +442,16 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         for item in evidence_payloads
     )
     reconstruction_records = [row for item in evidence_payloads for row in (item.get("reconstruction_records") or []) if isinstance(row, dict)]
+    limitations = ["正文由调用 Agent 撰写，尚无独立 DR 质量审计"]
+    limitations.extend(f"资料限制：{issue}" for issue in quality_issues)
     payload = {
         "task_id": task_id,
         "status": "partial",
         "profile": "agent_orchestrated",
         "artifact_names": list(artifacts),
         "agent_artifacts": artifacts,
-        "limitations": ["正文由调用 Agent 撰写，尚无独立 DR 质量审计；下游必须披露 partial 限制"],
+        "limitations": limitations,
+        "quality_issues": quality_issues,
         "evidence_policy": evidence_policy,
         "project_fact_certified": False,
         "upstream_project_fact_certified": upstream_project_fact_certified,
@@ -483,7 +487,8 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "success": True, "status": "partial", "research_package_id": record["object_id"],
         "task_id": task_id, "basis_hash": record["basis_hash"], "resources": resources,
         "resource_uris": [base, *resources.values()], "warnings": payload["limitations"], "blockers": [],
-        "next_actions": ["将 partial 研究限制带入 report_prepare；财务数字仍只来自 run_id"],
+        "quality_issues": quality_issues,
+        "next_actions": ["研究包已生成；可继续补充资料，也可直接用于报告生成"],
     }
 
 def submit_agent(args: dict[str, Any]) -> dict[str, Any]:

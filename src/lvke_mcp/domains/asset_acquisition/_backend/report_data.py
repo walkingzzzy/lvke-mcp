@@ -33,18 +33,26 @@ def build_acquisition_report_data(
     state = _load(workspace_id)
     spec_row = state["specs"].get(str(run.get("spec_id") or "")) or {}
     spec = copy.deepcopy(spec_row.get("spec") or {})
-    if not isinstance(spec, dict) or _hash(spec) != run.get("spec_hash"):
-        raise RuntimeError("run spec snapshot is missing or does not match spec_hash")
+    if not isinstance(spec, dict):
+        raise RuntimeError("run spec snapshot is missing")
+    projection_quality_issues = copy.deepcopy(run.get("artifact_quality_issues") or [])
+    if _hash(spec) != run.get("spec_hash"):
+        projection_quality_issues.append({
+            "code": "SPEC_SNAPSHOT_MISMATCH",
+            "message": "报告数据基于当前可读取 Spec 与已固化运行结果投影。",
+        })
     evidence_ok, current_evidence = _current_evidence_matches_run(
         workspace_id,
         run,
         spec,
     )
     if not evidence_ok:
-        raise RuntimeError(
-            "run evidence binding is stale or no longer valid: "
-            f"snapshot={run.get('evidence_binding_hash')} current={current_evidence.get('binding_hash')}"
-        )
+        projection_quality_issues.append({
+            "code": "EVIDENCE_BINDING_STALE",
+            "message": "证据绑定已变化或未达到正式资格；报告数据仍会生成。",
+            "snapshot_binding_hash": run.get("evidence_binding_hash"),
+            "current_binding_hash": current_evidence.get("binding_hash"),
+        })
     transaction = copy.deepcopy(spec.get("transaction") or {})
     source_ledger = [
         {
@@ -104,6 +112,8 @@ def build_acquisition_report_data(
             "consistency_ok": bool(run.get("consistency_ok")),
         },
         "source_processing_ledger": source_ledger,
+        "quality_issues": projection_quality_issues,
+        "assumptions": copy.deepcopy(run.get("assumptions") or spec.get("assumption_ledger") or []),
         "party_relationships": parties,
         "asset_boundary": copy.deepcopy(transaction.get("asset_scope") or []),
         "license_ledger": licenses,

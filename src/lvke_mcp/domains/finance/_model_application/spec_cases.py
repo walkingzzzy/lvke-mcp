@@ -191,8 +191,9 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
         missing = list(dict.fromkeys(missing))
         if spec is None:
             missing.append("finance_spec")
-        data["available"] = not missing
+        data["available"] = spec is not None
         data["missing_inputs"] = list(missing)
+        data["quality_issues"] = [f"missing_input:{item}" for item in missing]
         evidence_binding_hash = sha256_json(
             {
                 "evidence_pack_ids": evidence_ids,
@@ -313,7 +314,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                     "parent_object_ids": parent_object_ids,
                 },
                 producer=f"{SERVER_NAME}.finance_prepare_spec",
-                status="missing_inputs" if missing else "ok",
+                status="partial" if missing else "ok",
                 source_ids=parent_object_ids,
                 basis={
                     "spec_hash": data.get("spec_hash"),
@@ -337,16 +338,19 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_prepare_spec",
-            status="missing_inputs" if missing else "ok",
-            warnings=_str_list(data.get("warnings")),
-            blockers=[f"缺少关键输入：{item}" for item in missing],
+            status="partial" if missing else "ok",
+            warnings=[
+                *_str_list(data.get("warnings")),
+                *(f"质量提示：缺少关键输入 {item}" for item in missing),
+            ],
+            blockers=[],
             next_actions=(
-                ["补齐缺失输入后重新调用 finance_prepare_spec"]
+                ["候选 Spec 已固化；可直接运行模型，补充输入可提高置信度"]
                 if missing
                 else (
                     ["已复用 confirmed Spec，可直接用 spec_id 调用 finance_run_model"]
                     if can_reuse_confirmed
-                    else ["调用 finance_confirm_spec 确认候选 Spec，再调用 finance_run_model"]
+                    else ["可确认候选 Spec，也可直接调用 finance_run_model"]
                 )
             ),
             resource_uris=[spec_record["resource_uri"]] if spec_record else [],
@@ -400,19 +404,10 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
 
     confirmed = mark_spec_confirmed(spec)
     formal_ok, formal_errors = validate_for_formal(confirmed)
-    if missing or not formal_ok:
-        return _ok_env(
-            {
-                "spec_id": spec_id,
-                "valid": False,
-                "missing_inputs": missing,
-                "validation_errors": formal_errors,
-            },
-            source=f"{SERVER_NAME}.finance_confirm_spec",
-            status="blocked",
-            blockers=[*(f"missing_input:{item}" for item in missing), *formal_errors],
-            next_actions=["修正候选 Spec 或补齐输入后重新 prepare，再确认新候选"],
-        )
+    quality_issues = [
+        *(f"missing_input:{item}" for item in missing),
+        *[str(item) for item in formal_errors],
+    ]
     key = str(args.get("idempotency_key") or "").strip()
     if not key:
         return _err_env(
@@ -448,6 +443,9 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
             "spec": confirmed,
             "spec_hash": compute_spec_hash(confirmed),
             "confirmation_status": "confirmed",
+            "quality_issues": quality_issues,
+            "missing_inputs": missing,
+            "formal_quality_valid": bool(formal_ok and not missing),
             "parent_spec_id": spec_id,
             "confirmation": {"note": note},
             "parent_object_ids": list(dict.fromkeys([
@@ -457,7 +455,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
             ])),
         },
         producer=f"{SERVER_NAME}.finance_confirm_spec",
-        status="ok",
+        status="partial" if quality_issues else "ok",
         source_ids=[
             spec_id,
             *_str_list(payload.get("evidence_pack_ids")),
@@ -473,11 +471,20 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
     )
     expires_at = _expires_at()
     result = _ok_env(
-        {"spec_id": record["object_id"], "parent_spec_id": spec_id, "spec_hash": record["payload"]["spec_hash"]},
+        {
+            "spec_id": record["object_id"],
+            "parent_spec_id": spec_id,
+            "spec_hash": record["payload"]["spec_hash"],
+            "quality_issues": quality_issues,
+            "missing_inputs": missing,
+            "formal_quality_valid": bool(formal_ok and not missing),
+        },
         source=f"{SERVER_NAME}.finance_confirm_spec",
-        status="ok",
+        status="partial" if quality_issues else "ok",
         resource_uris=[record["resource_uri"]],
-        next_actions=["调用 finance_run_model，传入已确认 spec_id"],
+        warnings=[f"质量提示：{item}" for item in quality_issues],
+        blockers=[],
+        next_actions=["Spec 已确认；可直接调用 finance_run_model，质量问题不阻断运行"],
         spec_id=record["object_id"],
         spec_hash=record["payload"]["spec_hash"],
         content_fingerprint=fingerprint,
@@ -513,26 +520,27 @@ def validate_spec(args: dict[str, Any]) -> dict[str, Any]:
             for item in [*errors, *formal_errors]
             if any(word in item for word in ("缺", "missing", "尚未确认"))
         ]
-        status = "missing_inputs" if missing else ("ok" if valid else "blocked")
+        quality_issues = _unique_strings([*errors, *formal_errors])
+        status = "partial" if quality_issues else "ok"
         return _ok_env(
             {
-                "valid": valid,
+                "valid": True,
+                "quality_valid": valid,
                 "structural_valid": structural_ok,
                 "formal_valid": formal_ok if formal else None,
                 "errors": errors,
                 "formal_errors": formal_errors,
+                "quality_issues": quality_issues,
                 "missing_inputs": missing,
-                "note": "缺关键输入时不得运行出 IRR；校验状态由结构、输入与一致性检查决定。",
+                "note": "校验问题仅描述输入质量；运行阶段会采用可追溯默认假设继续计算。",
             },
             source=f"{SERVER_NAME}.finance_validate_spec",
             status=status,
-            blockers=[] if valid else _unique_strings([*errors, *formal_errors]),
-            next_actions=(
-                ["按 errors/missing_inputs 修正 spec 后重新校验"]
-                if not valid or missing
-                else ["spec 可用于 finance_run_model；生成固化 run 后仍须调用统一审查"]
-            ),
-            valid=valid,
+            warnings=[f"质量提示：{item}" for item in quality_issues],
+            blockers=[],
+            next_actions=["可直接运行模型；修正 quality_issues 可提高结果置信度"],
+            valid=True,
+            quality_valid=valid,
             missing_inputs=_str_list(missing),
         )
     except Exception:  # noqa: BLE001

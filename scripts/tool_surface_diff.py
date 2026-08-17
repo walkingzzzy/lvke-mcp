@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """工具面契约比对：拆分前后 MCP 工具的注册面必须逐字段相同。
 
-对应 MODULARIZATION_PLAN.md §3.1「已完成的拆分」中"3 个 server 注册层通过
+对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §3.1「已完成的拆分」中"3 个 server 注册层通过
 ``tool_surface_diff.py`` 验证工具表面完全一致"的验证方式。
 
 ``split_fidelity.py`` 只比较**顶层**同名定义的 AST。一旦把巨型单函数的函数体

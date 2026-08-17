@@ -399,7 +399,7 @@ def main() -> int:
     doc = {
         "schema": "independence_dependency_scan.v4",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "plan_ref": "MCP_INDEPENDENCE_PLAN.md §19/§26.2/§26.4",
+        "plan_ref": "dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md §19/§26.2/§26.4",
         "strict": bool(args.strict),
         "status_summary": {
             "overall": scan_status,

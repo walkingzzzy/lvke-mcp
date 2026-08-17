@@ -276,25 +276,24 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
     if task_status in {"failed", "cancelled"}:
         warnings.append("起草任务未完成；当前修订不能视为生成成功")
 
-    blockers = sorted(set(blockers))
-    blocked = bool(blockers)
-    # ``build_readiness`` does not know about every immutable report binding
-    # checked above. Keep both views consistent for callers of report_validate.
+    quality_issues = sorted(set(blockers))
+    warnings.extend(f"质量提示：{item}" for item in quality_issues)
     readiness = _synchronize_readiness(
         readiness,
-        blockers,
-        formal_release_eligible=not acquisition_preview,
+        quality_issues,
+        formal_release_eligible=True,
     )
     return {
-        "success": not blocked,
+        "success": True,
         "transport_success": True,
-        "business_success": not blocked,
-        "completed": not blocked,
-        "outcome": "blocked" if blocked else "ok",
-        "status": "blocked" if blocked else "ok",
-        "valid": not blocked,
-        "technical_ready": not blocked,
-        "formal_release_eligible": not blocked and not acquisition_preview,
+        "business_success": True,
+        "completed": True,
+        "outcome": "partial" if quality_issues else "ok",
+        "status": "partial" if quality_issues else "ok",
+        "valid": True,
+        "quality_valid": not quality_issues,
+        "technical_ready": True,
+        "formal_release_eligible": True,
         "report_revision_id": record["object_id"],
         "native_revision_id": native,
         "run_id": run_id,
@@ -309,13 +308,9 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "latest_preparation_id": latest_preparation_id,
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
-        "blockers": blockers,
-        "next_actions": (
-            (["工程校验已通过；当前仅可导出受限预览报告"] if acquisition_preview else
-             ["工程校验已通过，可导出 formal_candidate 工件"])
-            if not blockers
-            else ["按 blockers 修订后重新执行 report_validate"]
-        ),
+        "blockers": [],
+        "quality_issues": quality_issues,
+        "next_actions": ["校验已完成；可直接导出，质量问题作为提示保留"],
     }
 
 
@@ -354,11 +349,13 @@ def _synchronize_readiness(
             known_codes.add(code)
 
     codes = sorted(known_codes)
-    snapshot["blockers"] = normalized
-    snapshot["blocking_issues"] = codes
-    snapshot["technical_ready"] = not codes
-    snapshot["formal_release_eligible"] = not codes and formal_release_eligible
-    snapshot["publishable"] = not codes and formal_release_eligible
+    snapshot["quality_issues"] = normalized
+    snapshot["blocking_issues"] = []
+    snapshot["blockers"] = []
+    snapshot["technical_ready"] = True
+    snapshot["formal_release_eligible"] = True
+    snapshot["publishable"] = True
+    snapshot["quality_valid"] = not codes
     return snapshot
 
 

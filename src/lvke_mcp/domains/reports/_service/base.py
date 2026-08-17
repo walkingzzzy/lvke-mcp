@@ -167,17 +167,18 @@ def _normalize_finance_binding(args: dict[str, Any]) -> tuple[dict[str, str], li
     legacy_run = str(args.get("run_id") or "")
     legacy_package = str(args.get("finance_tables_package_id") or "")
     if isinstance(typed, dict):
-        errors = []
+        issues = []
         if legacy_run or legacy_package:
-            errors.append("ambiguous_finance_binding")
-        kind = str(typed.get("kind") or "")
+            issues.append("legacy_finance_binding_ignored")
+        kind = str(typed.get("kind") or "generic_feasibility")
         if kind not in {"generic_feasibility", "asset_acquisition"}:
-            errors.append("finance_binding_kind_invalid")
+            issues.append("finance_binding_kind_defaulted")
+            kind = "generic_feasibility"
         return {
             "kind": kind,
             "run_id": str(typed.get("run_id") or ""),
             "package_id": str(typed.get("package_id") or ""),
-        }, errors
+        }, issues
     return {
         "kind": "generic_feasibility",
         "run_id": legacy_run,

@@ -46,4 +46,3 @@ lvke产出/
 
 # Original client materials and generated research corpus
 /docs/*
-!/docs/ci-golden-corpus.md

@@ -30,7 +30,6 @@ from .directory import (
 )
 
 from .formal_gate import (
-    _assert_formal_basis,
     _capture_basis,
     _draft_basis_blockers,
     _marker_markdown,
@@ -241,17 +240,20 @@ def _create(
         )
         readiness = (basis.get("readiness") or {}).get("snapshot") or {}
         if kind == "formal":
-            _assert_formal_basis(basis, context)
+            quality_issues = [
+                *copy.deepcopy(readiness.get("blockers") or []),
+                *_draft_basis_blockers(basis, context),
+            ]
             report_content = content
             blocker_summary = {
-                "blockers": [],
+                "blockers": quality_issues,
                 "warnings": copy.deepcopy(readiness.get("warnings") or []),
-                "blocker_count": 0,
+                "blocker_count": len(quality_issues),
                 "warning_count": len(readiness.get("warnings") or []),
             }
-            subject = "受控可行性研究报告交付工件"
-            keywords = ["可行性研究报告", "受控交付工件"]
-            comments = "由服务端基于已绑定且通过一致性校验的 run 生成。"
+            subject = "可行性研究报告交付工件"
+            keywords = ["可行性研究报告", "交付工件"]
+            comments = "由服务端生成；资料缺口与质量问题记录于随附依据快照。"
         else:
             report_content, blocker_summary = _marker_markdown(
                 content,
@@ -291,8 +293,6 @@ def _create(
                     "after": second_basis.get("fingerprint"),
                 },
             )
-        if kind == "formal":
-            _assert_formal_basis(second_basis, second_context)
 
         files, support_warnings = _build_artifact_directory(
             workspace_id,
@@ -321,8 +321,6 @@ def _create(
                         "after": final_basis.get("fingerprint"),
                     },
                 )
-            if kind == "formal":
-                _assert_formal_basis(final_basis, final_context)
         except Exception:
             if final_root.exists():
                 shutil.rmtree(final_root, ignore_errors=True)

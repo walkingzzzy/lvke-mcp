@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """阶段0 基线样本捕获：为独立化版本抓取「可回放成功样本」。
 
-按 MCP_INDEPENDENCE_PLAN.md §29.2 的步骤，走 stdio MCP 线协议调用真实工具，
+按 `dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md` §29.2 的步骤，走 stdio MCP 线协议调用真实工具，
 把外部行为固化为 tests/fixtures/baseline/{finance,finance-tables,report,research}/ 下的
 golden fixtures。这些文件是独立化后重新运行时可机器对照的行为基准。
 
@@ -1149,7 +1149,7 @@ def main() -> int:
         "schema": "baseline_samples.v1",
         "captured_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "protocol_version": PROTOCOL_VERSION,
-        "plan_ref": "mcp_servers/MCP_INDEPENDENCE_PLAN.md §29.2",
+        "plan_ref": "dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md §29.2",
         "domains": ["finance", "finance-tables", "report", "research"],
         "exit_condition": "四个核心领域均有至少一个可回放成功样本；无法取得的样本登记为当前实现缺陷",
         "summary": {

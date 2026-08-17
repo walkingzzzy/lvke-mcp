@@ -116,10 +116,16 @@ def load_run(workspace_id: str, run_id: str) -> dict[str, Any]:
 
 
 def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
-    """把存储记录投影为 run_service 消费的审计视图（对齐 audit_db.load_run）。"""
+    """把存储记录投影为 run_service 消费的审计视图（对齐 audit_db.load_run）。
+
+    兼容旧记录：无新字段时从 legacy 字段推导。
+    """
     view = dict(record)
     view.pop("_result_snapshot", None)
     view.setdefault("consistency_ok", False)
+    view.setdefault("integrity_status", "passed" if view.get("consistency_ok") else "failed" if record.get("consistency") else "not_assessed")
+    view.setdefault("viability_status", "not_assessed")
+    view.setdefault("viability_issues", [])
     view.setdefault("consistency", [])
     view.setdefault("results", [])
     view.setdefault("assumptions", [])
@@ -289,6 +295,9 @@ def record_run(
         "started_at": now,
         "finished_at": now,
         "consistency_ok": consistency_ok,
+        "integrity_status": "passed" if consistency_ok else "failed",
+        "viability_status": str(fin.get("viability_status") or "not_assessed"),
+        "viability_issues": list(fin.get("viability_issues") or []),
         "consistency": consistency,
         "spec_json": spec_json,
         "spec_id": fin.get("spec_id") or None,

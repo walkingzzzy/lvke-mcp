@@ -85,14 +85,15 @@ def _scalar_csv_rows(table: Any) -> tuple[list[str], list[list[Any]]]:
 
 def _package_result(record: dict[str, Any], validation: dict[str, Any], status: str) -> dict[str, Any]:
     payload = record.get("payload") or {}
-    business_success = status == "ok"
+    quality_issues = [str(item) for item in validation.get("blockers") or []]
+    effective_status = "partial" if quality_issues or status == "partial" else "ok"
     return {
-        "success": business_success,
+        "success": True,
         "transport_success": True,
-        "business_success": business_success,
-        "completed": business_success,
-        "outcome": status,
-        "status": status,
+        "business_success": True,
+        "completed": True,
+        "outcome": effective_status,
+        "status": effective_status,
         "finance_tables_package_id": record["object_id"],
         "run_id": payload.get("run_id"),
         # 与 run_id 同级透出，让 package / CSV / XLSX 的消费方都能反查 confirmed Spec
@@ -102,9 +103,13 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         "validation": validation,
         "validation_complete": bool(payload.get("validation_complete", False)),
         "resource_uris": [record["resource_uri"]],
-        "warnings": validation.get("warnings") or [],
-        "blockers": validation.get("blockers") or [],
-        "next_actions": ["将 package_id 与同一 run_id 一起绑定到研报修订"],
+        "warnings": [
+            *list(validation.get("warnings") or []),
+            *(f"质量提示：{item}" for item in quality_issues),
+        ],
+        "blockers": [],
+        "quality_issues": quality_issues,
+        "next_actions": ["表包已生成；可直接绑定到报告，质量问题作为提示保留"],
     }
 
 

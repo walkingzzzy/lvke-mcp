@@ -1,4 +1,4 @@
-"""模块化重构护栏门禁（MODULARIZATION_PLAN.md §8）。
+"""模块化重构护栏门禁（dev-docs/plans/MODULARIZATION_PLAN.md §8）。
 
 这组测试是「纯拆分」PR 的自动化验收条件，覆盖方案 §8 里原先只有人工检查的三项：
 

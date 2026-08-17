@@ -327,12 +327,21 @@ def validate_build_scale(
     candidates = _payload(record).get("candidates") or []
     feasible_ids = [item["candidate_id"] for item in candidates if item.get("feasible")]
     if not feasible_ids:
+        violations = sorted({
+            code for item in candidates for code in item.get("violations") or []
+        })
         return service._envelope(
-            success=False,
-            status="blocked",
+            success=True,
+            status="partial",
             code="build_scale_no_feasible_candidate",
-            blockers=sorted({code for item in candidates for code in item.get("violations") or []}),
+            blockers=[],
+            warnings=["当前无满足全部约束的建设规模候选；候选仍可选择并固化。"],
+            quality_issues=[
+                {"code": code, "blocking": False}
+                for code in (violations or ["build_scale_no_feasible_candidate"])
+            ],
             valid=False,
+            feasible_candidate_ids=[],
         )
     return service._envelope(success=True, status="ok", valid=True, feasible_candidate_ids=feasible_ids)
 
@@ -360,8 +369,21 @@ def confirm_build_scale(
     if error:
         return error
     selected = next(item for item in candidates if item["candidate_id"] == selected_candidate_id)
+    quality_issues = []
     if not selected.get("feasible"):
-        return service._blocked("build_scale_candidate_infeasible", "不可确认违反约束的建设规模方案")
+        quality_issues = [
+            {
+                "code": str(code),
+                "blocking": False,
+                "candidate_id": selected_candidate_id,
+            }
+            for code in (selected.get("violations") or ["build_scale_candidate_infeasible"])
+        ]
+    selection = {
+        **selection,
+        "quality_issues": quality_issues,
+        "release_limitations": [item["code"] for item in quality_issues],
+    }
     return service.create_build_scale_case(
         workspace_id,
         payload["project_context_id"],

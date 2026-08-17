@@ -85,7 +85,7 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
         self.assertAlmostEqual(schedule["annual_depreciation_wan"][0], 95.0)
         self.assertEqual(len(schedule["annual_depreciation_wan"]), 18)
 
-    def test_solar_candidate_requires_model_start_date_before_run(self) -> None:
+    def test_solar_candidate_reports_missing_model_start_date_without_blocking(self) -> None:
         spec = {
             "version": "finance_spec.v3",
             "asset_type": "solar_power",
@@ -95,14 +95,16 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             service, "validate_for_formal", return_value=(False, [])
         ):
             result = service.validate_spec(spec)
-        self.assertFalse(result["valid"])
-        self.assertEqual(result["code"], "SPEC_VALIDATION_FAILED")
+        self.assertTrue(result["valid"])
+        self.assertFalse(result["schema_valid"])
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["blockers"], [])
         self.assertIn(
             "/transaction/model_start_date",
             {item.get("path") for item in result["field_errors"]},
         )
 
-    def test_preview_is_blocked_before_staging(self) -> None:
+    def test_preview_generates_with_quality_diagnostics(self) -> None:
         run = self._run(mode="estimate_preview")
         with patch.object(artifacts, "_bind_spec_evidence", return_value={
             "binding_hash": run["evidence_binding_hash"],
@@ -110,13 +112,15 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             "formal_ok": False,
         }):
             result = artifacts.generate_artifacts("artifact-gate", run["run_id"], idempotency_key="preview")
-        self.assertEqual(result["error"], "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED")
-        self.assertEqual(result["details"]["delivery_mode"], "estimate_preview")
-        self.assertTrue(result["next_actions"])
-        root = _artifacts_root("artifact-gate")
-        self.assertFalse(root.exists())
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "succeeded")
+        self.assertIn(
+            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            {item.get("code") for item in result["quality_issues"]},
+        )
+        self.assertTrue(_artifacts_root("artifact-gate").exists())
 
-    def test_process_acceptance_is_blocked_before_staging(self) -> None:
+    def test_process_acceptance_generates_with_quality_diagnostics(self) -> None:
         run = self._run(mode="process_acceptance")
         with patch.object(artifacts, "_bind_spec_evidence", return_value={
             "binding_hash": run["evidence_binding_hash"],
@@ -124,24 +128,21 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             "formal_ok": False,
         }):
             result = service.generate_artifact("artifact-gate", run["run_id"], "process")
-        self.assertFalse(result["success"])
-        self.assertEqual(result["code"], "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED")
-        self.assertEqual(result["status"], "blocked")
-        self.assertTrue(result["system_success"])
-        self.assertTrue(result["transport_success"])
-        self.assertFalse(result["business_success"])
-        self.assertEqual(result["details"]["delivery_mode"], "process_acceptance")
-        self.assertTrue(result["next_actions"])
-        self.assertFalse(_artifacts_root("artifact-gate").exists())
+        self.assertTrue(result["success"])
+        self.assertEqual(result["artifact_status"], "succeeded")
+        self.assertTrue(_artifacts_root("artifact-gate").exists())
 
-    def test_stale_evidence_is_stable_and_does_not_stage(self) -> None:
+    def test_stale_evidence_generates_with_diagnostic(self) -> None:
         run = self._run(mode="formal_candidate", formal_ok=True)
         current = {"binding_hash": "sha256:current", "binding_version": "finance_evidence_binding.v3", "formal_ok": True}
         with patch.object(artifacts, "_bind_spec_evidence", return_value=current):
             result = artifacts.generate_artifacts("artifact-gate", run["run_id"], idempotency_key="stale")
-        self.assertEqual(result["error"], "EVIDENCE_BINDING_STALE")
-        self.assertEqual(result["details"]["current_binding_hash"], "sha256:current")
-        self.assertFalse(_artifacts_root("artifact-gate").exists())
+        self.assertTrue(result["ok"])
+        self.assertIn(
+            "EVIDENCE_BINDING_STALE",
+            {item.get("code") for item in result["quality_issues"]},
+        )
+        self.assertTrue(_artifacts_root("artifact-gate").exists())
 
     def test_exception_after_staging_cleans_directory(self) -> None:
         run = self._run(mode="formal_candidate", formal_ok=True)

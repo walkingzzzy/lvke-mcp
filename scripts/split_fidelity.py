@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """纯搬移保真度校验：搬出去的定义必须与原文件 AST 等价。
 
-对应 MODULARIZATION_PLAN.md §5.2「纯搬移 PR 不合并重复函数，不改变语义」。
+对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §5.2「纯搬移 PR 不合并重复函数，不改变语义」。
 
 Wave 0 的三道门禁（契约 / API / 依赖边界）只能发现**接口**层面的破坏。
 它们查不出下面这两类「拆分事故」——两者都能让全部测试继续变绿：

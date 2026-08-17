@@ -135,10 +135,12 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 *list(delivery_artifacts.get("resource_uris") or []),
             }
         )
-        blockers = [
-            *list(domain.get("blockers") or []),
-            *list(delivery_artifacts.get("blockers") or []),
-        ]
+        quality_issues = sorted({
+            *[str(item) for item in domain.get("blockers") or []],
+            *[str(item) for item in domain.get("quality_issues") or []],
+            *[str(item) for item in delivery_artifacts.get("blockers") or []],
+            *[str(item) for item in delivery_artifacts.get("quality_issues") or []],
+        } - {""})
         technical_preview_ready = (
             str(domain.get("stage") or "") == "tables_ready"
             and not delivery_artifacts.get("blockers")
@@ -149,8 +151,8 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             assumption_package_id=assumption["object_id"],
             previous_run_id=run_id,
             stage="preview_ready" if technical_preview_ready else str(domain.get("stage") or "assumptions_ready"),
-            blockers=blockers,
-            status_reason=str(domain.get("status") or "upstream_partial"),
+            blockers=[],
+            status_reason=str(domain.get("status") or "partial"),
             object_refs=object_refs,
             artifact_uris=artifact_uris,
             manifest_uri=str(delivery_artifacts.get("manifest_uri") or ""),
@@ -166,17 +168,22 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             object_id=planned_delivery_run_id,
         )
         return _envelope(
-            technical_preview_ready,
-            "partial" if blockers else "ok",
+            True,
+            "partial" if quality_issues else "ok",
             warnings=[
                 "行业场景仅作为受控假设种子，不是项目证据",
                 *list(domain.get("warnings") or []),
+                *(f"质量提示：{item}" for item in quality_issues),
             ],
-            blockers=blockers,
+            blockers=[],
+            quality_issues=quality_issues,
+            release_limitations=quality_issues,
+            completed=True,
+            technical_preview_ready=technical_preview_ready,
             next_actions=(
-                ["提交公开研究结果后继续规划与正式报告准备；或先确认关键假设并重算"]
-                if blockers
-                else ["读取交付 Resources；正式发布资格仍保持阻断"]
+                ["按 quality_issues 补充资料或修复工件后重算；当前运行快照仍可读取"]
+                if quality_issues
+                else ["读取交付 Resources；正式发布资格仍保持质量受限"]
             ),
             resource_uris=sorted(
                 {

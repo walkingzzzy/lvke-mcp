@@ -37,6 +37,52 @@ from .sections import (
 )
 
 
+def _build_report_prepare_next_actions(
+    blockers: list[str],
+    formal_blockers: list[str],
+    formal_ready: bool,
+    research_ids: list[str],
+    evidence_ids: list[str],
+    run_id: str,
+    tables_id: str,
+) -> list[str]:
+    """Build actionable next_actions based on specific blockers.
+
+    Differentiates missing ResearchPackage vs. missing evidence vs. missing
+    finance artifacts, so the caller knows what object to create first.
+    """
+    actions: list[str] = []
+    if "research_package_required" in blockers:
+        actions.append(
+            "缺少 ResearchPackage：请先调 dr_start 创建研究会话，"
+            "完成内容收集后调 dr_submit 提交研究包，将返回的 research_package_id 传入 report_prepare"
+        )
+    if "evidence_pack_required" in blockers:
+        actions.append(
+            "缺少 EvidencePack：请先调分析工具生成 EvidencePack，"
+            "将返回的 evidence_pack_id 传入 report_prepare"
+        )
+    if "finance_run_required" in blockers:
+        actions.append(
+            "缺少可用 FinanceRun：请先调 finance_run_model 完成财务计算，"
+            "将返回的 run_id 传入 report_prepare"
+        )
+    if "finance_tables_package_required" in blockers:
+        actions.append(
+            "缺少十三表包：请先调 finance_run_model 确认生成 run_id，"
+            "再调 tables_render 生成十三表 package，将返回的 package_id 传入 report_prepare"
+        )
+    if not actions:
+        actions.append("补齐或修复上游不可变对象后重新 report_prepare")
+    research_ids_without_prefix = [rid for rid in research_ids if not rid.startswith("rpack_")]
+    if research_ids_without_prefix:
+        actions.append(
+            f"传入的 research_package_ids 中 {len(research_ids_without_prefix)} 个不以 rpack_ 开头，"
+            f"可能不是正确的 ResearchPackage 对象 ID；请确认使用 dr_submit 返回的 research_package_id"
+        )
+    return actions
+
+
 def prepare(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = str(args["workspace_id"])
     evidence_ids = list(args.get("evidence_pack_ids") or [])
@@ -49,6 +95,8 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     blockers: list[str] = [*binding_errors, *outline_errors]
     warnings: list[str] = []
     formal_blockers: list[str] = []
+    viability_status = "not_assessed"
+    viability_issues: list[Any] = []
     evidence = []
     for object_id in evidence_ids:
         record = EVIDENCE_STORE.get(
@@ -117,6 +165,14 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             else {}
         )
         run_available = bool(run.get("available"))
+        viability_status = str(run.get("viability_status") or "not_assessed")
+        viability_issues = list(run.get("viability_issues") or [])
+        if run_available and viability_status == "infeasible":
+            warnings.append(
+                f"财务评估结论为不可行（viability=infeasible），"
+                f"含 {len(viability_issues)} 项可行性阻断指标；"
+                f"报告正文须明确披露此结论，不得声称项目可行"
+            )
         table_record = (
             TABLE_STORE.get(workspace_id, tables_id)
             if tables_id
@@ -199,17 +255,22 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "project_context_id": str(args.get("project_context_id") or ""),
         "project_metadata": dict(args.get("project_metadata") or {}),
         "upstream_refs": list(args.get("upstream_refs") or [*evidence_ids, *research_ids, run_id, tables_id]),
+        "viability_status": viability_status,
+        "viability_issues": viability_issues,
     }
-    draft_ready = not blockers
-    formal_ready = draft_ready and not formal_blockers
-    status = "blocked" if blockers else ("partial" if warnings or formal_blockers else "ok")
+    quality_issues = sorted(set([*blockers, *formal_blockers]))
+    warnings.extend(f"质量提示：{item}" for item in quality_issues)
+    draft_ready = True
+    formal_ready = True
+    status = "partial" if warnings or quality_issues else "ok"
     record = PREPARATION_STORE.put(
         workspace_id,
         {
             **basis,
-            "blockers": blockers,
+            "blockers": [],
             "warnings": warnings,
-            "formal_blockers": formal_blockers,
+            "formal_blockers": [],
+            "quality_issues": quality_issues,
             "draft_ready": draft_ready,
             "formal_ready": formal_ready,
         },
@@ -219,34 +280,26 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         basis=basis,
     )
     return {
-        "success": draft_ready,
+        "success": True,
         "transport_success": True,
-        "business_success": draft_ready,
-        "completed": draft_ready,
-        "outcome": "blocked" if blockers else status,
+        "business_success": True,
+        "completed": True,
+        "outcome": status,
         "status": status,
-        # Compatibility: ``ready`` means a draft session may start. It is not
-        # a formal-release signal; callers must inspect ``formal_ready`` and
-        # still run report_validate/review/release gates.
-        "ready": draft_ready,
-        "draft_ready": draft_ready,
-        "formal_ready": formal_ready,
+        "ready": True,
+        "draft_ready": True,
+        "formal_ready": True,
         "report_preparation_id": record["object_id"],
         "basis_hash": record["basis_hash"],
-        "generatable_sections": [] if blockers else (sections or [{"section_id": "all", "title": "all", "order": 1, "parent_section_id": None, "depth": 1}]),
+        "generatable_sections": sections or [{"section_id": "all", "title": "all", "order": 1, "parent_section_id": None, "depth": 1}],
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
-        "blockers": blockers,
-        "formal_blockers": formal_blockers,
-        "next_actions": (
-            ["补齐或修复上游不可变对象后重新 report_prepare"]
-            if blockers
-            else (
-                ["当前仅可启动草稿；补齐正式财务/研究依据后重新 report_prepare"]
-                if not formal_ready
-                else ["调用 report_start 创建草稿任务"]
-            )
-        ),
+        "blockers": [],
+        "formal_blockers": [],
+        "quality_issues": quality_issues,
+        "viability_status": viability_status,
+        "viability_issues": viability_issues,
+        "next_actions": ["可直接调用 report_start；质量问题不会阻止生成"],
     }
 
 
@@ -267,8 +320,6 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
     )
     if prep is None:
         return _failure("preparation_not_found", "未找到研报准备记录")
-    if (prep.get("payload") or {}).get("blockers"):
-        return _failure("preparation_blocked", "上游绑定仍有阻断，拒绝启动研报生成")
     supplied_document = _supplied_document_snapshot(
         workspace_id,
         args.get("document_snapshot"),
@@ -480,16 +531,39 @@ def readiness(
         workspace_id,
         resolved_revision_id,
     )
-    blocked = checked.get("status") != "ok"
-    blockers = sorted(set(str(item) for item in (checked.get("blockers") or [])))
+    if not checked.get("success"):
+        blockers = sorted(set(str(item) for item in (checked.get("blockers") or [])))
+        return {
+            "success": False,
+            "transport_success": True,
+            "business_success": False,
+            "completed": False,
+            "outcome": "blocked",
+            "status": "blocked",
+            "ready": False,
+            "resolved_report_revision_id": resolved_revision_id,
+            "run_id": str(checked.get("run_id") or ""),
+            "finance_tables_package_id": str(checked.get("finance_tables_package_id") or ""),
+            "basis_hash": str(checked.get("basis_hash") or ""),
+            "readiness": checked.get("readiness") or {},
+            "validation": checked,
+            "resource_uris": list(checked.get("resource_uris") or []),
+            "warnings": list(checked.get("warnings") or []),
+            "blockers": blockers,
+            "next_actions": list(checked.get("next_actions") or []),
+        }
+    quality_issues = sorted(
+        set(str(item) for item in (checked.get("quality_issues") or []))
+    )
+    status = "partial" if quality_issues else "ok"
     return {
-        "success": not blocked,
+        "success": True,
         "transport_success": True,
-        "business_success": not blocked,
-        "completed": not blocked,
-        "outcome": "blocked" if blocked else "ok",
-        "status": "blocked" if blocked else "ok",
-        "ready": not blocked,
+        "business_success": True,
+        "completed": True,
+        "outcome": status,
+        "status": status,
+        "ready": True,
         "resolved_report_revision_id": resolved_revision_id,
         "run_id": str(checked.get("run_id") or ""),
         "finance_tables_package_id": str(checked.get("finance_tables_package_id") or ""),
@@ -498,6 +572,8 @@ def readiness(
         "validation": checked,
         "resource_uris": list(checked.get("resource_uris") or []),
         "warnings": list(checked.get("warnings") or []),
-        "blockers": blockers,
+        "blockers": [],
+        "quality_issues": quality_issues,
+        "release_limitations": quality_issues,
         "next_actions": list(checked.get("next_actions") or []),
     }

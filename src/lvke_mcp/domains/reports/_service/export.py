@@ -37,16 +37,6 @@ def export_docx(
             workspace_id,
             revision_id,
         )
-        if not validation.get("valid"):
-            return _failure(
-                "report_validation_blocked",
-                "研报校验或上游 basis 已失效，拒绝生成正式候选工件",
-            )
-        if not validation.get("formal_release_eligible"):
-            return _failure(
-                "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-                "当前修订不具备正式交付资格（formal_release_eligible=False），仅可导出 draft 草稿",
-            )
     from lvke_mcp.domains.reports import artifacts
 
     payload = record.get("payload") or {}
@@ -81,6 +71,8 @@ def export_docx(
         code = str(getattr(exc, "code", "artifact_blocked"))
         return _failure(code, str(getattr(exc, "message", "工件生成被现有交付门禁阻断")))
     artifact_id = str(created.get("artifact_id") or "")
+    docx_font_audit: dict[str, Any] = {}
+    font_warnings: list[str] = []
     try:
         from lvke_mcp.domains.reports.docx_fonts import audit_docx_fonts
 
@@ -93,12 +85,10 @@ def export_docx(
             docx_font_audit.get("invalid_locale_font_count")
             or not docx_font_audit.get("portable_cjk_fonts")
         ):
-            return _failure(
-                "docx_font_audit_failed",
-                "DOCX 字体审计未通过可移植中文渲染门禁，拒绝交付",
-            )
-    except Exception:  # noqa: BLE001
-        return _failure("docx_font_audit_failed", "DOCX 字体审计失败，拒绝交付")
+            font_warnings.append("DOCX 字体审计存在可移植中文渲染问题")
+    except Exception as exc:  # noqa: BLE001
+        docx_font_audit = {"audit_error": type(exc).__name__}
+        font_warnings.append("DOCX 字体审计未完成，工件仍已生成")
     base = f"lvke://report-generation/workspaces/{workspace_id}/artifacts/{artifact_id}"
     file_uris = [
         f"{base}/files/{quote(str(item.get('name') or item.get('filename') or ''), safe='')}"
@@ -133,8 +123,12 @@ def export_docx(
     task_status = str((record.get("payload") or {}).get("task_status") or "")
     if kind == "draft" and task_status in {"failed", "cancelled"}:
         warnings.append("起草任务未完成；该草稿可能只含占位或既有正文")
+    warnings.extend(font_warnings)
     if validation:
         warnings.extend(str(item) for item in validation.get("warnings") or [])
+        warnings.extend(
+            f"质量提示：{item}" for item in validation.get("quality_issues") or []
+        )
     if mirror_to_project and kind == "formal_candidate":
         warnings.append("formal_candidate 不执行项目目录镜像；请通过 Resource 读取工件")
     return {

@@ -180,7 +180,7 @@ pytest tests/ -v --maxfail=5
 
 ## 验收清单
 
-详见 `VERIFICATION_CHECKLIST.md`，包含：
+详见 [`VERIFICATION_CHECKLIST.md`](../verification/VERIFICATION_CHECKLIST.md)，包含：
 - 核心功能验证（9 项）
 - 样本生成与验收（3 项）
 - 技术债务追踪
@@ -189,8 +189,8 @@ pytest tests/ -v --maxfail=5
 
 ```
 /Users/mac/Desktop/mcp_servers/
-├── REPAIR_SUMMARY.md              # 本文件
-├── VERIFICATION_CHECKLIST.md      # 详细验收清单
+├── dev-docs/reports/REPAIR_SUMMARY.md       # 本文件
+├── dev-docs/verification/VERIFICATION_CHECKLIST.md # 详细验收清单
 └── src/lvke_mcp/
     ├── runtime/resource_registry.py        # 域注册 + 路由
     ├── domains/reports/

@@ -4,7 +4,7 @@
 > 仓库：`/Users/mac/Desktop/mcp_servers`  
 > 进度：**Wave 0–4 已完成**。超长文件 37 → 15，剩余 15 个均有保留理由（§3）。  
 > 基线绑定 `chore(refactor): 基线快照推进到 Wave 4 之后` 提交。  
-> 验证细节见 `REFACTOR_VERIFICATION_PROTOCOL.md`；本文只保留目标、判定标准与波次计划。
+> 验证细节见 [`REFACTOR_VERIFICATION_PROTOCOL.md`](../verification/REFACTOR_VERIFICATION_PROTOCOL.md)；本文只保留目标、判定标准与波次计划。
 
 ## 1. 目标与非目标
 

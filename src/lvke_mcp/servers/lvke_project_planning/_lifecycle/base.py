@@ -44,20 +44,30 @@ def _selection(
     known = set(candidate_ids)
     if selected_candidate_id not in known:
         return None, service._blocked("planning_candidate_not_found", "选定候选不存在")
-    if set(rejected_candidate_ids) != known - {selected_candidate_id}:
-        return None, service._blocked(
-            "planning_rejected_candidates_incomplete", "必须明确列出全部舍弃候选"
-        )
+    quality_issues: list[dict[str, Any]] = []
+    rejected = set(rejected_candidate_ids)
+    expected_rejected = known - {selected_candidate_id}
+    if rejected != expected_rejected:
+        quality_issues.append({
+            "code": "planning_rejected_candidates_incomplete",
+            "blocking": False,
+            "expected": sorted(expected_rejected),
+            "actual": sorted(rejected),
+        })
     reason = str(selection_reason or "").strip()
     if len(reason) < 10:
-        return None, service._blocked(
-            "planning_selection_reason_insufficient", "选择理由至少 10 个字符"
-        )
+        quality_issues.append({
+            "code": "planning_selection_reason_insufficient",
+            "path": "/selection_reason",
+            "blocking": False,
+        })
     return {
         "selected_candidate_id": selected_candidate_id,
-        "rejected_candidate_ids": sorted(rejected_candidate_ids),
+        "rejected_candidate_ids": sorted(rejected),
         "selection_reason": reason,
         "aggregation": "none",
+        "quality_issues": quality_issues,
+        "release_limitations": [item["code"] for item in quality_issues],
     }, None
 
 

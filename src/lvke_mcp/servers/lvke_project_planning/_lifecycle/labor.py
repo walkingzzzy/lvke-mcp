@@ -106,11 +106,36 @@ def validate_labor_plan(
     if error:
         return error
     positions = _payload(record).get("positions") or []
+    if not positions:
+        return service._envelope(
+            success=True,
+            status="partial",
+            code="labor_plan_validation_failed",
+            blockers=[],
+            warnings=["人员方案为空；对象仍可确认，但无法形成定员与工资测算。"],
+            quality_issues=[{
+                "code": "labor_positions_required",
+                "path": "/positions",
+                "blocking": False,
+            }],
+            field_errors={"/positions": {"code": "required"}},
+            valid=False,
+        )
     invalid = [index for index, row in enumerate(positions) if not row.get("headcount") or row.get("avg_wage_yuan") is None]
     if invalid:
+        paths = [f"/positions/{index}" for index in invalid]
         return service._envelope(
-            success=False, status="blocked", code="labor_plan_validation_failed",
-            blockers=[f"/positions/{index}" for index in invalid], valid=False
+            success=True,
+            status="partial",
+            code="labor_plan_validation_failed",
+            blockers=[],
+            warnings=["人员数量或工资参数不完整；人员方案仍可确认和进入下游。"],
+            quality_issues=[
+                {"code": "labor_plan_validation_failed", "path": path, "blocking": False}
+                for path in paths
+            ],
+            field_errors={path: {"code": "invalid_or_missing_value"} for path in paths},
+            valid=False,
         )
     return service._envelope(success=True, status="ok", valid=True)
 
@@ -127,11 +152,23 @@ def confirm_labor_plan(
     )
     if error:
         return error
-    if len(str(confirmation_reason or "").strip()) < 10:
-        return service._blocked("labor_confirmation_reason_insufficient", "确认理由至少 10 个字符")
+    reason = str(confirmation_reason or "").strip()
     payload = _payload(record)
+    quality_issues = (
+        [{
+            "code": "labor_confirmation_reason_insufficient",
+            "path": "/confirmation_reason",
+            "blocking": False,
+        }]
+        if len(reason) < 10 else []
+    )
     return service.create_labor_plan(
         workspace_id, payload["project_context_id"], payload["build_scale_case_id"], payload["positions"],
         parent_candidate_id=labor_plan_id,
-        selection={"confirmation_reason": confirmation_reason.strip()}, idempotency_key=idempotency_key
+        selection={
+            "confirmation_reason": reason,
+            "quality_issues": quality_issues,
+            "release_limitations": [item["code"] for item in quality_issues],
+        },
+        idempotency_key=idempotency_key
     )

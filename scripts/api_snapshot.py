@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """模块化重构护栏：Python 公开 API 快照（导入路径 + 符号 + 签名）。
 
-对应 MODULARIZATION_PLAN.md §7.3/§8「原 import 路径和稳定符号仍可用」。
+对应 `dev-docs/plans/MODULARIZATION_PLAN.md` §7.3/§8「原 import 路径和稳定符号仍可用」。
 
 拆分 PR 的核心风险是「文件搬走了，但门面没把符号 re-export 回来」。本工具在
 基线 commit 上把每个模块的公开符号与签名固化下来，拆分后重新抓取并比较：
@@ -152,7 +152,7 @@ def build_document() -> dict:
     return {
         "schema": "api_snapshot.v1",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "plan_ref": "MODULARIZATION_PLAN.md §7.3/§8",
+        "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §7.3/§8",
         "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
         "summary": {
             "module_count": len(modules),

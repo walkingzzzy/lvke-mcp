@@ -162,8 +162,9 @@ def _export_review_locked(
         state = _project(workspace_id, review_id)
     except ValueError:
         return _blocked("review_not_found", _message("review_not_found"))
+    quality_issues: list[str] = []
     if not state.get("validation_complete"):
-        return _blocked("review_not_ready", "校验尚未形成可导出的不可变结果")
+        quality_issues.append("review_validation_incomplete")
     for previous in state.get("exports") or []:
         integrity_reasons = _export_integrity_reasons(
             workspace_id,
@@ -288,6 +289,8 @@ def _export_review_locked(
         export_basis_hash=record["basis_hash"],
         files=files,
         resource_uris=[_export_resource_uri(workspace_id, export_id), *[row["uri"] for row in files]],
+        quality_issues=quality_issues,
+        warnings=[f"质量提示：{item}" for item in quality_issues],
         blockers=[],
         next_actions=_next_actions(
             _project(workspace_id, review_id, check_freshness=False)

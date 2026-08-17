@@ -106,8 +106,9 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
     payload = stored.get("payload") if isinstance((stored or {}).get("payload"), dict) else {}
     if stored:
         spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else None
+    preflight_quality_issues: list[str] = []
     if mode == "review_candidate" and payload.get("confirmation_status") != "confirmed":
-        return _blocked_run("spec_confirmation_required", "先调用 finance_confirm_spec 确认候选 Spec", spec_id)
+        preflight_quality_issues.append("spec_confirmation_missing")
     boe_id = str(args.get("basis_of_estimate_id") or "").strip()
     boe_hash = ""
     boe_payload: dict[str, Any] = {}
@@ -115,77 +116,35 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         boe = BASIS_OF_ESTIMATE_STORE.get(workspace_id, boe_id) if boe_id else _latest_formal_boe(workspace_id, spec_id)
         boe_payload = boe.get("payload") if isinstance((boe or {}).get("payload"), dict) else {}
         if boe is None or boe_payload.get("spec_id") != spec_id or not boe_payload.get("formal_ready"):
-            return _blocked_run("basis_of_estimate_required", "调用 finance_build_basis_of_estimate 完整绑定重大输入来源", spec_id)
-        boe_id, boe_hash = boe["object_id"], boe["basis_hash"]
+            preflight_quality_issues.append("basis_of_estimate_incomplete")
+        elif boe is not None:
+            boe_id, boe_hash = boe["object_id"], boe["basis_hash"]
     elif boe_id:
         boe = BASIS_OF_ESTIMATE_STORE.get(workspace_id, boe_id)
         boe_payload = boe.get("payload") if isinstance((boe or {}).get("payload"), dict) else {}
         if boe is None or boe_payload.get("spec_id") != spec_id or not boe_payload.get("technical_ready"):
-            return _blocked_run(
-                "basis_of_estimate_invalid",
-                "使用同一 spec 的完整 BoE，或省略它运行 estimate preview",
-                spec_id,
-            )
-        boe_hash = boe["basis_hash"]
+            preflight_quality_issues.append("basis_of_estimate_incomplete")
+        elif boe is not None:
+            boe_hash = boe["basis_hash"]
     if spec is None and not force_flat:
-        return _blocked_run("spec_required", "先调用 finance_prepare_spec 固化 spec", spec_id)
+        preflight_quality_issues.append("finance_spec_missing_using_flat_baseline")
     input_revision = args.get("input_revision") if isinstance(args.get("input_revision"), dict) else payload.get("input_revision")
     input_revision = input_revision if isinstance(input_revision, dict) else {}
-    if spec_id and not input_revision.get("total_investment_wan"):
-        return _missing_run("total_investment_wan", spec_id)
+    if not input_revision.get("total_investment_wan"):
+        preflight_quality_issues.append("total_investment_missing_using_default")
     rail_missing = _rail_transit_missing_inputs(
         spec,
         input_revision,
         build_period_months=input_revision.get("build_period_months"),
     )
-    if rail_missing:
-        return _ok_env(
-            {"available": False, "missing_inputs": rail_missing},
-            source=f"{SERVER_NAME}.finance_run_model",
-            status="missing_inputs",
-            blockers=[f"missing_input:{item}" for item in rail_missing],
-            next_actions=["补齐城市轨道交通专用输入后重新运行"],
-            run_id=None,
-            spec_id=spec_id or None,
-            missing_inputs=rail_missing,
-        )
+    preflight_quality_issues.extend(f"missing_input:{item}" for item in rail_missing)
     if not _revenue_input_complete(spec, input_revision):
-        return _missing_run("annual_revenue_wan_or_revenue_driver", spec_id)
-    # 缺字段检查通过不代表业务尺度成立：50 公里轨道线套用通用单体项目投资种子时
-    # 字段齐全、算术自洽、十三表也能勾稽通过，run 会被标成 ok。此前该对账只存在于
-    # 零材料链，正式链完全不做，同一错误畅通无阻。
+        preflight_quality_issues.append("revenue_driver_missing_using_default")
     scale_check = check_finance_run_scale(spec, input_revision)
     if not scale_check["ok"]:
-        codes = sorted({str(item.get("code")) for item in scale_check["issues"]})
-        return _ok_env(
-            {
-                "available": False,
-                "error": "project_scale_inconsistent",
-                "scale_check": scale_check,
-                "field_errors": [
-                    {
-                        "path": f"/input_revision/{item.get('field')}",
-                        "code": str(item.get("code")),
-                        "message": str(item.get("detail")),
-                        "resolution": str(item.get("resolution") or ""),
-                    }
-                    for item in scale_check["issues"]
-                ],
-            },
-            source=f"{SERVER_NAME}.finance_run_model",
-            status="blocked",
-            blockers=codes,
-            next_actions=[
-                str(item.get("resolution"))
-                for item in scale_check["issues"]
-                if item.get("resolution")
-            ]
-            or ["按尺度对账结论修正输入后重新运行"],
-            run_id=None,
-            spec_id=spec_id or None,
-            missing_inputs=[],
-            scale_check=scale_check,
-            warnings=[str(item.get("detail")) for item in scale_check["advisories"]],
+        preflight_quality_issues.extend(
+            str(item.get("code") or "project_scale_inconsistent")
+            for item in scale_check["issues"]
         )
     if mode == "review_candidate" and bool(input_revision.get("is_operating")):
         breakdown = input_revision.get("invest_breakdown")
@@ -215,27 +174,8 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             if turnover.get(name) is None and turnover.get(f"{name}_days") is None
         ]
         if has_working_capital and missing_turnover:
-            missing = [f"wc_turnover.{name}" for name in missing_turnover]
-            return _ok_env(
-                {
-                    "available": False,
-                    "error": "working_capital_turnover_required",
-                    "missing_inputs": missing,
-                    "field_errors": [
-                        {
-                            "path": f"/input_revision/wc_turnover/{name}",
-                            "code": "required_for_review_candidate",
-                            "message": f"正式候选缺少 {name} 周转参数",
-                        }
-                        for name in missing_turnover
-                    ],
-                },
-                source=f"{SERVER_NAME}.finance_run_model",
-                status="missing_inputs",
-                blockers=["working_capital_turnover_required"],
-                next_actions=["补充 wc_turnover 分项周转天数后重新运行"],
-                run_id=None,
-                missing_inputs=missing,
+            preflight_quality_issues.extend(
+                f"missing_input:wc_turnover.{name}" for name in missing_turnover
             )
     expires_at = _expires_at()
     IDEMPOTENCY_STORE.put(
@@ -304,9 +244,23 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 "reconstruction_records": list(boe_payload.get("reconstruction_records") or payload.get("reconstruction_records") or []),
                 "reconstructed_source_ids": list(boe_payload.get("reconstructed_source_ids") or payload.get("reconstructed_source_ids") or []),
                 "unresolved_inputs": list(boe_payload.get("unresolved_inputs") or payload.get("unresolved_inputs") or []),
-                "release_limitations": list(boe_payload.get("release_limitations") or payload.get("release_limitations") or []),
+                "release_limitations": [
+                    *list(boe_payload.get("release_limitations") or payload.get("release_limitations") or []),
+                    *preflight_quality_issues,
+                ],
             },
         )
+        data = dict(data or {})
+        data["scale_check"] = scale_check
+        data["quality_issues"] = sorted(set([
+            *preflight_quality_issues,
+            *[str(item) for item in data.get("quality_issues") or []],
+        ]))
+        data["warnings"] = [
+            *list(data.get("warnings") or []),
+            *(f"质量提示：{item}" for item in preflight_quality_issues),
+        ]
+        data["blocking_issues"] = [] if data.get("available") else list(data.get("blocking_issues") or [])
         run_id = str(data.get("run_id") or "") or None
         if data.get("available") and not run_id:
             data = dict(data)
@@ -329,24 +283,30 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         if uri:
             data["resource_uri"] = uri
         missing = _str_list(data.get("missing_inputs"))
-        if data.get("available") and data.get("consistency_ok") is False:
-            status = "blocked"
-            blockers = _blocking_rules(data) or ["finance_consistency_failed"]
-            next_actions = ["修正财务勾稽问题后重新运行；当前 run 不可进入十三表正式候选"]
-        elif data.get("available") and run_id:
-            status, blockers = "ok", []
-            next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表"]
+        viability_status = str(data.get("viability_status") or "not_assessed")
+        viability_issues = list(data.get("viability_issues") or [])
+        quality_issues = [str(item) for item in data.get("quality_issues") or []]
+        if data.get("available") and run_id:
+            status = "partial" if quality_issues else "ok"
+            blockers = []
+            if viability_issues:
+                next_actions = [
+                    "项目经济性结论为负面，但财务运行及十三表生成不受阻断",
+                    "用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表",
+                ]
+            else:
+                next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表"]
         elif missing:
-            status = "missing_inputs"
-            blockers = [f"缺少必要输入：{item}" for item in missing]
-            next_actions = ["补齐缺失输入后重试 finance_run_model"]
+            status = "partial"
+            blockers = []
+            next_actions = ["当前结果已保留诊断；补充输入可提高估算置信度"]
         else:
             status = "blocked"
             blockers = _blocking_rules(data) or [str(data.get("reason") or "run_not_available")]
             next_actions = (
-                ["检查财务审计存储后重试；不得使用未持久化结果生成十三表"]
+                ["检查财务审计存储后重试；计算结果未成功持久化"]
                 if data.get("reason") == "finance_run_persistence_failed"
-                else ["按 blocking_issues 修正输入或 spec 后重试"]
+                else ["检查参数格式或计算异常后重试"]
             )
         result = _ok_env(
             data,
@@ -359,6 +319,8 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             spec_id=spec_id or None,
             missing_inputs=missing,
             field_errors=list(data.get("field_errors") or []),
+            viability_status=viability_status,
+            viability_issues=viability_issues,
             replayed=False,
             reused=False,
             idempotency_expires_at=expires_at,
@@ -415,12 +377,13 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
         consistency_failed = bool(
             data.get("available") and data.get("consistency_ok") is False
         )
-        read_status = "blocked" if (no_run or consistency_failed) else "ok"
-        read_blockers = (
-            ["尚无财务模型运行记录"]
-            if no_run
-            else (["finance_consistency_failed"] if consistency_failed else [])
-        )
+        read_status = "blocked" if no_run else ("partial" if consistency_failed else "ok")
+        read_blockers = ["尚无财务模型运行记录"] if no_run else []
+        quality_issues = [str(item) for item in data.get("quality_issues") or []]
+        if consistency_failed and "finance_consistency_failed" not in quality_issues:
+            quality_issues.append("finance_consistency_failed")
+        data["quality_issues"] = quality_issues
+        data["blocking_issues"] = [] if not no_run else list(data.get("blocking_issues") or [])
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_get_run",
@@ -428,12 +391,9 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
             resource_uris=[uri] if uri else [],
             blockers=read_blockers,
             next_actions=(
-                (["先调用 finance_run_model 生成 run"] if no_run else [])
-                or (
-                    ["修正财务勾稽问题后重新运行；当前 run 不可作为正式候选"]
-                    if consistency_failed
-                    else []
-                )
+                ["先调用 finance_run_model 生成 run"]
+                if no_run
+                else (["勾稽问题已作为质量诊断保留，不影响后续生成"] if consistency_failed else [])
             ),
             run_id=run_id,
             view=view,

@@ -33,7 +33,7 @@ description: >
 - partial（旧 DOC/OFD/扫描）**合法**，不得标成「全量自动通过」。
 - 证据默认 grade 保守；升级必须有可定位来源和显式复核结果。
 - P0A：`golden_samples_manifest.py --verify` 只证明冻结原件一致。
-- 金标目录 gitignore；用 `LVKE_GOLDEN_DATA_ROOT`（`docs/ci-golden-corpus.md`）。
+- 金标目录 gitignore；用 `LVKE_GOLDEN_DATA_ROOT`（`dev-docs/verification/ci-golden-corpus.md`）。
 
 ## 验证
 

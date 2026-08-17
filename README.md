@@ -3,7 +3,7 @@
 本目录是**独立的 MCP（Model Context Protocol）服务发行版**，包名 `lvke-mcp`，
 有自己的 `pyproject.toml`、`src/` 布局和自有 runtime（`src/lvke_mcp/runtime/`）。
 
-**独立边界（MCP_INDEPENDENCE_PLAN §6.1、§10）：** MCP 服务不读取、不调用、不依赖
+**独立边界（[MCP_INDEPENDENCE_PLAN](dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md) §6.1、§10）：** MCP 服务不读取、不调用、不依赖
 Hermes（`hermes_cli` / `tools` / 根 pyproject）的任何代码、配置、环境变量或文件系统路径。
 MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key）全部来自 `LVKE_MCP_*`
 自有环境变量，缺省落在 `~/.lvke/`。**不读取任何 `HERMES_*` 环境变量。** 本目录内的
@@ -81,7 +81,7 @@ sheet?, range?, options?)`；旧路径调用须先 `source_import_local_path`。
 mcp_servers/
 ├── pyproject.toml            # 独立发行版 lvke-mcp
 ├── README.md                 # 本文档
-├── MCP_INDEPENDENCE_PLAN.md  # 独立化开发方案
+├── dev-docs/                 # 工程文档（架构、计划、验证与报告）
 ├── src/lvke_mcp/
 │   ├── runtime/              # MCP 自有运行时（config/workspace/storage/resources/
 │   │                         #  jobs/transport/stdio/errors/responses/schemas/logging）

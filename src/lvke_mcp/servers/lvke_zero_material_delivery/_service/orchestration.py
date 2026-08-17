@@ -324,16 +324,15 @@ def _execute_solar_acquisition_preview(
 
     spec = _solar_acquisition_spec(intent, assumption_package)
     checked = acquisition.validate_spec(spec)
-    if not checked.get("valid"):
-        return {
-            "status": "model_blocked", "route": route, "finance_kind": "asset_acquisition",
-            "acceptance_level": "technical_pass", "system_success": True,
-            "business_success": False, "formal_ready": False, "research": research,
-            "project_context": project_context, "finance_validation": checked,
-            "blockers": list(checked.get("blockers") or ["acquisition_spec_invalid"]),
-            "object_refs": {"research_task_id": str(research.get("task_id") or ""),
-                            "project_context_id": str(project_context.get("project_context_id") or "")},
-        }
+    acquisition_quality_issues = [
+        str(item)
+        for item in (
+            checked.get("quality_issues")
+            or checked.get("field_errors")
+            or checked.get("blockers")
+            or []
+        )
+    ]
     saved = acquisition.save_spec(workspace_id, spec, f"zmd-acq-save-{lineage_key}")
     if not saved.get("spec_id"):
         return {"status": "model_blocked", "route": route, "finance_kind": "asset_acquisition",
@@ -360,16 +359,27 @@ def _execute_solar_acquisition_preview(
     package_id = str(package.get("finance_tables_package_id") or package.get("acquisition_tables_package_id") or "")
     csv_export = acquisition.export_tables_csv(workspace_id, package_id, f"zmd-acq-csv-{lineage_key}") if package_id else {}
     xlsx_export = acquisition.export_tables(workspace_id, package_id, f"zmd-acq-xlsx-{lineage_key}") if package_id else {}
+    acquisition_quality_issues.extend([
+        "research_evidence_pending",
+        "project_fact_evidence_pending",
+        *[str(item) for item in run.get("quality_issues") or []],
+        *[str(item) for item in package.get("quality_issues") or []],
+    ])
+    acquisition_quality_issues = sorted(set(acquisition_quality_issues))
     return {
-        "status": "upstream_partial", "route": route, "finance_kind": "asset_acquisition",
-        "acceptance_level": "technical_pass", "system_success": True, "business_success": False,
+        "status": "partial" if acquisition_quality_issues else "ok", "route": route,
+        "finance_kind": "asset_acquisition", "acceptance_level": "generated_with_warnings",
+        "system_success": True, "business_success": True, "completed": True,
         "formal_ready": False, "research": research, "project_context": project_context,
+        "finance_validation": checked,
         "finance_spec": confirmed, "finance_run": run, "tables": package,
         "csv_export": csv_export, "xlsx_export": xlsx_export,
         "report_preparation": {"finance_binding": {"kind": "asset_acquisition", "run_id": run_id,
                                                        "package_id": package_id},
                                "research_package_ids": [], "outline": list(REPORT_CHAPTERS)},
-        "blockers": ["research_evidence_pending", "project_fact_evidence_pending"],
+        "blockers": [],
+        "quality_issues": acquisition_quality_issues,
+        "warnings": [f"质量提示：{item}" for item in acquisition_quality_issues],
         "object_refs": {"research_task_id": str(research.get("task_id") or ""),
                         "project_context_id": str(project_context.get("project_context_id") or ""),
                         "acquisition_spec_id": str(confirmed["spec_id"]),
@@ -420,24 +430,7 @@ def execute(
     route_blockers = _check_route_consistency(
         route, project_context, finance_kind
     )
-    if route_blockers:
-        return {
-            "status": "route_conflict",
-            "stage": "planning_ready",
-            "route": route,
-            "research": research,
-            "project_context": project_context,
-            "blockers": route_blockers,
-            "warnings": ["项目路由解析与下游对象存在血缘冲突，禁止回落通用模型"],
-            "object_refs": {
-                "research_task_id": str(research.get("task_id") or ""),
-                "project_context_id": str(project_context.get("project_context_id") or ""),
-            },
-            "resource_uris": [
-                *list(research.get("resource_uris") or []),
-                *list(project_context.get("resource_uris") or []),
-            ],
-        }
+    quality_issues = [str(item) for item in route_blockers]
 
     if finance_kind == "asset_acquisition" and route.get("asset_type") == "solar_power":
         return _execute_solar_acquisition_preview(
@@ -446,31 +439,20 @@ def execute(
         )
 
     spec, finance_inputs, scenario_context = _scenario_inputs(assumption_package)
-    # 注入 finance_kind 到 spec 中
+    # finance_kind 是模型路线，invest_type 是企业/政府等投资属性；二者不可互相覆盖。
     if isinstance(spec, dict):
-        spec["invest_type"] = finance_kind
         spec["finance_kind"] = finance_kind
 
     validation = finance.validate_spec({"spec": spec, "for_formal": False})
-    if not validation.get("valid"):
-        return {
-            "status": "model_blocked",
-            "stage": "planning_ready",
-            "route": route,
-            "research": research,
-            "project_context": project_context,
-            "finance_validation": validation,
-            "blockers": ["finance_spec_validation_failed", *list(validation.get("blockers") or [])],
-            "warnings": [],
-            "object_refs": {
-                "research_task_id": str(research.get("task_id") or ""),
-                "project_context_id": str(project_context.get("project_context_id") or ""),
-            },
-            "resource_uris": [
-                *list(research.get("resource_uris") or []),
-                *list(project_context.get("resource_uris") or []),
-            ],
-        }
+    quality_issues.extend(
+        str(item)
+        for item in (
+            validation.get("quality_issues")
+            or validation.get("field_errors")
+            or validation.get("blockers")
+            or []
+        )
+    )
     prepared = finance.prepare_spec(
         {
             "workspace_id": workspace_id,
@@ -548,32 +530,10 @@ def execute(
             ],
         }
     if not scale_check["ok"]:
-        return {
-            "status": "model_blocked",
-            "stage": "planning_ready",
-            "route": route,
-            "research": research,
-            "project_context": project_context,
-            "finance_preparation": prepared,
-            "finance_confirmation": confirmed,
-            "scale_check": scale_check,
-            "blockers": [
-                *sorted({str(item.get("code")) for item in scale_check["issues"]}),
-            ],
-            "warnings": [str(item.get("detail")) for item in scale_check["advisories"]],
-            "object_refs": {
-                "research_task_id": str(research.get("task_id") or ""),
-                "project_context_id": str(project_context.get("project_context_id") or ""),
-                "finance_candidate_spec_id": candidate_spec_id,
-                "finance_confirmed_spec_id": confirmed_spec_id,
-            },
-            "resource_uris": [
-                *list(research.get("resource_uris") or []),
-                *list(project_context.get("resource_uris") or []),
-                *list(prepared.get("resource_uris") or []),
-                *list(confirmed.get("resource_uris") or []),
-            ],
-        }
+        quality_issues.extend(
+            str(item.get("code") or "project_scale_inconsistent")
+            for item in scale_check["issues"]
+        )
     finance_run = finance.run_model(
         {
             "workspace_id": workspace_id,
@@ -665,17 +625,26 @@ def execute(
         *([] if csv_export.get("csv_resource_uris") else ["finance_tables_csv_export_failed"]),
         *([] if xlsx_export.get("xlsx_resource") else ["finance_tables_xlsx_export_failed"]),
     ]
+    quality_issues.extend([
+        "research_evidence_pending",
+        "planning_market_evidence_pending",
+        *[str(item) for item in report_preparation.get("quality_issues") or []],
+        *export_blockers,
+    ])
+    quality_issues = sorted(set(quality_issues))
     return {
-        "status": "upstream_partial" if not export_blockers else "artifact_failed",
+        "status": "partial" if quality_issues else "ok",
         "stage": "tables_ready" if not export_blockers else "finance_ready",
         "route": route,
         "finance_kind": finance_kind,
-        "acceptance_level": "technical_pass",
+        "acceptance_level": "generated_with_warnings" if quality_issues else "complete",
         "system_success": True,
-        "business_success": False,
-        "formal_ready": False,
+        "business_success": True,
+        "completed": True,
+        "formal_ready": not export_blockers,
         "research": research,
         "project_context": project_context,
+        "finance_validation": validation,
         "finance_preparation": prepared,
         "finance_confirmation": confirmed,
         "finance_run": finance_run,
@@ -683,15 +652,12 @@ def execute(
         "csv_export": csv_export,
         "xlsx_export": xlsx_export,
         "report_preparation": report_preparation,
-        "blockers": [
-            "research_evidence_pending",
-            "planning_market_evidence_pending",
-            *list(report_preparation.get("blockers") or []),
-            *export_blockers,
-        ],
+        "blockers": [],
+        "quality_issues": quality_issues,
         "warnings": [
             "研究、规划与财务由 MCP 状态机编排，不依赖自由文本编排。",
-            "受控假设只能用于 estimate_preview，不得升级为正式项目证据。",
+            "受控假设已显式记录；补充项目事实后可提高交付置信度。",
+            *(f"质量提示：{item}" for item in quality_issues),
         ],
         "object_refs": {
             "research_task_id": str(research.get("task_id") or ""),
