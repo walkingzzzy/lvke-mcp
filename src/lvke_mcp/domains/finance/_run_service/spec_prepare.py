@@ -91,6 +91,41 @@ def _latest_confirmed_spec(
     return None
 
 
+def public_project_metadata(
+    finance: dict[str, Any] | None,
+    *,
+    invest_type: str = "",
+    industry: str = "",
+    valuation_date: str = "",
+    calc_period_years: Any = None,
+) -> dict[str, Any]:
+    """Flatten review-facing project metadata from known spec fields."""
+
+    source = dict((finance or {}).get("project_metadata") or {})
+    nested = dict(source)
+    result = dict(nested)
+    result.setdefault("project_type", nested.get("project_type") or invest_type or (finance or {}).get("invest_type"))
+    result.setdefault("industry", nested.get("industry") or industry or (finance or {}).get("industry"))
+    result.setdefault(
+        "valuation_date",
+        nested.get("valuation_date") or nested.get("base_date") or valuation_date or (finance or {}).get("valuation_date"),
+    )
+    result.setdefault("currency", nested.get("currency") or nested.get("currency_code") or "CNY")
+    result.setdefault("amount_unit", nested.get("amount_unit") or nested.get("unit") or "万元")
+    tax_inclusive = (finance or {}).get("revenue_tax_inclusive")
+    result.setdefault(
+        "tax_basis",
+        nested.get("tax_basis")
+        or nested.get("tax_inclusive_basis")
+        or nested.get("price_tax_basis")
+        or ("price_including_tax" if tax_inclusive else "price_excluding_tax"),
+    )
+    years = calc_period_years or nested.get("forecast_period") or (finance or {}).get("calc_period_years")
+    if years not in (None, "", []) and not str(result.get("forecast_period") or "").strip():
+        result["forecast_period"] = f"{int(years)}年" if isinstance(years, (int, float)) else str(years)
+    return {key: value for key, value in result.items() if value not in (None, "", [])}
+
+
 def _inject_linked_cost_items(req: dict[str, Any], finance_in: dict[str, Any]) -> dict[str, Any]:
     """定员/环保运行费联动注入（与历史 workspace_finance_model 行为一致）。
 
@@ -187,6 +222,14 @@ def prepare_workspace_finance_spec(
     _ensure_workspace(workspace_id)
     _meta, req, finance_raw = _read_workspace_req(workspace_id)
     finance_in = _inject_linked_cost_items(req, finance_raw)
+    from lvke_mcp.domains.finance.working_capital import apply_operating_turnover_to_inputs
+
+    injected = apply_operating_turnover_to_inputs(finance_in)
+    wc_injection_note = ""
+    if injected:
+        wc_injection_note = (
+            "经营项目缺周转天数时按行业缺省天数注入 wc_turnover；正式发布前须替换为已确认驱动"
+        )
     invest_type = str(req.get("invest_type") or "")
     industry = str(req.get("industry") or "")
     build_period_months = req.get("build_period_months")
@@ -209,6 +252,8 @@ def prepare_workspace_finance_spec(
 
     warnings: list[str] = []
     assumptions: list[str] = []
+    if wc_injection_note:
+        assumptions.append(wc_injection_note)
     spec: Optional[dict[str, Any]] = None
     used_llm = False
     llm_attempted = False

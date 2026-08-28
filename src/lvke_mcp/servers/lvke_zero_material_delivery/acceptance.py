@@ -96,8 +96,14 @@ def _find_uri(uris: list[str], suffix: str) -> str:
 def _run() -> dict[str, Any]:
     listed = _request("tools/list", {})
     tool_names = {item["name"] for item in listed.get("tools") or []}
-    assert len(tool_names) == 11
-    assert {"delivery_create_from_sentence", "delivery_start", "delivery_confirm_assumptions"} <= tool_names
+    assert len(tool_names) == 10
+    assert {
+        "delivery_create_from_sentence",
+        "delivery_start",
+        "delivery_confirm_assumptions",
+        "delivery_generate_template_pack",
+        "delivery_confirm_formal_promotion",
+    } <= tool_names
 
     ambiguous = _call(
         "delivery_create_from_sentence",

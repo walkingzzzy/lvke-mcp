@@ -48,18 +48,15 @@ def _gen_task_is_latest(candidate: dict[str, Any], current: Any) -> bool:
 
 def save_gen_task(workspace_id: str, task: dict[str, Any]) -> None:
     """持久化生成任务快照：按 task_id 落单文件 + 维护 legacy latest 单例。"""
-    try:
-        task_id = str(task.get("task_id") or "").strip()
-        if task_id:
-            _write_json(
-                _gen_task_snapshot_path(workspace_id, task_id),
-                task,
-            )
-        latest_path = _gen_task_path(workspace_id)
-        if not task_id or _gen_task_is_latest(task, _read_json(latest_path, None)):
-            _write_json(latest_path, task)
-    except Exception:  # noqa: BLE001
-        pass
+    task_id = str(task.get("task_id") or "").strip()
+    if task_id:
+        _write_json(
+            _gen_task_snapshot_path(workspace_id, task_id),
+            task,
+        )
+    latest_path = _gen_task_path(workspace_id)
+    if not task_id or _gen_task_is_latest(task, _read_json(latest_path, None)):
+        _write_json(latest_path, task)
 
 
 def load_gen_task(

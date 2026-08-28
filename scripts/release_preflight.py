@@ -29,9 +29,20 @@ def main() -> int:
     parser.add_argument(
         "--evd-json",
         default="",
-        help='EVD distribution JSON, e.g. {"EVD-0":0,"EVD-1":0,"EVD-2":24}',
+        help='EVD distribution JSON, e.g. {"EVD-0":0,"EVD-1":0,"EVD-2":5}',
     )
-    parser.add_argument("--sim-a", action="store_true", help="SIM-A materials present")
+    parser.add_argument("--sim-a", action="store_true", help="Unpromoted SIM-A materials present")
+    parser.add_argument(
+        "--sim-a-formal",
+        action="store_true",
+        help="Promoted sim_a_formal materials count as formal EVD-2",
+    )
+    parser.add_argument(
+        "--required-evd2",
+        type=int,
+        default=None,
+        help="Required EVD-2 count; default is P0 total from --evd-json",
+    )
     parser.add_argument("--formal-evidence", default="", help="Formal evidence summary")
     parser.add_argument(
         "--calculation-ok",
@@ -64,7 +75,9 @@ def main() -> int:
         word_manifest=Path(args.word_manifest) if args.word_manifest else None,
         word_root=Path(args.word_root) if args.word_root else None,
         evd_distribution=evd,
+        required_evd2_count=args.required_evd2,
         sim_a_present=args.sim_a,
+        sim_a_formal=args.sim_a_formal,
         build_metadata_complete=meta.complete,
         metadata_matches_commit=meta.complete,
         formal_evidence=args.formal_evidence,

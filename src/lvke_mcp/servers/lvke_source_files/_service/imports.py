@@ -83,6 +83,9 @@ def _commit_and_parse(
     expected_sha256: str = "",
     expected_size: int | None = None,
     parse_immediately: bool = True,
+    evidence_policy: str = "",
+    evidence_origin: str = "",
+    project_fact_certified: bool = False,
 ) -> dict[str, Any]:
     try:
         record = source_api.commit_staged_source_file(
@@ -93,6 +96,9 @@ def _commit_and_parse(
             idempotency_key=idempotency_key,
             expected_sha256=expected_sha256,
             expected_size=expected_size,
+            evidence_policy=evidence_policy,
+            evidence_origin=evidence_origin,
+            project_fact_certified=project_fact_certified,
         )
     except source_api.SourceFileError as exc:
         return _from_source_exception(exc)
@@ -131,12 +137,20 @@ def _commit_and_parse(
         source_file=_public_record(stored),
         parse_job=job,
         idempotent_replay=bool(record.get("idempotent_replay")),
-        evidence_eligibility="candidate",
-        formal_evidence_candidate=False,
+        evidence_eligibility=str(stored.get("evidence_policy") or "candidate"),
+        formal_evidence_candidate=bool(
+            stored.get("project_fact_certified")
+            and str(stored.get("evidence_policy") or "") in {"formal_evidence", "sim_a_formal"}
+        ),
+        evidence_policy=str(stored.get("evidence_policy") or "candidate"),
+        evidence_origin=str(stored.get("evidence_origin") or ""),
+        project_fact_certified=bool(stored.get("project_fact_certified")),
         lineage={
             "source_sha256": stored.get("sha256"),
             "source_version": stored.get("version"),
             "parse_job_id": job_id,
+            "evidence_policy": stored.get("evidence_policy") or "candidate",
+            "evidence_origin": stored.get("evidence_origin") or "",
         },
     )
 
@@ -150,6 +164,9 @@ def import_content(
     idempotency_key: str,
     expected_sha256: str = "",
     parse_immediately: bool = True,
+    evidence_policy: str = "",
+    evidence_origin: str = "",
+    project_fact_certified: bool = False,
 ) -> dict[str, Any]:
     raw, error = _decode_content(content_base64, limit=DIRECT_CONTENT_LIMIT)
     if error:
@@ -165,6 +182,9 @@ def import_content(
         expected_sha256=expected_sha256,
         expected_size=len(raw),
         parse_immediately=parse_immediately,
+        evidence_policy=evidence_policy,
+        evidence_origin=evidence_origin,
+        project_fact_certified=project_fact_certified,
     )
 
 

@@ -51,7 +51,7 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
         pack_candidate_set_id = str(payload.get("candidate_set_id") or "")
         pack_server_signed = payload.get("server_signed_candidates") is True
         pack_formal = payload.get("formal_evidence_candidate") is True
-        pack_track = str(payload.get("evidence_track") or "real")
+        pack_track = str(payload.get("evidence_policy") or payload.get("evidence_track") or "real")
         pack_fixture = payload.get("technical_fixture_candidate") is True
         pack_reconstructed = payload.get("source_reconstructed_candidate") is True
         fixture_manifest = payload.get("fixture_manifest") or {}
@@ -78,6 +78,7 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
             source = by_source.get(str(raw.get("source_id") or "")) or {}
             candidates.append({
                 **deepcopy(raw),
+                "evidence_policy": raw.get("evidence_policy") or source.get("evidence_policy") or payload.get("evidence_policy"),
                 "evidence_pack_id": pack_id,
                 "source": deepcopy(source),
                 "_pack_candidate_set_id": pack_candidate_set_id,
@@ -89,6 +90,26 @@ def _evidence_catalog(packs: Iterable[dict[str, Any]]) -> tuple[list[dict[str, A
                 "_pack_fixture_manifest": deepcopy(fixture_manifest),
             })
     return candidates, sources
+
+
+def _sim_a_formal_candidate(candidate: dict[str, Any]) -> bool:
+    source = candidate.get("source") or {}
+    content_hash = str(source.get("content_hash") or source.get("sha256") or "")
+    policy = str(
+        candidate.get("evidence_policy")
+        or source.get("evidence_policy")
+        or candidate.get("_pack_evidence_track")
+        or ""
+    )
+    return bool(
+        policy == "sim_a_formal"
+        and re.fullmatch(r"(?:sha256:)?[0-9a-fA-F]{64}", content_hash)
+        and (
+            isinstance(candidate.get("locator"), dict)
+            or candidate.get("locator")
+            or source.get("locators")
+        )
+    )
 
 
 def _formal_evidence_candidate(candidate: dict[str, Any]) -> bool:
@@ -209,7 +230,11 @@ def _evidence_claims(
 ) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     for candidate in candidates:
-        if not (_formal_evidence_candidate(candidate) or _source_reconstructed_candidate(candidate)):
+        if not (
+            _formal_evidence_candidate(candidate)
+            or _source_reconstructed_candidate(candidate)
+            or _sim_a_formal_candidate(candidate)
+        ):
             continue
         numeric = _number(candidate.get("numeric_value"))
         metric = _candidate_metric(candidate)
@@ -247,6 +272,8 @@ def _candidate_matches_claim(
         if evidence_track == "technical_fixture"
         else _source_reconstructed_candidate(candidate)
         if evidence_track == "source_reconstructed"
+        else _sim_a_formal_candidate(candidate)
+        if evidence_track == "sim_a_formal"
         else _formal_evidence_candidate(candidate)
     )
     if numeric is None or not qualified:

@@ -268,6 +268,46 @@ def build_server() -> OfficialStdioServer:
         write,
     )
     server.register_tool(
+        "delivery_generate_template_pack",
+        "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。",
+        _schema(
+            {
+                "delivery_run_id": _SAFE_ID,
+                "project_type": {
+                    "type": "string",
+                    "enum": ["generic_feasibility", "asset_acquisition"],
+                    "default": "generic_feasibility",
+                },
+                "idempotency_key": _KEY,
+            },
+            ["delivery_run_id", "idempotency_key"],
+        ),
+        service.generate_template_pack,
+        _OUTPUT,
+        write,
+    )
+    server.register_tool(
+        "delivery_confirm_formal_promotion",
+        "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。",
+        _schema(
+            {
+                "template_pack_id": _SAFE_ID,
+                "responsible_party": {"type": "string", "minLength": 1, "maxLength": 200},
+                "confirmation_note": {"type": "string", "minLength": 1, "maxLength": 2000},
+                "idempotency_key": _KEY,
+            },
+            [
+                "template_pack_id",
+                "responsible_party",
+                "confirmation_note",
+                "idempotency_key",
+            ],
+        ),
+        service.confirm_formal_promotion,
+        _OUTPUT,
+        write,
+    )
+    server.register_tool(
         "delivery_get_artifacts",
         "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用；"
         "每个工件带 usable、validation_status 与 release_grade，URI 可读不等于可交付。",

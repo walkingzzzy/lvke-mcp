@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
+from lvke_mcp.runtime.soffice import resolve_soffice_binary, run_soffice_convert, soffice_version
 from lvke_mcp.runtime.storage import sha256_json
 
 ENGINE_VERSION = "lvke-deliverable-review-engine.v1.3"
@@ -890,15 +891,12 @@ def recalculate_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[str], dict[
         "available": False, "formula_cells": 0, "empty_formula_caches": 0,
         "formula_errors": 0, "input_unchanged": False, "worker_version": "",
     }
-    binary = os.environ.get("LVKE_REVIEW_SOFFICE") or shutil.which("soffice") or shutil.which("libreoffice")
+    binary = resolve_soffice_binary("LVKE_REVIEW_SOFFICE")
     if not binary:
         return findings, ["libreoffice_recalc_worker_unavailable"], metrics
     original_hash = hashlib.sha256(path.read_bytes()).hexdigest()
     try:
-        version_result = subprocess.run(
-            [binary, "--version"], check=True, capture_output=True, text=True, timeout=15,
-        )
-        version = (version_result.stdout or version_result.stderr or "").strip()[:200]
+        version = soffice_version(binary)[:200]
     except (OSError, subprocess.SubprocessError):
         return findings, ["libreoffice_recalc_worker_version_unavailable"], metrics
     metrics["available"] = True
@@ -913,21 +911,18 @@ def recalculate_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[str], dict[
             root = Path(temp_dir)
             source_dir = root / "source"
             output_dir = root / "output"
-            profile_dir = root / "profile"
             source_dir.mkdir()
             output_dir.mkdir()
-            profile_dir.mkdir()
             isolated = source_dir / ("review-input.xlsm" if path.suffix.lower() == ".xlsm" else "review-input.xlsx")
             shutil.copy2(path, isolated)
             isolated.chmod(0o400)
-            profile_uri = profile_dir.resolve().as_uri()
-            subprocess.run(
-                [
-                    binary, "--headless", "--nologo", "--nodefault", "--nofirststartwizard",
-                    f"-env:UserInstallation={profile_uri}", "--convert-to", "xlsx",
-                    "--outdir", str(output_dir), str(isolated),
-                ],
-                check=True, capture_output=True, text=True, timeout=180,
+            run_soffice_convert(
+                source=isolated,
+                convert_to="xlsx",
+                outdir=output_dir,
+                binary=binary,
+                timeout=180,
+                check=True,
             )
             recalculated = output_dir / "review-input.xlsx"
             if not recalculated.is_file():

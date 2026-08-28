@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-08-28T12:45:00Z",
+  "workspace_id": "live-acc-g2-20260828",
+  "url_count": 22,
+  "readable_snapshots": 1,
+  "blocked_local_audit": 22,
+  "block_reason": "proxy_fake_ip_resolution",
+  "url_audit_id": "urlaudit_fb058f1e74bf80c8fb4e324d",
+  "source_file_id": "src_a6636d7aeedaca6682361bcd",
+  "analysis_task_id": "analysis_7d15dabcc4d70cd1a68173ad",
+  "tavily_snapshot_id": "src_406eab3eb87fcc9645d5eaa0",
+  "evidence_pack_reconstructed": "EXPECTED_REJECTION",
+  "track_status": "partial",
+  "build_metadata_complete": false,
+  "release_ready": false
+}

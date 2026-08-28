@@ -58,6 +58,7 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
     depreciation = annual.get("depreciation_table") if isinstance(annual.get("depreciation_table"), list) else []
     amortization = annual.get("amortization_table") if isinstance(annual.get("amortization_table"), list) else []
     profits = annual.get("profit_distribution") if isinstance(annual.get("profit_distribution"), list) else []
+    income = annual.get("income_statement") if isinstance(annual.get("income_statement"), list) else []
     debt = annual.get("debt_service") if isinstance(annual.get("debt_service"), list) else []
     intangible_gross = max((_number(row.get("base")) for row in amortization), default=0.0)
 
@@ -129,15 +130,24 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
                 net_fixed_assets = 0.0
                 working_capital = 0.0
 
+        deferred_tax_asset = 0.0
+        deferred_tax_liability = 0.0
+        if not construction_phase:
+            deferred_balance = _period_value(income, operating_index, "deferred_tax_liability")
+            if deferred_balance >= 0:
+                deferred_tax_liability = deferred_balance
+            else:
+                deferred_tax_asset = abs(deferred_balance)
         total_assets = (
             cash
             + construction_in_progress
             + net_fixed_assets
             + net_intangible_assets
             + working_capital
+            + deferred_tax_asset
         )
         recorded_equity = contributed_capital + contributed_subsidy + cumulative_profit
-        total_liabilities = outstanding_debt + cash_deficit
+        total_liabilities = outstanding_debt + cash_deficit + deferred_tax_liability
         calculated_equity_residual = total_assets - total_liabilities
         reconciliation_delta = calculated_equity_residual - recorded_equity
         row = {
@@ -149,6 +159,8 @@ def build_balance_sheet_schedule(run: dict[str, Any]) -> dict[str, Any]:
             "net_fixed_assets_wan": round(net_fixed_assets, 2),
             "net_intangible_assets_wan": round(net_intangible_assets, 2),
             "working_capital_wan": round(working_capital, 2),
+            "deferred_tax_asset_wan": round(deferred_tax_asset, 2),
+            "deferred_tax_liability_wan": round(deferred_tax_liability, 2),
             "total_assets_wan": round(total_assets, 2),
             "outstanding_debt_wan": round(outstanding_debt, 2),
             "total_liabilities_wan": round(total_liabilities, 2),

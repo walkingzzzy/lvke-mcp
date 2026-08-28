@@ -21,7 +21,7 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Keep proposal, diff, apply, revision, and basis-fingerprint semantics.
 - Do not present an unreleased draft or generated DOCX as a formally approved deliverable.
 - Require self-contained licensed CJK fonts in formal DOCX output; audit the
-  package and visually inspect every PNG-rendered page before acceptance.
+  package. soffice PNG conversion is a probe, not page-by-page visual acceptance.
 
 ## MCP Tool Mapping
 
@@ -33,4 +33,4 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | `report_propose` → `report_apply` | lvke-report-generation | revision lineage | Codex narrative; MCP binds numbers |
 | `report_export_docx` | lvke-report-generation | confirmed revision | `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED` = EXPECTED_REJECTION |
 
-Evidence tracks: `technical_fixture`, `controlled_assumption`, `formal_evidence`. Report numbers must bind same FinanceRun hash/lineage.
+Evidence tracks: `technical_fixture`, `controlled_assumption`, `formal_evidence`, `sim_a_formal`. Unpromoted SIM-A cannot clear formal export. Report numbers must bind same FinanceRun hash/lineage.

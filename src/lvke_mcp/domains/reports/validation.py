@@ -277,11 +277,12 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         warnings.append("起草任务未完成；当前修订不能视为生成成功")
 
     quality_issues = sorted(set(blockers))
+    formal_ok = not quality_issues
     warnings.extend(f"质量提示：{item}" for item in quality_issues)
     readiness = _synchronize_readiness(
         readiness,
         quality_issues,
-        formal_release_eligible=True,
+        formal_release_eligible=formal_ok,
     )
     return {
         "success": True,
@@ -290,10 +291,10 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "completed": True,
         "outcome": "partial" if quality_issues else "ok",
         "status": "partial" if quality_issues else "ok",
-        "valid": True,
+        "valid": formal_ok,
         "quality_valid": not quality_issues,
         "technical_ready": True,
-        "formal_release_eligible": True,
+        "formal_release_eligible": formal_ok,
         "report_revision_id": record["object_id"],
         "native_revision_id": native,
         "run_id": run_id,
@@ -308,9 +309,13 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "latest_preparation_id": latest_preparation_id,
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
-        "blockers": [],
+        "blockers": quality_issues,
         "quality_issues": quality_issues,
-        "next_actions": ["校验已完成；可直接导出，质量问题作为提示保留"],
+        "next_actions": (
+            ["校验发现阻断项，修复后再导出正式件"]
+            if quality_issues
+            else ["校验已完成；可导出正式件"]
+        ),
     }
 
 
@@ -350,11 +355,11 @@ def _synchronize_readiness(
 
     codes = sorted(known_codes)
     snapshot["quality_issues"] = normalized
-    snapshot["blocking_issues"] = []
-    snapshot["blockers"] = []
+    snapshot["blocking_issues"] = codes if not formal_release_eligible else []
+    snapshot["blockers"] = normalized if not formal_release_eligible else []
     snapshot["technical_ready"] = True
-    snapshot["formal_release_eligible"] = True
-    snapshot["publishable"] = True
+    snapshot["formal_release_eligible"] = formal_release_eligible
+    snapshot["publishable"] = formal_release_eligible
     snapshot["quality_valid"] = not codes
     return snapshot
 

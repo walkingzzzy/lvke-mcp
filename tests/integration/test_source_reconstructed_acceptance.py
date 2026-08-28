@@ -380,7 +380,7 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
                 business_decision_status="not_selected",
             )
             self.assertAlmostEqual(finance["total_investment_wan"], scenario["total_investment_wan"], places=2)
-            self.assertEqual(len(finance["csv_resource_uris"]), 13)
+            self.assertEqual(len(finance["csv_resource_uris"]), 15)
             self.assertEqual(released["business_decision_status"], "not_selected")
             self.assertTrue(released["release_id"].startswith("fdrp_"))
             releases.append(released)

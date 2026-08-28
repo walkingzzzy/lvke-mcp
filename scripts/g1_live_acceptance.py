@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G1 live MCP acceptance: 171-tool census + full synthetic golden chain."""
+"""G1 live MCP acceptance: 173-tool census + full synthetic golden chain."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from lvke_mcp.runtime.build_metadata import build_metadata  # noqa: E402
 from lvke_mcp.testing.server_manifest import SERVER_SPECS  # noqa: E402
 
 REPORTS = ROOT / "dev-docs" / "reports"
-EXPECTED_TOOL_COUNT = 171
+EXPECTED_TOOL_COUNT = 173
 
 
 def _utc_now() -> str:

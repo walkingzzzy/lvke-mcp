@@ -115,7 +115,7 @@ def build_server() -> OfficialStdioServer:
             "valuation_date": {"type": "string"},
             "evidence_policy": {
                 "type": "string",
-                "enum": ["formal_evidence", "source_reconstructed"],
+                "enum": ["formal_evidence", "source_reconstructed", "sim_a_formal"],
             },
             "project_fact_certified": {"type": "boolean"},
             "domains": {"type": "object"},

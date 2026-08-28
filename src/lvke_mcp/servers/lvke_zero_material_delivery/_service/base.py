@@ -51,6 +51,12 @@ MANIFEST_STORE = JSONArtifactStore(
 IDEMPOTENCY_STORE = JSONArtifactStore(
     "zero-material-delivery", "idempotency", "zmid", "idempotency"
 )
+TEMPLATE_PACK_STORE = JSONArtifactStore(
+    "zero-material-delivery", "template_packs", "zmtp", "template-packs"
+)
+PROMOTION_STORE = JSONArtifactStore(
+    "zero-material-delivery", "promotions", "zmprom", "promotions"
+)
 
 _RESOURCE_STORES = (
     (INTENT_STORE, "DeliveryIntent", "delivery_intent_id"),
@@ -61,6 +67,8 @@ _RESOURCE_STORES = (
     (GAP_REGISTER_STORE, "GapRegister", "gap_register_id"),
     (EVIDENCE_MANIFEST_STORE, "EvidenceManifest", "evidence_manifest_id"),
     (MANIFEST_STORE, "RunManifest", "run_manifest_id"),
+    (TEMPLATE_PACK_STORE, "TemplatePack", "template_pack_id"),
+    (PROMOTION_STORE, "FormalPromotion", "promotion_id"),
 )
 
 _ACTIVE_STAGES = {
@@ -131,6 +139,20 @@ _ROUTE_RULES: tuple[dict[str, Any], ...] = (
         "keywords": ("商业", "零售", "电商", "咨询", "检测", "研发中心", "媒体", "广告", "专业服务"),
         "strong_keywords": ("零售", "电商", "咨询", "检测", "研发中心", "媒体", "广告", "专业服务"),
         "factory_industry": "professional_research_media",
+    },
+    {
+        "code": "real_estate",
+        "label": "房地产开发",
+        "keywords": ("房地产", "住宅", "商品房", "置业", "楼盘", "房地产开发"),
+        "strong_keywords": ("房地产", "住宅", "商品房", "置业", "楼盘"),
+        "factory_industry": "construction_real_estate",
+    },
+    {
+        "code": "cemetery_funeral",
+        "label": "殡葬与墓地",
+        "keywords": ("墓地", "公墓", "殡仪", "殡葬", "陵园", "骨灰堂", "cemetery", "funeral", "burial"),
+        "strong_keywords": ("墓地", "公墓", "殡仪", "殡葬", "陵园"),
+        "factory_industry": "construction_real_estate",
     },
 )
 

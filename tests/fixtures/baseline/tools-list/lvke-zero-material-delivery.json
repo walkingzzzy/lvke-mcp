@@ -926,6 +926,318 @@
       "destructiveHint": false,
       "idempotentHint": true,
       "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "delivery_run_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "project_type": {
+          "type": "string",
+          "enum": [
+            "generic_feasibility",
+            "asset_acquisition"
+          ],
+          "default": "generic_feasibility"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "delivery_run_id",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "delivery_generate_template_pack",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-zero-material-delivery/delivery_generate_template_pack/output"
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "description": "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。",
+    "execution": {
+      "taskSupport": "forbidden"
+    },
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "template_pack_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "responsible_party": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "confirmation_note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "workspace_id",
+        "template_pack_id",
+        "responsible_party",
+        "confirmation_note",
+        "idempotency_key"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "name": "delivery_confirm_formal_promotion",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-zero-material-delivery/delivery_confirm_formal_promotion/output"
+    }
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
       "readOnlyHint": true
     },
     "description": "聚合读取同一 DeliveryRun 的交付 Resource URI 和 manifest 引用；每个工件带 usable、validation_status 与 release_grade，URI 可读不等于可交付。",

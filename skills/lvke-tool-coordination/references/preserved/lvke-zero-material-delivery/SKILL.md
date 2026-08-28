@@ -1,6 +1,6 @@
 ---
 name: lvke-zero-material-delivery
-description: 零材料交付（一句话 → 受控假设 → 十三表与报告）的 8 个 delivery_* 工具：意图建立、假设确认、编排执行、状态查询、工件读取与取消恢复。
+description: 零材料交付（一句话 → 受控假设 → 拟定模板包 → 晋升新可研链）的 10 个 delivery_* 工具。
 platforms: [linux, macos, windows]
 metadata:
   conditions:
@@ -27,17 +27,19 @@ metadata:
 ```text
 1. delivery_create_from_sentence(workspace_id, sentence, idempotency_key)
       → DeliveryIntent + 初始 DeliveryRun；行业歧义时返回结构化 missing_inputs
-2. delivery_list_assumptions(workspace_id, assumption_package_id, limit=5..10)
+2. delivery_start(workspace_id, delivery_run_id, idempotency_key)
+      → 首次创建 AssumptionPackage，并内部串 preview 财务/十三表/报告准备
+3. delivery_list_assumptions(workspace_id, assumption_package_id, limit=5..10)
       → 按敏感度排序的待确认关键参数
-3. delivery_confirm_assumptions(workspace_id, assumption_package_id,
+4. delivery_confirm_assumptions(workspace_id, assumption_package_id,
        confirmations, idempotency_key)
-      → 产出新的 AssumptionPackage 与 DeliveryRun，不覆盖旧版本
-4. delivery_start(workspace_id, delivery_run_id, idempotency_key)
-      → 执行编排（研究 / 规划 / 财务 / 十三表 / 报告准备）
-5. delivery_status(workspace_id, delivery_run_id)
-      → 阶段、进度、blockers、恢复令牌
-6. delivery_get_artifacts(workspace_id, delivery_run_id)
-      → 逐工件的 usable / validation_status / release_grade
+      → 产出新的 AssumptionPackage 与 DeliveryRun，内部自动重算
+5. delivery_generate_template_pack(workspace_id, delivery_run_id, idempotency_key)
+      → 按适用标准需求生成拟定 MD/JSON 模板包
+6. delivery_confirm_formal_promotion(..., responsible_party, confirmation_note)
+      → 导入新可研链资料，返回 project_context_create → feasibility_start
+7. delivery_status / delivery_get_artifacts
+      → 只看 domain_status、usable、release_grade
 ```
 
 辅助入口：
@@ -63,8 +65,14 @@ metadata:
 
 ## 门禁
 
-- 本路线默认且只应产出 `estimate_preview`。受控假设不是项目事实，
-  `project_fact_certified` 恒为 false，不可用于正式项目交付。
+- 未晋升预览只应产出 `estimate_preview`，`release_grade=technical_preview`。
+  调用 `feasibility_release` / `report_export_docx(kind=formal)` 必须仍是
+  `EXPECTED_REJECTION`。
+- 正式验收必须生成拟定模板包并确认晋升，然后**新建** `pctx_*` / `fdr_*` /
+  `evp_*` / `run_*`，禁止把 `zmr_*` 原地升级。
+- `sim_a_formal` 允许正式发布；对外 DOCX/XLSX 不写「拟定」水印。lineage /
+  Resource JSON 必须保留 `evidence_origin=sim_a_template`。
+- 禁止编造签章、公章、正式文号、银行流水、批复号、检测/审计结论。
 - 每个阶段生成新的不可变对象，上游重开会把下游标记为 stale，不原地改写。
 - 写类工具都要 `idempotency_key`；同键换内容返回 `idempotency_conflict`，
   这时应换新键，而不是反复重试同一调用。

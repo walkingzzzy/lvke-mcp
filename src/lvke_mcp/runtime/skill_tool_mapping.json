@@ -219,18 +219,28 @@
       ],
       "formal_blockers": ["build_metadata_incomplete"],
       "outputs": ["AcceptanceTrace"],
-      "notes": "对话式验收覆盖全部 171 工具；映射由 acceptance manifest 动态展开"
+      "notes": "对话式验收覆盖全部 173 工具；映射由 acceptance manifest 动态展开"
     },
     {
       "skill": "lvke-tool-coordination",
-      "tools": [],
-      "servers": [],
+      "tools": [
+        "delivery_create_from_sentence",
+        "delivery_start",
+        "delivery_list_assumptions",
+        "delivery_confirm_assumptions",
+        "delivery_generate_template_pack",
+        "delivery_confirm_formal_promotion",
+        "delivery_status",
+        "delivery_get_artifacts"
+      ],
+      "servers": ["lvke-zero-material-delivery"],
       "required_inputs": ["workspace_id"],
       "allowed_evidence_tracks": [
         "technical_fixture",
         "controlled_assumption",
         "source_reconstructed",
-        "formal_evidence"
+        "formal_evidence",
+        "sim_a_formal"
       ],
       "formal_blockers": [
         "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
@@ -250,7 +260,9 @@
       "required_inputs": ["workspace_id"],
       "allowed_evidence_tracks": [
         "technical_fixture",
-        "controlled_assumption"
+        "controlled_assumption",
+        "sim_a_formal",
+        "formal_evidence"
       ],
       "formal_blockers": ["idempotency_conflict"],
       "outputs": ["ReportRevision"]
@@ -267,65 +279,6 @@
       "formal_blockers": [],
       "outputs": [],
       "notes": "恢复 Skill；引用 trace_id 与 next_actions 跨服务定位"
-    },
-    {
-      "skill": "lvke-api-contract",
-      "tools": [],
-      "servers": [],
-      "required_inputs": ["workspace_id"],
-      "allowed_evidence_tracks": [
-        "technical_fixture",
-        "controlled_assumption",
-        "source_reconstructed",
-        "formal_evidence"
-      ],
-      "formal_blockers": [],
-      "outputs": [],
-      "notes": "契约 Skill；校验 baseline/contracts 与 lvke://schemas Resource"
-    },
-    {
-      "skill": "lvke-backend",
-      "tools": [],
-      "servers": [],
-      "required_inputs": ["workspace_id"],
-      "allowed_evidence_tracks": [
-        "technical_fixture",
-        "controlled_assumption",
-        "formal_evidence"
-      ],
-      "formal_blockers": ["build_metadata_incomplete"],
-      "outputs": [],
-      "notes": "14 MCP server 实现；envelope 与 outputSchema 校验"
-    },
-    {
-      "skill": "lvke-local-verify",
-      "tools": [],
-      "servers": [],
-      "required_inputs": ["workspace_id"],
-      "allowed_evidence_tracks": [
-        "technical_fixture",
-        "controlled_assumption"
-      ],
-      "formal_blockers": [],
-      "outputs": [],
-      "notes": "本地 pytest/golden；不替代 g1/g2/g3 live acceptance"
-    },
-    {
-      "skill": "lvke-urban-rail-transit",
-      "tools": [
-        "planning_solve_build_scale",
-        "finance_run_model",
-        "finance_validate_spec"
-      ],
-      "servers": ["lvke-project-planning", "lvke-finance-model"],
-      "required_inputs": ["workspace_id"],
-      "allowed_evidence_tracks": [
-        "technical_fixture",
-        "controlled_assumption"
-      ],
-      "formal_blockers": ["missing_inputs"],
-      "outputs": ["BuildScaleCase", "FinanceRun"],
-      "notes": "城轨行业专用；不得套用通用公共服务口径"
     }
   ]
 }

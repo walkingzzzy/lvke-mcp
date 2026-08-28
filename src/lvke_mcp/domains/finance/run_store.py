@@ -121,6 +121,11 @@ def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     兼容旧记录：无新字段时从 legacy 字段推导。
     """
     view = dict(record)
+    snapshot = record.get("_result_snapshot")
+    if isinstance(snapshot, dict):
+        view.setdefault("evidence_policy", snapshot.get("evidence_policy"))
+        view.setdefault("project_fact_certified", snapshot.get("project_fact_certified"))
+        view.setdefault("mode", snapshot.get("mode") or record.get("assurance_level"))
     view.pop("_result_snapshot", None)
     view.setdefault("consistency_ok", False)
     view.setdefault("integrity_status", "passed" if view.get("consistency_ok") else "failed" if record.get("consistency") else "not_assessed")
@@ -312,6 +317,9 @@ def record_run(
         "agent_trace_id": agent_trace_id or fin.get("agent_trace_id") or "",
         "tool_call_id": tool_call_id or fin.get("tool_call_id") or "",
         "assurance_level": fin.get("assurance_level") or "estimate_preview",
+        "mode": fin.get("mode") or fin.get("assurance_level") or "estimate_preview",
+        "evidence_policy": fin.get("evidence_policy"),
+        "project_fact_certified": bool(fin.get("project_fact_certified")),
         "manifest_json": (
             json.dumps(manifest, ensure_ascii=False, sort_keys=True, default=str)
             if manifest else None

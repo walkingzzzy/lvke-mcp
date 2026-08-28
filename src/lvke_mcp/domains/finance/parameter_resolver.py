@@ -31,8 +31,9 @@ CANONICAL_FINANCE_FIELDS = frozenset({
     "loan_ratio", "loan_wan", "loan_rate", "loan_years", "loan_grace_years",
     "loan_balloon_pct", "loan_repay_method", "loan_draw_by_year", "loan_draw_plan",
     "loan_interest_by_year", "loan_principal_by_year", "debt_interest_by_year",
-    "debt_principal_by_year", "debt_repay_sources", "equity_inject_by_year",
-    "funding_annual_schedule", "gov_subsidy_wan", "annual_operating_subsidy_wan",
+    "debt_principal_by_year", "debt_repay_sources",
+    "debt_repay_sources_confirmation_status", "equity_inject_by_year",
+    "funding_annual_schedule", "timeline", "gov_subsidy_wan", "annual_operating_subsidy_wan",
     "calc_period_years", "cost_items", "cost_behavior", "cost_policy",
     "operating_cost_by_year", "opex_by_year", "income_tax_rate", "vat_rate",
     "vat_input_rate", "surtax_on_vat", "surtax_vat_rate", "tax_component_policy",
@@ -370,6 +371,10 @@ def finance_input_schema() -> dict[str, Any]:
     }
     for field in ("amort_bases", "debt_repay_sources", "loan_draw_plan"):
         properties[field] = {"type": "array", "items": {"type": "object"}}
+    properties["debt_repay_sources_confirmation_status"] = {
+        "type": "string",
+        "enum": ["confirmed", "reviewed", "verified", "approved"],
+    }
     for field in (
         "cost_behavior", "tax_component_policy", "distribution_policy",
     ):
@@ -394,6 +399,14 @@ def finance_input_schema() -> dict[str, Any]:
             ],
         },
         "description": "建设期逐年资金用途与来源原子计划；各年用途与来源必须闭合。",
+    }
+    properties["timeline"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "mode": {"type": "string", "enum": ["annual", "monthly"]},
+        },
+        "description": "计算粒度。monthly 时按月期间滚动收入/成本/折旧/税与亏损结转，十三表仍年汇总。",
     }
     for field in (
         "is_operating", "surtax_on_vat", "revenue_tax_inclusive",

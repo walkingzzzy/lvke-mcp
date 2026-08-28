@@ -504,6 +504,26 @@ def _export_docx_via_python_docx(
     return buffer.getvalue()
 
 
+def append_markdown_pipe_table(document: Any, rows: list[list[str]]) -> None:
+    """Render a markdown pipe table into an existing python-docx document."""
+
+    if not rows:
+        return
+    columns = max((len(row) for row in rows), default=1)
+    table = document.add_table(rows=0, cols=max(columns, 1))
+    table.style = "Table Grid"
+    for row_index, values in enumerate(rows):
+        cells = table.add_row().cells
+        for col_index, value in enumerate(values):
+            if col_index >= len(cells):
+                break
+            cells[col_index].text = value
+            if row_index == 0:
+                for paragraph in cells[col_index].paragraphs:
+                    for cell_run in paragraph.runs:
+                        cell_run.bold = True
+
+
 def markdown_to_docx(
     content: str,
     *,

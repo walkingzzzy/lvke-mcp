@@ -44,8 +44,10 @@ from ._service.base import (  # noqa: F401
     IDEMPOTENCY_STORE,
     INTENT_STORE,
     MANIFEST_STORE,
+    PROMOTION_STORE,
     REPORT_STORE,
     RUN_STORE,
+    TEMPLATE_PACK_STORE,
     SERVICE_NAME,
     SERVICE_VERSION,
     _ACTIVE_STAGES,
@@ -70,6 +72,10 @@ from ._service.finance_align import (  # noqa: F401
     _sync_working_capital,
 )
 from ._service.intake import create_from_sentence  # noqa: F401
+from ._service.promotion import (  # noqa: F401
+    confirm_formal_promotion,
+    generate_template_pack,
+)
 from ._service.lifecycle import (  # noqa: F401
     _stage_progress,
     _transition_control,

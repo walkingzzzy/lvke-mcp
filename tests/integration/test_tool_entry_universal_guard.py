@@ -135,7 +135,7 @@ class ToolEntryUniversalGuardTest(unittest.TestCase):
     def test_every_public_tool_is_covered(self) -> None:
         """先证明这组测试真的覆盖了全部对外入口，否则下面的断言是空转。"""
 
-        self.assertEqual(171, len(self.tools), "对外工具数变化：先确认是有意增减")
+        self.assertEqual(173, len(self.tools), "对外工具数变化：先确认是有意增减")
         self.assertEqual(14, len(SERVER_SPECS))
 
     def test_input_schema_is_self_consistent(self) -> None:

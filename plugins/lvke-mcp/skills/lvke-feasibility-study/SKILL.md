@@ -34,6 +34,8 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | Tool | Server | Required inputs | Outcome notes |
 |------|--------|-----------------|---------------|
 | `feasibility_start` / `feasibility_status` | lvke-feasibility-delivery | `workspace_id`, `project_context_id` | binds `delivery_run_id` |
+| `feasibility_stage` | lvke-feasibility-delivery | `delivery_run_id`, `stage`, `status`, `idempotency_key` | 每完成一个领域对象必须绑 `input_refs`/`output_refs`/`basis_hash`；`bind_workspace_lineage=true` 可用工作区最新对象补全当前阶段 |
+| `feasibility_next_actions` | lvke-feasibility-delivery | `delivery_run_id` | 若工作区已有未绑定对象，会给出带 `output_refs` 的 `feasibility_stage` 调用 |
 | `feasibility_validate` | lvke-feasibility-delivery | `delivery_run_id` | `quality_passed=false` ≠ release pass |
 | `feasibility_release` | lvke-feasibility-delivery | validated run | blocked without evidence gate |
 | `feasibility_resume` | lvke-feasibility-delivery | `checkpoint_id`, `idempotency_key` | creates a NEW immutable run snapshot from a checkpoint; the original run is never mutated |

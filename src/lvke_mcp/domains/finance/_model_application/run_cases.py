@@ -200,10 +200,23 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             pack_turnover = pack_domains.get("wc_turnover")
             if pack_seal.get("ok") and isinstance(pack_turnover, dict):
                 turnover = pack_turnover
+                input_revision["wc_turnover"] = pack_turnover
+        from lvke_mcp.domains.finance.working_capital import (
+            apply_operating_turnover_to_inputs,
+            turnover_component_present,
+        )
+
+        injected_turnover = apply_operating_turnover_to_inputs(input_revision)
+        turnover = input_revision.get("wc_turnover")
+        turnover = turnover if isinstance(turnover, dict) else {}
+        if injected_turnover:
+            preflight_quality_issues.extend(
+                f"injected_default:wc_turnover.{name}" for name in injected_turnover
+            )
         missing_turnover = [
             name
             for name in ("receivable", "inventory", "cash", "payable")
-            if turnover.get(name) is None and turnover.get(f"{name}_days") is None
+            if not turnover_component_present(turnover, name)
         ]
         if has_working_capital and missing_turnover:
             preflight_quality_issues.extend(
@@ -313,9 +326,17 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         )
         data = dict(data or {})
         data["scale_check"] = scale_check
+        engine_missing = [
+            str(item).strip() for item in data.get("missing_inputs") or [] if str(item).strip()
+        ]
+        missing_quality = [
+            item if item.startswith("missing_input:") else f"missing_input:{item}"
+            for item in engine_missing
+        ]
         data["quality_issues"] = sorted(set([
             *preflight_quality_issues,
             *[str(item) for item in data.get("quality_issues") or []],
+            *missing_quality,
         ]))
         data["warnings"] = [
             *list(data.get("warnings") or []),

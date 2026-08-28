@@ -208,6 +208,8 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             _vat_in_seq.append(round(vat_input * _ratio_v, 2))
         _vat_series = _compute_vat_with_credit_carryover(_vat_out_seq, _vat_in_seq)
         _vat_had_credit = any(vr["credit_end"] > 0 for vr in _vat_series)
+        _loss_carryforward = 0.0
+        _deferred_tax_liability = 0.0
         for y in range(op_years):
             interest = debt[y]["interest"] if y < len(debt) else 0.0
             # 【P1-2】寿命内计提、期满归零（禁止静默延长寿命）；表内按年真实滚动。
@@ -254,8 +256,27 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                 )
             else:
                 tax_rate_y = _income_tax_rate
-            it_y = round(max(pb_y, 0.0) * tax_rate_y, 2)
-            np_y = round(pb_y - it_y, 2)
+            class_row = _classified_dep_rows[y] if y < len(_classified_dep_rows) else {}
+            tax_dep_schedule = list((r.get("raw") or {}).get("tax_depreciation_schedule") or [])
+            tax_dep_y = (
+                round(float(class_row.get("tax_depreciation") or dep_y), 2)
+                if class_row
+                else round(float(tax_dep_schedule[y]), 2) if y < len(tax_dep_schedule) else dep_y
+            )
+            temp_diff_y = round(dep_y - tax_dep_y, 2)
+            taxable_raw = round(pb_y + temp_diff_y, 2)
+            if taxable_raw < 0:
+                _loss_carryforward = round(_loss_carryforward + (-taxable_raw), 2)
+                taxable_y = 0.0
+            else:
+                used_loss = min(_loss_carryforward, taxable_raw)
+                _loss_carryforward = round(_loss_carryforward - used_loss, 2)
+                taxable_y = round(taxable_raw - used_loss, 2)
+            current_tax_y = round(max(taxable_y, 0.0) * tax_rate_y, 2)
+            deferred_tax_y = round(temp_diff_y * tax_rate_y, 2) if tax_rate_y else 0.0
+            _deferred_tax_liability = round(_deferred_tax_liability + deferred_tax_y, 2)
+            it_y = current_tax_y
+            np_y = round(pb_y - current_tax_y - deferred_tax_y, 2)
             # 【P0-03 修复】附表7 利润表为融资后会计口径:利润总额须扣运营期利息(计入财务费用),
             #   据此重算实际所得税与会计净利润。indicators/附表9 项目投资现金流为融资前口径
             #   (利息不进融资前现金流),两套口径分离、互不污染——故此改动不影响 IRR/NPV/资本金IRR。
@@ -292,6 +313,13 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                     if surtax_component_y else None
                 ),
                 "ebit": pb_y, "income_tax": it_y, "net_profit": np_y,
+                "tax_depreciation": tax_dep_y,
+                "temporary_difference": temp_diff_y,
+                "current_income_tax": current_tax_y,
+                "deferred_tax": deferred_tax_y,
+                "deferred_tax_liability": _deferred_tax_liability,
+                "loss_carryforward": _loss_carryforward,
+                "income_tax_rate": tax_rate_y,
             })
             cost_rows.append({
                 "year": y + 1, "operating_cost": occ_y, "depreciation": dep_y,
@@ -405,8 +433,11 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                         value = bases[kind] * share
                     available_parts[kind] += max(value, 0.0)
                 available = round(sum(available_parts.values()), 2)
-                due = round(float(debt_row.get("principal") or 0.0) + float(debt_row.get("interest") or 0.0), 2)
-                actual = round(min(available, due), 2)
+                principal_due = round(float(debt_row.get("principal") or 0.0), 2)
+                interest_due = round(float(debt_row.get("interest") or 0.0), 2)
+                due = round(principal_due + interest_due, 2)
+                # 附表8 父子恒等式：实际用于偿债 = 还本；利息已在经营损益中。
+                actual = round(min(available, principal_due), 2)
                 actual_parts = {key: 0.0 for key in available_parts}
                 if available > 0 and actual > 0:
                     keys = list(actual_parts)
@@ -414,6 +445,9 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
                         actual_parts[key] = round(actual * available_parts[key] / available, 2)
                     actual_parts[keys[-1]] = round(actual - sum(actual_parts[key] for key in keys[:-1]), 2)
                 debt_row.update({
+                    "repay_source_profit": round(available_parts["profit"], 2),
+                    "repay_source_dep": round(available_parts["depreciation"], 2),
+                    "repay_source_amort": round(available_parts["amortization"], 2),
                     "repay_available_profit": round(available_parts["profit"], 2),
                     "repay_available_depreciation": round(available_parts["depreciation"], 2),
                     "repay_available_amortization": round(available_parts["amortization"], 2),

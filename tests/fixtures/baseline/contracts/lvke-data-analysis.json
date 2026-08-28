@@ -1874,7 +1874,8 @@
             "real",
             "source_reconstructed",
             "technical_fixture",
-            "controlled_assumption"
+            "controlled_assumption",
+            "sim_a_formal"
           ],
           "default": "real"
         },

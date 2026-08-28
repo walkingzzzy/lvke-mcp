@@ -331,6 +331,13 @@
   {
     "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
     "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.project_context_revise.input-schema",
+    "title": "project_context_revise complete input schema",
+    "uri": "lvke://schemas/lvke-project-planning/project_context_revise/input"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
     "name": "lvke-project-planning.planning_infer_labor_plan.input-schema",
     "title": "planning_infer_labor_plan complete input schema",
     "uri": "lvke://schemas/lvke-project-planning/planning_infer_labor_plan/input"

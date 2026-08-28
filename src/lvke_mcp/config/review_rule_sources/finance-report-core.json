@@ -1,0 +1,38 @@
+{
+  "rule_pack_id": "finance-report-core",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "FR-FIN-001",
+      "title": "十三表勾稽专业核验",
+      "requirement": "由财务专业人员核验同一 FinanceRun 十三表勾稽、口径与资金平衡",
+      "check_kind": "professional",
+      "review_area": "finance",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["finance_run", "finance_tables_package", "report_revision"],
+      "standard": {
+        "package_id": "PKG-STD-013",
+        "artifact_id": "S013",
+        "locator": "finance-report-core/FR-FIN-001",
+        "quote": "财务主表须经专业核验"
+      }
+    },
+    {
+      "rule_id": "FR-REP-001",
+      "title": "九章数字与表包一致性专业核验",
+      "requirement": "由报告专业人员核验九章关键数字与 FinanceTablesPackage 同源",
+      "check_kind": "professional",
+      "review_area": "report",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["report_revision", "finance_tables_package"],
+      "standard": {
+        "package_id": "PKG-STD-001",
+        "artifact_id": "S001",
+        "locator": "finance-report-core/FR-REP-001",
+        "quote": "报告数字须经专业核验"
+      }
+    }
+  ]
+}

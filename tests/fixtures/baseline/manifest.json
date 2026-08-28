@@ -1,5 +1,5 @@
 {
-  "frozen_at": "2026-08-19T23:18:18+0800",
+  "frozen_at": "2026-08-28T22:41:06+0800",
   "protocol_version": "2025-11-25",
   "python": "installed-environment",
   "servers": [
@@ -21,7 +21,7 @@
         "acquisition_export_tables_xlsx",
         "acquisition_export_tables_csv"
       ],
-      "resources": 27,
+      "resources": 15,
       "protocol_version": "2025-11-25"
     },
     {
@@ -40,7 +40,7 @@
         "data_get_visual_capture",
         "data_provider_status"
       ],
-      "resources": 20,
+      "resources": 10,
       "protocol_version": "2025-11-25"
     },
     {
@@ -60,7 +60,7 @@
         "analysis_list_unit_rules",
         "analysis_build_evidence_pack"
       ],
-      "resources": 23,
+      "resources": 12,
       "protocol_version": "2025-11-25"
     },
     {
@@ -87,7 +87,7 @@
         "dr_get_evidence",
         "dr_get_bundle"
       ],
-      "resources": 37,
+      "resources": 19,
       "protocol_version": "2025-11-25"
     },
     {
@@ -111,7 +111,7 @@
         "review_attach_requirement_evidence",
         "review_validate_standards"
       ],
-      "resources": 35,
+      "resources": 20,
       "protocol_version": "2025-11-25"
     },
     {
@@ -130,7 +130,7 @@
         "lvke_list_resources",
         "lvke_read_resource"
       ],
-      "resources": 20,
+      "resources": 10,
       "protocol_version": "2025-11-25"
     },
     {
@@ -157,7 +157,7 @@
         "finance_import_vendor_review",
         "finance_get_analysis"
       ],
-      "resources": 46,
+      "resources": 28,
       "protocol_version": "2025-11-25"
     },
     {
@@ -174,7 +174,7 @@
         "tables_get_table",
         "tables_validate_table"
       ],
-      "resources": 16,
+      "resources": 8,
       "protocol_version": "2025-11-25"
     },
     {
@@ -189,7 +189,7 @@
         "knowledge_review_candidate",
         "knowledge_publish_release"
       ],
-      "resources": 13,
+      "resources": 7,
       "protocol_version": "2025-11-25"
     },
     {
@@ -215,7 +215,7 @@
         "planning_prepare",
         "planning_create"
       ],
-      "resources": 68,
+      "resources": 52,
       "protocol_version": "2025-11-25"
     },
     {
@@ -236,7 +236,7 @@
         "archive_compare_cases",
         "archive_get_template_paragraph"
       ],
-      "resources": 24,
+      "resources": 12,
       "protocol_version": "2025-11-25"
     },
     {
@@ -258,7 +258,7 @@
         "report_apply",
         "report_get_readiness"
       ],
-      "resources": 28,
+      "resources": 15,
       "protocol_version": "2025-11-25"
     },
     {
@@ -280,13 +280,13 @@
         "source_inspect_workbook",
         "source_task_status"
       ],
-      "resources": 28,
+      "resources": 15,
       "protocol_version": "2025-11-25"
     },
     {
       "server": "lvke-zero-material-delivery",
       "ok": true,
-      "tools": 8,
+      "tools": 10,
       "tool_names": [
         "delivery_create_from_sentence",
         "delivery_start",
@@ -294,10 +294,12 @@
         "delivery_get",
         "delivery_list_assumptions",
         "delivery_confirm_assumptions",
+        "delivery_generate_template_pack",
+        "delivery_confirm_formal_promotion",
         "delivery_get_artifacts",
         "delivery_transition"
       ],
-      "resources": 18,
+      "resources": 12,
       "protocol_version": "2025-11-25"
     }
   ],

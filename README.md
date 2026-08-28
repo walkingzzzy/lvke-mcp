@@ -51,7 +51,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 `lvke-source-files.source_inspect_workbook` 路由。旧实现模块继续作为内部库存在，
 种子数据、档案索引、公式和返回业务字段不迁移。
 
-公开面固定为 **14 个 Lvke MCP 进程、169 个工具**。完整输入/输出 schema 仍由服务端
+公开面固定为 **14 个 Lvke MCP 进程、173 个工具**。完整输入/输出 schema 仍由服务端
 执行；`tools/list` 只发布紧凑输入投影，大型完整 schema 通过
 `lvke://schemas/<server>/<tool>/input` Resource 按需读取。紧凑投影始终保留顶层参数、
 必填项、容器类型及数组元素类型，只省略可按 Resource 读取的深层结构。以下稳定别名不依赖工具名：

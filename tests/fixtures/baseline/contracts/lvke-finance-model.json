@@ -170,7 +170,8 @@
               "type": "string",
               "enum": [
                 "formal_evidence",
-                "source_reconstructed"
+                "source_reconstructed",
+                "sim_a_formal"
               ]
             },
             "project_fact_certified": {
@@ -1707,6 +1708,8 @@
         },
         "entries": {
           "type": "array",
+          "x-lvke-schema-uri": "lvke://schemas/lvke-finance-model/finance_build_basis_of_estimate/input",
+          "x-lvke-schema-pointer": "#/properties/entries",
           "minItems": 1,
           "maxItems": 500,
           "items": {
@@ -1737,7 +1740,9 @@
                   "labor_plan",
                   "source_reconstructed",
                   "technical_fixture",
-                  "controlled_assumption"
+                  "controlled_assumption",
+                  "sim_a_formal",
+                  "sim_a_template"
                 ]
               },
               "source_object_id": {
@@ -1777,7 +1782,8 @@
                   "formal_evidence",
                   "source_reconstructed",
                   "technical_fixture",
-                  "controlled_assumption"
+                  "controlled_assumption",
+                  "sim_a_formal"
                 ]
               },
               "reconstruction": {

@@ -194,6 +194,20 @@ def _standard_evidence_rows(
     return rows
 
 
+def _requirement_evidence_status(evidence_track: str, attached: bool) -> str:
+    if not attached:
+        return "pending_evidence"
+    if evidence_track == "technical_fixture":
+        return "satisfied_technical_fixture"
+    if evidence_track == "source_reconstructed":
+        return "satisfied_source_reconstructed_process_acceptance"
+    if evidence_track == "real":
+        return "evidence_attached_pending_review"
+    if evidence_track == "sim_a_formal":
+        return "satisfied_sim_a_formal"
+    return "unable_to_determine"
+
+
 def list_standard_requirements(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = str(args.get("workspace_id") or "")
     applicability_id = str(args.get("standard_applicability_id") or "")
@@ -210,10 +224,20 @@ def list_standard_requirements(args: dict[str, Any]) -> dict[str, Any]:
     by_requirement: dict[str, list[dict[str, Any]]] = {}
     for row in evidence:
         by_requirement.setdefault(str(row.get("requirement_id") or ""), []).append(row)
-    requirements = [
-        {**deepcopy(row), "evidence_attachments": by_requirement.get(str(row.get("requirement_id") or ""), [])}
-        for row in payload.get("applicable_requirements") or []
-    ]
+    evidence_track = str((payload.get("project_context") or {}).get("evidence_track") or "real")
+    requirements = []
+    pending = 0
+    for row in payload.get("applicable_requirements") or []:
+        requirement_id = str(row.get("requirement_id") or "")
+        attachments = by_requirement.get(requirement_id, [])
+        evidence_status = _requirement_evidence_status(evidence_track, bool(attachments))
+        if evidence_status == "pending_evidence":
+            pending += 1
+        requirements.append({
+            **deepcopy(row),
+            "evidence_attachments": attachments,
+            "evidence_status": evidence_status,
+        })
     return _ok(
         standard_applicability_id=applicability_id,
         project_context=payload.get("project_context") or {},
@@ -221,7 +245,12 @@ def list_standard_requirements(args: dict[str, Any]) -> dict[str, Any]:
         excluded_requirements=deepcopy(payload.get("excluded_requirements") or []),
         requirement_count=len(requirements),
         resource_uris=[record["resource_uri"], *[str(row.get("resource_uri") or "") for row in evidence if row.get("resource_uri")]],
-        warnings=[], blockers=[], next_actions=["为待补证要求调用 review_attach_requirement_evidence"],
+        warnings=[], blockers=[],
+        next_actions=(
+            ["为待补证要求调用 review_attach_requirement_evidence"]
+            if pending
+            else ["调用 review_validate_standards 汇总证据状态"]
+        ),
     )
 
 
@@ -248,6 +277,40 @@ def _resolve_standard_evidence_resource(
         payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
         evidence_track = str(payload.get("evidence_track") or "real")
         return record, evidence_track
+    if uri.startswith(f"lvke://source-files/workspaces/{workspace_id}/"):
+        from lvke_mcp.adapters import source_files_repository as source_files
+
+        file_id = uri.rstrip("/").rsplit("/", 1)[-1]
+        state = source_files._load_state(workspace_id)  # noqa: SLF001
+        stored = (state.get("files") or {}).get(file_id)
+        if not isinstance(stored, dict):
+            return None
+        digest = str(stored.get("sha256") or "").lower()
+        if digest and not digest.startswith("sha256:"):
+            digest = f"sha256:{digest}"
+        policy = str(stored.get("evidence_policy") or "candidate")
+        track = policy if policy in {
+            "sim_a_formal",
+            "source_reconstructed",
+            "technical_fixture",
+            "controlled_assumption",
+            "real",
+        } else "candidate"
+        return (
+            {
+                "object_id": file_id,
+                "content_hash": digest,
+                "payload": {
+                    **stored,
+                    "content_hash": digest,
+                    "evidence_track": track,
+                    "evidence_policy": policy,
+                    "formal_use_allowed": bool(stored.get("project_fact_certified")),
+                    "project_fact_certified": bool(stored.get("project_fact_certified")),
+                },
+            },
+            track,
+        )
     return None
 
 
@@ -310,17 +373,19 @@ def attach_requirement_evidence(args: dict[str, Any]) -> dict[str, Any]:
                 "source_reconstructed": "satisfied_source_reconstructed_process_acceptance",
                 "real": "evidence_attached_pending_review",
                 "controlled_assumption": "unable_to_determine",
+                "sim_a_formal": "satisfied_sim_a_formal",
             }.get(requested_track, "unable_to_determine"),
-            formal_evidence_candidate=requested_track in {"real", "source_reconstructed"},
+            formal_evidence_candidate=requested_track in {"real", "source_reconstructed", "sim_a_formal"},
             project_fact_certified=project_fact_may_be_certified(
                 FORMAL_EVIDENCE if requested_track == "real" else requested_track,
                 own_qualification_passed=(
-                    requested_track == "real"
+                    requested_track in {"real", "sim_a_formal"}
                     and (
                         (source_record.get("payload") or {}).get("formal_use_allowed") is True
                         or (source_record.get("payload") or {}).get("project_fact_certified") is True
                     )
                 ),
+                parents=[source_record.get("payload") or {}],
             ),
             compliance_conclusion="not_determined",
             resource_uris=[evidence_record["resource_uri"], resource_uri],
@@ -349,20 +414,15 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
         requirement_id = str(row.get("requirement_id") or "")
         if requirement_id not in attached_ids:
             evidence_status = "pending_evidence"
-        elif evidence_track == "technical_fixture":
-            evidence_status = "satisfied_technical_fixture"
-        elif evidence_track == "source_reconstructed":
-            evidence_status = "satisfied_source_reconstructed_process_acceptance"
-        elif evidence_track == "real":
-            evidence_status = "evidence_attached_pending_review"
         else:
-            evidence_status = "unable_to_determine"
+            evidence_status = _requirement_evidence_status(evidence_track, True)
         requirements.append({**deepcopy(row), "evidence_status": evidence_status})
     status_counts = {
         status: sum(1 for row in requirements if row.get("evidence_status") == status)
         for status in (
             "satisfied_technical_fixture",
             "satisfied_source_reconstructed_process_acceptance",
+            "satisfied_sim_a_formal",
             "evidence_attached_pending_review",
             "pending_evidence",
             "unable_to_determine",
@@ -385,7 +445,10 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
         compliance_conclusion="not_determined",
         formal_evidence_claim_count=(
             status_counts["evidence_attached_pending_review"]
-            if evidence_track == "real" else 0
+            if evidence_track == "real"
+            else status_counts.get("satisfied_sim_a_formal", 0)
+            if evidence_track == "sim_a_formal"
+            else 0
         ),
         source_reconstructed_claim_count=(
             status_counts.get("satisfied_source_reconstructed_process_acceptance", 0)

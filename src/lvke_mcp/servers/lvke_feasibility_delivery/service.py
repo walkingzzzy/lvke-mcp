@@ -341,20 +341,42 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("stage_order_violation", f"当前阶段为 {current_stage}，不能跳到 {stage_name}")
     if target_index < current_index and not reopen:
         return _blocked("stage_not_current", "修改已完成阶段必须显式设置 reopen=true")
-    if stage_status == "completed" and not args.get("output_refs") and stage_name != "project":
+    bind_lineage = bool(args.get("bind_workspace_lineage"))
+    output_refs = [str(item) for item in (args.get("output_refs") or []) if str(item)]
+    input_refs = [str(item) for item in (args.get("input_refs") or []) if str(item)]
+    basis_hash = str(args.get("basis_hash") or args.get("stage_basis_hash") or "")
+    if bind_lineage:
+        if not output_refs:
+            output_refs = _discover_stage_output_ids(workspace_id, stage_name)
+        if not input_refs and target_index > 0:
+            previous = ((record.get("payload") or {}).get("stages") or {}).get(
+                STAGES[target_index - 1], {}
+            )
+            input_refs = [str(item) for item in (previous.get("output_refs") or []) if str(item)]
+    if stage_status == "completed" and not output_refs and stage_name != "project":
         return _blocked("stage_output_required", "completed 阶段必须提供 output_refs")
-    if stage_status == "completed" and not str(
-        args.get("basis_hash") or args.get("stage_basis_hash") or ""
-    ).strip():
-        return _blocked("stage_basis_hash_required", "completed 阶段必须提供 basis_hash")
+    if stage_status == "completed" and not basis_hash.strip():
+        if bind_lineage and output_refs:
+            resolved_for_basis = []
+            for ref in output_refs:
+                resolved, _error = _validate_reference(workspace_id, str(ref), stage_name, "output")
+                if resolved is not None:
+                    resolved_for_basis.append(resolved)
+            basis_hash = sha256_json({
+                "input_refs": input_refs,
+                "output_refs": output_refs,
+                "output_basis_hashes": sorted(str(item.get("basis_hash") or "") for item in resolved_for_basis),
+            })
+        else:
+            return _blocked("stage_basis_hash_required", "completed 阶段必须提供 basis_hash")
 
     request = {
         "delivery_run_id": delivery_run_id,
         "stage": stage_name,
         "status": stage_status,
-        "input_refs": list(args.get("input_refs") or []),
-        "output_refs": list(args.get("output_refs") or []),
-        "basis_hash": str(args.get("basis_hash") or args.get("stage_basis_hash") or ""),
+        "input_refs": input_refs,
+        "output_refs": output_refs,
+        "basis_hash": basis_hash,
         "warnings": list(args.get("warnings") or []),
         "blockers": list(args.get("blockers") or []),
         "next_actions": list(args.get("next_actions") or []),
@@ -519,6 +541,72 @@ _NEXT_TOOLS: dict[str, list[Any]] = {
     "released": ["feasibility_validate", "feasibility_release"],
 }
 
+def _latest_record_id(records: list[dict[str, Any]], id_field: str = "object_id") -> str:
+    if not records:
+        return ""
+    ordered = sorted(records, key=lambda item: str(item.get("created_at") or item.get(id_field) or ""))
+    return str(ordered[-1].get(id_field) or "")
+
+
+def _discover_stage_output_ids(workspace_id: str, stage_name: str) -> list[str]:
+    """Return the newest workspace objects that can bind this FDR stage."""
+
+    from lvke_mcp.adapters.project_planning_repository import (
+        BUILD_SCALE_STORE,
+        COST_DRIVER_STORE,
+        LABOR_PLAN_STORE,
+        MARKET_CASE_STORE,
+        OPTION_COMPARISON_STORE,
+        PROJECT_CONTEXT_STORE,
+        REVENUE_DRIVER_STORE,
+    )
+    from lvke_mcp.adapters.finance_model_repository import SPEC_STORE, BASIS_OF_ESTIMATE_STORE
+    from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_PACKAGE_STORE
+    from lvke_mcp.adapters.report_repository import REVISION_STORE as REPORT_REVISION_STORE
+    from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_PACKAGE_STORE
+
+    mapping: dict[str, list[Any]] = {
+        "project": [(PROJECT_CONTEXT_STORE, "object_id")],
+        "research": [(RESEARCH_PACKAGE_STORE, "object_id")],
+        "market": [(MARKET_CASE_STORE, "object_id")],
+        "option": [(OPTION_COMPARISON_STORE, "object_id")],
+        "scale": [(BUILD_SCALE_STORE, "object_id")],
+        "drivers": [
+            (COST_DRIVER_STORE, "object_id"),
+            (LABOR_PLAN_STORE, "object_id"),
+            (REVENUE_DRIVER_STORE, "object_id"),
+        ],
+        "finance_spec": [(SPEC_STORE, "object_id"), (BASIS_OF_ESTIMATE_STORE, "object_id")],
+        "finance_tables": [(TABLE_PACKAGE_STORE, "object_id")],
+        "report": [(REPORT_REVISION_STORE, "object_id")],
+    }
+    found: list[str] = []
+    if stage_name == "finance_run":
+        try:
+            from lvke_mcp.domains.finance import run_store
+
+            latest = run_store.latest_run(workspace_id)
+            if latest.get("run_id"):
+                found.append(str(latest["run_id"]))
+        except Exception:  # noqa: BLE001
+            pass
+        return found
+    if stage_name == "review":
+        root = workspace_root(workspace_id) / "mcp_objects" / "deliverable-review" / "events"
+        if root.is_dir():
+            names = sorted(path.name for path in root.iterdir() if path.is_dir())
+            if names:
+                found.append(names[-1])
+        return found
+    for store, field in mapping.get(stage_name, []):
+        try:
+            object_id = _latest_record_id(store.list(workspace_id), field)
+        except Exception:  # noqa: BLE001
+            object_id = ""
+        if object_id:
+            found.append(object_id)
+    return found
+
 
 @_guard_identifiers
 def next_actions(args: dict[str, Any]) -> dict[str, Any]:
@@ -561,6 +649,30 @@ def next_actions(args: dict[str, Any]) -> dict[str, Any]:
             elif stage_name == "report" and tool == "report_validate":
                 arguments["report_revision_id"] = output_refs[0]
         next_items.append({"tool": tool, "arguments": arguments, "reason": reason})
+    discovered = _discover_stage_output_ids(workspace_id, stage_name)
+    if discovered and not output_refs and stage_name != "released":
+        previous_outputs = []
+        if stage_name != "project":
+            previous = STAGES[max(_stage_index(stage_name) - 1, 0)]
+            previous_outputs = [
+                str(item)
+                for item in ((run.get("stages") or {}).get(previous) or {}).get("output_refs") or []
+                if str(item)
+            ]
+        next_items.insert(0, {
+            "tool": "feasibility_stage",
+            "arguments": {
+                "workspace_id": workspace_id,
+                "delivery_run_id": record["object_id"],
+                "stage": stage_name,
+                "status": "completed",
+                "output_refs": discovered,
+                "input_refs": previous_outputs,
+                "bind_workspace_lineage": True,
+                "idempotency_key": f"bind-{stage_name}-{record['object_id'][-8:]}",
+            },
+            "reason": "工作区已有对象可绑回当前 FDR 阶段",
+        })
     return _envelope(
         True,
         str(run.get("status") or "in_progress"),
@@ -1262,7 +1374,7 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
     evidence_policy = str(run.get("evidence_policy") or "formal_evidence")
     release_scope = str(run.get("release_scope") or "project_delivery")
     if scope == "technical":
-        if evidence_policy != "formal_evidence":
+        if evidence_policy not in {"formal_evidence", "sim_a_formal"}:
             warnings.append(f"formal_evidence_not_established:{evidence_policy}")
         if not run.get("project_fact_certified"):
             warnings.append("project_fact_not_certified")

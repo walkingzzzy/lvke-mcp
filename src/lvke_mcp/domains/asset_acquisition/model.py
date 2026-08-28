@@ -29,6 +29,7 @@ from lvke_mcp.domains.finance.calculations import irr, npv, payback_period  # no
 
 from lvke_mcp.domains.finance.spec import LATEST_SPEC_VERSION, validate  # noqa: F401
 
+from ._model.balance_sheet import projection_consistency_ok, roll_annual_balance_sheet  # noqa: F401
 from ._model.base import (  # noqa: F401
     INDEPENDENT_SCENARIO_FIELDS,
     AcquisitionModelError,

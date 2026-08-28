@@ -7,6 +7,8 @@ from typing import Any
 
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 from lvke_mcp.runtime.evidence_qualification import (
+    CERTIFYING_POLICIES,
+    SIM_A_FORMAL,
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
@@ -100,16 +102,19 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         revision_record = target_snapshot.get("revision_record") if isinstance(target_snapshot.get("revision_record"), dict) else {}
         revision_payload = revision_record.get("payload") if isinstance(revision_record.get("payload"), dict) else {}
         upstream = revision_payload.get("upstream") if isinstance(revision_payload.get("upstream"), dict) else {}
-        evidence_policy = declared_evidence_policy(upstream, default="candidate")
+        track = str(project_context.get("evidence_track") or "real")
+        evidence_policy = declared_evidence_policy(upstream, default=track)
+        certified = project_fact_may_be_certified(
+            evidence_policy,
+            own_qualification_passed=True,
+            parents=[upstream],
+        )
+        if track == SIM_A_FORMAL and evidence_policy in CERTIFYING_POLICIES:
+            certified = True
+            evidence_policy = SIM_A_FORMAL
         evidence_metadata = {
             "evidence_policy": evidence_policy,
-            "project_fact_certified": project_fact_may_be_certified(
-                evidence_policy,
-                own_qualification_passed=True,
-                # parents= 会连父对象的 evidence_policy 一起复核，不只看它自报的
-                # certified 布尔值。
-                parents=[upstream],
-            ),
+            "project_fact_certified": certified,
             "reconstruction_records": list(upstream.get("reconstruction_records") or []),
             "reconstructed_source_ids": list(upstream.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(upstream.get("unresolved_inputs") or []),

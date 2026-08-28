@@ -16,7 +16,10 @@ from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_STORE
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_STORE
 from lvke_mcp.runtime.evidence_qualification import (
+    CERTIFYING_POLICIES,
+    SIM_A_FORMAL,
     combine_evidence_policies,
+    declared_evidence_policy,
     project_fact_may_be_certified,
 )
 
@@ -133,7 +136,25 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     if not evidence_ids:
         blockers.append("evidence_pack_required")
     if not research_ids:
-        blockers.append("research_package_required")
+        policy = str(args.get("evidence_policy") or "")
+        pack_policies = {
+            declared_evidence_policy(record.get("payload") or record)
+            for record in evidence
+        }
+        process_draft = (
+            policy in {
+                "controlled_assumption", "technical_fixture", "sim_a_formal", "source_reconstructed",
+            }
+            or str(args.get("release_scope") or "") == "process_acceptance"
+            or bool(pack_policies) and pack_policies <= {
+                "controlled_assumption", "technical_fixture", "sim_a_formal", "source_reconstructed",
+            }
+        )
+        if process_draft:
+            formal_blockers.append("research_package_required")
+            warnings.append("无 ResearchPackage：过程草稿可继续，正式发布仍须绑定已确认研究包")
+        else:
+            blockers.append("research_package_required")
     if binding_kind == "asset_acquisition":
         from lvke_mcp.domains.asset_acquisition.backend import get_run
 
@@ -255,10 +276,20 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     if supplied_policy:
         policy_inputs.append({"evidence_policy": supplied_policy})
     evidence_policy = combine_evidence_policies(policy_inputs)
+    certification_parents = list(upstream_evidence_payloads)
+    if supplied_policy == SIM_A_FORMAL:
+        certified_lineage = [
+            item for item in upstream_evidence_payloads
+            if declared_evidence_policy(item) in CERTIFYING_POLICIES
+            and item.get("project_fact_certified") is True
+        ]
+        if certified_lineage:
+            certification_parents = certified_lineage
+            evidence_policy = SIM_A_FORMAL
     project_fact_certified = project_fact_may_be_certified(
         evidence_policy,
         own_qualification_passed=True,
-        parents=upstream_evidence_payloads,
+        parents=certification_parents,
     )
     if not project_fact_certified:
         formal_blockers.append("project_fact_not_certified")

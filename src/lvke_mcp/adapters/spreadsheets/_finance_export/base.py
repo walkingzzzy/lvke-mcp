@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-import os
-import shutil
-import subprocess
+import os  # noqa: F401
+import shutil  # noqa: F401
+import subprocess  # noqa: F401
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -57,14 +57,20 @@ def _require_openpyxl():
 
 def _recalculate_with_soffice(path: Path) -> dict[str, Any]:
     """Run a real headless spreadsheet recalc and verify cached data-only values."""
-    binary = os.environ.get("SOFFICE") or os.environ.get("LIBREOFFICE") or shutil.which("soffice")
+    from lvke_mcp.runtime.soffice import resolve_soffice_binary, run_soffice_convert
+
+    binary = resolve_soffice_binary("SOFFICE", "LIBREOFFICE")
     if not binary:
         return {"ok": False, "available": False, "issues": ["soffice/LibreOffice 不可用"]}
     try:
         with tempfile.TemporaryDirectory(prefix="lvke-soffice-") as tmp:
-            subprocess.run(
-                [binary, "--headless", "--convert-to", "xlsx", "--outdir", tmp, str(path)],
-                check=True, capture_output=True, text=True, timeout=120,
+            run_soffice_convert(
+                source=path,
+                convert_to="xlsx",
+                outdir=tmp,
+                binary=binary,
+                timeout=120,
+                check=True,
             )
             recalculated = Path(tmp) / path.name
             if not recalculated.is_file():

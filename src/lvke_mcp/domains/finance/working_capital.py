@@ -9,6 +9,109 @@ from typing import Any, Optional
 _MONEY_QUANTUM = Decimal("0.01")
 
 
+DEFAULT_OPERATING_TURNOVER_DAYS = {
+    "receivable": 35.0,
+    "inventory": 38.0,
+    "cash": 10.0,
+    "payable": 25.0,
+}
+
+
+def turnover_component_present(turnover: dict[str, Any] | None, name: str) -> bool:
+    source = turnover if isinstance(turnover, dict) else {}
+    if source.get(name) not in (None, ""):
+        return True
+    if source.get(f"{name}_days") not in (None, ""):
+        return True
+    if name == "inventory":
+        detail = source.get("inventory_detail")
+        return isinstance(detail, dict) and bool(detail)
+    return False
+
+
+def declared_working_capital_wan(finance_in: dict[str, Any] | None) -> float | None:
+    """Return the explicit working-capital stock, or None if it was not given."""
+
+    source = finance_in if isinstance(finance_in, dict) else {}
+    breakdown = source.get("invest_breakdown")
+    breakdown = breakdown if isinstance(breakdown, dict) else {}
+    if "working_capital_wan" in breakdown:
+        value = _f(breakdown.get("working_capital_wan"))
+        return 0.0 if value is None else value
+    series = source.get("working_capital_by_year") or []
+    if isinstance(series, list) and any(_f(item) is not None for item in series):
+        return max((_f(item) or 0.0) for item in series)
+    return _f(source.get("working_capital_wan"))
+
+
+def needs_operating_turnover_defaults(finance_in: dict[str, Any] | None) -> bool:
+    """Inject turnover days only when an operating project actually carries WC.
+
+    An explicit ``working_capital_wan=0`` must not invent a receivable/inventory
+    stock; that would fail the working-capital consistency check against the
+    declared estimate.
+    """
+
+    source = finance_in if isinstance(finance_in, dict) else {}
+    if source.get("is_operating") is False:
+        return False
+    declared = declared_working_capital_wan(source)
+    return declared is None or declared > 0
+
+
+def apply_operating_turnover_to_inputs(finance_in: dict[str, Any] | None) -> list[str]:
+    """Fill or strip turnover days according to the declared WC stock.
+
+    Workspace prepare may inject defaults before explicit ``working_capital_wan=0``
+    is merged. After the candidate inputs are known, default-only turnover must
+    not survive on a zero-WC project.
+    """
+
+    source = finance_in if isinstance(finance_in, dict) else {}
+    if not needs_operating_turnover_defaults(source):
+        turnover = source.get("wc_turnover")
+        if _is_default_turnover(turnover):
+            source.pop("wc_turnover", None)
+        return []
+    turnover, injected = ensure_operating_turnover(
+        source.get("wc_turnover") if isinstance(source.get("wc_turnover"), dict) else {},
+        is_operating=True,
+    )
+    if injected:
+        source["wc_turnover"] = turnover
+    return injected
+
+
+def _is_default_turnover(turnover: Any) -> bool:
+    if not isinstance(turnover, dict) or not turnover:
+        return False
+    for key, value in turnover.items():
+        if key not in DEFAULT_OPERATING_TURNOVER_DAYS:
+            return False
+        if _f(value) != DEFAULT_OPERATING_TURNOVER_DAYS[key]:
+            return False
+    return True
+
+
+def ensure_operating_turnover(
+    turnover: dict[str, Any] | None,
+    *,
+    is_operating: bool,
+) -> tuple[dict[str, Any], list[str]]:
+    """Fill missing operating WC day drivers with disclosed industry defaults."""
+
+    source = dict(turnover or {})
+    injected: list[str] = []
+    if not is_operating:
+        return source, injected
+    for name, days in DEFAULT_OPERATING_TURNOVER_DAYS.items():
+        if turnover_component_present(source, name):
+            continue
+        source[name] = days
+        injected.append(name)
+    return source, injected
+
+
 def money(value: Any) -> float:
     """Quantize amounts expressed in 万元 to the public two-decimal precision."""
 

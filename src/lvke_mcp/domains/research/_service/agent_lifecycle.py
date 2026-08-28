@@ -30,6 +30,149 @@ from .planning import (
 _PACKAGE_STATUS_RANK = {"completed": 2, "partial": 1}
 
 
+def _canonical_hash(value: Any) -> str:
+    digest = str(value or "").strip().lower()
+    if digest.startswith("sha256:"):
+        digest = digest[7:]
+    return digest
+
+
+def _bound_citation_metrics(
+    citations: list[Any],
+    *,
+    workspace_id: str = "",
+    source_snapshot_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    usable = 0
+    known = {str(item) for item in (source_snapshot_ids or []) if str(item)}
+    for item in citations:
+        if not isinstance(item, dict):
+            continue
+        locator = str(
+            item.get("locator") or item.get("page") or item.get("paragraph") or ""
+        ).strip()
+        content_hash = _canonical_hash(item.get("content_hash") or item.get("sha256"))
+        source_id = str(
+            item.get("source_id")
+            or item.get("source_snapshot_id")
+            or item.get("object_id")
+            or ""
+        ).strip()
+        if not locator or not content_hash:
+            continue
+        if known:
+            if not source_id or source_id not in known:
+                continue
+        if not source_id:
+            continue
+        if workspace_id:
+            from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
+
+            snapshot = SOURCE_STORE.get(workspace_id, source_id)
+            if not isinstance(snapshot, dict):
+                continue
+            payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
+            stored_hash = _canonical_hash(
+                payload.get("content_hash")
+                or payload.get("external_content_hash")
+                or snapshot.get("content_hash")
+            )
+            if not stored_hash or stored_hash != content_hash:
+                continue
+        elif known:
+            # Declared snapshot list without a workspace lookup still requires
+            # the citation to name a known id; hash cannot be verified here.
+            pass
+        else:
+            continue
+        usable += 1
+    total = len([item for item in citations if isinstance(item, dict)])
+    coverage = round(usable / total, 4) if total else 0.0
+    return {
+        "usable_source_count": usable,
+        "citation_coverage": coverage,
+        "source_count": total,
+    }
+
+
+def _query_rounds_from_events(workspace_id: str, task_id: str) -> int:
+    from .events import list_events
+
+    listed = list_events(workspace_id, task_id, limit=200)
+    events = listed.get("events") or []
+    rounds = 0
+    for item in events:
+        payload = item.get("payload") if isinstance(item, dict) else {}
+        event_type = str(
+            (payload or {}).get("event_type")
+            or item.get("event_type")
+            or item.get("type")
+            or ""
+        )
+        if event_type in {"data_search", "data_discover"}:
+            rounds += 1
+    return rounds
+
+
+def _independent_publishers_from_sources(sources: list[Any]) -> int | None:
+    """Count distinct publishers from persisted sources; None if not countable."""
+
+    publishers: set[str] = set()
+    countable = False
+    for item in sources:
+        if not isinstance(item, dict):
+            continue
+        publisher = str(
+            item.get("publisher")
+            or item.get("publisher_name")
+            or item.get("site_name")
+            or ""
+        ).strip().lower()
+        url = str(item.get("url") or item.get("source_url") or "").strip()
+        host = ""
+        if url and "://" in url:
+            host = url.split("://", 1)[1].split("/", 1)[0].lower()
+            if host.startswith("www."):
+                host = host[4:]
+        source_key = publisher or host
+        if source_key:
+            publishers.add(source_key)
+            countable = True
+    if not countable:
+        return None
+    return len(publishers)
+
+
+def _query_angles_from_events(workspace_id: str, task_id: str) -> int | None:
+    """Count distinct search angles from retrieval events; None if none exist."""
+
+    from .events import list_events
+
+    listed = list_events(workspace_id, task_id, limit=200)
+    angles: set[str] = set()
+    for item in listed.get("events") or []:
+        payload = item.get("payload") if isinstance(item, dict) else {}
+        event_type = str(
+            (payload or {}).get("event_type")
+            or item.get("event_type")
+            or item.get("type")
+            or ""
+        )
+        if event_type not in {"data_search", "data_discover"}:
+            continue
+        angle = str(
+            (payload or {}).get("query")
+            or (payload or {}).get("angle")
+            or (payload or {}).get("topic")
+            or event_type
+        ).strip().lower()
+        if angle:
+            angles.add(angle)
+    if not angles:
+        return None
+    return len(angles)
+
+
 def _canonical_content_hash(value: Any) -> str:
     """Normalize equivalent SHA-256 wire forms without accepting malformed hashes."""
 
@@ -369,12 +512,29 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
     citations = list(args.get("citations") or [])
     evidence_pack_ids = [str(item) for item in (args.get("evidence_pack_ids") or []) if str(item)]
     source_snapshot_ids = [str(item) for item in (args.get("source_snapshot_ids") or []) if str(item)]
-    quality_summary = args.get("quality_summary") if isinstance(args.get("quality_summary"), dict) else {}
+    quality_summary_supplied = isinstance(args.get("quality_summary"), dict)
+    quality_summary = dict(args.get("quality_summary") or {}) if quality_summary_supplied else {}
+    quality_issues: list[str] = []
+    computed = _bound_citation_metrics(
+        citations,
+        workspace_id=workspace_id,
+        source_snapshot_ids=source_snapshot_ids,
+    )
+    computed_rounds = _query_rounds_from_events(workspace_id, task_id)
+    if quality_summary_supplied:
+        reported_coverage = quality_summary.get("citation_coverage")
+        reported_usable = quality_summary.get("usable_source_count")
+        reported_rounds = quality_summary.get("query_rounds")
+        if reported_coverage is not None and abs(float(reported_coverage) - float(computed["citation_coverage"])) > 1e-6:
+            quality_issues.append("citation_coverage_mismatch")
+        if reported_usable is not None and int(reported_usable) != int(computed["usable_source_count"]):
+            quality_issues.append("usable_source_count_mismatch")
+        if reported_rounds is not None and int(reported_rounds) != int(computed_rounds):
+            quality_issues.append("query_rounds_mismatch")
     market_field_bindings = [
         dict(item) for item in (args.get("market_field_bindings") or [])
         if isinstance(item, dict)
     ]
-    quality_issues: list[str] = []
     if not report_md:
         quality_issues.append("report_missing")
         report_md = (
@@ -397,13 +557,14 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "citation_audit": {"status": "agent_supplied", "citation_count": len(citations), "passed": False},
         "quality": {"status": "not_independently_audited", "passed": False},
         "quality_summary": {
-            "query_rounds": int(quality_summary.get("query_rounds") or 0),
+            "query_rounds": computed_rounds,
             "source_count": len(citations),
-            "usable_source_count": int(quality_summary.get("usable_source_count") or 0),
-            "citation_coverage": quality_summary.get("citation_coverage"),
+            "usable_source_count": int(computed["usable_source_count"]),
+            "citation_coverage": computed["citation_coverage"],
+            "independent_publishers": _independent_publishers_from_sources(citations),
+            "query_angles": _query_angles_from_events(workspace_id, task_id),
             "missing_fields": [
-                *[str(item) for item in quality_summary.get("missing_fields") or []],
-                *quality_issues,
+                str(item) for item in quality_summary.get("missing_fields") or []
             ],
             "conflicts": [dict(item) for item in quality_summary.get("conflicts") or [] if isinstance(item, dict)],
             "submitted_by_agent": True,
@@ -411,8 +572,6 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "market_field_bindings": market_field_bindings,
         "checkpoint": {"task_id": task_id, "stage": "agent_submitted"},
     }
-    if not quality_summary:
-        artifacts.pop("quality_summary", None)
     if not market_field_bindings:
         artifacts.pop("market_field_bindings", None)
     evidence_payloads = [(item.get("payload") or {}) for item in evidence_records if isinstance(item, dict)]
@@ -526,13 +685,48 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     artifacts = payload.get("agent_artifacts") if isinstance(payload.get("agent_artifacts"), dict) else {}
     summary = artifacts.get("quality_summary") if isinstance(artifacts.get("quality_summary"), dict) else {}
     citations = artifacts.get("sources") if isinstance(artifacts.get("sources"), list) else []
+    evidence_basis = artifacts.get("evidence") if isinstance(artifacts.get("evidence"), dict) else {}
+    computed = _bound_citation_metrics(
+        citations,
+        workspace_id=workspace_id,
+        source_snapshot_ids=[
+            str(item)
+            for item in (evidence_basis.get("source_snapshot_ids") or [])
+            if str(item)
+        ],
+    )
+    task_id = str(payload.get("task_id") or "")
+    if not task_id:
+        source_ids = [str(item) for item in (source.get("source_ids") or []) if str(item)]
+        task_id = source_ids[0] if source_ids else ""
+    computed_rounds = _query_rounds_from_events(workspace_id, task_id) if task_id else 0
+
+    computed_publishers = _independent_publishers_from_sources(citations)
+    computed_angles = _query_angles_from_events(workspace_id, task_id) if task_id else None
     metrics = {
-        "query_rounds": int(args.get("query_rounds", summary.get("query_rounds") or 0)),
-        "source_count": len(citations),
-        "usable_source_count": int(args.get("usable_source_count", summary.get("usable_source_count") or 0)),
-        "citation_coverage": args.get("citation_coverage", summary.get("citation_coverage")),
-        "missing_fields": [str(item) for item in (args.get("missing_fields", summary.get("missing_fields") or []) or [])],
-        "conflicts": [dict(item) for item in (args.get("conflicts", summary.get("conflicts") or []) or []) if isinstance(item, dict)],
+        "query_rounds": int(computed_rounds or 0),
+        "source_count": computed["source_count"] or len(citations),
+        "usable_source_count": int(computed["usable_source_count"] or 0),
+        "citation_coverage": computed["citation_coverage"],
+        "independent_publishers": computed_publishers,
+        "query_angles": computed_angles,
+        "missing_fields": [
+            str(item)
+            for item in (
+                args.get("missing_fields")
+                if "missing_fields" in args
+                else summary.get("missing_fields") or []
+            ) or []
+        ],
+        "conflicts": [
+            dict(item)
+            for item in (
+                args.get("conflicts")
+                if "conflicts" in args
+                else summary.get("conflicts") or []
+            ) or []
+            if isinstance(item, dict)
+        ],
     }
     evidence_policy = str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
     accepted_limitations = bool(args.get("accept_material_limitations", False))
@@ -541,6 +735,16 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     conflicts = list(metrics["conflicts"])
     coverage = metrics["citation_coverage"]
     blockers: list[str] = []
+    if "citation_coverage" in args:
+        try:
+            if abs(float(args.get("citation_coverage")) - float(computed["citation_coverage"])) > 1e-6:
+                blockers.append("citation_coverage_mismatch")
+        except (TypeError, ValueError):
+            blockers.append("citation_coverage_mismatch")
+    if "usable_source_count" in args and int(args.get("usable_source_count") or 0) != int(computed["usable_source_count"]):
+        blockers.append("usable_source_count_mismatch")
+    if "query_rounds" in args and int(args.get("query_rounds") or 0) != int(computed_rounds):
+        blockers.append("query_rounds_mismatch")
     if not metrics["source_count"]:
         blockers.append("research_source_missing")
     if metrics["usable_source_count"] < 1:
@@ -563,7 +767,17 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         and not conflicts
         and not missing
         and (coverage is None or float(coverage) >= 0.8)
+        and not any(item.endswith("_mismatch") for item in blockers)
     )
+    if any(item.endswith("_mismatch") for item in blockers):
+        return {
+            "success": False, "status": "blocked", "code": "research_quality_failed",
+            "message": "上报的引用覆盖率、可用来源数或检索轮次与服务端重算不一致",
+            "resource_uris": [source["resource_uri"]],
+            "warnings": [], "blockers": blockers,
+            "next_actions": ["以上报值仅作对照；以服务端按 locator/hash 重算结果为准"],
+            "quality": metrics,
+        }
     # project_delivery 模式要求更严格的证据条件
     project_delivery_blockers: list[str] = []
     if research_mode == "project_delivery":
@@ -571,11 +785,17 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
             project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:source_count<6")
         if metrics["usable_source_count"] < 6:
             project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:usable_source_count<6")
-        independent_publishers = int(args.get("independent_publishers", 0))
-        if independent_publishers < 3:
+        independent_publishers = computed_publishers
+        if independent_publishers is None:
+            project_delivery_blockers.append("missing_inputs:independent_publishers")
+            missing.append("independent_publishers")
+        elif independent_publishers < 3:
             project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:independent_publishers<3")
-        query_angles = int(args.get("query_angles", 0))
-        if query_angles < 3:
+        query_angles = computed_angles
+        if query_angles is None:
+            project_delivery_blockers.append("missing_inputs:query_angles")
+            missing.append("query_angles")
+        elif query_angles < 3:
             project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:query_angles<3")
         if coverage is None or float(coverage) < 1.0:
             project_delivery_blockers.append("RESEARCH_PUBLIC_EVIDENCE_INSUFFICIENT:core_coverage<100%")

@@ -5,9 +5,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE, QUALITY_REVIEW_STORE
 from lvke_mcp.domains.research import application
 from lvke_mcp.domains.research._service.agent_lifecycle import (
+    _bound_citation_metrics,
     _citation_consistency_issues,
 )
 
@@ -55,7 +57,46 @@ class DeepResearchQualityTest(unittest.TestCase):
             ["citation_content_hash_mismatch:0:source-1"],
         )
 
+    def _put_source(self, source_id: str, digest: str) -> None:
+        SOURCE_STORE.put(
+            self.workspace,
+            {"content_hash": f"sha256:{digest}", "title": source_id},
+            producer="test.deep-research-quality",
+            object_id=source_id,
+        )
+
+    def test_missing_source_snapshot_is_not_usable(self) -> None:
+        digest = "b" * 64
+        metrics = _bound_citation_metrics(
+            [{
+                "source_id": "missing-source",
+                "locator": "page:1",
+                "content_hash": f"sha256:{digest}",
+            }],
+            workspace_id=self.workspace,
+            source_snapshot_ids=["missing-source"],
+        )
+        self.assertEqual(metrics["usable_source_count"], 0)
+        self.assertEqual(metrics["citation_coverage"], 0.0)
+
+    def test_bound_snapshot_hash_match_counts_as_usable(self) -> None:
+        digest = "c" * 64
+        self._put_source("source-bound", digest)
+        metrics = _bound_citation_metrics(
+            [{
+                "source_id": "source-bound",
+                "locator": "page:1",
+                "content_hash": f"sha256:{digest}",
+            }],
+            workspace_id=self.workspace,
+            source_snapshot_ids=["source-bound"],
+        )
+        self.assertEqual(metrics["usable_source_count"], 1)
+        self.assertEqual(metrics["citation_coverage"], 1.0)
+
     def test_submit_persists_quality_summary_and_market_bindings(self) -> None:
+        digest = "b" * 64
+        self._put_source("source-1", digest)
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "区域产业项目市场规模",
@@ -97,7 +138,8 @@ class DeepResearchQualityTest(unittest.TestCase):
         record = PACKAGE_STORE.get(self.workspace, submitted["research_package_id"])
         self.assertIsNotNone(record)
         artifacts = (record or {}).get("payload", {}).get("agent_artifacts", {})
-        self.assertEqual(artifacts["quality_summary"]["query_rounds"], 3)
+        self.assertEqual(artifacts["quality_summary"]["query_rounds"], 0)
+        self.assertEqual(artifacts["quality_summary"]["usable_source_count"], 1)
         self.assertEqual(artifacts["quality_summary"]["missing_fields"], ["target_share"])
         self.assertEqual(artifacts["market_field_bindings"][0]["field"], "market_size")
 
@@ -117,10 +159,12 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertTrue(submitted["success"], submitted)
         record = PACKAGE_STORE.get(self.workspace, submitted["research_package_id"])
         artifacts = (record or {}).get("payload", {}).get("agent_artifacts", {})
-        self.assertNotIn("quality_summary", artifacts)
+        self.assertIn("quality_summary", artifacts)
+        self.assertEqual(artifacts["quality_summary"]["query_rounds"], 0)
         self.assertNotIn("market_field_bindings", artifacts)
 
     def test_partial_package_requires_independent_quality_confirmation(self) -> None:
+        self._put_source("source-1", "b" * 64)
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "市场容量",
@@ -130,7 +174,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "市场容量结论。[1]",
-            "citations": [{"locator": "page:1"}],
+            "citations": [{"locator": "page:1", "content_hash": "sha256:" + "b" * 64, "source_id": "source-1"}],
             "source_snapshot_ids": ["source-1"],
             "quality_summary": {
                 "query_rounds": 2,
@@ -180,6 +224,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(blocked["code"], "research_quality_failed")
 
     def test_quality_output_prevalidation_failure_writes_nothing(self) -> None:
+        self._put_source("source-atomic", "b" * 64)
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "引用原子性",
@@ -189,7 +234,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "结论。[1]",
-            "citations": [{"source_id": "source-atomic", "locator": "page:1"}],
+            "citations": [{"source_id": "source-atomic", "locator": "page:1", "content_hash": "sha256:" + "b" * 64}],
             "source_snapshot_ids": ["source-atomic"],
             "quality_summary": {
                 "usable_source_count": 1,
@@ -217,6 +262,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual((source or {}).get("status"), "partial")
 
     def test_citation_mismatch_blocks_before_quality_writes(self) -> None:
+        self._put_source("source-basis", "b" * 64)
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "引用一致性",
@@ -226,7 +272,12 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "结论。[1]",
-            "citations": [{"source_id": "not-in-basis", "locator": "page:1"}],
+            "citations": [{
+                "source_id": "source-basis",
+                "locator": "page:1",
+                "content_hash": "sha256:" + "b" * 64,
+                "resource_uri": "lvke://data-acquisition/workspaces/other-ws/snapshots/source-basis",
+            }],
             "source_snapshot_ids": ["source-basis"],
             "quality_summary": {
                 "usable_source_count": 1,
@@ -243,6 +294,50 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertFalse(result["success"], result)
         self.assertEqual(result["code"], "research_citation_audit_failed")
         self.assertEqual(len(QUALITY_REVIEW_STORE.list(self.workspace)), review_count)
+
+    def test_project_delivery_counts_publishers_or_records_missing_inputs(self) -> None:
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "公开研究门槛",
+            "idempotency_key": "dr-start-publishers",
+        })
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": started["task_id"],
+            "report_md": "结论。[1]",
+            "citations": [{
+                "source_id": "source-1",
+                "locator": "page:1",
+                "content_hash": "sha256:" + "b" * 64,
+                "url": "https://example.com/a",
+            }],
+            "source_snapshot_ids": ["source-1"],
+            "quality_summary": {
+                "query_rounds": 0,
+                "usable_source_count": 1,
+                "citation_coverage": 1.0,
+                "missing_fields": [],
+                "conflicts": [],
+            },
+        })
+        blocked = application.confirm_quality({
+            "workspace_id": self.workspace,
+            "research_package_id": submitted["research_package_id"],
+            "research_mode": "project_delivery",
+            "independent_publishers": 9,
+            "query_angles": 9,
+        })
+        self.assertFalse(blocked["success"], blocked)
+        blockers = set(blocked.get("blockers") or [])
+        self.assertTrue(
+            any(
+                item.startswith("missing_inputs:query_angles")
+                or item.startswith("RESEARCH_PUBLIC_EVIDENCE")
+                for item in blockers
+            ),
+            blockers,
+        )
+        self.assertEqual((blocked.get("quality") or {}).get("independent_publishers"), 1)
 
 
 if __name__ == "__main__":

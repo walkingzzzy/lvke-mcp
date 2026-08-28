@@ -33,6 +33,6 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | `review_resolve_standards` → `review_list_requirements` | lvke-deliverable-review | `project_context`, `facilities` / `standard_applicability_id` | applicability only, never a compliance verdict |
 | `review_attach_requirement_evidence` | lvke-deliverable-review | `requirement_id`, `resource_uri`, `locator`, `content_hash` | accepts only already-immutable data-acquisition / data-analysis Resources; free text is refused |
 | `review_validate_standards` | lvke-deliverable-review | `standard_applicability_id` | returns pending / fixture-satisfied / attached-awaiting-review; **never** returns "project complies with the national standard" |
-| `review_retest` → `review_export` | lvke-deliverable-review | remediation evidence | formal export needs EVD-2 |
+| `review_retest` → `review_export` | lvke-deliverable-review | remediation evidence | formal export needs EVD-2 or `sim_a_formal` |
 
-Evidence tracks: formal export requires `formal_evidence`. `process_acceptance` vs `project_delivery` via `project_context.review_purpose`.
+Evidence tracks: formal export accepts `formal_evidence` or promoted `sim_a_formal`. Unpromoted SIM-A / controlled_assumption remains `process_acceptance` only. `process_acceptance` vs `project_delivery` via `project_context.review_purpose`.

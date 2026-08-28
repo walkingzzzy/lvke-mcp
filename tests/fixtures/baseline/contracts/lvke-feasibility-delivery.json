@@ -24,6 +24,7 @@
           "type": "string",
           "enum": [
             "formal_evidence",
+            "sim_a_formal",
             "source_reconstructed",
             "technical_fixture",
             "controlled_assumption"
@@ -416,6 +417,10 @@
           }
         },
         "reopen": {
+          "type": "boolean",
+          "default": false
+        },
+        "bind_workspace_lineage": {
           "type": "boolean",
           "default": false
         },

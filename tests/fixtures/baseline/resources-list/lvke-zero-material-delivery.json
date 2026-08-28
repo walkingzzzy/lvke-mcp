@@ -44,6 +44,20 @@
   {
     "description": "服务端实际执行的完整 output JSON Schema。",
     "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_generate_template_pack.output-schema",
+    "title": "delivery_generate_template_pack complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_generate_template_pack/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_confirm_formal_promotion.output-schema",
+    "title": "delivery_confirm_formal_promotion complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_confirm_formal_promotion/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
     "name": "lvke-zero-material-delivery.delivery_get_artifacts.output-schema",
     "title": "delivery_get_artifacts complete output schema",
     "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_get_artifacts/output"

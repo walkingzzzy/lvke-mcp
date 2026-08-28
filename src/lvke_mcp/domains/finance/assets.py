@@ -45,6 +45,65 @@ def annual_straight_line(
     return round(depreciable / years, 2)
 
 
+def annual_double_declining(
+    original: float,
+    years: int,
+    *,
+    salvage_rate: float = 0.0,
+    year_index: int = 1,
+) -> float:
+    """Double-declining balance charge for one year, floored at salvage."""
+
+    years = max(int(years or 1), 1)
+    original = float(original or 0.0)
+    salvage = original * float(salvage_rate or 0.0)
+    book = original
+    rate = 2.0 / years
+    charge = 0.0
+    for year in range(1, years + 1):
+        remaining = max(book - salvage, 0.0)
+        year_charge = remaining if year == years else min(book * rate, remaining)
+        if year == max(int(year_index or 1), 1):
+            charge = year_charge
+            break
+        book = max(book - year_charge, salvage)
+    return round(charge, 2)
+
+
+def depreciation_charge(
+    original: float,
+    years: int,
+    *,
+    salvage_rate: float = 0.0,
+    method: str = "straight_line",
+    year_index: int = 1,
+    tax_method: str | None = None,
+) -> dict[str, Any]:
+    """Book depreciation with optional tax-book separation."""
+
+    book_method = "double_declining" if str(method or "") == "double_declining" else "straight_line"
+    tax_name = str(tax_method or book_method)
+    if book_method == "double_declining":
+        book = annual_double_declining(
+            original, years, salvage_rate=salvage_rate, year_index=year_index,
+        )
+    else:
+        book = annual_straight_line(original, years, salvage_rate=salvage_rate)
+    if tax_name == "double_declining":
+        tax = annual_double_declining(
+            original, years, salvage_rate=salvage_rate, year_index=year_index,
+        )
+    else:
+        tax = annual_straight_line(original, years, salvage_rate=salvage_rate)
+    return {
+        "book_depreciation_wan": book,
+        "tax_depreciation_wan": tax,
+        "temporary_difference_wan": round(book - tax, 2),
+        "depreciation_method": book_method,
+        "tax_depreciation_method": tax_name,
+    }
+
+
 def terminal_recovery(
     *,
     original: float,
@@ -151,14 +210,26 @@ def classified_depreciation_schedule(
             continue
         if original <= 0 or life <= 0 or not 0.0 <= salvage_rate < 1.0:
             continue
-        annual = annual_straight_line(original, life, salvage_rate=salvage_rate)
+        method = str(item.get("depreciation_method") or item.get("method") or "straight_line")
+        tax_method = str(item.get("tax_depreciation_method") or item.get("tax_method") or method)
+        first = depreciation_charge(
+            original,
+            life,
+            salvage_rate=salvage_rate,
+            method=method,
+            year_index=1,
+            tax_method=tax_method,
+        )
         normalized.append({
             **item,
             "name": str(item.get("name") or f"资产类别{index + 1}"),
             "original_value_wan": round(original, 6),
             "depreciation_years": life,
             "salvage_rate": salvage_rate,
-            "annual_depreciation_wan": annual,
+            "depreciation_method": method,
+            "tax_depreciation_method": tax_method,
+            "annual_depreciation_wan": first["book_depreciation_wan"],
+            "annual_tax_depreciation_wan": first["tax_depreciation_wan"],
         })
 
     rows: list[dict[str, Any]] = []
@@ -166,29 +237,43 @@ def classified_depreciation_schedule(
     for year in range(1, years + 1):
         breakdown = []
         charge = 0.0
+        tax_charge = 0.0
         for item in normalized:
-            annual = float(item["annual_depreciation_wan"])
             life = int(item["depreciation_years"])
             original = float(item["original_value_wan"])
-            depreciable = round(original * (1.0 - float(item["salvage_rate"])), 2)
-            charged_before = round(annual * min(year - 1, life), 2)
-            class_charge = (
-                min(annual, round(max(depreciable - charged_before, 0.0), 2))
-                if year <= life else 0.0
-            )
-            class_charge = round(class_charge, 2)
+            method = str(item.get("depreciation_method") or "straight_line")
+            tax_method = str(item.get("tax_depreciation_method") or method)
+            split = depreciation_charge(
+                original,
+                life,
+                salvage_rate=float(item["salvage_rate"]),
+                method=method,
+                year_index=year,
+                tax_method=tax_method,
+            ) if year <= life else {
+                "book_depreciation_wan": 0.0,
+                "tax_depreciation_wan": 0.0,
+                "temporary_difference_wan": 0.0,
+            }
+            class_charge = round(float(split.get("book_depreciation_wan") or 0.0), 2)
+            class_tax = round(float(split.get("tax_depreciation_wan") or 0.0), 2)
             charge = round(charge + class_charge, 2)
+            tax_charge = round(tax_charge + class_tax, 2)
             breakdown.append({
                 "name": item["name"],
                 "original_value_wan": round(original, 2),
                 "depreciation_years": life,
                 "salvage_rate": float(item["salvage_rate"]),
                 "depreciation": class_charge,
+                "tax_depreciation": class_tax,
+                "temporary_difference": round(class_charge - class_tax, 2),
             })
         cumulative = round(cumulative + charge, 2)
         rows.append({
             "year": year,
             "depreciation": charge,
+            "tax_depreciation": tax_charge,
+            "temporary_difference": round(charge - tax_charge, 2),
             "cumulative_depreciation": cumulative,
             "classes": breakdown,
         })

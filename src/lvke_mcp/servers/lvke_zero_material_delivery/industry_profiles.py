@@ -94,6 +94,26 @@ PROFILES: dict[str, dict[str, Any]] = {
         "regional_adjustment": ["客户密度", "专业人工成本", "办公或实验场地成本", "服务定价"],
         "sensitivity_variables": ["service_volume", "average_fee", "professional_labor_cost", "utilization"],
     },
+    "real_estate": {
+        "applicability": ["商品房开发", "住宅小区", "综合体去化", "安置房"],
+        "revenue_model": "property_sales",
+        "revenue_drivers": ["saleable_area", "average_price", "absorption", "pre_sale_ramp"],
+        "investment_structure": ["land_or_site", "civil", "municipal_support", "other", "contingency", "working_capital"],
+        "cost_structure": ["development_cost", "sales", "management", "finance_cost"],
+        "labor_rule": "建设期按项目管理配置，销售期按去化节奏与案场配置估算",
+        "regional_adjustment": ["土地及征拆", "当地建安指数", "售价与去化", "预售监管"],
+        "sensitivity_variables": ["average_price", "absorption", "construction_investment", "financing_cost"],
+    },
+    "cemetery_funeral": {
+        "applicability": ["经营性公墓", "殡仪服务", "骨灰堂", "陵园配套"],
+        "revenue_model": "service_sales",
+        "revenue_drivers": ["plot_count", "average_plot_price", "utilization", "memorial_service_fee"],
+        "investment_structure": ["land_or_site", "civil", "landscape", "service_facilities", "other", "contingency"],
+        "cost_structure": ["operations", "maintenance", "labor", "compliance", "management"],
+        "labor_rule": "按墓区规模、祭扫高峰、礼仪服务与值守岗位估算定员",
+        "regional_adjustment": ["殡葬规划与许可", "当地习俗与价格", "土地与绿化造价"],
+        "sensitivity_variables": ["plot_count", "average_plot_price", "utilization", "construction_investment"],
+    },
 }
 
 

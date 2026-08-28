@@ -18,6 +18,7 @@ from .evidence import (
     _evidence_catalog,
     _evidence_claims,
     _formal_evidence_candidate,
+    _sim_a_formal_candidate,
     _source_reconstructed_candidate,
     _technical_fixture_candidate,
 )
@@ -90,6 +91,8 @@ def review_report(
             if evidence_track == "technical_fixture"
             else _source_reconstructed_candidate(candidate)
             if evidence_track == "source_reconstructed"
+            else _sim_a_formal_candidate(candidate)
+            if evidence_track == "sim_a_formal"
             else _formal_evidence_candidate(candidate)
             for candidate in candidates
         )
@@ -99,6 +102,8 @@ def review_report(
                 if evidence_track == "technical_fixture"
                 else "source_reconstructed_candidates_unavailable"
                 if evidence_track == "source_reconstructed"
+                else "sim_a_formal_candidates_unavailable"
+                if evidence_track == "sim_a_formal"
                 else "formal_evidence_candidates_unavailable"
             )
     for claim in claims:

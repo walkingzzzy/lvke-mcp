@@ -1,0 +1,38 @@
+{
+  "rule_pack_id": "accounting-tax-core",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "AT-TAX-001",
+      "title": "税会处理专业核验",
+      "requirement": "由税务/会计专业人员核验所得税、增值税及税会分离口径",
+      "check_kind": "professional",
+      "review_area": "tax",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["finance_run", "finance_tables_package", "acquisition_run"],
+      "standard": {
+        "package_id": "PKG-STD-014",
+        "artifact_id": "S014",
+        "locator": "accounting-tax-core/AT-TAX-001",
+        "quote": "税会处理须经专业核验"
+      }
+    },
+    {
+      "rule_id": "AT-DEED-001",
+      "title": "收购权属与契税专业核验",
+      "requirement": "资产或股权收购须核验权属文件与契税/印花税处理",
+      "check_kind": "professional",
+      "review_area": "tax",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["acquisition_run", "acquisition_tables_package"],
+      "standard": {
+        "package_id": "PKG-STD-018",
+        "artifact_id": "S018",
+        "locator": "accounting-tax-core/AT-DEED-001",
+        "quote": "收购税处理须经专业核验"
+      }
+    }
+  ]
+}

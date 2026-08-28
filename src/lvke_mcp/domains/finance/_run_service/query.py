@@ -91,6 +91,7 @@ def get_workspace_finance_run(
                 "checks": snapshot.get("checks") or [],
             }
         if view == "summary":
+            snapshot_meta = snapshot.get("project_metadata") if isinstance(snapshot.get("project_metadata"), dict) else {}
             return {
                 **base,
                 "indicators": snapshot.get("indicators") or {},
@@ -101,6 +102,14 @@ def get_workspace_finance_run(
                 "table_manifest": _table_manifest(snapshot, rid),
                 "assurance_level": snapshot.get("assurance_level") or "estimate_preview",
                 "calculation_status": "computed",
+                "project_metadata": snapshot_meta,
+                "project_type": snapshot.get("project_type") or snapshot_meta.get("project_type"),
+                "industry": snapshot.get("industry") or snapshot_meta.get("industry") or audit_view.get("industry"),
+                "valuation_date": snapshot.get("valuation_date") or snapshot_meta.get("valuation_date") or audit_view.get("valuation_date"),
+                "currency": snapshot.get("currency") or snapshot_meta.get("currency"),
+                "amount_unit": snapshot.get("amount_unit") or snapshot_meta.get("amount_unit"),
+                "tax_basis": snapshot.get("tax_basis") or snapshot_meta.get("tax_basis"),
+                "forecast_period": snapshot.get("forecast_period") or snapshot_meta.get("forecast_period"),
             }
         # full
         merged["audit"] = {

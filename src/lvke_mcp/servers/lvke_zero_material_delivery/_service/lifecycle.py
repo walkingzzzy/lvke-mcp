@@ -523,7 +523,8 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             "previous_assumption_package_id": package_id,
             "fields": [known[str(item.get("name"))] for item in prior_payload.get("fields") or []],
             "confirmation_status": "partially_confirmed" if any(
-                not item.get("confirmed") for item in known.values()
+                not item.get("confirmed") and item.get("source_ref") != SOURCE_SENTENCE
+                for item in known.values()
             ) else "confirmed",
             "validation_complete": False,
             "input_evidence_complete": False,

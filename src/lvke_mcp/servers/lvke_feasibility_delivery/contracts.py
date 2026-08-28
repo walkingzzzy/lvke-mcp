@@ -35,6 +35,7 @@ DELIVERY_MODES: tuple[str, ...] = (
 RELEASE_SCOPES: tuple[str, ...] = ("process_acceptance", "project_delivery")
 EVIDENCE_POLICIES: tuple[str, ...] = (
     "formal_evidence",
+    "sim_a_formal",
     "source_reconstructed",
     "technical_fixture",
     "controlled_assumption",

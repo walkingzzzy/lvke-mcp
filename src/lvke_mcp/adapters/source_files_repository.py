@@ -594,7 +594,56 @@ def resolve_reconstructed_evidence_binding(
 
 _TEXT_SUFFIXES = frozenset({".md", ".txt", ".json", ".jsonl", ".html"})
 _CSV_SUFFIXES = frozenset({".csv", ".tsv"})
+_DOCX_SUFFIXES = frozenset({".docx"})
 _PDF_TEXT_BUDGET = 2_000_000
+
+
+def _is_docx(mime: str, path: Path) -> bool:
+    normalized = str(mime or "").lower().split(";", 1)[0].strip()
+    return (
+        normalized
+        in {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/docx",
+        }
+        or path.suffix.lower() in _DOCX_SUFFIXES
+    )
+
+
+def _parse_docx_locators(data: bytes) -> tuple[list[dict[str, Any]], str]:
+    try:
+        from docx import Document
+    except ImportError:
+        return [], "docx_parser_unavailable"
+    try:
+        document = Document(io.BytesIO(data))
+    except Exception:  # noqa: BLE001
+        return [], "docx_unreadable"
+    locators: list[dict[str, Any]] = []
+    for index, paragraph in enumerate(document.paragraphs, start=1):
+        text = str(paragraph.text or "").strip()
+        if not text:
+            continue
+        locators.append({
+            "kind": "docx_paragraph",
+            "locator": f"paragraph:{index}",
+            "paragraph": index,
+            "text": text[:4000],
+        })
+    for table_index, table in enumerate(document.tables, start=1):
+        for row_index, row in enumerate(table.rows, start=1):
+            cells = [str(cell.text or "").strip() for cell in row.cells]
+            if not any(cells):
+                continue
+            locators.append({
+                "kind": "docx_table_row",
+                "locator": f"table:{table_index}:row:{row_index}",
+                "table": table_index,
+                "row": row_index,
+                "text": " | ".join(cells)[:4000],
+                "cells": cells,
+            })
+    return locators, ""
 
 
 def _is_csv(mime: str, path: Path) -> bool:
@@ -971,6 +1020,10 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     elif mime.startswith("text/") or path.suffix.lower() in _TEXT_SUFFIXES:
         text = data.decode("utf-8", errors="replace")[:200_000]
         locators = [{"kind": "document_text", "text": text}] if text.strip() else []
+    elif _is_docx(mime, path):
+        locators, degraded_reason = _parse_docx_locators(data)
+        text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
+        parser = "mcp-docx-parser.v1"
     elif _is_pdf(mime, path):
         locators, degraded_reason = _parse_pdf_pages(data)
         text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
@@ -1040,6 +1093,9 @@ def commit_staged_source_file(
     idempotency_key: str,
     expected_sha256: str = "",
     expected_size: int | None = None,
+    evidence_policy: str = "",
+    evidence_origin: str = "",
+    project_fact_certified: bool = False,
 ) -> dict[str, Any]:
     data = staged_path.read_bytes()
     if not data or len(data) > _max_upload_bytes():
@@ -1053,7 +1109,15 @@ def commit_staged_source_file(
         raise _error("source_size_mismatch", "资料大小与声明不一致")
     request_hash = hashlib.sha256(
         json.dumps(
-            {"filename": original_filename, "mime": declared_mime, "sha256": digest, "size": len(data)},
+            {
+                "filename": original_filename,
+                "mime": declared_mime,
+                "sha256": digest,
+                "size": len(data),
+                "evidence_policy": str(evidence_policy or ""),
+                "evidence_origin": str(evidence_origin or ""),
+                "project_fact_certified": bool(project_fact_certified),
+            },
             sort_keys=True,
         ).encode()
     ).hexdigest()
@@ -1080,6 +1144,9 @@ def commit_staged_source_file(
             "deterministic_status": "pending",
             "security_scan": {"type_verified": True, "scan_status": "passed"},
             "path": str(target), "parse_job_id": job_id, "created_at": _now(), "updated_at": _now(),
+            "evidence_policy": str(evidence_policy or "candidate"),
+            "evidence_origin": str(evidence_origin or ""),
+            "project_fact_certified": bool(project_fact_certified),
         }
         state["files"][file_id] = record
         state["jobs"][job_id] = {

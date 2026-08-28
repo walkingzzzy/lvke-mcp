@@ -71,3 +71,34 @@ def test_release_preflight_formal_candidate_requires_evd2() -> None:
     assert payload["evidence_gate"]["status"] == "pass"
     assert payload["release_gate"]["status"] == "pass"
     assert payload["release_ready"] is True
+
+
+def test_release_preflight_sim_a_formal_uses_dynamic_denominator() -> None:
+    report = run_release_preflight(
+        calculation_checks=lambda: (["model ok"], []),
+        required_artifacts=[],
+        evd_distribution={"EVD-0": 0, "EVD-1": 0, "EVD-2": 5},
+        required_evd2_count=5,
+        sim_a_present=True,
+        sim_a_formal=True,
+        build_metadata_complete=True,
+    )
+    payload = report.to_dict()
+    assert payload["evidence_gate"]["status"] == "pass"
+    assert "sim_a_not_formal" not in payload["evidence_gate"]["blockers"]
+    assert payload["release_ready"] is True
+
+
+def test_release_preflight_unpromoted_sim_a_still_blocked() -> None:
+    report = run_release_preflight(
+        calculation_checks=lambda: (["model ok"], []),
+        evd_distribution={"EVD-0": 0, "EVD-1": 0, "EVD-2": 5},
+        required_evd2_count=5,
+        sim_a_present=True,
+        sim_a_formal=False,
+        build_metadata_complete=True,
+    )
+    payload = report.to_dict()
+    assert payload["evidence_gate"]["status"] == "fail"
+    assert "sim_a_not_formal" in payload["evidence_gate"]["blockers"]
+    assert payload["release_ready"] is False

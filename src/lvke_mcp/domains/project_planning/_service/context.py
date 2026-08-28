@@ -39,6 +39,8 @@ _CONTEXT_FIELDS = {
     "target_type",
     "asset_type",
     "evidence_track",
+    "evidence_policy",
+    "project_fact_certified",
     "description",
     "tags",
 }
@@ -323,6 +325,9 @@ def create_project_context(
     normalized = _normalized_context(context)
 
     def mutate() -> dict[str, Any]:
+        if str(normalized.get("evidence_track") or "") == "sim_a_formal":
+            normalized.setdefault("evidence_policy", "sim_a_formal")
+            normalized.setdefault("project_fact_certified", True)
         payload = {
             "object_type": "ProjectContext",
             **normalized,

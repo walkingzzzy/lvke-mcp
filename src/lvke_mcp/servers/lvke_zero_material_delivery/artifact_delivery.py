@@ -147,13 +147,18 @@ def _report_markdown(
 
 
 def _docx_bytes(markdown: str, title: str) -> bytes:
+    from lvke_mcp.domains.reports._doc_service.docx import append_markdown_pipe_table
+
     document = Document()
     heading = document.add_heading(title, level=0)
     heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
     document.add_paragraph("技术预估版，非正式发布").alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for line in markdown.splitlines():
-        text = line.strip()
+    lines = markdown.splitlines()
+    index = 0
+    while index < len(lines):
+        text = lines[index].strip()
         if not text or text.startswith("# "):
+            index += 1
             continue
         if text.startswith("## "):
             document.add_heading(text[3:], level=1)
@@ -163,9 +168,19 @@ def _docx_bytes(markdown: str, title: str) -> bytes:
         elif text.startswith("- "):
             document.add_paragraph(text[2:], style="List Bullet")
         elif text.startswith("|"):
+            table_rows: list[list[str]] = []
+            while index < len(lines) and lines[index].strip().startswith("|"):
+                row = lines[index].strip()
+                if not row.replace("|", "").replace("-", "").replace(":", "").strip():
+                    index += 1
+                    continue
+                table_rows.append([cell.strip() for cell in row.strip("|").split("|")])
+                index += 1
+            append_markdown_pipe_table(document, table_rows)
             continue
         else:
             document.add_paragraph(text)
+        index += 1
     stream = io.BytesIO()
     document.save(stream)
     return stream.getvalue()

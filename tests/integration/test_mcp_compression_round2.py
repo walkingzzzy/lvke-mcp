@@ -172,7 +172,7 @@ class McpCompressionRound2Test(unittest.TestCase):
             server = getattr(module, "SERVER", None) or module.build_server()
             total += len(server.tool_specs)
             all_names.update(tool.name for tool in server.tool_specs)
-        self.assertEqual(total, 171)
+        self.assertEqual(total, 173)
         # legacy spec 总数 = 32 条压缩迁移替换掉的旧工具 + 压缩之后新增的分支。
         # 后者不属于 v2 迁移清单（那份 manifest 记录的是「被替换」的路由），所以
         # 这里按「≥32 且新增部分可枚举」判定，而不是把两类计数混成一个魔数。

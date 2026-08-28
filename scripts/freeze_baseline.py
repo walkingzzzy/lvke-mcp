@@ -156,6 +156,16 @@ def main() -> None:
         sys.exit(2)
     if targets == SERVERS:
         prune_stale_baselines()
+        existing_servers: list[dict] = []
+    else:
+        try:
+            existing = json.loads((BASELINE / "manifest.json").read_text(encoding="utf-8"))
+            existing_servers = [
+                row for row in (existing.get("servers") or [])
+                if isinstance(row, dict) and row.get("server")
+            ]
+        except (OSError, json.JSONDecodeError):
+            existing_servers = []
     results = []
     for server in targets:
         try:
@@ -166,13 +176,19 @@ def main() -> None:
         status = "OK" if r["ok"] else "FAIL"
         print(f"[{status}] {r['server']}: tools={r.get('tools', '?')} resources={r.get('resources', '?')}")
 
+    by_name = {str(row.get("server")): row for row in existing_servers}
+    for row in results:
+        by_name[str(row.get("server"))] = row
+    merged = [by_name[spec] for spec in SERVERS if spec in by_name]
+    extra = [row for name, row in by_name.items() if name not in set(SERVERS)]
+    manifest_servers = merged + extra
     manifest = {
         "frozen_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "protocol_version": PROTOCOL_VERSION,
         "python": "installed-environment",
-        "servers": results,
-        "ok_count": sum(1 for r in results if r["ok"]),
-        "total": len(results),
+        "servers": manifest_servers,
+        "ok_count": sum(1 for r in manifest_servers if r.get("ok")),
+        "total": len(manifest_servers),
     }
     (BASELINE / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",

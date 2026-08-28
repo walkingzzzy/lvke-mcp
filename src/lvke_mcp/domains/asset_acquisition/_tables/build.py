@@ -24,6 +24,59 @@ from .rows import (
 )
 
 
+def _coalesce_num(row: dict[str, Any], *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and value != "":
+            return value
+    return default
+
+
+def _projected_num(row: dict[str, Any], *keys: str, default: float | None = None) -> float | None:
+    """Project a computed field; missing keys stay absent instead of becoming 0."""
+
+    for key in keys:
+        if key not in row:
+            continue
+        value = row.get(key)
+        if value is not None and value != "":
+            return value
+    return default
+
+
+def _year_end_lookup(row: dict[str, Any], year_end_monthly: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    for key in ("year_index", "year"):
+        raw = row.get(key)
+        try:
+            year_index = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if year_index in year_end_monthly:
+            return year_end_monthly[year_index]
+    return {}
+
+
+def _balance_sheet_row(
+    row: dict[str, Any], year_end_monthly: dict[int, dict[str, Any]],
+) -> dict[str, Any]:
+    fallback = _year_end_lookup(row, year_end_monthly)
+    return {
+        "year": row.get("year") or row.get("year_index"),
+        "cash_wan": _projected_num(row, "cash_wan", "closing_cash_wan", default=_projected_num(fallback, "cash_wan", "closing_cash_wan")),
+        "fixed_asset_net_wan": _projected_num(
+            row, "fixed_asset_net_wan", "net_fixed_asset_wan",
+            default=_projected_num(fallback, "fixed_asset_net_wan", "net_fixed_asset_wan"),
+        ),
+        "total_assets_wan": _projected_num(row, "total_assets_wan", default=_projected_num(fallback, "total_assets_wan")),
+        "debt_wan": _projected_num(row, "debt_wan", "closing_principal_wan", default=_projected_num(fallback, "debt_wan", "closing_principal_wan")),
+        "equity_wan": _projected_num(row, "equity_wan", default=_projected_num(fallback, "equity_wan")),
+        "total_liabilities_equity_wan": _projected_num(
+            row, "total_liabilities_equity_wan",
+            default=_projected_num(fallback, "total_liabilities_equity_wan"),
+        ),
+    }
+
+
 def _build_tables(
     run: dict[str, Any],
     spec: dict[str, Any],
@@ -32,6 +85,19 @@ def _build_tables(
     transaction = dict(spec.get("transaction") or {})
     monthly = _rows(result.get("monthly_timeline"))
     annual = _rows(result.get("annual_summary"))
+    year_end_monthly: dict[int, dict[str, Any]] = {}
+    for row in monthly:
+        month = row.get("month")
+        try:
+            year_index = (int(month) - 1) // 12 + 1
+        except (TypeError, ValueError):
+            continue
+        year_end_monthly[year_index] = row
+    if not annual and year_end_monthly:
+        annual = [
+            {"year": year_index, "year_index": year_index, **row}
+            for year_index, row in sorted(year_end_monthly.items())
+        ]
     debt = _rows(result.get("debt_schedule_monthly"))
     debt_by_month = {row.get("month"): row for row in debt}
     period_by_month = {row.get("month"): row.get("period_start") for row in monthly}
@@ -65,9 +131,26 @@ def _build_tables(
         "debt_schedule": [{**row, "period_start": period_by_month.get(row.get("month"))} for row in debt],
         "tax_calculation": [{
             "month": row.get("month"), "period_start": row.get("period_start"),
-            "income_tax_wan": row.get("income_tax_wan", row.get("tax_wan")),
-            "interest_wan": row.get("interest_wan", (debt_by_month.get(row.get("month")) or {}).get("interest_wan")),
+            "income_tax_wan": _coalesce_num(row, "income_tax_wan", "tax_wan"),
+            "interest_wan": _coalesce_num(
+                row,
+                "interest_wan",
+                default=_coalesce_num(debt_by_month.get(row.get("month")) or {}, "interest_wan"),
+            ),
+            "vat_wan": _coalesce_num(row, "vat_wan", "value_added_tax_wan"),
+            "surtax_wan": _coalesce_num(row, "surtax_wan", "additional_tax_wan"),
+            "loss_carryforward_wan": _coalesce_num(row, "loss_carryforward_wan"),
         } for row in monthly],
+        "income_statement": [{
+            "year": row.get("year") or row.get("year_index"),
+            "revenue_wan": _coalesce_num(row, "revenue_wan"),
+            "operating_cost_wan": _coalesce_num(row, "operating_cost_wan"),
+            "depreciation_wan": _coalesce_num(row, "depreciation_wan"),
+            "interest_wan": _coalesce_num(row, "interest_wan"),
+            "income_tax_wan": _coalesce_num(row, "income_tax_wan", "tax_wan"),
+            "net_profit_wan": _coalesce_num(row, "net_profit_wan", "profit_wan"),
+        } for row in annual],
+        "balance_sheet": [_balance_sheet_row(row, year_end_monthly) for row in annual],
         "project_cashflow": [{key: row.get(key) for key in (
             "year", "year_index", "period_start", "period_end", "period_label", "period_basis",
             "revenue_wan", "operating_cost_wan", "income_tax_wan", "maintenance_capex_wan",

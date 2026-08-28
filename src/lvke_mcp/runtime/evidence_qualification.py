@@ -13,6 +13,8 @@ from typing import Any
 
 
 FORMAL_EVIDENCE = "formal_evidence"
+SIM_A_FORMAL = "sim_a_formal"
+CERTIFYING_POLICIES = frozenset({FORMAL_EVIDENCE, SIM_A_FORMAL})
 NON_FORMAL_EVIDENCE_POLICIES = frozenset({
     "browser_snapshot",
     "candidate",
@@ -61,8 +63,8 @@ def combine_evidence_policies(
     ]
     if not policies:
         return empty_policy
-    if all(policy == FORMAL_EVIDENCE for policy in policies):
-        return FORMAL_EVIDENCE
+    if all(policy in CERTIFYING_POLICIES for policy in policies):
+        return SIM_A_FORMAL if SIM_A_FORMAL in policies else FORMAL_EVIDENCE
     priority = (
         "controlled_assumption",
         "source_reconstructed",
@@ -98,13 +100,17 @@ def project_fact_may_be_certified(
     so callers with upstream objects are expected to supply them.
     """
 
-    if str(evidence_policy or "").strip() != FORMAL_EVIDENCE:
+    policy = str(evidence_policy or "").strip()
+    if policy not in CERTIFYING_POLICIES:
         return False
     if own_qualification_passed is not True:
         return False
     for parent in parents:
         payload = evidence_payload(parent)
-        if declared_evidence_policy(payload) != FORMAL_EVIDENCE:
+        parent_policy = declared_evidence_policy(payload)
+        if policy == FORMAL_EVIDENCE and parent_policy != FORMAL_EVIDENCE:
+            return False
+        if policy == SIM_A_FORMAL and parent_policy not in CERTIFYING_POLICIES:
             return False
         if payload.get("project_fact_certified") is not True:
             return False

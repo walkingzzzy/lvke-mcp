@@ -176,6 +176,15 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 "source": "finance_fact_pack_store",
             })
         data["input_revision"] = normalized_inputs
+        from lvke_mcp.domains.finance.working_capital import apply_operating_turnover_to_inputs
+
+        injected_turnover = apply_operating_turnover_to_inputs(normalized_inputs)
+        if injected_turnover:
+            data.setdefault("assumptions_to_confirm", [])
+            if isinstance(data["assumptions_to_confirm"], list):
+                data["assumptions_to_confirm"].append(
+                    "经营项目缺周转天数时按行业缺省天数注入 wc_turnover；正式发布前须替换为已确认驱动"
+                )
         data["input_adoption_ledger"] = adoption
         data["input_hash"] = run_service.compute_input_hash(
             normalized_inputs,
@@ -263,7 +272,12 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             fact_pack_policy = str(fact_pack_payload.get("evidence_policy") or "")
             if fact_pack_policy:
                 evidence_policies.add(fact_pack_policy)
-            evidence_policy = "source_reconstructed" if "source_reconstructed" in evidence_policies else (sorted(evidence_policies)[0] if evidence_policies else "formal_evidence")
+            if "source_reconstructed" in evidence_policies:
+                evidence_policy = "source_reconstructed"
+            elif "sim_a_formal" in evidence_policies and evidence_policies <= {"sim_a_formal", "formal_evidence"}:
+                evidence_policy = "sim_a_formal"
+            else:
+                evidence_policy = sorted(evidence_policies)[0] if evidence_policies else "formal_evidence"
             reconstruction_records.extend(
                 item
                 for item in (fact_pack_payload.get("reconstruction_records") or [])

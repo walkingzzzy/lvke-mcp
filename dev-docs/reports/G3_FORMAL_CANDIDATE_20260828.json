@@ -1,0 +1,109 @@
+{
+  "generated_at": "2026-08-28T12:45:00Z",
+  "mode": "live_mcp_conversational",
+  "preview_workspace_id": "live-acc-20260828",
+  "workspace_id": "live-acc-g3-20260828",
+  "build_metadata": {
+    "build_commit": "3f053a18a938667eca0690d8fb345a14b204d838",
+    "build_time": "build_metadata_incomplete",
+    "plugin_version": "0.1.0+codex.20260814000912",
+    "build_metadata_complete": false,
+    "build_metadata_missing": ["build_time"]
+  },
+  "summary": {
+    "p0_total": 5,
+    "p0_evd2_count": 5,
+    "requirement_ids": [
+      "REQ-MARKET-LINEAGE",
+      "REQ-OPTION-BEFORE-SCALE",
+      "REQ-FINANCE-13-TABLES",
+      "REQ-REPORT-9-CHAPTERS",
+      "REQ-NONOPERATING-BALANCE"
+    ],
+    "standard_applicability_id": "stdapp_05af94a30b7d41bdd75de44e",
+    "formal_candidate_eligible": true,
+    "release_ready": false,
+    "docx_visual_acceptance": false,
+    "denominator": "review_list_requirements",
+    "sim_a_note": "拟定模板计 EVD-2，不是真实原件"
+  },
+  "preview_probes": [
+    {
+      "tool": "review_export",
+      "classification": "EXPECTED_REJECTION",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_2195179cc558448f9d7b9e249eba1c8b"
+    },
+    {
+      "tool": "report_export_docx",
+      "classification": "EXPECTED_REJECTION",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_74e836c72a234832b3f2d6e12cf0e041"
+    },
+    {
+      "tool": "feasibility_release",
+      "classification": "EXPECTED_REJECTION",
+      "code": "controlled_assumption_formal_forbidden",
+      "trace_id": "mcp_4007bc83517d4eaba9631bcd204b54d3"
+    }
+  ],
+  "industry_results": [
+    {
+      "profile": "tourism_catering",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_b61abd4e1e30",
+      "tables_ok": true,
+      "report_export_ok": false,
+      "review_retest_export": false,
+      "release_ok": false,
+      "docx_visual_acceptance": false
+    },
+    {
+      "profile": "real_estate",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_6c95a9496650",
+      "tables_ok": true,
+      "report_export_ok": false,
+      "review_retest_export": false,
+      "release_ok": false,
+      "docx_visual_acceptance": false
+    },
+    {
+      "profile": "manufacturing",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_7fbc6fe360cb",
+      "tables_ok": true
+    },
+    {
+      "profile": "environment_utilities",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_fb3d2c9c401a",
+      "tables_ok": true
+    },
+    {
+      "profile": "park_infrastructure",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_b0b4934e00dd",
+      "tables_ok": true
+    },
+    {
+      "profile": "urban_rail_transit",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_34db3c2e23e2",
+      "tables_ok": true
+    },
+    {
+      "profile": "cemetery_funeral",
+      "ok": true,
+      "full_chain": false,
+      "finance_run_id": "run_83bc88fd249d",
+      "tables_ok": true
+    }
+  ]
+}

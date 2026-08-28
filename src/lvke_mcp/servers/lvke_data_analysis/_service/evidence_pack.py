@@ -17,6 +17,8 @@ from typing import Any
 from lvke_mcp.adapters.data_analysis_repository import CANDIDATE_STORE, EVIDENCE_STORE
 from lvke_mcp.runtime.evidence_qualification import (
     FORMAL_EVIDENCE,
+    SIM_A_FORMAL,
+    combine_evidence_policies,
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
@@ -30,7 +32,13 @@ from lvke_mcp.runtime.storage import sha256_json
 from .envelope import _missing
 from .ingest import _documents_from_task
 
-EVIDENCE_TRACKS = {"real", SOURCE_RECONSTRUCTED, "technical_fixture", "controlled_assumption"}
+EVIDENCE_TRACKS = {
+    "real",
+    SOURCE_RECONSTRUCTED,
+    "technical_fixture",
+    "controlled_assumption",
+    SIM_A_FORMAL,
+}
 _SHA256_PATTERN = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
 _MIN_COROBORATING_FAMILIES = 2
 
@@ -245,7 +253,10 @@ def build_evidence_pack(
 ) -> dict[str, Any]:
     evidence_track = str(evidence_track or "real").strip()
     if evidence_track not in EVIDENCE_TRACKS:
-        return _missing("evidence_track_invalid", "evidence_track 必须为 real、technical_fixture 或 controlled_assumption")
+        return _missing(
+            "evidence_track_invalid",
+            "evidence_track 必须为 real、source_reconstructed、technical_fixture、controlled_assumption 或 sim_a_formal",
+        )
     if evidence_track != "technical_fixture" and fixture_manifest:
         return _missing("fixture_manifest_not_applicable", "fixture_manifest 仅允许用于 technical_fixture 轨")
     normalized_reconstructions = [normalize_reconstruction(item) for item in (reconstruction_records or [])]
@@ -402,7 +413,7 @@ def build_evidence_pack(
                 "formal_use_decision", "ocr_formal_use_decision",
                 "unresolved_low_confidence_locator_count", "locators",
                 "content_origin", "provider", "provider_tool",
-                "evidence_policy", "project_fact_certified",
+                "evidence_policy", "evidence_origin", "project_fact_certified",
             )
         }
         reconstruction = reconstruction_by_source.get(str(doc.get("source_id") or ""))
@@ -419,8 +430,11 @@ def build_evidence_pack(
             elif reconstruction is not None and reconstruction.get("locator"):
                 row["locators"] = [str(reconstruction["locator"])]
         source_rows.append(row)
+    combined_policy = combine_evidence_policies(selected)
     evidence_policy = (
-        FORMAL_EVIDENCE
+        SIM_A_FORMAL
+        if combined_policy == SIM_A_FORMAL
+        else FORMAL_EVIDENCE
         if formal_evidence_candidate
         else SOURCE_RECONSTRUCTED
         if evidence_track == SOURCE_RECONSTRUCTED
@@ -428,13 +442,15 @@ def build_evidence_pack(
     )
     project_fact_certified = project_fact_may_be_certified(
         evidence_policy,
-        own_qualification_passed=formal_evidence_candidate,
+        own_qualification_passed=formal_evidence_candidate or combined_policy == SIM_A_FORMAL,
         # 除 formal_use_allowed 外，再按来源自报的 evidence_policy 复核一遍：
         # 浏览器快照等候选来源即使被误标可用，其 policy 仍是 candidate。
         parents=[
             {
                 "evidence_policy": declared_evidence_policy(doc, default="candidate"),
-                "project_fact_certified": bool(doc.get("formal_use_allowed")),
+                "project_fact_certified": bool(
+                    doc.get("project_fact_certified") or doc.get("formal_use_allowed")
+                ),
             }
             for doc in selected
         ],

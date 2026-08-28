@@ -19,6 +19,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 ## Gates
 
 - Never promote search summaries or uncontrolled files to formal evidence.
+  Promoted `sim_a_formal` template packs may count as EVD-2 after
+  `delivery_confirm_formal_promotion`; unpromoted SIM-A may not.
 - Keep scanning, workspace isolation, locator, hash, and lineage checks fail-closed.
 - A changed acquisition evidence binding returns `EVIDENCE_BINDING_STALE`; save a
   new Spec revision and rerun before formal artifact generation.
@@ -32,6 +34,8 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | Tool | Server | Required inputs | Outcome notes |
 |------|--------|-----------------|---------------|
 | `source_import_local_path` / `source_import_content` | lvke-source-files | `workspace_id` | hash-only → EXPECTED_REJECTION for formal |
+| `source_file_list` / `source_file_get` | lvke-source-files | `workspace_id` | 列举或读取已导入资料及其解析状态 |
+| `source_inspect_workbook` | lvke-source-files | `workspace_id`, `file_id` | 只读抽查工作簿范围，不改写源文件 |
 | `source_upload_begin` → `source_upload_chunk` → `source_upload_commit` | lvke-source-files | `upload_id`, byte `offset_bytes` | chunked path for files over the inline limit; commit verifies chunk continuity, total size and full SHA-256 before parsing. `source_upload_abort` discards an uncommitted session |
 | `source_task_status` | lvke-source-files | `task_kind` + matching id | `task_kind="upload"` takes `upload_id` (`ups_`), `task_kind="parse"` takes `job_id` (`job_`); the kind must match the id namespace |
 | `analysis_ingest` → `analysis_build_evidence_pack` | lvke-data-analysis | source snapshots | binds EvidencePack |

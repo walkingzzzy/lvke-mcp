@@ -24,6 +24,8 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Treat preview/process formal-artifact refusal as `EXPECTED_REJECTION`, not an
   MCP transport failure; route preview reporting through
   `report_prepare(finance_binding.kind=asset_acquisition)`.
+- `sim_a_formal` 允许正式发布；对外可不标「拟定」，但 lineage 必须保留
+  `evidence_origin`。仍禁止伪造签章、文号、流水、批复号与检测/审计结论。
 - P0A verification does not complete P0B. Keep P0B pending until real dual-track
   approval data is provided, and never record a passing build while work is skipped.
 

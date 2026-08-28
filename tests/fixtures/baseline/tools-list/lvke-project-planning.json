@@ -124,9 +124,24 @@
                 "real",
                 "source_reconstructed",
                 "technical_fixture",
-                "controlled_assumption"
+                "controlled_assumption",
+                "sim_a_formal"
               ],
               "default": "real"
+            },
+            "evidence_policy": {
+              "type": "string",
+              "enum": [
+                "real",
+                "source_reconstructed",
+                "technical_fixture",
+                "controlled_assumption",
+                "sim_a_formal",
+                "formal_evidence"
+              ]
+            },
+            "project_fact_certified": {
+              "type": "boolean"
             },
             "tags": {
               "type": "array",
@@ -546,9 +561,24 @@
                 "real",
                 "source_reconstructed",
                 "technical_fixture",
-                "controlled_assumption"
+                "controlled_assumption",
+                "sim_a_formal"
               ],
               "default": "real"
+            },
+            "evidence_policy": {
+              "type": "string",
+              "enum": [
+                "real",
+                "source_reconstructed",
+                "technical_fixture",
+                "controlled_assumption",
+                "sim_a_formal",
+                "formal_evidence"
+              ]
+            },
+            "project_fact_certified": {
+              "type": "boolean"
             },
             "tags": {
               "type": "array",
@@ -577,7 +607,8 @@
         "idempotency_key"
       ],
       "type": "object",
-      "additionalProperties": false
+      "additionalProperties": false,
+      "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/project_context_revise/input"
     },
     "name": "project_context_revise",
     "outputSchema": {
@@ -1542,7 +1573,8 @@
                         "real",
                         "source_reconstructed",
                         "technical_fixture",
-                        "controlled_assumption"
+                        "controlled_assumption",
+                        "sim_a_formal"
                       ]
                     },
                     "reconstruction_id": {
@@ -3525,7 +3557,8 @@
                                     "real",
                                     "source_reconstructed",
                                     "technical_fixture",
-                                    "controlled_assumption"
+                                    "controlled_assumption",
+                                    "sim_a_formal"
                                   ]
                                 },
                                 "reconstruction_id": {
@@ -3882,7 +3915,8 @@
                           "real",
                           "source_reconstructed",
                           "technical_fixture",
-                          "controlled_assumption"
+                          "controlled_assumption",
+                          "sim_a_formal"
                         ]
                       },
                       "reconstruction_id": {
@@ -4202,7 +4236,8 @@
                                   "real",
                                   "source_reconstructed",
                                   "technical_fixture",
-                                  "controlled_assumption"
+                                  "controlled_assumption",
+                                  "sim_a_formal"
                                 ]
                               },
                               "reconstruction_id": {
@@ -4368,7 +4403,8 @@
                                   "real",
                                   "source_reconstructed",
                                   "technical_fixture",
-                                  "controlled_assumption"
+                                  "controlled_assumption",
+                                  "sim_a_formal"
                                 ]
                               },
                               "reconstruction_id": {

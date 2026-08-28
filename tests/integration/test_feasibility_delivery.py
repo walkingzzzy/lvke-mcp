@@ -277,6 +277,34 @@ class FeasibilityDeliveryTest(unittest.TestCase):
         self.assertFalse(conflict["success"])
         self.assertEqual(conflict["code"], "idempotency_conflict")
 
+    def test_bind_workspace_lineage_fills_current_stage_from_store(self) -> None:
+        started = service.start({
+            "workspace_id": self.workspace,
+            "delivery_mode": "review_candidate",
+            "idempotency_key": "bind-lineage-start",
+        })
+        project_record = PROJECT_CONTEXT_STORE.put(
+            self.workspace,
+            {"object_type": "ProjectContext", "status": "confirmed", "project_name": "bind"},
+            producer="test", status="confirmed",
+        )
+        bound = service.stage({
+            "workspace_id": self.workspace,
+            "delivery_run_id": started["delivery_run_id"],
+            "stage": "project",
+            "status": "completed",
+            "bind_workspace_lineage": True,
+            "idempotency_key": "bind-project-lineage",
+        })
+        self.assertTrue(bound["success"], bound)
+        stage = ((bound.get("delivery_run") or {}).get("stages") or {}).get("project") or {}
+        self.assertIn(project_record["object_id"], stage.get("output_refs") or [])
+        nxt = service.next_actions({
+            "workspace_id": self.workspace,
+            "delivery_run_id": bound["delivery_run_id"],
+        })
+        self.assertTrue(nxt["success"], nxt)
+
 
 if __name__ == "__main__":
     unittest.main()

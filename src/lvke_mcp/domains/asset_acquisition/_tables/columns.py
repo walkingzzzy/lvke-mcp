@@ -37,6 +37,8 @@ TABLE_DEFINITIONS: tuple[tuple[str, str], ...] = (
     ("project_cashflow", "项目现金流"),
     ("equity_cashflow_indicators", "股东现金流与指标"),
     ("scenario_max_price", "情景敏感性与最高收购价"),
+    ("income_statement", "利润表"),
+    ("balance_sheet", "资产负债表"),
 )
 
 
@@ -54,6 +56,8 @@ SOLAR_TABLE_DEFINITIONS: tuple[tuple[str, str], ...] = (
     ("project_cashflow", "项目现金流"),
     ("equity_cashflow_indicators", "股东现金流与指标"),
     ("scenario_max_price", "情景敏感性与最高收购价"),
+    ("income_statement", "利润表"),
+    ("balance_sheet", "资产负债表"),
 )
 
 
@@ -114,6 +118,26 @@ TABLE_COLUMNS: dict[str, tuple[tuple[str, str], ...]] = {
     "tax_calculation": (
         ("month", "月序号"), ("period_start", "期间开始日期"),
         ("income_tax_wan", "所得税（万元）"), ("interest_wan", "利息（万元）"),
+        ("vat_wan", "增值税（万元）"), ("surtax_wan", "附加税（万元）"),
+        ("loss_carryforward_wan", "亏损结转（万元）"),
+    ),
+    "income_statement": (
+        ("year", "财务年度"),
+        ("revenue_wan", "营业收入（万元）"),
+        ("operating_cost_wan", "经营成本（万元）"),
+        ("depreciation_wan", "折旧（万元）"),
+        ("interest_wan", "利息（万元）"),
+        ("income_tax_wan", "所得税（万元）"),
+        ("net_profit_wan", "净利润（万元）"),
+    ),
+    "balance_sheet": (
+        ("year", "财务年度"),
+        ("cash_wan", "货币资金（万元）"),
+        ("fixed_asset_net_wan", "固定资产净值（万元）"),
+        ("total_assets_wan", "资产合计（万元）"),
+        ("debt_wan", "有息负债（万元）"),
+        ("equity_wan", "所有者权益（万元）"),
+        ("total_liabilities_equity_wan", "负债和权益合计（万元）"),
     ),
     "project_cashflow": (
         ("year", "财务年度"), ("year_index", "预测年度序号"),

@@ -7,6 +7,7 @@ import json
 import re
 import sys
 from importlib import import_module
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -164,7 +165,12 @@ def validate_skill_tool_mapping(*, strict: bool = False, check_plugin_sync: bool
     inventory = resolve_skill_inventory()
     published = set(inventory.get("names", []))
     dev_only = set(mapping_doc.get("dev_only_skills", []))
-    mapped_skills = {str(entry.get("skill", "")) for entry in mapping_doc.get("mappings", [])}
+    mapping_entries = list(mapping_doc.get("mappings", []))
+    mapped_skills = {str(entry.get("skill", "")) for entry in mapping_entries}
+    skill_counts = Counter(str(entry.get("skill") or "") for entry in mapping_entries)
+    for skill_name, count in sorted(skill_counts.items()):
+        if skill_name and count > 1:
+            problems.append(f"duplicate mapping entry: {skill_name} ({count})")
     live = _live_tool_index()
     baseline = _baseline_tool_index()
 

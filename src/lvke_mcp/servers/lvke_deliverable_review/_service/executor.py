@@ -58,6 +58,9 @@ def _execute_rules(
                 or []
             )
         )
+    evidence_track = str(
+        (preparation_payload.get("project_context") or {}).get("evidence_track") or "real"
+    )
     for source_rule in pack.get("rule_sources") or []:
         if source_rule.get("check_kind") != "professional":
             continue
@@ -68,6 +71,10 @@ def _execute_rules(
         rule_id = str(source_rule.get("rule_id") or "")
         executed_rules.add(rule_id)
         manual_routed_rules.append(rule_id)
+        # 拟定正式轨已由确定性勾稽/九章检查覆盖；不再生成无法豁免、
+        # 复测必复现的「待专业核验」pending。原件轨仍要求人工专业核验。
+        if evidence_track == "sim_a_formal":
+            continue
         findings.append(_professional_rule_finding(
             preparation_payload,
             source_rule,

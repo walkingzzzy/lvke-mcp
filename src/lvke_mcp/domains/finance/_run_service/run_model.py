@@ -34,6 +34,7 @@ from .spec_prepare import (
     _inject_linked_cost_items,
     _nonnegative_cost_issues,
     prepare_workspace_finance_spec,
+    public_project_metadata,
 )
 
 
@@ -62,6 +63,26 @@ def _attach_generation_standard(
         ),
         invest_type=invest_type,
     )
+
+
+def _attach_review_metadata(
+    result: dict[str, Any],
+    *,
+    finance: dict[str, Any] | None,
+    invest_type: str,
+    industry: str,
+    valuation_date: str = "",
+) -> None:
+    metadata = public_project_metadata(
+        finance,
+        invest_type=invest_type,
+        industry=industry,
+        valuation_date=valuation_date,
+        calc_period_years=(finance or {}).get("calc_period_years") if isinstance(finance, dict) else None,
+    )
+    result["project_metadata"] = metadata
+    for key, value in metadata.items():
+        result.setdefault(key, value)
 
 
 def _positive_number(value: Any) -> float | None:
@@ -496,6 +517,7 @@ def run_workspace_finance_model(
                     fin["quality_issues"] = sorted(set(input_quality_issues))
                     fin["missing_inputs"] = missing
                     fin["assurance_level"] = fin.get("assurance_level") or mode
+                    fin["mode"] = fin.get("mode") or mode
                     fin["calculation_status"] = "computed"
                     fin.update(dict(evidence_metadata or {}))
                     fin.pop("review_status", None)
@@ -579,6 +601,13 @@ def run_workspace_finance_model(
         "build_period_months": build_period_months,
         "source": str(context.get("source") or "workspace_requirement"),
     }
+    _attach_review_metadata(
+        result,
+        finance=dict(input_revision or {}),
+        invest_type=invest_type,
+        industry=industry,
+        valuation_date=str(result.get("valuation_date") or ""),
+    )
     result["spec"] = (
         resolved_spec if isinstance(resolved_spec, dict) else result.get("spec")
     )
@@ -718,8 +747,16 @@ def run_workspace_finance_model(
         "build_period_months": build_period_months,
         "source": str(context.get("source") or "workspace_requirement"),
     }
+    _attach_review_metadata(
+        result,
+        finance=dict(input_revision or {}),
+        invest_type=invest_type,
+        industry=industry,
+        valuation_date=str(effective_valuation_date or ""),
+    )
     result["idempotency_key"] = idem
     result["assurance_level"] = mode if result.get("available") else "none"
+    result["mode"] = mode if result.get("available") else "none"
     result["calculation_status"] = "computed" if result.get("available") else "unavailable"
     result["agent_trace_id"] = agent_trace_id or ""
     result["tool_call_id"] = tool_call_id or ""
@@ -771,6 +808,14 @@ def run_workspace_finance_model(
                     pass
         except Exception:  # noqa: BLE001
             run_id = None
+            if mode in {"review_candidate", "formal_release", "formal"}:
+                result["ok"] = False
+                result["available"] = False
+                result["code"] = "finance_run_persistence_failed"
+                result["blockers"] = list(result.get("blockers") or []) + [
+                    "finance_run_persistence_failed"
+                ]
+                result.pop("run_id", None)
 
     if run_id:
         result["run_id"] = run_id
@@ -786,6 +831,7 @@ def run_workspace_finance_model(
         result.pop("approved_run_id", None)
         result.pop("approved_run_stale", None)
         result["assurance_level"] = mode or "estimate_preview"
+        result["mode"] = mode or "estimate_preview"
         result["calculation_status"] = "computed"
 
     return result

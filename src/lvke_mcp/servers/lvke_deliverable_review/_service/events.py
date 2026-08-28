@@ -7,6 +7,7 @@ from typing import Any
 
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json, utc_now
 from lvke_mcp.runtime.evidence_qualification import (
+    SIM_A_FORMAL,
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
@@ -298,7 +299,7 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     review_purpose = str(
         (state.get("project_context") or {}).get("review_purpose")
         or (state.get("project_context") or {}).get("release_scope")
-        or ("project_delivery" if evidence_track == "real" else "process_acceptance")
+        or ("project_delivery" if evidence_track in {"real", "sim_a_formal"} else "process_acceptance")
     )
     evidence_metadata = (
         state.get("evidence_metadata")
@@ -314,7 +315,10 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         own_qualification_passed=True,
         parents=[evidence_metadata],
     )
-    if review_purpose == "project_delivery" and release_evidence_policy != "formal_evidence":
+    if evidence_track == SIM_A_FORMAL:
+        release_evidence_policy = SIM_A_FORMAL
+        project_fact_certified = True
+    if review_purpose == "project_delivery" and release_evidence_policy not in {"formal_evidence", "sim_a_formal"}:
         blockers.append({
             "controlled_assumption": "controlled_assumption_release_forbidden",
             "source_reconstructed": "source_reconstructed_release_forbidden",

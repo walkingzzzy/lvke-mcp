@@ -1,0 +1,38 @@
+{
+  "rule_pack_id": "hotel-mining-core",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "rule_id": "HM-HOTEL-001",
+      "title": "酒店经营与权证专业核验",
+      "requirement": "由酒店专业人员核验客房数、面积、权证与租赁条款",
+      "check_kind": "professional",
+      "review_area": "hotel",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["acquisition_run", "acquisition_tables_package"],
+      "standard": {
+        "package_id": "PKG-STD-021",
+        "artifact_id": "S021",
+        "locator": "hotel-mining-core/HM-HOTEL-001",
+        "quote": "酒店收购口径须经专业核验"
+      }
+    },
+    {
+      "rule_id": "HM-MINE-001",
+      "title": "矿权与加工许可专业核验",
+      "requirement": "由矿业专业人员核验许可、市场半径与合同字段",
+      "check_kind": "professional",
+      "review_area": "mineral",
+      "severity": "P1",
+      "blocking": false,
+      "target_kinds": ["finance_run", "report_revision"],
+      "standard": {
+        "package_id": "PKG-STD-022",
+        "artifact_id": "S022",
+        "locator": "hotel-mining-core/HM-MINE-001",
+        "quote": "矿权与加工许可须经专业核验"
+      }
+    }
+  ]
+}

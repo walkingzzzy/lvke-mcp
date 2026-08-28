@@ -107,6 +107,9 @@ def _file_document(
         "validation_status": deterministic_status,
         "formal_use_allowed": formal_use_allowed,
         "formal_use_decision": formal_use_decision,
+        "evidence_policy": str(record.get("evidence_policy") or "candidate"),
+        "evidence_origin": str(record.get("evidence_origin") or ""),
+        "project_fact_certified": bool(record.get("project_fact_certified")),
         "ocr_formal_use_decision": str(
             analysis.get("ocr_formal_use_decision")
             or formal_use_decision

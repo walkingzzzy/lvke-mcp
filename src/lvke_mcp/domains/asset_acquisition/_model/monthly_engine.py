@@ -85,7 +85,10 @@ def _run_monthly_acquisition_model(
     annual_owner_opex = _number((cost or {}).get("annual_owner_operating_cost_wan")) or sum(
         _number(value) for value in (cost_items or {}).values()
     )
-    income_tax_rate = min(max(_number((spec.get("tax") or {}).get("income_tax_rate")), 0.0), 1.0)
+    tax_cfg = spec.get("tax") or {}
+    income_tax_rate = min(max(_number(tax_cfg.get("income_tax_rate")), 0.0), 1.0)
+    vat_rate = min(max(_number(tax_cfg.get("vat_rate")), 0.0), 1.0)
+    surtax_rate = min(max(_number(tax_cfg.get("surtax_rate")), 0.0), 1.0)
     exit_year = int(_number(transaction.get("exit_year"), years))
     exit_month = min(max(exit_year * 12 - 1, 0), months - 1)
     exit_value = _number(transaction.get("exit_value"))
@@ -121,6 +124,11 @@ def _run_monthly_acquisition_model(
             "equity_cf_wan": 0.0,
             "debt_service_wan": 0.0,
             "interest_wan": 0.0,
+            "vat_wan": 0.0,
+            "surtax_wan": 0.0,
+            "loss_carryforward_wan": 0.0,
+            "depreciation_wan": 0.0,
+            "net_profit_wan": 0.0,
         })
     room_adr = _series(hotel.get("adr"), years)
     occupancy = _series(hotel.get("occupancy"), years)
@@ -134,6 +142,10 @@ def _run_monthly_acquisition_model(
     ota = _series(hotel.get("ota_commission"), years)
     rooms = _number(hotel.get("rooms"))
     cursor = _month_start(start)
+    loss_carryforward = 0.0
+    cash = 0.0
+    retained_earnings = 0.0
+    cumulative_depreciation = 0.0
     for index in range(months):
         period_start = cursor
         period_end = _month_end(cursor)
@@ -156,15 +168,33 @@ def _run_monthly_acquisition_model(
         revenue = lease_revenue + (hotel_revenue if operating_mode == "mixed_owner_operator" else 0.0)
         operating_cost = owner_cost + (hotel_cost if operating_mode == "mixed_owner_operator" else 0.0)
         depreciation_month = _number(annual_depreciation[model_year] if model_year < len(annual_depreciation) else 0.0) / 12.0
-        taxable = max(revenue - operating_cost - depreciation_month, 0.0)
+        taxable_raw = revenue - operating_cost - depreciation_month
+        if taxable_raw < 0:
+            loss_carryforward += -taxable_raw
+            taxable = 0.0
+        else:
+            used = min(loss_carryforward, taxable_raw)
+            loss_carryforward -= used
+            taxable = taxable_raw - used
         tax = taxable * income_tax_rate
-        cfads = revenue - operating_cost - tax - maintenance_capex
+        vat = revenue * vat_rate
+        surtax = vat * surtax_rate
+        net_profit = taxable_raw - tax
+        cfads = revenue - operating_cost - tax - surtax - maintenance_capex
         exit_cash = net_exit if index == exit_month else 0.0
         debt_row = debt_rows[index]
         project_cf = cfads + lease_adjustment + exit_cash
         equity_cf = project_cf - debt_row["debt_service_wan"]
         project_monthly.append(project_cf)
         equity_monthly.append(equity_cf)
+        cash = round(cash + equity_cf, 2)
+        cumulative_depreciation = round(cumulative_depreciation + depreciation_month, 2)
+        retained_earnings = round(retained_earnings + net_profit, 2)
+        fixed_asset_net = round(max(total_cost - cumulative_depreciation, 0.0), 2)
+        debt_wan = round(float(debt_row.get("closing_principal_wan") or 0.0), 2)
+        equity_wan = round(equity + retained_earnings, 2)
+        total_assets = round(cash + fixed_asset_net, 2)
+        total_le = round(debt_wan + equity_wan, 2)
         bucket = annual[model_year]
         for key, value in {
             "hotel_revenue_wan": hotel_revenue, "lease_revenue_wan": lease_revenue,
@@ -174,8 +204,20 @@ def _run_monthly_acquisition_model(
             "maintenance_capex_wan": maintenance_capex, "project_cf_wan": project_cf,
             "equity_cf_wan": equity_cf, "debt_service_wan": debt_row["debt_service_wan"],
             "interest_wan": debt_row["interest_wan"],
+            "vat_wan": vat,
+            "surtax_wan": surtax,
+            "depreciation_wan": depreciation_month,
+            "net_profit_wan": net_profit,
         }.items():
             bucket[key] += value
+        bucket["loss_carryforward_wan"] = loss_carryforward
+        bucket["year"] = model_year + 1
+        bucket["cash_wan"] = cash
+        bucket["fixed_asset_net_wan"] = fixed_asset_net
+        bucket["total_assets_wan"] = total_assets
+        bucket["debt_wan"] = debt_wan
+        bucket["equity_wan"] = equity_wan
+        bucket["total_liabilities_equity_wan"] = total_le
         monthly_rows.append({
             "month": index + 1, "period_start": period_start.isoformat(), "period_end": period_end.isoformat(),
             "active_days": owner_days, "hotel_days": hotel_days,
@@ -184,10 +226,20 @@ def _run_monthly_acquisition_model(
             "lease_adjustment_wan": lease_adjustment,
             "operating_cost_wan": operating_cost,
             "tax_wan": tax, "income_tax_wan": tax,
+            "vat_wan": vat, "surtax_wan": surtax,
+            "loss_carryforward_wan": loss_carryforward,
             "interest_wan": debt_row["interest_wan"],
+            "depreciation_wan": depreciation_month,
+            "net_profit_wan": net_profit,
             "maintenance_capex_wan": maintenance_capex,
             "project_cf_wan": project_cf, "equity_cf_wan": equity_cf,
             "debt_service_wan": debt_row["debt_service_wan"], "dscr": cfads / debt_row["debt_service_wan"] if debt_row["debt_service_wan"] else None,
+            "cash_wan": cash,
+            "fixed_asset_net_wan": fixed_asset_net,
+            "total_assets_wan": total_assets,
+            "debt_wan": debt_wan,
+            "equity_wan": equity_wan,
+            "total_liabilities_equity_wan": total_le,
         })
         cursor = _add_months(cursor, 1)
     project_annual = [-total_cost, *[row["project_cf_wan"] for row in annual]]

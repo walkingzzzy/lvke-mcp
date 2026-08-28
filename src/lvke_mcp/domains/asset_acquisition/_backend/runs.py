@@ -9,7 +9,9 @@ from typing import Any
 
 
 from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
-from lvke_mcp.domains.asset_acquisition.model import AcquisitionModelError, run_acquisition_model
+from lvke_mcp.domains.asset_acquisition.model import (
+    AcquisitionModelError, projection_consistency_ok, run_acquisition_model,
+)
 from lvke_mcp.domains.finance.spec import LATEST_SPEC_VERSION, validate, validate_for_formal
 
 from .base import (
@@ -246,7 +248,8 @@ def create_run(
             "evidence_formal_ok": bool(evidence_binding.get("formal_ok")),
             "evidence_binding": evidence_binding,
             "scenario_id": scenario_id, "scenario_change_ledger": scenario_ledger,
-            "discount_rate": discount_rate, "result": result, "consistency_ok": True,
+            "discount_rate": discount_rate, "result": result,
+            "consistency_ok": projection_consistency_ok(result),
             "validation_status": "passed" if not issues else "failed",
             "formal_spec_valid": bool(schema_formal_ok and formal_ok),
             "process_acceptance_valid": bool(process_acceptance and schema_ok),
@@ -533,7 +536,8 @@ def execute_queued_run(
             "available": True, "status": "succeeded", "progress": 100,
             "lifecycle_status": "validated" if not issues else "validation_failed",
             "model_version": result["model_version"],
-            "result": result, "consistency_ok": True, "issues": issues, "updated_at": _now(),
+            "result": result, "consistency_ok": projection_consistency_ok(result),
+            "issues": issues, "updated_at": _now(),
             "validation_status": "passed" if not issues else "failed",
             "formal_spec_valid": bool(schema_formal_ok and evidence_snapshot_matches),
             "formal_spec_errors": formal_errors,

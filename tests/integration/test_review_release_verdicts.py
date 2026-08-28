@@ -73,6 +73,22 @@ class ReviewReleaseVerdictsTest(unittest.TestCase):
             state["blockers"],
         )
 
+    def test_sim_a_formal_project_delivery_does_not_require_nested_fact_flag(self) -> None:
+        state = self._append_passed_review(
+            "review-sim-a-formal",
+            "review_sim_a_formal",
+            evidence_track="sim_a_formal",
+            review_purpose="project_delivery",
+            evidence_metadata={
+                "evidence_policy": "sim_a_formal",
+                "project_fact_certified": False,
+            },
+        )
+        self.assertEqual(state["technical_verdict"], "pass")
+        self.assertEqual(state["release_verdict"], "pass")
+        self.assertEqual(state["overall_verdict"], "pass")
+        self.assertNotIn("project_fact_certification_required", state["blockers"])
+
     def test_failed_release_verdict_is_returned_as_successful_partial_review(self) -> None:
         workspace_id = "review-partial-envelope"
         review_id = "review_partial_envelope"

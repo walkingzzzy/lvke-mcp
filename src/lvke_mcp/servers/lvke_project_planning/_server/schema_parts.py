@@ -86,9 +86,14 @@ _CONTEXT_PROPERTIES = {
     },
     "evidence_track": {
         "type": "string",
-        "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+        "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
         "default": "real",
     },
+    "evidence_policy": {
+        "type": "string",
+        "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal", "formal_evidence"],
+    },
+    "project_fact_certified": {"type": "boolean"},
     "description": {"type": "string", "maxLength": 10000},
     "tags": {
         "type": "array",
@@ -142,7 +147,7 @@ _EVIDENCE_BINDING = {
         },
         "evidence_track": {
             "type": "string",
-            "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+            "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
         },
         "reconstruction_id": _STRING,
         "source_uri": _STRING,

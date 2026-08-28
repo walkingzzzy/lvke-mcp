@@ -77,6 +77,7 @@ def build_server() -> OfficialStdioServer:
             "blockers": {"type": "array", "items": {"type": "string"}},
             "next_actions": {"type": "array", "items": {"type": "string"}},
             "reopen": {"type": "boolean", "default": False},
+            "bind_workspace_lineage": {"type": "boolean", "default": False},
             "idempotency_key": _KEY,
         }, "required": ["workspace_id", "delivery_run_id", "stage", "status", "idempotency_key"]},
         service.stage, _OUTPUT, write,

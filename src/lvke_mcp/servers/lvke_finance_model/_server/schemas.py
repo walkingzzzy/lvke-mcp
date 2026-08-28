@@ -40,6 +40,8 @@ _BOE_ENTRY_SCHEMA = {
                 "source_reconstructed",
                 "technical_fixture",
                 "controlled_assumption",
+                "sim_a_formal",
+                "sim_a_template",
             ],
         },
         "source_object_id": {"type": "string", "minLength": 1},
@@ -55,7 +57,7 @@ _BOE_ENTRY_SCHEMA = {
         },
         "evidence_eligibility": {
             "type": "string",
-            "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+            "enum": ["formal_evidence", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
         },
         "reconstruction": {
             "type": "object",

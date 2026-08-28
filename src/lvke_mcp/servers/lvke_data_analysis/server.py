@@ -70,7 +70,7 @@ _IDS = {
 }
 _EVIDENCE_TRACK = {
     "type": "string",
-    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
     "default": "real",
 }
 _RECONSTRUCTION_RECORD = {

@@ -18,7 +18,7 @@ FINDING_STATUSES = {
 DEPLOYMENT_MODES = {"enforced", "shadow"}
 
 SEVERITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
-EVIDENCE_TRACKS = {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}
+EVIDENCE_TRACKS = {"real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"}
 REVIEW_PURPOSES = {"process_acceptance", "project_delivery"}
 PROJECT_TYPES = {"generic_feasibility", "asset_acquisition"}
 TRANSACTION_STRUCTURES = {
@@ -45,7 +45,7 @@ def normalize_project_context(value: Any, *, target_type: str) -> dict[str, Any]
     if declared_purpose and declared_scope and declared_purpose != declared_scope:
         raise ValueError("review_purpose_release_scope_mismatch")
     review_purpose = declared_purpose or declared_scope or (
-        "project_delivery" if evidence_track == "real" else "process_acceptance"
+        "project_delivery" if evidence_track in {"real", "sim_a_formal"} else "process_acceptance"
     )
     industry_code = str(raw.get("industry_code") or "general").strip()
     if project_type not in PROJECT_TYPES:
@@ -112,7 +112,10 @@ def finding_blocks(finding: dict[str, Any]) -> bool:
 def verdict_for(findings: list[dict[str, Any]], incomplete_reasons: list[str]) -> str:
     if incomplete_reasons:
         return "incomplete"
-    active = [row for row in findings if row.get("status", "open") not in {"resolved", "rejected", "superseded"}]
+    active = [
+        row for row in findings
+        if row.get("status", "open") not in {"resolved", "rejected", "superseded", "waived", "confirmed"}
+    ]
     if any(row.get("severity") == "P0" for row in active):
         return "fail"
     if any(finding_blocks(row) for row in active):

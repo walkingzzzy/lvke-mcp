@@ -27,25 +27,25 @@ _FINANCE_VALIDATION_SCOPE: ContextVar[str] = ContextVar(
 )
 
 
-def _latest_evidence_pack(workspace_id: str) -> dict[str, Any]:
-    """读取工作区最新 evidence pack（record 的 payload 缺省空 dict）。"""
+def _latest_evidence_pack(workspace_id: str) -> tuple[dict[str, Any], str]:
+    """读取工作区最新 evidence pack；上游失败返回空包与错误码。"""
     try:
         from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
-    except Exception:  # noqa: BLE001 - 数据链不可用时降级为空证据
-        return {}
+    except Exception:  # noqa: BLE001 - 数据链不可用时记 fail-closed
+        return {}, "readiness_upstream_unavailable"
     try:
         records = EVIDENCE_STORE.list(workspace_id) or []
     except Exception:  # noqa: BLE001
-        return {}
+        return {}, "readiness_upstream_unavailable"
     if not records:
-        return {}
+        return {}, ""
     latest = sorted(
         (r for r in records if isinstance(r, dict)),
         key=lambda r: str(r.get("created_at") or ""),
         reverse=True,
     )[0]
     payload = latest.get("payload")
-    return payload if isinstance(payload, dict) else {}
+    return (payload if isinstance(payload, dict) else {}), ""
 
 
 def _evidence_items(ev: dict[str, Any]) -> list[dict[str, Any]]:
@@ -112,7 +112,7 @@ def build_readiness(
     except Exception as exc:  # noqa: BLE001
         return {"workspace_id": workspace_id, "score": 0, "error": str(exc)[:200]}
 
-    ev = _latest_evidence_pack(workspace_id)
+    ev, evidence_upstream_error = _latest_evidence_pack(workspace_id)
     ev_items = _evidence_items(ev)
     grounding = str(ev.get("grounding_state") or "ungrounded")
     placeholders = doc.count(svc.MISSING_MARKER)
@@ -128,7 +128,8 @@ def build_readiness(
         )
         structure_score = 100 if vres.get("ok") else max(0, 100 - 20 * len(vres.get("issues", [])))
     except Exception:  # noqa: BLE001
-        structure_score = 60
+        structure_score = 0
+        evidence_upstream_error = evidence_upstream_error or "readiness_upstream_unavailable"
 
     # 数据分：有财务候选事实 + 财务无占位
     has_finance = any(
@@ -155,6 +156,13 @@ def build_readiness(
 
     blockers: list[dict] = []
     warnings: list[dict] = []
+    if evidence_upstream_error:
+        blockers.append({
+            "code": evidence_upstream_error,
+            "message": "就绪度上游读取失败，不得默认高分",
+        })
+        score = min(score, 20)
+        dims = {key: min(value, 20) for key, value in dims.items()}
     if placeholders > 0:
         blockers.append({"code": "placeholder_remaining", "message": f"正文残留 {placeholders} 处“（待补充）”占位"})
     if fin_placeholder:
@@ -169,21 +177,23 @@ def build_readiness(
         warnings.append({"code": "owner_missing", "message": "建设单位工商信息缺失，正文以占位表述，发布前须补充"})
 
     # PG4（方案 §11.3 G5）：财务审计完整性门禁——正文关键数字须可追溯到 run。
-    # 仅当文档有财务内容时才校验。strict_audit=true（LVKE_STRICT_AUDIT）下升为 blocker。
     if has_finance:
-        import os
-
-        strict = str(os.environ.get("LVKE_STRICT_AUDIT", "")).lower() in ("1", "true", "yes")
         try:
             from lvke_mcp.domains.finance import run_store
 
             au = {"has_run": bool(run_store.latest_run(workspace_id))}
-        except Exception:  # noqa: BLE001 - run 存储不可用不阻断评分
+        except Exception:  # noqa: BLE001 - run 存储不可用必须 fail-closed
             au = {}
+            blockers.append({
+                "code": "readiness_upstream_unavailable",
+                "message": "财务 run 存储不可用，不得降级为 warning",
+            })
+            score = min(score, 20)
         if not au.get("has_run"):
-            item = {"code": "audit_no_run",
-                    "message": "财务已接地但无测算留痕（未落 calculation_run），正文数字不可追溯"}
-            (blockers if strict else warnings).append(item)
+            blockers.append({
+                "code": "audit_no_run",
+                "message": "财务已接地但无测算留痕（未落 calculation_run），正文数字不可追溯",
+            })
         elif _FINANCE_VALIDATION_SCOPE.get() == "formal":
             try:
                 from lvke_mcp.domains.finance import gate as finance_gate
@@ -196,7 +206,11 @@ def build_readiness(
                 blockers.extend(bind_chk.get("blockers") or [])
                 warnings.extend(bind_chk.get("warnings") or [])
             except Exception:  # noqa: BLE001
-                pass
+                blockers.append({
+                    "code": "readiness_upstream_unavailable",
+                    "message": "财务发布绑定校验上游不可用",
+                })
+                score = min(score, 20)
         else:
             warnings.append({
                 "code": "finance_preview_only",

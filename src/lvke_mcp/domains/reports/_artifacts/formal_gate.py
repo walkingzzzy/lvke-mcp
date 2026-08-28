@@ -279,16 +279,22 @@ def _draft_basis_blockers(
         })
     finance_gate = finance.get("publish_gate") or {}
     run_snapshot = finance.get("run_snapshot") or {}
-    if str(run_snapshot.get("evidence_policy") or "") != "formal_evidence":
+    if str(run_snapshot.get("evidence_policy") or "") not in {"formal_evidence", "sim_a_formal"}:
         blockers.append({
             "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
             "message": "财务运行仍处于非正式证据轨，禁止正式报告工件",
             "details": {"evidence_policy": run_snapshot.get("evidence_policy")},
         })
-    if str(run_snapshot.get("mode") or run_snapshot.get("delivery_mode") or "") in {"estimate_preview", "review_candidate"}:
+    run_mode = str(
+        run_snapshot.get("mode")
+        or run_snapshot.get("delivery_mode")
+        or run_snapshot.get("assurance_level")
+        or ""
+    )
+    if run_mode == "estimate_preview":
         blockers.append({
             "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-            "message": "预览/候选运行不得生成正式报告工件",
+            "message": "预览运行不得生成正式报告工件",
             "details": {"mode": run_snapshot.get("mode"), "delivery_mode": run_snapshot.get("delivery_mode")},
         })
     for raw in finance_gate.get("blockers") or []:

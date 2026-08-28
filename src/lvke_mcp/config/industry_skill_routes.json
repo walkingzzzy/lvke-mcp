@@ -248,6 +248,32 @@
       ]
     },
     {
+      "route_id": "cemetery-funeral",
+      "priority": 75,
+      "industry_prefixes": [
+        "cemetery",
+        "funeral",
+        "burial",
+        "cemetery_funeral"
+      ],
+      "asset_types": [],
+      "project_types": [
+        "generic_feasibility"
+      ],
+      "transaction_structures": [],
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "社会与公共服务口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/industry-context-social-public/SKILL.md"
+        }
+      ]
+    },
+    {
       "route_id": "generic",
       "priority": 10,
       "industry_prefixes": [

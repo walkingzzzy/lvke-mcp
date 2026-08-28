@@ -137,7 +137,9 @@ def disposition_finding(args: dict[str, Any]) -> dict[str, Any]:
             "reject": "false_positive_appeal", "rejected": "false_positive_appeal",
             "false_positive": "false_positive_appeal", "false_positive_appeal": "false_positive_appeal",
             "appeal_waiver": "waiver_requested", "compliance_waiver": "waiver_requested",
-            "waiver_requested": "waiver_requested", "resolve": "resolved", "resolved": "resolved",
+            "waiver_requested": "waiver_requested",
+            "approve_waiver": "waived", "waived": "waived",
+            "resolve": "resolved", "resolved": "resolved",
         }
         new_status = aliases.get(disposition)
         if new_status is None:
@@ -151,7 +153,7 @@ def disposition_finding(args: dict[str, Any]) -> dict[str, Any]:
             reason = str(args.get("false_positive_reason") or "").strip()
             if not reason or not _evidence_is_precise(evidence):
                 return _blocked("false_positive_evidence_required", "误报申诉必须提供理由及带哈希和精确定位的证据")
-        if new_status == "waiver_requested":
+        if new_status in {"waiver_requested", "waived"}:
             if finding.get("severity") == "P0" or finding.get("waiver_allowed") is False:
                 return _blocked("p0_waiver_forbidden", "P0 finding 不可豁免")
             if finding.get("severity") != "P1":

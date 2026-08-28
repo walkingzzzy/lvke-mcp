@@ -21,6 +21,9 @@ from .base import (
 def _required_finding_rows(
     preparation_payload: dict[str, Any], standard_basis: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    track = str((preparation_payload.get("project_context") or {}).get("evidence_track") or "real")
+    if track == "sim_a_formal":
+        return []
     output: list[dict[str, Any]] = []
     pack = preparation_payload.get("rule_pack") or {}
     for row in preparation_payload.get("mandatory_findings") or []:
@@ -114,7 +117,8 @@ def _professional_rule_finding(
         remediation="逐规则提交带内容哈希和精确定位的核验证据",
     )
     item["manual_review_required"] = True
-    item["waiver_allowed"] = False
+    track = str((preparation_payload.get("project_context") or {}).get("evidence_track") or "real")
+    item["waiver_allowed"] = track == "sim_a_formal"
     item["professional_rule"] = {
         key: deepcopy(source_rule.get(key))
         for key in (
@@ -177,7 +181,18 @@ def _project_metadata_findings(
     target_type = str(target.get("target_type") or "")
     snapshot = preparation_payload.get("target_snapshot") or {}
     if target_type in {"finance_run", "finance_tables_package"}:
-        source = run
+        nested = {}
+        for candidate in (
+            run.get("project_metadata"),
+            (run.get("finance_inputs") or {}).get("project_metadata") if isinstance(run.get("finance_inputs"), dict) else None,
+            (run.get("input_revision") or {}).get("project_metadata") if isinstance(run.get("input_revision"), dict) else None,
+            run.get("project_context"),
+        ):
+            if isinstance(candidate, dict):
+                nested.update(candidate)
+        source = {**run, **nested}
+        if nested.get("invest_type") and not source.get("project_type"):
+            source["project_type"] = nested.get("invest_type")
     else:
         revision_payload = ((snapshot.get("revision_record") or {}).get("payload") or {}) if isinstance(snapshot, dict) else {}
         source = {
@@ -194,7 +209,7 @@ def _project_metadata_findings(
         "currency": ("currency", "currency_code"),
         "amount_unit": ("amount_unit", "unit"),
         "tax_basis": ("tax_basis", "tax_inclusive_basis", "price_tax_basis"),
-        "forecast_period": ("forecast_period", "calc_years", "forecast_years"),
+        "forecast_period": ("forecast_period", "calc_years", "forecast_years", "calc_period_years"),
     }
     missing = [
         field for field, candidates in aliases.items()

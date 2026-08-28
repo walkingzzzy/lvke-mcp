@@ -7,7 +7,11 @@ from typing import Any
 
 from mcp import types
 
-from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
+from lvke_mcp.runtime.evidence_qualification import (
+    FORMAL_EVIDENCE,
+    SIM_A_FORMAL,
+    project_fact_may_be_certified,
+)
 from lvke_mcp.runtime.storage import (
     JSONArtifactStore,
     paginate_resource_entries,
@@ -165,6 +169,7 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
                 "source_reconstructed": {"source_reconstructed"},
                 "technical_fixture": {"technical_fixture"},
                 "controlled_assumption": {"controlled_assumption"},
+                "sim_a_formal": {"sim_a_formal"},
             }
             if source_track not in eligible_tracks.get(declared_eligibility, set()):
                 field_errors.append({
@@ -233,11 +238,11 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             replayed=True,
         )
     technical_ready = all(
-        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed", "technical_fixture"}
+        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed", "technical_fixture", "sim_a_formal"}
         for entry in entries
     )
     formal_ready = all(
-        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed"}
+        entry.get("evidence_eligibility") in {"formal_evidence", "source_reconstructed", "sim_a_formal"}
         for entry in entries
     )
     reconstructed = any(entry.get("evidence_eligibility") == "source_reconstructed" for entry in entries)
@@ -247,6 +252,18 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         for record in [entry.get("reconstruction") or entry.get("reconstruction_record")]
         if isinstance(record, dict)
     ]
+    entry_policies = [str(entry.get("evidence_eligibility") or "") for entry in entries]
+    all_certifying = bool(entries) and all(
+        policy in {FORMAL_EVIDENCE, SIM_A_FORMAL} for policy in entry_policies
+    )
+    sim_a_entries = any(policy == SIM_A_FORMAL for policy in entry_policies)
+    boe_policy = (
+        "source_reconstructed"
+        if reconstructed
+        else SIM_A_FORMAL
+        if sim_a_entries and all_certifying
+        else FORMAL_EVIDENCE
+    )
     payload = {
         "object_type": "BasisOfEstimate",
         "spec_id": spec_id,
@@ -257,20 +274,19 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "evidence_pack_ids": evidence_ids,
         "technical_ready": technical_ready,
         "formal_ready": formal_ready,
-        "evidence_policy": "source_reconstructed" if reconstructed else "formal_evidence",
-        # not reconstructed 只排除了重建来源：technical_fixture / controlled_assumption
-        # 同样不能认证项目事实。要求每一条 entry 都显式是 formal_evidence，且 BoE
-        # 自身通过正式就绪判定。
+        "evidence_policy": boe_policy,
+        "evidence_origin": "sim_a_template" if boe_policy == SIM_A_FORMAL else spec_payload.get("evidence_origin"),
         "project_fact_certified": project_fact_may_be_certified(
-            "source_reconstructed" if reconstructed else "formal_evidence",
-            own_qualification_passed=bool(
-                formal_ready
-                and entries
-                and all(
-                    str(entry.get("evidence_eligibility") or "") == "formal_evidence"
-                    for entry in entries
-                )
-            ),
+            boe_policy,
+            own_qualification_passed=bool(formal_ready and all_certifying),
+            parents=[
+                {
+                    "evidence_policy": str(entry.get("evidence_eligibility") or ""),
+                    "project_fact_certified": str(entry.get("evidence_eligibility") or "")
+                    in {FORMAL_EVIDENCE, SIM_A_FORMAL},
+                }
+                for entry in entries
+            ],
         ),
         "reconstruction_records": reconstruction_records,
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in reconstruction_records if item.get("reconstruction_id")],
@@ -279,6 +295,8 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "evidence_eligibility": (
             "source_reconstructed"
             if reconstructed
+            else SIM_A_FORMAL
+            if boe_policy == SIM_A_FORMAL
             else "formal_evidence"
             if formal_ready
             else "technical_fixture"

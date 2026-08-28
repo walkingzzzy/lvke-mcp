@@ -1,7 +1,7 @@
 # Lvke MCP Services 技术参考文档
 
-> 基于深度代码审查的完整技术文档 | 最后更新: 2026-08-07
-> 覆盖 **14 个对外服务 / 169 个工具**（运行时自省实测）
+> 基于深度代码审查的完整技术文档 | 最后更新: 2026-08-28
+> 覆盖 **14 个对外服务 / 173 个工具**（运行时自省实测）
 
 ## 文档说明
 
@@ -42,9 +42,9 @@ Lvke MCP Services 是一套**端到端可行性研究 + 资产收购业务引擎
 - **证据溯源**：每个数值绑定 `locator` + `content_hash`，明确来源可审计
 - **确定性计算**：财务模型由 Python 函数保证可复现，不依赖 LLM
 
-### 服务总览（14 个对外服务 / 169 个工具）
+### 服务总览（14 个对外服务 / 173 个工具）
 
-对外注册面固定为 **14 个 MCP 进程、169 个工具**（其中 81 个只读、1 个 `destructiveHint=True`）。`src/lvke_mcp/testing/server_manifest.py` 硬断言 14 个进程，工具数由逐个 `build_server()` 运行时自省得到。第二轮将 32 个旧公开名收敛为 8 个聚合入口，迁移表见 `dev-docs/config/mcp-compression-migration-v2.json`。
+对外注册面固定为 **14 个 MCP 进程、173 个工具**。`src/lvke_mcp/testing/server_manifest.py` 硬断言 14 个进程，工具数由逐个 `build_server()` 运行时自省得到。第二轮将 32 个旧公开名收敛为 8 个聚合入口，迁移表见 `dev-docs/config/mcp-compression-migration-v2.json`。零材料服务在聚合后为 10 个工具（含拟定模板包与正式晋升）。
 
 ```
 数据层（3）              研究层（1）           规划层（1）
@@ -58,7 +58,7 @@ Lvke MCP Services 是一套**端到端可行性研究 + 资产收购业务引擎
 └─ (asset-acquisition   ├─ feasibility-delivery   10  └─ reference              12
     见专项)              └─ zero-material-delivery  8
 
-14 个服务 / 169 个工具
+14 个服务 / 173 个工具
 ```
 
 > **`finance-calc` 不计入对外服务**。它的源码头注释明写 "The public process is no longer registered in user configuration"，未出现在 `~/.claude.json`，7 个 `calc_*` 工具已全部由 `lvke-finance-model.finance_calculate` 路由。本文档保留它的小节是为了说明迁移关系，不代表它是对外服务。
@@ -164,22 +164,14 @@ object_id = f"{id_prefix}_{sha256_json(payload).removeprefix('sha256:')[:24]}"
 | 机制 | 位置 | 键 | 冲突行为 |
 |-----|-----|---|---------|
 | **内容寻址去重** | `JSONArtifactStore.put` | payload 的 sha256（即 object_id 本身） | 无冲突概念：同 payload 命中既有文件即返回；持 `FileLock(timeout=30)` 序列化"检查—替换" |
-| **Job 预留**（**未启用**） | `JobRepository.reserve` | `idempotency_key` + `input_hash` | 同键同输入 → 返回既有终态记录；同键不同输入 → raise `idempotency_conflict`。**但全仓无调用方，见下** |
+| **Job 预留** | 已删除 | — | `runtime/jobs.py` 已移除，不再提供该机制 |
 | **领域层幂等 store** | 如 `asset_acquisition._mutation` | `sha256(key)` + `payload_hash` | 同键同 payload → 重放原响应并加 `idempotent_replay: True`；payload 不一致 → 返回 `IDEMPOTENCY_CONFLICT`。**只有 `success=True` 且 `status ∈ {ok, partial}` 才写入幂等记录** |
 
 TTL 由 `LVKE_MCP_IDEMPOTENCY_TTL_SECONDS` 控制（默认 86400，clamp 到 60~604800），但**并非所有域都实现了过期清理**（见「实现完整度评估」的全局限制 9）。
 
 **并非所有写工具都要求 `idempotency_key`**：`lvke-report-generation` 的 13 个工具全部没有该参数，写幂等完全依赖内容寻址；`lvke-reference` 的 12 个只读工具既不接受 `workspace_id` 也不接受 `idempotency_key`。
 
-**Job 状态机**（`jobs.py`，与不可变对象不同，job 是可变记录）：
-
-```
-queued → running | cancelled
-running → complete | partial | failed | cancelled
-（四个终态均不可再转出，否则 invalid_job_transition:{from}->{to}）
-```
-
-> **`JobRepository` 目前是死代码**：全仓除 `runtime/jobs.py` 自身外无任何调用方（已 grep 确认 src/ 与 tests/）。因此 `workspaces/<ws>/jobs/` 目录实际不会被创建，上述状态机与"同键不同输入 → `idempotency_conflict`"的行为也未在任何工具路径上生效。它是为异步 job 预留的基础设施——与"169 个工具的 `task_support` 全为 `forbidden`"这一事实吻合。
+> **`JobRepository` 已删除**：`runtime/jobs.py` 不再存在。公开工具面为 14 服务 / 173 工具，`task_support` 仍全部为 `forbidden`。
 
 ---
 
@@ -229,7 +221,7 @@ class OfficialStdioServer:
 
 `register_tool` 在注册时就用 `Draft202012Validator.check_schema` 校验输入与输出 schema（schema 本身写错会在启动期炸，不会拖到调用期），重复注册同名工具 → `raise ValueError`。`annotations` 传 `None` 时注入的默认值是 `readOnlyHint=False, destructiveHint=False, openWorldHint=False`——即**默认按写操作对待**。
 
-全系统 169 个工具的 `task_support` 均为默认 `"forbidden"`，即没有任何异步/轮询入口；`finance_run_model`、`acquisition_generate_artifact`、`delivery_start` 等重活都在单次调用里同步阻塞完成。
+全系统 173 个工具的 `task_support` 均为默认 `"forbidden"`，即没有任何异步/轮询入口；`finance_run_model`、`acquisition_generate_artifact`、`delivery_start` 等重活都在单次调用里同步阻塞完成。
 
 **输出信封**：各服务的 `_OUTPUT` schema 只强制 6 项（`success` / `status` / `resource_uris` / `warnings` / `blockers` / `next_actions`），但传输层实际会补齐到约 25 个字段：
 
@@ -801,7 +793,7 @@ manual_review_required = score < 85 or bool(c_level)
 - **死路径与死字段**：`report_status` 的 legacy 分支依赖 `load_gen_task`，而 `save_gen_task` 与 `BINDING_STORE.put` 全仓无调用者（已 grep 确认），该分支只能返回 `task_not_found`；`report_prepare` 读 `args["project_metadata"]` 但该字段不在 `additionalProperties: False` 的 schema 内，恒为 `{}`；`report_start` 的 `chapters` 参数只记入 payload，无任何消费者。
 - **`finance_binding` 在本服务无持久化写入口**：`artifacts.bind_finance_run` 存在但本服务 13 个工具都不调用（它只被 `domains/asset_acquisition/` 调用）。`_capture_basis` 因此走降级路径绑定"工作区最新 run"，与 `report_prepare` 声明的 `finance_binding.run_id` 之间没有强制一致性检查。
 - **附表门禁实际不可达**：`_GOVERNED_SNAPSHOTS` 只含 `evidence_pack`，`appendix_manifest` 从不被快照，故 `appendix_files` 恒为空列表，全部附表相关门禁形同虚设。
-- **`audit_no_run` 默认只是 warning**，仅当 `LVKE_STRICT_AUDIT ∈ ("1","true","yes")` 时升为 blocker。即默认配置下"财务已接地但无测算留痕"不阻断 readiness。
+- **`audit_no_run` 已 fail-closed**：财务已接地但无测算留痕时直接记 blocker；代码不读取 `LVKE_STRICT_AUDIT`。
 - **DOCX 生成会 fork 外部进程**：`subprocess.run(pandoc, timeout=60)`，缺失或失败时静默回退 python-docx。两条路径产出的 DOCX 保真度不同，而 manifest 不记录实际走了哪条。
 - **`export_docx` 返回服务器本地绝对路径** `deliverable_path`，与本服务其他部分"只暴露 `lvke://` URI"的口径不一致。
 - **结构校验是双向包含判定**（`chapter in title or title in chapter`），源码注释自陈"宽松判定，容忍编号前缀差异"，短标题易被无关章节意外匹配而漏报缺章。
@@ -891,26 +883,28 @@ project → research → market → option → scale → drivers
 
 **服务定位**：在甲方**一份原始材料都没有**的前提下，从一句话推出行业路线、生成受控假设包，再**只经既有领域边界**（research / project_planning / finance_model / finance_tables / reports）跑完财务与十三表，最后固化技术预估研报。`execute()` 的 docstring 写明 "Execute only through existing domain boundaries; never grant release"。
 
-**它不认证项目事实，且这一点是硬编码的**：全部 9 个工具的每一条返回路径都写死 `validation_complete=False` 与 `input_evidence_complete=False`；AssumptionPackage 的 `evidence_boundary` 固定为 `{"grade": "C", "production_claim_allowed": False}`；EvidenceManifest 固定写入 `controlled_assumptions_are_evidence: False` 与 `formal_evidence_ready: False`。
+**它不认证项目事实，且这一点是硬编码的**：零材料轨全部返回路径写死 `validation_complete=False` 与 `input_evidence_complete=False`；AssumptionPackage 的 `evidence_boundary` 固定为 `{"grade": "C", "production_claim_allowed": False}`；EvidenceManifest 固定写入 `controlled_assumptions_are_evidence: False` 与 `formal_evidence_ready: False`。正式验收须走拟定模板包 → `delivery_confirm_formal_promotion` → **新建** `pctx_*` / `fdr_*` 链，零材料 `zmr_*` 不原地升级。
 
-**工具列表**（8 个，4 只读 / 4 写）：
+**工具列表**（10 个；`delivery_generate_template_pack` / `delivery_confirm_formal_promotion` 为晋升入口，`delivery_transition` 聚合 cancel/resume）：
 
 | 工具名 | 类型 | 核心参数 | 实际行为 | 创建对象 |
 |-------|-----|---------|---------|---------|
-| `delivery_create_from_sentence` | 写 | `workspace_id`, `sentence`(2-4000), `idempotency_key`; 可选 `project_name`/`region`/`industry`/`project_nature`/`report_type` | `_resolve_route` 对 5 条首期行业规则做关键词子串打分：`explicit_industry` 精确等于 code 或 label 直接命中；strong_keywords 命中 >1 条 → `ambiguous_route`；无命中 → `missing_route` | `DeliveryIntent`(zmi_) + `DeliveryRun`(zmr_) |
+| `delivery_create_from_sentence` | 写 | `workspace_id`, `sentence`(2-4000), `idempotency_key`; 可选 `project_name`/`region`/`industry`/`project_nature`/`report_type` | `_resolve_route` 对行业规则做关键词子串打分：`explicit_industry` 精确等于 code 或 label 直接命中；strong_keywords 命中 >1 条 → `ambiguous_route`；无命中 → `missing_route` | `DeliveryIntent`(zmi_) + `DeliveryRun`(zmr_) |
 | `delivery_start` | 写 | `workspace_id`, `delivery_run_id`, `idempotency_key` | **本服务唯一的重活入口，同步执行**。串起 research→planning→finance→tables→reports 全链 | `AssumptionPackage`(zma_)、`TechnicalReport`(zmrep_)、各 register/manifest |
 | `delivery_status` | 只读 | `workspace_id`, `delivery_run_id` | 返回 run 全视图、stage、progress、resume_token。progress 按 11 段固定阶段表算 `round(index*100/10)` | 无 |
-| `delivery_get` | 只读 | `workspace_id`, `object_id` | 按 `_RESOURCE_STORES` 顺序遍历 8 个 store，首个命中即返回 | 无 |
+| `delivery_get` | 只读 | `workspace_id`, `object_id` | 按 `_RESOURCE_STORES` 顺序遍历 store，首个命中即返回 | 无 |
 | `delivery_list_assumptions` | 只读 | `workspace_id`, `assumption_package_id`; 可选 `limit`(5-10，默认 10) | 按 `confirmation_priority_score` 降序排列全部假设字段，`confirmation_items` 只取 `confirmed` 为假的前 limit 条 | 无 |
 | `delivery_confirm_assumptions` | 写 | `workspace_id`, `assumption_package_id`, `confirmations[]`(1-20，每项 `name`+`value`), `idempotency_key` | 复合入口：确认 + 自动重算。`name` 不在原包字段内即 `unknown_assumption_field`；命中字段改写为 `source_type=user_confirmed`、`method=user_override` | `AssumptionPackage`(revision+1) + 新 Run |
-| `delivery_get_artifacts` | 只读 | `workspace_id`, `delivery_run_id` | 把 `object_refs` 在 8 个 store 中逐一试解拼成 `resource_uris`，另返回 `artifact_uris` 与 `manifest_uri` | 无 |
+| `delivery_generate_template_pack` | 写 | `workspace_id`, `delivery_run_id`, `idempotency_key` | 按适用标准需求生成拟定模板包（MD+JSON），不调用 LLM | 拟定模板包 |
+| `delivery_confirm_formal_promotion` | 写 | `template_pack_id`, `responsible_party`, `confirmation_note`, `idempotency_key` | 确认晋升为 `sim_a_formal` 并导入**新**可研链资料；只返回 `next_actions`，不调用 `feasibility_release` | SourceFile + 晋升记录 |
+| `delivery_get_artifacts` | 只读 | `workspace_id`, `delivery_run_id` | 把 `object_refs` 逐一试解拼成 `resource_uris`，另返回 `artifact_uris` 与 `manifest_uri` | 无 |
 | `delivery_transition` | 写 | `workspace_id`, `operation`(cancel/resume), `delivery_run_id`, `idempotency_key`; cancel 必填 `reason` | cancel 新建已取消快照且不删除工件；resume 仅允许从 cancelled Run 创建恢复快照 | `DeliveryRun` |
 
 **已知限制**（本服务是全系统限制最多的一个）：
 
-- **只覆盖首期 5 个行业档**：`industry_profiles.py` 仅 `tourism_catering` / `manufacturing` / `environment_utilities` / `park_infrastructure` / `commercial_professional_services`，全为硬编码语义字典。实测墓地、房地产两类句子均返回 `missing_route`（`config/industry_skill_routes.json` 里有 real-estate 路由，但零材料没有对应 profile）。路由是**朴素子串匹配**，无分词、无否定处理；`confidence = min(0.95, 0.58 + 0.08 * len(matched))` 是纯计数公式，不代表任何统计置信度。
+- **行业档**：已含旅游餐饮、制造、环境公用、园区基建、城轨、房地产、墓地等七档 profile。路由仍是朴素子串匹配，`confidence` 是计数公式，不代表统计置信度。
 - **协议 Resource 枚举已 fail closed**：无 workspace 身份的 `resources/list` 动态 lister 恒空；工作区对象枚举和读取只走带显式 `workspace_id` 的统一 Resource 工具通道，并保留 `resource_scope_mismatch` 门禁。
-- **DOCX 丢失全部表格**：`_docx_bytes` 无条件 `elif text.startswith("|"): continue` 跳过所有 Markdown 表格行。第三章「受控假设登记」的假设表在 `report.md` 里存在，在 `report.docx` 里完全消失——DOCX 版本读不到任何参数取值。
+- **零材料 DOCX 表格**：`|` 行走 `docx.append_markdown_pipe_table`，不再整行丢弃。
 - **5 个 stage 声明但永不可达**：`researching` / `report_ready` / `awaiting_confirmation` / `confirmed_estimate_ready` 在阶段表中定义但全服务无赋值点；`failed` 仅在守卫中被接受。`_stage_progress` 也无法区分 `cancelled`、`received` 与非法 stage（三者都返回 0）。
 - **成功路径也永远带 blocker**：`execute()` 无条件追加 `research_evidence_pending` 与 `planning_market_evidence_pending`。
 - **`resume_token` 无签名无有效期**：它只是记录的 `content_hash`，`delivery_resume` 只吃 `delivery_run_id`、从不校验 token。该字段是可读的一致性指纹，不构成恢复凭证（对比 `dr_resume` 的 `drresume.v1.<签名>`）。
@@ -1028,11 +1022,11 @@ project → research → market → option → scale → drivers
 
 > \* `review_score_section` 标 `readOnlyHint=True`，但会调 `ASSESSMENT_STORE.put` 固化 `RubricAssessment`（`status` 取 `passed` / `needs_revision`）。该对象随后被 `lvke-knowledge-governance.knowledge_submit_candidate` 跨域读取作为准入依据——即评分必须落盘才有下游价值，注解与行为不符。
 
-**已知限制**：
+**已知限制**（2026-08-28 复核）：
 
 - **`readOnlyHint=True` 但实际固化对象（2 例）**：`review_score_section` 与 `review_compare_assessments` 都标只读，却分别调 `ASSESSMENT_STORE.put` / `COMPARISON_STORE.put` 产出 `rva_*` / `rvc_*` 并返回其 `resource_uri`。工具描述本身也自认会写（"以确定性规则评分并固化 RubricAssessment"）。缓解因素是 object_id 内容寻址、同输入重复调用得同一对象，故语义上幂等——但契约仍被违反，且这两个工具不走幂等包装、无 `idempotency_key`。
-- **3 个 finding status 不可达**：`FINDING_STATUSES` 声明 9 个，但 `waived`、`rejected`、`superseded` **无任何代码路径写入**（全服务仅见于枚举声明与读取判断）。后果有两个：`review_list_findings?status=waived` 语法合法但恒空；`finding_blocks` 里 `status != "waived"` 的豁免分支**永不生效**——申请豁免只能到 `waiver_requested`，仍算阻断，**豁免流程缺终态审批入口**。同理 P1 因此实际恒阻断。
-- **规则来源目录不存在，`rule_sources` 恒空**：`_rule_source_catalog` 读 `config/review_rule_sources/*.json`，该目录**实测不存在**（全仓 `find` 亦无）。连带失效的能力：`compose` 输出的 `rule_sources`/`disabled_rules`/`excluded_rules` 恒为空；`check_kind=="professional"` 分支永不触发，故"待专业核验"类 finding **实际不会产生**；`financial_checks` 的 `source_rules` 恒空，导致 `blocking` 退化为"severity ∈ {P0,P1}"默认值、`standard_basis` 退化为整包 basis；`coverage.deterministic_rule_count` 恒 0。（未验证这些 JSON 是否属于另一仓库或部署期注入物，仅确认当前工作树内不存在。）
+- **豁免终态已补**：`review_disposition_finding(action=approve_waiver)` 写入 `waived`；P0 仍不可豁免。`rejected` / `superseded` 仍无写入路径。
+- **规则来源已入库**：`src/lvke_mcp/config/review_rule_sources/{finance-report-core,accounting-tax-core,hotel-mining-core}.json` 存在，`professional` 检查可产生待专业核验 finding。拟定 `sim_a_formal` 轨不生成无法豁免的 professional pending。
 - **`review_standards.lock.json` 不存在，恒走物料回退**：首选路径 `config/review_standards.lock.json` 实测不存在，永远落到从 `docs/研报资料库/交付型资料源/06_标准方法包/` 读 manifest 并独立重算 SHA-256 比对的回退路径（该目录存在，实测 PKG-STD-001/021 可 gate passed）。风险：若部署目录不含 `docs/` 且 `LVKE_GOLDEN_DATA_ROOT` 未设，全部标准包判 incomplete → 所有审查 verdict 恒 `incomplete`。
 - **`review_resolve_standards` 标为写却不要求 `idempotency_key`**：schema 里列了该字段但**未放进 `required`**（其余 6 个写工具都必填）。服务层因此自造 `"standards-" + sha256(workspace+context+facilities)[:40]`——同一入参的两次调用被视为同一操作并返回缓存响应，调用方无法主动区分两次独立解析。
 - **标准 catalog 字段与工具描述不符**：`review_list_requirements` 描述承诺"标准编号、版本、主题、适用设施"，但 `config/review_standard_requirements.json` 的 6 条需求**只有** `requirement_id`/`title`/`description`/`applicable_project_types`/`required_evidence`——**无 standard_number、无 standard_version、无 topic**，且 `applicable_facility_types` 一条都没有。因此 `facilities` 入参（最多 500 条）与设施分支**当前完全不影响结果**，`facility_inventory_pending` / `facility_type_not_present` / `facility_inventory_match` 三个 reason 不可达。这 6 条也都不是国标条文，而是内部交付规范（十三表、九章、市场证据链等）。
@@ -1111,7 +1105,7 @@ acquisition_run_model ──► acqrun_{uuid4hex}
 - **工件四路数值一致性**：md / docx / xlsx / report_data 四路 token 与数值全部 passed 才发布，任一失败 `ARTIFACT_MISMATCH` 且不留下目录。
 
 **已知限制**：
-- **`consistency_ok` 恒为 `True`，读它的三道门形同虚设**。`backend.py:933`（create_run）与 `:1190`（execute_queued_run）都直接写字面量 `"consistency_ok": True`，源码中没有任何地方把它算成 `False`；而 `:1974`、`:2152`、`:2832` 三处门禁都在读这个值。**`RUN_INCONSISTENT` 实际不可达。**
+- **`consistency_ok` 现按年结资产负债表投影判定**（现金+固定资产=资产合计、有息负债+权益=负债和权益合计），与 spec/证据 `issues` 脱钩。缺列或勾稽失败则为 False，`RUN_INCONSISTENT` 可达。
 - **重建记录必填键两处不一致**：`backend.RECONSTRUCTION_RECORD_FIELDS` 是 7 键（无 `original_formula_available`），而 `runtime/source_reconstruction` 要求 8 键（含该字段且必须严格 True/False）。
 - **`transaction.repayment` 枚举三方不一致**：输入 schema 是 `[equal_principal, equal_payment, bullet, custom]`，`validate_for_formal` 白名单是 `{equal_principal, equal_payment, annuity, bullet, interest_only}`，model.py 对不认识的值另有回退。
 - **`transaction.transaction_taxes` 无法作为情景维度传入**：它在 `INDEPENDENT_SCENARIO_FIELDS`（16 个之一）里，但 server.py 的 `dimensions` properties 只列了 15 个字段且 `additionalProperties=false`。
@@ -1368,17 +1362,17 @@ _start_research → _create_project_context
 | 服务 | 实现深度 | 证据 | 已知缺口 |
 |-----|---------|-----|---------|
 | `lvke-finance-model` (16) | 完整实现 | server 2,860 + `domains/finance` 28,020；`finance_model.py` 3,684 / `table_render.py` 3,081 / `vendor_import.py` 2,302（openpyxl 真实读公式）；真 IRR/NPV/XIRR | FinanceSpec v3 扩展字段未在公开 `spec` 参数暴露（ERR-005 实测拒收 11 个字段）；BoE 需 confirmed planning 对象 |
-| `lvke-deliverable-review` (15) | 完整实现，**但两份配置未入库导致成套能力空转** | **11,155 行、9 文件，仓内最大 server**：service.py 5,230 / report_checks.py 2,035（51 个检查函数）/ financial_checks.py 1,741（15 个复算函数） | `config/review_rule_sources/` 与 `review_standards.lock.json` 均不存在 → professional 检查分支永不触发、`rule_sources` 恒空、标准快照恒走物料回退；3 个 finding status 不可达使豁免流程缺终态；`report_checks.py` 硬编码"恒立"/"黄鹰岩"项目名 |
+| `lvke-deliverable-review` (15) | 完整实现 | 审查规则源已入库 `src/lvke_mcp/config/review_rule_sources/`；豁免有 `approve_waiver → waived` | `review_standards.lock.json` 仍不存在，标准快照走物料回退；`report_checks.py` 仍有项目名硬编码 |
 | `lvke-project-planning` (17) | 完整实现 | 5 个判别式聚合入口复用原业务 handler；真实算法：容积率/密度/绿地约束求解、数量×单耗×单价×损耗展开、班次/覆盖/自动化定员推导 | 复杂分支完整 schema 需通过稳定 `lvke://schemas/project-planning-*` Resource 回读 |
 | `lvke-data-analysis` (11) | 完整实现 | `service.py` 2,147 + server 440；单位归一化、期间对账、共同比、CAGR、locator 三道门 | 无 domain 层承载，全在 service.py；`analysis_profile_tabular` 曾 160/160 `invalid_tool_output` |
 | `lvke-data-acquisition` (10) | 完整实现（外部依赖 config-gated） | `service.py` 1,743；真实 SSRF/URL 安全门、HMAC receipt、`domains/research/url_safety.py` 274 行 | **Tavily 是唯一 provider**；未配 `TAVILY_MCP_URL`/`LVKE_MCP_TAVILY_SERVER` 时 `configured_transport()` 返回 None → 全链不可用 |
 | `lvke-deep-research` (18) | 完整实现 | server 1,009 + `domains/research` 5,606；`extractor.py` 1,485 / `quantitative.py` 578 / `source_normalizer.py` 412 真实公共后缀与来源分级 | P0-009（质量确认失败仍写 completed）的验收测试是 grep 源码字符串而非行为断言 |
 | `lvke-source-files` (13) | 完整实现 | `service.py` 1,240 + repository 490 + `workbook_inspection.py` 208；真实分块上传、SHA-256 校验、openpyxl 公式与跨表依赖树 | **PDF 只做 magic-byte 校验**：依赖清单无任何 PDF/OCR 库（已 grep 确认），但 `service.py:911` 仍返回 `ocr_status: pending` |
-| `lvke-asset-acquisition` (12) | 完整实现 | service 565 + server 453 + domains 5,563（`backend.py` 3,352 月度酒店/年度光伏模型、`tables.py` 1,039 openpyxl 导出） | `consistency_ok` 恒 True 使 `RUN_INCONSISTENT` 不可达；重建记录必填键两处不一致；六档 confirm 曾全部 `SPEC_VALIDATION_FAILED` |
+| `lvke-asset-acquisition` (12) | 完整实现 | service 565 + server 453 + domains 5,563（`backend.py` 3,352 月度酒店/年度光伏模型、`tables.py` 1,039 openpyxl 导出） | `consistency_ok` 现按资产负债表投影判定；重建记录必填键两处不一致；六档 confirm 曾全部 `SPEC_VALIDATION_FAILED` |
 | `lvke-report-generation` (13) | 完整实现 | server 421 薄，但 `domains/reports` 5,980：`artifacts.py` 2,177（python-docx 真实 DOCX）/ `doc_service.py` 1,566 / `readiness.py` 253 | `export_docx` 的 revision_id 不决定内容；13 工具全无 idempotency_key；多处死路径与死字段 |
 | `lvke-knowledge-governance` (6) | 完整实现（轻量域） | `service.py` 595，21 个函数；真实 filelock 幂等、四步状态机、证据校验 | 无独立 domain 层；`rubric_assessment_id` 继承时不校验存在性 |
 | `lvke-feasibility-delivery` (10) | 部分实现 | 1,560 行；阶段机 + stale 传播 + checkpoint/resume 真实 | 跨服务 resolver 曾不一致（MCP-P1-017），技术阶段可把不存在的 URI 登记为 completed |
-| `lvke-zero-material-delivery` (8) | **部分实现** | 2,794 行；`acceptance.py` 319 + `artifact_delivery.py` 378 有真实逻辑 | 仅 5 个行业档（实测墓地/房地产均 `missing_route`）；DOCX 丢表格 |
+| `lvke-zero-material-delivery` (10) | **部分实现** | 含拟定模板包与 `delivery_confirm_formal_promotion`；七档行业路由 | 零材料轨仍不认证项目事实；`zmr_*` 不原地升级；路由仍是关键词子串 |
 | `lvke-finance-tables` (8) | **薄包装** | server 133 行只做 `table_id` 别名映射 + schema；真实渲染在 `domains/finance/tables_service.py` 880 + `table_pack.py` 459 + `tables_application.py` 467 | 整包 formal 校验被三项语义 blocker 阻断（`investment_quantity_indicator` / `working_capital_reconciled` / `supporting_schedules_formula_driven`） |
 | `lvke-reference` (12) | **薄路由门面** | `service.py` 174 行，首行自述 "Thin routing facade"；纯 `importlib` + dataset→旧 handler 分派 | 底层 9 个 seed 服务数据量极小（详见下） |
 
@@ -1388,15 +1382,15 @@ _start_research → _create_project_context
 2. **9 个参考数据服务全部跑在极小 seed 上**：实测记录数 `policy_search` 22 条、`map_geo` 68 POI、`industry_research` 14 份、`lvke_archive` 11 条、`lvke_clients` 9、`lvke_experts` 9、`statistics_cn` 6 指标、`environmental_data` 8+8。所有 `LVKE_*_DATA_DIR` 未设置时代码回退 seed。
 3. **档案索引已建但未接上，且语料不是可研报告库**：`~/.lvke/archive_index/metadata.sqlite`（reports 51 / chunks 2,982）已生成，但 `LVKE_ARCHIVE_DATA_DIR` 未设置时服务日志显示 `mode=legacy`。且索引 51 条中 28 条 `corpus_origin=method`、10 条 `project`，`source_path` 指向 `MCP_INDEPENDENCE_PLAN.md`、`README.md` 等**本仓自己的方案文档**——只有 13 条 client 是真甲方材料。
 4. **PDF 无内容读取、无 OCR**：只有 `%PDF-` magic-byte 判断，`pyproject.toml` 依赖清单无任何 PDF/OCR 库（已 grep 确认），但服务仍返回 `ocr_status` 字段。
-5. **零材料只覆盖 5 个行业档**，墓地/房地产无路由（`config/industry_skill_routes.json` 有 real-estate 路由但零材料无对应 profile）。
+5. **零材料行业档**已含房地产与墓地；路由仍是关键词子串匹配。
 6. **十三表整包无法通过 formal 校验**：三项语义 blocker 未解，CSV/XLSX 的正式资格因此拿不到。
 7. **`domains/review` 是空壳**：只有 1 行 `__init__.py`，真实审查逻辑全在 server 目录下。
 8. **`_common/` 是待清理的兼容垫片**：全部文件形如 `from lvke_mcp.runtime.transport import *`，注释写明"切完即删"，且全仓已无任何 import 引用它（已 grep 确认）。
 9. **幂等记录无 TTL 与清理**：`asset-acquisition` 与 `zero-material-delivery` 的领域层幂等 store 每次写操作都全量读盘线性扫描，且存整份 response，长期使用会同步膨胀磁盘与延迟。`LVKE_MCP_IDEMPOTENCY_TTL_SECONDS` 只对部分域生效。
 10. **测试不可用 `unittest discover`**：`tests/` 无法 import，必须直接跑文件。
-11. **两份审查配置在工作树内不存在，导致成套能力空转**：`config/review_rule_sources/`（目录）与 `config/review_standards.lock.json`（文件）均**实测不存在**。前者让 `rule_sources`/`disabled_rules`/`excluded_rules` 恒空、`professional` 检查分支永不触发（"待专业核验"类 finding 实际不会产生）、`deterministic_rule_count` 恒 0；后者让标准快照永远走物料回退路径，依赖 `docs/研报资料库/` 目录存在，否则所有审查 verdict 恒 `incomplete`。这是 `lvke-deliverable-review` 最大的隐性缺口——**代码路径齐备但数据未入库**。
-12. **`JobRepository` 是死代码**：`runtime/jobs.py` 实现了完整的 job 状态机与"同键不同输入 → `idempotency_conflict`"语义，但全仓无任何调用方（已 grep src/ 与 tests/）。`workspaces/<ws>/jobs/` 目录实际不会被创建。与"169 个工具 `task_support` 全为 `forbidden`"吻合——异步基础设施建好了但没接。
-13. **豁免流程缺终态审批入口**：finding 的 9 个声明状态里 `waived` / `rejected` / `superseded` 无任何写入路径。`review_disposition_finding` 最多把 finding 推到 `waiver_requested`（申请中），而阻断判定只认 `waived` 为豁免——**申请了豁免仍算阻断，且没有工具能批准它**。
+11. **审查规则源已入库，标准锁文件仍缺**：`src/lvke_mcp/config/review_rule_sources/` 现有 finance/accounting/hotel 三份 JSON，`professional` finding 可产生。`review_standards.lock.json` 仍不存在，标准快照继续走 `docs/研报资料库/` 物料回退。
+12. **`JobRepository` 已删除**：公开面为 14/173，异步 job 预留实现不再存在。
+13. **豁免终态已补**：`approve_waiver` 可把 finding 推到 `waived`；P0 仍不可豁免。`rejected` / `superseded` 写入路径仍可能不完整。
 
 ### 文档化程度 vs 实现程度的不一致告警
 
@@ -1414,8 +1408,8 @@ _start_research → _create_project_context
    另有两类"名义只读、实际很重"：`acquisition_get_artifact` 会逐文件 sha256 + 解析 DOCX/XLSX + 重跑数值一致性；`report_validate` / `report_get_section` / `report_get_readiness` 会为未初始化工作区**无声建仓**。依赖 `readOnlyHint` 做权限、缓存或重试决策的客户端会被误导。
    
    （反例：`dr_prepare`、`planning_score_option_comparison`、`review_validate_standards` 等名字像写操作的工具经核实确为纯读，注解正确。）
-2. **`consistency_ok` 恒为 True**，使 `acquisition_generate_artifact` 的 `RUN_INCONSISTENT` 门禁形同虚设——这是"文档写得比实现严格"的典型。
+2. **收购 `consistency_ok` 已按资产负债表投影计算**，不再恒为 True。
 3. **验收证据强度不足**：`test_mcp_acceptance_20_defects.py` 的 19 个测试里有 8 个是 `read_text()` + `assertIn` 的**源码字符串断言**（断言某文件里出现 "P0-009"、"P1-017" 等字样）。这类断言只能证明有人写了那行注释，不能证明行为已修。最关键的 P0-009（证据等级误升级 + 非原子写入）正属于此类。另有 2 个测试 `skipTest` 兜的 SKILL.md 路径实测不存在，即零覆盖但计入"通过"。
-4. **旧拓扑遗留的口径冲突**：验收报告基线写 24 服务 / 262 工具，当前是 14/169；第一轮 manifest 记录 85 条，第二轮 v2 manifest 记录 32 条。报告里的缺陷 ID 与当前工具名之间需经两轮 migration manifest 映射才成立。
+4. **旧拓扑遗留的口径冲突**：验收报告基线写 24 服务 / 262 工具，当前是 14/173；第一轮 manifest 记录 85 条，第二轮 v2 manifest 记录 32 条。报告里的缺陷 ID 与当前工具名之间需经两轮 migration manifest 映射才成立。
 5. **两个薄层在文档里与其他服务平级**：`lvke-finance-tables`（server 133 行）与 `lvke-reference`（174 行，自述 thin facade）的能力完全取决于被代理的下层。本文档已在各自小节标注"薄包装/薄路由门面"，但读者需知其数据只有几十条 seed。
 6. **`lvke-zero-material-delivery` 的 `resources/list` 跨 workspace 泄露**是本文档记录的唯一跨租户可见性缺陷，与概览章"所有数据按 workspace_id 物理隔离，无跨租户泄漏"的表述直接冲突——该表述对其余 13 个服务成立，对本服务的协议层 Resource 通道不成立。

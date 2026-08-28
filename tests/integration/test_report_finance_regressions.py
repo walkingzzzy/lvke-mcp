@@ -163,12 +163,13 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
         ):
             result = report_validation.validate_report("ws", "rev_public")
 
-        self.assertTrue(result["valid"])
+        self.assertFalse(result["valid"])
         self.assertFalse(result["quality_valid"])
+        self.assertFalse(result["formal_release_eligible"])
         self.assertIn("finance_binding_blocked", result["quality_issues"])
-        self.assertEqual(result["blockers"], [])
-        self.assertTrue(result["readiness"]["publishable"])
-        self.assertEqual(result["readiness"]["blocking_issues"], [])
+        self.assertIn("finance_binding_blocked", result["blockers"])
+        self.assertFalse(result["readiness"]["publishable"])
+        self.assertIn("finance_binding_blocked", result["readiness"]["blocking_issues"])
         self.assertIn(
             "finance_binding_blocked",
             {item["code"] for item in result["readiness"]["quality_issues"]},

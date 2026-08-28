@@ -219,7 +219,7 @@ def _planning_evidence_qualification(
     evidence_track = (
         evidence_policy
         if evidence_policy
-        in {"real", "source_reconstructed", "technical_fixture", "controlled_assumption"}
+        in {"real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"}
         else fallback_track
     )
     project_fact_certified = project_fact_may_be_certified(

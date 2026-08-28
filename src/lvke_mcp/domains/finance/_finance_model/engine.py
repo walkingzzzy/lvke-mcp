@@ -67,6 +67,173 @@ from .tax import (
 )
 
 
+def _year_driver(row: dict[str, Any], *keys: str) -> float:
+    for key in keys:
+        if row.get(key) is not None:
+            return float(row.get(key) or 0.0)
+    return 0.0
+
+
+def _split_year_driver(total: float, count: int) -> list[float]:
+    """Equal monthly shares with last-month residual so months sum to the year driver."""
+
+    if count <= 0:
+        return []
+    base = round(total / count, 2)
+    shares = [base] * count
+    shares[-1] = round(total - base * (count - 1), 2)
+    return shares
+
+
+def _month_amount(period: dict[str, Any], key: str, shares: list[float], index: int) -> float:
+    if period.get(key) is not None:
+        return round(float(period.get(key) or 0.0), 2)
+    if 0 <= index < len(shares):
+        return shares[index]
+    return 0.0
+
+
+def _compute_monthly_from_year_drivers(result: dict[str, Any]) -> list[dict[str, Any]]:
+    """Primary monthly loop. Year totals are allocation drivers, not post-tax results.
+
+    Period-level overrides win. Equal month split is used only when a period has
+    no override (no seasonality / workday calendar). Tax and NOL always roll
+    month by month; annual tables consume these monthly sums.
+    """
+
+    annual = result.get("annual") if isinstance(result.get("annual"), dict) else {}
+    income = list(annual.get("income_statement") or [])
+    plan = list(annual.get("financial_plan") or [])
+    build_years = max(int((result.get("params") or {}).get("build_years") or 0), 0)
+    periods = list((result.get("timeline") or {}).get("monthly_periods") or [])
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for period in periods:
+        if not isinstance(period, dict):
+            continue
+        year = int(period.get("year_index") or 1)
+        grouped.setdefault(year, []).append(period)
+    nol = 0.0
+    detail: list[dict[str, Any]] = []
+    for year in sorted(grouped):
+        months = grouped[year]
+        count = max(len(months), 1)
+        operating_index = year - build_years
+        source = income[operating_index - 1] if operating_index > 0 and operating_index - 1 < len(income) else {}
+        plan_row = plan[year - 1] if year - 1 < len(plan) and isinstance(plan[year - 1], dict) else {}
+        construction = operating_index <= 0 or str(plan_row.get("phase") or "") == "建设期"
+        revenue = 0.0 if construction else _year_driver(source, "revenue", "revenue_wan")
+        cost = 0.0 if construction else _year_driver(source, "operating_cost", "operating_cost_wan")
+        dep = 0.0 if construction else _year_driver(source, "depreciation", "depreciation_wan")
+        tax_dep = 0.0 if construction else _year_driver(source, "tax_depreciation", "tax_depreciation_wan") or dep
+        rate = float(source.get("income_tax_rate") or 0.0)
+        construction_wan = _year_driver(plan_row, "construction_investment", "construction_investment_wan") if construction else 0.0
+        loan_draw = _year_driver(plan_row, "loan_draw", "loan_draw_wan") if construction else 0.0
+        principal = 0.0 if construction else _year_driver(plan_row, "principal", "principal_repay_wan")
+        interest = 0.0 if construction else _year_driver(plan_row, "interest", "interest_wan")
+        rev_shares = _split_year_driver(revenue, count)
+        cost_shares = _split_year_driver(cost, count)
+        dep_shares = _split_year_driver(dep, count)
+        tax_dep_shares = _split_year_driver(tax_dep, count)
+        capex_shares = _split_year_driver(construction_wan, count)
+        draw_shares = _split_year_driver(loan_draw, count)
+        principal_shares = _split_year_driver(principal, count)
+        interest_shares = _split_year_driver(interest, count)
+        for index, period in enumerate(months):
+            month_rev = _month_amount(period, "revenue_wan", rev_shares, index)
+            month_cost = _month_amount(period, "operating_cost_wan", cost_shares, index)
+            month_dep = _month_amount(period, "depreciation_wan", dep_shares, index)
+            month_tax_dep = _month_amount(period, "tax_depreciation_wan", tax_dep_shares, index)
+            pretax = month_rev - month_cost - month_dep
+            temp = month_dep - month_tax_dep
+            taxable_raw = pretax + temp
+            if taxable_raw < 0:
+                nol = round(nol - taxable_raw, 2)
+                taxable = 0.0
+            else:
+                used = min(nol, taxable_raw)
+                nol = round(nol - used, 2)
+                taxable = round(taxable_raw - used, 2)
+            current_tax = round(max(taxable, 0.0) * rate, 2) if rate else 0.0
+            deferred = round(temp * rate, 2) if rate else 0.0
+            detail.append({
+                **period,
+                "revenue_wan": month_rev,
+                "operating_cost_wan": month_cost,
+                "depreciation_wan": month_dep,
+                "tax_depreciation_wan": month_tax_dep,
+                "construction_investment_wan": _month_amount(
+                    period, "construction_investment_wan", capex_shares, index
+                ),
+                "loan_draw_wan": _month_amount(period, "loan_draw_wan", draw_shares, index),
+                "principal_repay_wan": _month_amount(
+                    period, "principal_repay_wan", principal_shares, index
+                ),
+                "interest_wan": _month_amount(period, "interest_wan", interest_shares, index),
+                "income_tax_wan": current_tax,
+                "deferred_tax_wan": deferred,
+                "loss_carryforward_wan": nol,
+            })
+    return detail
+
+
+def _apply_monthly_aggregates_to_annual(
+    result: dict[str, Any],
+    detail: list[dict[str, Any]],
+) -> None:
+    """Annual tax/NOL and overridden month totals come from the monthly loop."""
+
+    annual = result.get("annual") if isinstance(result.get("annual"), dict) else {}
+    if not annual or not detail:
+        return
+    build_years = max(int((result.get("params") or {}).get("build_years") or 0), 0)
+    by_year: dict[int, list[dict[str, Any]]] = {}
+    for row in detail:
+        by_year.setdefault(int(row.get("year_index") or 0), []).append(row)
+    income = list(annual.get("income_statement") or [])
+    plan = list(annual.get("financial_plan") or [])
+    for year, rows in by_year.items():
+        operating_index = year - build_years
+        if (
+            operating_index > 0
+            and operating_index - 1 < len(income)
+            and isinstance(income[operating_index - 1], dict)
+        ):
+            target = income[operating_index - 1]
+            target["income_tax"] = round(sum(float(item.get("income_tax_wan") or 0.0) for item in rows), 2)
+            target["current_income_tax"] = target["income_tax"]
+            target["deferred_tax"] = round(
+                sum(float(item.get("deferred_tax_wan") or 0.0) for item in rows), 2
+            )
+            target["loss_carryforward"] = float(rows[-1].get("loss_carryforward_wan") or 0.0)
+            target["revenue"] = round(sum(float(item.get("revenue_wan") or 0.0) for item in rows), 2)
+            target["operating_cost"] = round(
+                sum(float(item.get("operating_cost_wan") or 0.0) for item in rows), 2
+            )
+            target["depreciation"] = round(
+                sum(float(item.get("depreciation_wan") or 0.0) for item in rows), 2
+            )
+        if year - 1 < len(plan) and isinstance(plan[year - 1], dict):
+            plan[year - 1]["construction_investment"] = round(
+                sum(float(item.get("construction_investment_wan") or 0.0) for item in rows), 2
+            )
+            plan[year - 1]["loan_draw"] = round(
+                sum(float(item.get("loan_draw_wan") or 0.0) for item in rows), 2
+            )
+            plan[year - 1]["principal"] = round(
+                sum(float(item.get("principal_repay_wan") or 0.0) for item in rows), 2
+            )
+            plan[year - 1]["interest"] = round(
+                sum(float(item.get("interest_wan") or 0.0) for item in rows), 2
+            )
+    annual["income_statement"] = income
+    annual["financial_plan"] = plan
+    annual["monthly_sourced"] = True
+
+
+def _monthly_detail_from_annual(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return _compute_monthly_from_year_drivers(result)
+
+
 def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_period_months: Optional[int] = None, industry: str = "", spec: Optional[dict[str, Any]] = None, _apply_custom: bool = True, _revenue_scale: float = 1.0, _op_cost_scale: float = 1.0, _construction_scale: float = 1.0, _with_analysis: bool = True) -> dict[str, Any]:
     """核心：从 finance 输入算出指标 + 现金流 + 附表数据。
 
@@ -823,8 +990,42 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
                 "未用单一计算期替代分类使用年限"
             )
         else:
-            _dep_only = _fin_assets.annual_straight_line(
-                _dep_base, _dep_years, salvage_rate=_salvage_rate)               # 附表6-2 折旧
+            _spec_map = spec if isinstance(spec, dict) else {}
+            _dep_method = str(
+                fin.get("depreciation_method")
+                or (_spec_map.get("cost") or {}).get("depreciation_method")
+                or "straight_line"
+            )
+            _tax_dep_method = str(
+                fin.get("tax_depreciation_method")
+                or (_spec_map.get("tax") or {}).get("depreciation_method")
+                or _dep_method
+            )
+            _dep_year_splits = [
+                _fin_assets.depreciation_charge(
+                    _dep_base,
+                    _dep_years,
+                    salvage_rate=_salvage_rate,
+                    method=_dep_method,
+                    year_index=year_index,
+                    tax_method=_tax_dep_method,
+                )
+                for year_index in range(1, max(_op_years_dep, 1) + 1)
+            ]
+            _dep_split = _dep_year_splits[0] if _dep_year_splits else {}
+            _dep_only = float(_dep_split.get("book_depreciation_wan") or 0.0)
+            result.setdefault("raw", {})
+            if isinstance(result.get("raw"), dict):
+                result["raw"]["tax_depreciation_schedule"] = [
+                    float(item.get("tax_depreciation_wan") or 0.0)
+                    if year_index <= _dep_years else 0.0
+                    for year_index, item in enumerate(_dep_year_splits, start=1)
+                ]
+                result["raw"]["book_depreciation_schedule"] = [
+                    float(item.get("book_depreciation_wan") or 0.0)
+                    if year_index <= _dep_years else 0.0
+                    for year_index, item in enumerate(_dep_year_splits, start=1)
+                ]
             _amort_only = _fin_assets.annual_straight_line(
                 _intangible, _amort_years, salvage_rate=0.0) if _intangible > 0 else 0.0
             # 达产恒定 P&L 用「运营期平均摊提」避免短寿命时总成本被高估到全寿命年额：
@@ -1583,13 +1784,16 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
     _grace = int(_f(fin.get("loan_grace_years")) or 0)
     _dep_y_tl = int((result.get("raw") or {}).get("depreciation_years") or max(calc_years - build_years, 1))
     _amort_y_tl = int((result.get("raw") or {}).get("amortization_years") or 10)
+    _timeline_mode = str((fin.get("timeline") or {}).get("mode") or "annual")
     result["timeline"] = _fin_timeline.build_timeline(
         calc_years=calc_years,
         build_years=build_years,
+        build_period_months=fin.get("build_period_months"),
         loan_years=loan_years,
         loan_grace_years=_grace,
         depreciation_years=_dep_y_tl,
         amortization_years=_amort_y_tl,
+        mode=_timeline_mode,
     )
     result["params"]["loan_grace_years"] = _grace
     result["params"]["loan_repay_method"] = fin.get("loan_repay_method") or "equal_principal"
@@ -1611,6 +1815,11 @@ def compute_financials(finance: dict[str, Any], *, invest_type: str = "", build_
     result["indicators"] = indicators
     # M1 T1.1：逐年联动附表 + 敏感性 + 情景（在渲染前算好，供 _render_tables 合并）
     result["annual"] = _build_annual(result)
+    if result.get("timeline", {}).get("mode") == "monthly":
+        monthly = _compute_monthly_from_year_drivers(result)
+        result["monthly_detail"] = monthly
+        _apply_monthly_aggregates_to_annual(result, monthly)
+        result["monthly_detail_excluded_from_delivery_count"] = True
     result["project_metadata"] = copy.deepcopy(fin.get("project_metadata") or {})
     if (result.get("annual") or {}).get("non_operating_balance") is not None:
         result["non_operating_balance"] = result["annual"]["non_operating_balance"]

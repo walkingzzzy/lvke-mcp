@@ -26,6 +26,59 @@ def _build_evidence_resolver(candidate: dict[str, Any]):
     两处统一调用本函数，保证 prepare 的预览与 confirm 的判定同源。
     """
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
+    if policy == "sim_a_formal":
+        def resolve_sim_a_formal(
+            requested_workspace_id: str,
+            *,
+            source_id: str,
+            evidence_id: str = "",
+            locator: str = "",
+        ) -> dict[str, Any]:
+            from lvke_mcp.adapters import source_files_repository as source_files
+
+            try:
+                _state, record = source_files._require_source_record(  # noqa: SLF001
+                    requested_workspace_id, source_id,
+                )
+            except source_files.SourceFileError:
+                return {
+                    "source_id": source_id,
+                    "locator": locator,
+                    "evidence_id": evidence_id or locator,
+                    "authoritative": True,
+                    "binding_ok": False,
+                    "allow_claimed_value": False,
+                    "issues": ["拟定稿 SourceFile 不存在"],
+                }
+            digest = str((record or {}).get("sha256") or "")
+            exists = bool(digest or (record or {}).get("file_id"))
+            if not exists:
+                return {
+                    "source_id": source_id,
+                    "locator": locator,
+                    "evidence_id": evidence_id or locator,
+                    "authoritative": True,
+                    "binding_ok": False,
+                    "allow_claimed_value": False,
+                    "issues": ["拟定稿 SourceFile 不存在"],
+                }
+            return {
+                "source_id": source_id,
+                "file_id": source_id,
+                "evidence_id": evidence_id or locator,
+                "locator": locator,
+                "kind": "document",
+                "evidence_grade": "B",
+                "review_status": "approved",
+                "validation_status": "passed",
+                "source_sha256": digest,
+                "authoritative": True,
+                "binding_ok": True,
+                "allow_claimed_value": True,
+                "issues": [],
+            }
+
+        return resolve_sim_a_formal
     if policy != "source_reconstructed":
         return None
     records = [

@@ -1035,7 +1035,7 @@ def run_reconstructed_acquisition_case(
     package_id = str(package["acquisition_tables_package_id"])
     xlsx = tables.export_xlsx(workspace_id, package_id)
     csv = tables.export_csv(workspace_id, package_id)
-    if not xlsx.get("xlsx_resource_uri") or len(csv.get("csv_resource_uris") or []) != 13:
+    if not xlsx.get("xlsx_resource_uri") or len(csv.get("csv_resource_uris") or []) != 15:
         raise ValueError(f"acquisition table export failed: xlsx={xlsx}; csv={csv}")
     return {
         "workspace_id": workspace_id,
@@ -1366,6 +1366,7 @@ def run_reconstructed_research_case(
     confirmed = research.confirm_quality({
         "workspace_id": workspace_id,
         "research_package_id": submitted["research_package_id"],
+        "accept_material_limitations": True,
     })
     if not confirmed.get("success") or confirmed.get("status") != "completed":
         raise ValueError(f"research quality confirmation failed: {confirmed}")

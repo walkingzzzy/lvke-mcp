@@ -171,17 +171,22 @@ def evaluate_artifact_gate(
 def evaluate_evidence_gate(
     *,
     evd_distribution: dict[str, int] | None = None,
-    required_evd2_count: int = 24,
+    required_evd2_count: int | None = None,
     sim_a_present: bool = False,
+    sim_a_formal: bool = False,
     hash_only_sources: list[str] | None = None,
 ) -> GateResult:
     passed: list[str] = []
     failed: list[str] = []
     blockers: list[str] = []
 
-    if sim_a_present:
-        failed.append("SIM-A materials present; formal candidate requires EVD-2 only")
+    if sim_a_present and not sim_a_formal:
+        failed.append(
+            "unpromoted SIM-A / controlled_assumption cannot satisfy formal EVD-2"
+        )
         blockers.append("sim_a_not_formal")
+    elif sim_a_formal:
+        passed.append("sim_a_formal counts as formal EVD-2 after promotion")
 
     if hash_only_sources:
         failed.append(
@@ -194,13 +199,17 @@ def evaluate_evidence_gate(
         evd2 = int(evd_distribution.get("EVD-2", 0))
         evd0 = int(evd_distribution.get("EVD-0", 0))
         evd1 = int(evd_distribution.get("EVD-1", 0))
-        passed.append(f"EVD distribution recorded: 0={evd0} 1={evd1} 2={evd2}")
+        p0_total = evd0 + evd1 + evd2
+        required = p0_total if required_evd2_count is None else int(required_evd2_count)
+        passed.append(
+            f"EVD distribution recorded: 0={evd0} 1={evd1} 2={evd2} required={required}"
+        )
         if evd0 or evd1:
             failed.append("non-EVD-2 P0 items remain")
             blockers.append("formal_evidence_incomplete")
-        if evd2 < required_evd2_count:
+        if evd2 < required:
             failed.append(
-                f"EVD-2 count {evd2} < required {required_evd2_count}"
+                f"EVD-2 count {evd2} < required {required}"
             )
             blockers.append("p0_not_fully_formalized")
 
@@ -271,7 +280,9 @@ def run_release_preflight(
     word_manifest: Path | None = None,
     word_root: Path | None = None,
     evd_distribution: dict[str, int] | None = None,
+    required_evd2_count: int | None = None,
     sim_a_present: bool = False,
+    sim_a_formal: bool = False,
     hash_only_sources: list[str] | None = None,
     build_metadata_complete: bool = False,
     metadata_matches_commit: bool = True,
@@ -288,7 +299,9 @@ def run_release_preflight(
     )
     evidence = evaluate_evidence_gate(
         evd_distribution=evd_distribution,
+        required_evd2_count=required_evd2_count,
         sim_a_present=sim_a_present,
+        sim_a_formal=sim_a_formal,
         hash_only_sources=hash_only_sources,
     )
     release = evaluate_release_gate(

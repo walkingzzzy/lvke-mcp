@@ -51,15 +51,17 @@ def _debt_schedule(
                 principal_payment = min(max(annuity_payment - interest, 0.0), outstanding)
             else:
                 principal_payment = min(annual_principal, outstanding)
+        closing = max(outstanding - principal_payment, 0.0)
         rows.append({
             "year": index + 1,
             "opening_principal_wan": outstanding,
             "interest_wan": interest,
             "principal_wan": principal_payment,
             "debt_service_wan": interest + principal_payment,
+            "closing_principal_wan": closing,
             "repayment_method": method,
         })
-        outstanding = max(outstanding - principal_payment, 0.0)
+        outstanding = closing
     return rows
 
 

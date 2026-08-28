@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-08-28T12:45:00Z",
+  "mode": "live_mcp_conversational",
+  "workspace_id": "live-acc-20260828",
+  "live_listed_servers": 14,
+  "product_denominator": 173,
+  "mcp_auth_excluded": 14,
+  "tavily_hikari": "error_not_in_173",
+  "classifications": {
+    "PASS": 118,
+    "EXPECTED_REJECTION": 55,
+    "UPSTREAM_FAILURE": 0,
+    "SKIPPED": 0
+  },
+  "build_metadata_complete": false,
+  "build_metadata_missing": ["build_time"],
+  "release_ready": false,
+  "acceptance_grade": "dev_process",
+  "objects": {
+    "ProjectContext": "pctx_5ea6492152812bc25b037758",
+    "SourceFile": "src_c0245c7ae10e8b5d3f84ef48",
+    "DiscoverySet": "discovery_e4453ed81b17c44786c57f50",
+    "AnalysisTask": "analysis_77c7b6e5f7fe81cba134bdf1",
+    "EvidencePack": "evp_8543f6ff8801fb209a2c5aae",
+    "DeliveryRun": "fdr_e6d3545578a879e6e558e77a",
+    "FinanceSpecConfirmed": "fsp_880ea4b9c1b568e52f43f10e",
+    "FinanceRun": "run_d3f3548a60b4",
+    "FinanceTablesPackage": "ftp_f903b9df8fe94f04e4893ad6",
+    "Review": "review_b23bcb2bda1ce9614d4bad3ab7d0efd7",
+    "ReportRevision": "rrv_54024237cf2af99189709af8",
+    "AcquisitionRun": "acqrun_24802e215de244938ff9a237d05eb242"
+  },
+  "tables_csv_integrity": {
+    "verified_table_count": 13,
+    "expected_table_count": 13,
+    "valid": true,
+    "validation_complete": false
+  },
+  "preview_probes": [
+    {
+      "tool": "report_export_docx",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_74e836c72a234832b3f2d6e12cf0e041"
+    },
+    {
+      "tool": "review_export",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_2195179cc558448f9d7b9e249eba1c8b"
+    },
+    {
+      "tool": "feasibility_release",
+      "code": "controlled_assumption_formal_forbidden",
+      "trace_id": "mcp_4007bc83517d4eaba9631bcd204b54d3"
+    },
+    {
+      "tool": "acquisition_generate_artifact",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_c30c3965456b4210a6128849d6f65a6f"
+    }
+  ]
+}

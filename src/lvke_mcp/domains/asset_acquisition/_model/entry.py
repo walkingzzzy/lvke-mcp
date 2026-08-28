@@ -9,6 +9,7 @@ from lvke_mcp.domains.finance.calculations import npv, payback_period
 
 from lvke_mcp.domains.finance.spec import LATEST_SPEC_VERSION, validate
 
+from .balance_sheet import roll_annual_balance_sheet
 from .base import (
     AcquisitionModelError,
     INDEPENDENT_SCENARIO_FIELDS,
@@ -197,6 +198,39 @@ def run_acquisition_model(
     project_irr = _safe_irr(project_cashflows)
     equity_irr = _safe_irr(equity_cashflows)
     payback = payback_period(project_cashflows, rate=discount_rate)
+    net_profit = [
+        owner_revenue[index] - owner_opex[index] - depreciation_values[index] - project_tax[index]
+        for index in range(years)
+    ]
+    closing_debt = [
+        float(row.get("closing_principal_wan") or 0.0) for row in debt_schedule
+    ]
+    annual_summary = roll_annual_balance_sheet(
+        years=years,
+        total_cost=total_acquisition_cost,
+        opening_equity=equity,
+        equity_cf=equity_cashflows[1:],
+        net_profit=net_profit,
+        depreciation=depreciation_values,
+        closing_debt=closing_debt,
+        year_meta=[
+            {
+                "year": index + 1,
+                "year_index": index + 1,
+                "revenue_wan": owner_revenue[index],
+                "operating_cost_wan": owner_opex[index],
+                "depreciation_wan": depreciation_values[index],
+                "income_tax_wan": project_tax[index],
+                "net_profit_wan": net_profit[index],
+                "project_cf_wan": after_tax_operating[index],
+                "equity_cf_wan": equity_cashflows[index + 1],
+                "debt_service_wan": debt_schedule[index]["debt_service_wan"],
+                "interest_wan": debt_schedule[index]["interest_wan"],
+                "maintenance_capex_wan": maintenance[index],
+            }
+            for index in range(years)
+        ],
+    )
     rent_coverages = []
     for index, rent in enumerate(lease_rent):
         ebitdar = _number((hotel_rows[index] if index < len(hotel_rows) else {}).get("ebitdar_wan"))
@@ -230,6 +264,7 @@ def run_acquisition_model(
         "project_pre_tax_cashflows_wan": project_pre_tax_cashflows,
         "project_cashflows_wan": project_cashflows,
         "equity_cashflows_wan": equity_cashflows,
+        "annual_summary": annual_summary,
         "owner_revenue_wan": owner_revenue,
         "owner_operating_cost_wan": owner_opex,
         "project_cfads_wan": project_cfads,

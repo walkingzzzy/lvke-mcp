@@ -208,7 +208,7 @@ _PROJECT_CONTEXT = {
         "project_type": {"type": "string", "enum": ["generic_feasibility", "asset_acquisition"]},
         "transaction_structure": {"type": "string", "enum": ["new_build", "operation_lease", "asset_acquisition", "equity_acquisition", "ppp", "other"]},
         "asset_type": {"type": "string", "enum": ["general", "amusement_park", "solar_power", "hotel_lease", "mineral_processing"]},
-        "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"], "default": "real"},
+        "evidence_track": {"type": "string", "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"], "default": "real"},
         "review_purpose": {
             "type": "string",
             "enum": ["process_acceptance", "project_delivery"],
@@ -526,6 +526,7 @@ def build_server() -> OfficialStdioServer:
                     **common_disposition,
                     "disposition": {"type": "string", "enum": [
                         "appeal_waiver", "compliance_waiver", "waiver_requested",
+                        "approve_waiver", "waived",
                     ]},
                     "waiver_scope": {"type": "string", "minLength": 1, "maxLength": 4000},
                     "waiver_expires_at": {"type": "string", "format": "date-time"},
@@ -615,7 +616,7 @@ def build_server() -> OfficialStdioServer:
                 "project_context": _PROJECT_CONTEXT,
                 "facilities": _FACILITIES,
             },
-            ["workspace_id", "project_context", "facilities"],
+            ["workspace_id", "project_context"],
         ),
         service.resolve_standards,
         _output_schema(),
@@ -641,14 +642,14 @@ def build_server() -> OfficialStdioServer:
                 "requirement_id": _ID,
                 "resource_uri": {
                     "type": "string",
-                    "pattern": r"^lvke://(?:data-acquisition|data-analysis)/workspaces/",
+                    "pattern": r"^lvke://(?:data-acquisition|data-analysis|source-files)/workspaces/",
                     "maxLength": 8192,
                 },
                 "locator": _STRING,
                 "content_hash": _SHA256,
                 "evidence_track": {
                     "type": "string",
-                    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption"],
+                    "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
                 },
             },
             [

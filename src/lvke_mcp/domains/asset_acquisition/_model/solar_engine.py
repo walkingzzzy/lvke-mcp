@@ -8,6 +8,7 @@ from lvke_mcp.domains.finance.calculations import npv, payback_period
 
 from lvke_mcp.domains.finance.spec import LATEST_SPEC_VERSION
 
+from .balance_sheet import roll_annual_balance_sheet
 from .base import (
     AcquisitionModelError,
     _number,
@@ -121,6 +122,7 @@ def _run_solar_acquisition_model(
         dscr_values.append(cfads / annual_service if annual_service else None)
         year_start = _add_months(cursor, index * 12)
         year_end = _month_end(_add_months(year_start, 11))
+        closing_debt = debt_rows[(index + 1) * 12 - 1]["closing_principal_wan"] if debt_rows else 0.0
         annual.append({
             "year": year_end.year, "year_index": index + 1,
             "period_start": year_start.isoformat(), "period_end": year_end.isoformat(),
@@ -131,6 +133,9 @@ def _run_solar_acquisition_model(
             "operating_cost_wan": opex[index], "income_tax_wan": tax,
             "maintenance_capex_wan": maintenance[index], "debt_service_wan": annual_service,
             "interest_wan": annual_interest, "project_cf_wan": project_cf, "equity_cf_wan": equity_cf,
+            "depreciation_wan": depreciation_amount,
+            "net_profit_wan": revenue - opex[index] - depreciation_amount - tax,
+            "closing_principal_wan": closing_debt,
         })
         for month_offset, debt_row in enumerate(debt_rows[index * 12:(index + 1) * 12]):
             period_start = _add_months(year_start, month_offset)
@@ -155,6 +160,30 @@ def _run_solar_acquisition_model(
     equity_irr = _safe_irr(equity_annual)
     payback = payback_period(project_annual, rate=discount_rate)
     monthly_dscr = [row["dscr"] for row in monthly_rows if row.get("dscr") is not None]
+    rolled = roll_annual_balance_sheet(
+        years=years,
+        total_cost=total_cost,
+        opening_equity=equity,
+        equity_cf=[row["equity_cf_wan"] for row in annual],
+        net_profit=[row["net_profit_wan"] for row in annual],
+        depreciation=depreciation_values[:years],
+        closing_debt=[row["closing_principal_wan"] for row in annual],
+        year_meta=annual,
+    )
+    annual = rolled
+    for row in monthly_rows:
+        year_index = (int(row.get("month") or 1) - 1) // 12
+        if 0 <= year_index < len(annual):
+            year_end = annual[year_index]
+            if int(row.get("month") or 0) % 12 == 0:
+                row.update({
+                    "cash_wan": year_end["cash_wan"],
+                    "fixed_asset_net_wan": year_end["fixed_asset_net_wan"],
+                    "total_assets_wan": year_end["total_assets_wan"],
+                    "debt_wan": year_end["debt_wan"],
+                    "equity_wan": year_end["equity_wan"],
+                    "total_liabilities_equity_wan": year_end["total_liabilities_equity_wan"],
+                })
 
     # 构建税前现金流，用于审查器的税费勾稽
     project_pre_tax_cashflows = [-total_cost]

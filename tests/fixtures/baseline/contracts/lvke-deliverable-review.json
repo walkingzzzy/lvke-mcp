@@ -65,7 +65,8 @@
                 "real",
                 "source_reconstructed",
                 "technical_fixture",
-                "controlled_assumption"
+                "controlled_assumption",
+                "sim_a_formal"
               ],
               "default": "real"
             },
@@ -2137,7 +2138,8 @@
                 "real",
                 "source_reconstructed",
                 "technical_fixture",
-                "controlled_assumption"
+                "controlled_assumption",
+                "sim_a_formal"
               ],
               "default": "real"
             },
@@ -2198,8 +2200,7 @@
       },
       "required": [
         "workspace_id",
-        "project_context",
-        "facilities"
+        "project_context"
       ],
       "type": "object",
       "additionalProperties": false
@@ -2486,7 +2487,7 @@
         },
         "resource_uri": {
           "type": "string",
-          "pattern": "^lvke://(?:data-acquisition|data-analysis)/workspaces/",
+          "pattern": "^lvke://(?:data-acquisition|data-analysis|source-files)/workspaces/",
           "maxLength": 8192
         },
         "locator": {
@@ -2504,7 +2505,8 @@
             "real",
             "source_reconstructed",
             "technical_fixture",
-            "controlled_assumption"
+            "controlled_assumption",
+            "sim_a_formal"
           ]
         }
       },
