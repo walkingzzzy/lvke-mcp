@@ -8,8 +8,8 @@ platforms: [linux, macos, windows]
 metadata:
   conditions:
     tools_any:
-      - mcp_lvke_archive_search_archive
-      - mcp_lvke_archive_find_similar_projects
+      - reference_search
+      - archive_find_similar_projects
 ---
 
 # 案例驱动撰写法（强制工作流）
@@ -25,14 +25,14 @@ metadata:
 
 **不适用（绕过本 skill）**：
 - 纯审查任务（用 `doc-review/*` skill 即可）
-- 纯财务计算（直接调 `mcp_lvke_finance_calc_*`）
-- 纯检索查询（用户只问"有没有相似项目"时，直接调 `find_similar_projects` 返回结果即可，不必生成草稿）
+- 纯财务计算（直接调 `finance_calculate`）
+- 纯检索查询（用户只问"有没有相似项目"时，直接调 `archive_find_similar_projects` 返回结果即可，不必生成草稿）
 
 ## 1. 标准 8 步流程
 
 ### Step 1 — 抽取项目画像
 
-从工作区上下文（`context_view` 或用户消息）抽取以下字段：
+从工作区上下文（`report_list_sections` 或用户消息）抽取以下字段：
 
 | 字段 | 示例 |
 |---|---|
@@ -48,7 +48,7 @@ metadata:
 ### Step 2 — 找标杆（必做）
 
 ```python
-mcp_lvke_archive_find_similar_projects(
+archive_find_similar_projects(
     brief={
         "industry": <Step 1>,
         "type": <Step 1.project_type>,
@@ -68,7 +68,9 @@ mcp_lvke_archive_find_similar_projects(
 对 Step 2 的 top 3 案例：
 
 ```python
-mcp_lvke_archive_get_chapter(report_id=<rid>, chapter=<与本章主题对应的章>)
+# 先取整份结构（该工具只接 report_id / with_appendix，没有 chapter 参数），
+# 再从返回的章节清单里挑与本章主题对应的那一章。
+archive_extract_structure(report_id=<rid>, with_appendix=True)
 ```
 
 > 注意：历史报告结构不一（有发改委新版 9 章、也有企业投资 14 章），**按章节主题**
@@ -78,7 +80,7 @@ mcp_lvke_archive_get_chapter(report_id=<rid>, chapter=<与本章主题对应的�
 关注三类信息：
 1. **论证逻辑**——必要性怎么推、规模怎么测、投资怎么估
 2. **关键数字**——指标量级、单价、IRR / 投资强度
-3. **政策引用文号**——是否仍现行有效（用 `mcp_lvke_policy_search_verify_active` 复核）
+3. **政策引用文号**——是否仍现行有效（用 `reference_verify` 复核）
 
 ### Step 4 — 加载撰写规范
 
@@ -107,7 +109,7 @@ skill_view(name="industry-context-<行业类>")         # 若 industry-context �
 只在需要"套话"的章节段调用（典型：第 2 章必要性、第 7 章风险、第 9 章结论）：
 
 ```python
-mcp_lvke_archive_get_template_paragraph(scene="<scene>", industry=<Step 1>, top_k=3)
+archive_get_template_paragraph(scene="<scene>", industry=<Step 1>, top_k=3)
 ```
 
 `scene` 枚举：`policy-driver` / `necessity` / `market-demand` /
@@ -120,10 +122,11 @@ mcp_lvke_archive_get_template_paragraph(scene="<scene>", industry=<Step 1>, top_
 1. **证据链尾注**：凡参考真实案例的论证段落，结尾标
    `[案例参考: <report_id> 第<N>章]`，方便用户回溯。
 2. **财务数字不许心算**：投资额、IRR、NPV、回收期等任何数字，**必须**先调
-   `mcp_lvke_finance_calc_*` 系列工具，把计算结果原样写入；不允许在脑子里估。
-3. **政策必须核验**：引用政策文号前调
-   `mcp_lvke_policy_search_verify_active(citation=<文号>)`；
-   返回失效或不存在的文号一律不用。
+   `finance_calculate` 系列工具，把计算结果原样写入；不允许在脑子里估。
+3. **政策必须核验**：引用政策文号前先用
+   `reference_search(dataset="policies", query=<文号或标题>)` 定位到 `record_id`，
+   再调 `reference_verify(dataset="policy", record_id=<record_id>, as_of=<报告基准日>)`；
+   返回失效或不存在的一律不用。
 4. **真实数字替换占位符**：套话段落中的 `<<企业名>>` / `<<金额>>` 占位符
    全部替换为本项目实际值，不允许残留。
 5. **不允许照搬**：参考案例的数字、项目名、客户名一律改写为本项目自有，
@@ -157,7 +160,7 @@ mcp_lvke_archive_get_template_paragraph(scene="<scene>", industry=<Step 1>, top_
 
 <正文……>
 
-> 数据来源：mcp_lvke_finance_calc_irr / mcp_lvke_statistics_cn_query_indicator …
+> 数据来源：finance_calculate / reference_observe …
 > 案例参考：r-xxx 第 N 章；r-yyy 第 N 章；r-zzz 第 N 章
 > 自审：numerics ✓ · citation ✓ · consistency ✓
 
@@ -169,17 +172,39 @@ mcp_lvke_archive_get_template_paragraph(scene="<scene>", industry=<Step 1>, top_
 | 情况 | 处理 |
 |---|---|
 | `lvke-archive` 工具返回 `index_unavailable` | 告诉用户：档案库索引未生成，请先运行 `python scripts/build_archive_index.py --stage all`，并继续用 LLM 通识 + 规则 skill 产出**降级版**草稿，明确标注"无标杆参考"。 |
-| `find_similar_projects` 返回 0 条 | 放宽 industry 大类后再试；若仍 0 条，仅按 Step 4-6 走，跳过 Step 2-3，但要在草稿尾注里写"标杆不足" |
+| `archive_find_similar_projects` 返回 0 条 | 放宽 industry 大类后再试；若仍 0 条，仅按 Step 4-6 走，跳过 Step 2-3，但要在草稿尾注里写"标杆不足" |
 | 同一份案例被多个步骤连续引用 | 不要重复全文加载；用 Step 3 的章节内容缓存到本轮上下文即可 |
 | 用户中途换章节 | 重新走一次 Step 4-5；Step 2 的标杆可保留 |
 
-## 4. 与已有 skill 的关系
+## 4. lvke-reference 工具速查
+
+档案、参考数据与地理三类只读入口，全部来自 `lvke-reference`：
+
+| 工具 | 必填 | 用途 |
+|---|---|---|
+| `archive_find_similar_projects` | `brief` | 按项目画像找标杆（Step 2） |
+| `archive_extract_structure` | `report_id` | 取整份报告章节结构（Step 3），无 chapter 参数 |
+| `archive_get_template_paragraph` | `scene` | 取套话段落候选（Step 5） |
+| `archive_compare_cases` | `report_ids`（1-8 份） | 多案例按维度横向对比 |
+| `reference_search` | `dataset` | 检索 industry_reports / clients / experts / policies / archive |
+| `reference_list` | `dataset` | 列监测点、客户项目、专家专业、统计字典、模板 |
+| `reference_get` | `dataset`, `record_id` | 按 ID 读单条参考/模板/档案章节 |
+| `reference_observe` | `dataset`, `subject` | 查空气、水质或统计指标记录 |
+| `reference_verify` | `dataset`, `record_id` | 校验政策记录有效状态（先 search 拿 record_id） |
+| `template_fill` | `template_id`, `data` | 用既有模板填充器产出 Markdown |
+| `geo_query` | `operation`, `query_or_point` | 地理编码或附近 POI |
+| `geo_distance_matrix` | `origins`, `destinations` | 起终点距离矩阵（Haversine + 公路系数估算） |
+
+这些都是本地参考库，**不是项目事实证据**：它们只能支撑论证结构、政策效力与行业
+基准，项目专属数字必须来自本项目资料。
+
+## 5. 与已有 skill 的关系
 
 - 本 skill 是**入口/调度**，不替代 chapter skill；Step 4 调用它们
 - `meta/propose-apply-flow` 负责"草稿如何提案进工作区"；本 skill 在 Step 6 后衔接它
 - `meta/error-recovery` 处理工具失败；本 skill 不重复定义
 
-## 5. 反例（不要做）
+## 6. 反例（不要做）
 
 ❌ 用户："帮我写第 6 章财务" → 直接开始写正文
    - 错过 Step 2 标杆检索，IRR / 投资强度容易偏离行业 baseline

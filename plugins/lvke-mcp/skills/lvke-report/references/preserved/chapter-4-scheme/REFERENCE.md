@@ -118,14 +118,14 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + doc_read range="3"  → 知道规模
+1. report_list_sections + report_get_section section_id=<第3章对应的 section_id>  → 知道规模
 2. [调研 / 与项目方确认]：工艺路线、设备清单、用地
 3. 起草 4.1 选址（含周边敏感目标分析）
 4. 起草 4.2 工艺（含比选）
 5. 起草 4.3 设备 → 与 5 章联动准备
 6. 起草 4.4-4.7 配套
 7. 起草 4.8 进度（关键路径）
-8. doc_propose 整章 → diff → apply
+8. report_propose_section 整章 → diff → apply
 ```
 
 ## 配套 skill

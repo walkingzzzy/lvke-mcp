@@ -21,9 +21,12 @@ from typing import Any, Optional
 from lvke_mcp.domains.finance.run_service import (
     DELIVERY_TABLE_KEYS,
     DELIVERY_TABLE_META,
+    ENGINE_DELIVERY_COUNT,
     MODEL_VERSION,
     TEMPLATE_VERSION,
     compute_table_bundle_hash,
+    delivery_count_semantics,
+    delivery_table_contract_hash,
 )
 from lvke_mcp.domains.finance import table_render
 
@@ -156,6 +159,8 @@ def build_evidence(
         "run_id": fin.get("run_id"),
         "grade": quality.get("grade") or "summary",
         "delivery_format": "xlsx+json+readable_md",
+        **delivery_count_semantics(),
+        "table_contract_hash": delivery_table_contract_hash(),
         "validation_complete": bool(quality.get("validation_complete")),
         "effective_table_count": quality.get("effective_table_count"),
         "required_table_count": quality.get("required_table_count"),

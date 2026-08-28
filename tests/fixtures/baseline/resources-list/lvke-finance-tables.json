@@ -1,1 +1,58 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_render.output-schema",
+    "title": "tables_render complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_render/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_validate.output-schema",
+    "title": "tables_validate complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_validate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_export_xlsx.output-schema",
+    "title": "tables_export_xlsx complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_export_xlsx/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_export_csv.output-schema",
+    "title": "tables_export_csv complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_export_csv/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_get_package.output-schema",
+    "title": "tables_get_package complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_get_package/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_list_tables.output-schema",
+    "title": "tables_list_tables complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_list_tables/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_get_table.output-schema",
+    "title": "tables_get_table complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_get_table/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-tables.tables_validate_table.output-schema",
+    "title": "tables_validate_table complete output schema",
+    "uri": "lvke://schemas/lvke-finance-tables/tables_validate_table/output"
+  }
+]

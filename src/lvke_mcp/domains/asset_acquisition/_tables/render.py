@@ -74,6 +74,7 @@ def render(
         "tables": tables,
         "integrity": integrity,
         "evidence_policy": str(run.get("evidence_policy") or "formal_evidence"),
+        "delivery_mode": str(run.get("delivery_mode") or ""),
         "project_fact_certified": bool(run.get("project_fact_certified", False)),
         "reconstruction_records": list(run.get("reconstruction_records") or []),
         "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),

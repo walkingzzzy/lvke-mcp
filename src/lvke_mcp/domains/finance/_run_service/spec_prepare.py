@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from lvke_mcp.adapters.finance_model_repository import SPEC_STORE
+from lvke_mcp.domains.finance.generation_standard import (
+    coverage_snapshot,
+    generation_baseline,
+    stamp_finance_spec,
+)
 
 from .base import (
     MODEL_VERSION,
@@ -318,7 +323,17 @@ def prepare_workspace_finance_spec(
         and not finance_in.get("annual_revenue_wan")
     ):
         missing.append("annual_revenue_wan")
+    # spec_hash 必须算在"盖章前"的 spec 上。generation_standard 是服务端按
+    # 当前标准基线盖的注记，不是调用方提供的内容；把它算进 spec 身份会让
+    # 同一份 spec 在标准版本变动后 hash 变化，从而使已确认 Spec 无法复用
+    # （_confirmed_spec_record 校验的是未盖章 spec 的 hash，两侧对不上）。
     spec_hash = compute_spec_hash(spec if isinstance(spec, dict) else None)
+    spec = stamp_finance_spec(spec, invest_type=invest_type)
+    generation_basis = generation_baseline(invest_type=invest_type)
+    standard_coverage = coverage_snapshot(
+        finance_inputs=finance_in,
+        invest_type=invest_type,
+    )
     spec_source_hint = None
     validate_errors: list[str] = []
     llm_raw_preview = None
@@ -362,6 +377,11 @@ def prepare_workspace_finance_spec(
         "invest_type": invest_type,
         "industry": industry,
         "build_period_months": build_period_months,
+        "generation_basis": generation_basis,
+        "generation_standard": generation_basis["standard_id"],
+        "standard_version": generation_basis["standard_version"],
+        "standard_source_hash": generation_basis["source_hash"],
+        "standard_coverage_snapshot": standard_coverage,
         "model_version": MODEL_VERSION,
         "template_version": TEMPLATE_VERSION,
     }

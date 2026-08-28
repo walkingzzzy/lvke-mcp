@@ -1,0 +1,45 @@
+{
+  "standard_id": "ndrc-feasibility-outline-2023",
+  "document_no": "发改投资规〔2023〕304号",
+  "issuer": "国家发展和改革委员会",
+  "issued_on": "2023-03-23",
+  "effective_from": "2023-05-01",
+  "title": "国家发展改革委关于印发投资项目可行性研究报告编写大纲及说明的通知",
+  "notice": {
+    "path": "sources/notice.html",
+    "url": "https://www.ndrc.gov.cn/xxgk/zcfb/ghxwj/202304/t20230407_1353356.html",
+    "sha256": "91d752283d919771aed5e41ec8f47f5c33d6e3022507ba6cc0c8d9bbc2dbc5b6"
+  },
+  "documents": [
+    {
+      "id": "government_outline",
+      "title": "政府投资项目可行性研究报告编写通用大纲（2023年版）",
+      "project_types": ["government_direct_investment", "government_capital_injection"],
+      "path": "sources/P020230407401908422756.pdf",
+      "url": "https://www.ndrc.gov.cn/xxgk/zcfb/ghxwj/202304/P020230407401908422756.pdf",
+      "pages": 11,
+      "sha256": "a4dc579f5b19957746a5ed8ec916e132b28556d31a0a0bc7f1ea13553c2f7ccf"
+    },
+    {
+      "id": "enterprise_outline",
+      "title": "企业投资项目可行性研究报告编写参考大纲（2023年版）",
+      "project_types": ["enterprise_investment"],
+      "path": "sources/P020230407401908613786.pdf",
+      "url": "https://www.ndrc.gov.cn/xxgk/zcfb/ghxwj/202304/P020230407401908613786.pdf",
+      "pages": 10,
+      "sha256": "1b406a94bf08154b0bde9ecdb5ac3204ebad2c4c909e7a99a239f4795a95f653"
+    },
+    {
+      "id": "outline_explanation",
+      "title": "关于投资项目可行性研究报告编写大纲的说明（2023年版）",
+      "project_types": ["government_direct_investment", "government_capital_injection", "enterprise_investment"],
+      "path": "sources/P020230407401908761224.pdf",
+      "url": "https://www.ndrc.gov.cn/xxgk/zcfb/ghxwj/202304/P020230407401908761224.pdf",
+      "pages": 14,
+      "sha256": "a64a259c757008520be434ce4ec0fb854f3ccd4dd1528f05e350b98c5e07ee9c"
+    }
+  ],
+  "generation_policy": "generate_then_validate_then_promote",
+  "source_authority": "official_ndrc",
+  "source_status": "downloaded_and_hash_pinned"
+}

@@ -173,11 +173,11 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + doc_read range="2,3,4,5,6"   # 通读前文识别风险点
+1. report_list_sections + report_get_section section_id=<第2,3,4,5,6章对应的 section_id>   # 通读前文识别风险点
 2. 列出风险清单 → 评级
 3. 起草 7.1-7.7 每类
 4. 与 6.6 敏感性分析交叉
-5. doc_propose → doc_diff → doc_apply
+5. report_propose_section → report_diff → report_apply
 ```
 
 ## 配套 skill

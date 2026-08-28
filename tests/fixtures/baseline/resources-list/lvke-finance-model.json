@@ -1,5 +1,159 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_calculate.output-schema",
+    "title": "finance_calculate complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_calculate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_prepare_fact_pack.output-schema",
+    "title": "finance_prepare_fact_pack complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_prepare_fact_pack/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_confirm_fact_pack.output-schema",
+    "title": "finance_confirm_fact_pack complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_confirm_fact_pack/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_fact_pack.output-schema",
+    "title": "finance_get_fact_pack complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_fact_pack/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_prepare_spec.output-schema",
+    "title": "finance_prepare_spec complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_prepare_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_confirm_spec.output-schema",
+    "title": "finance_confirm_spec complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_confirm_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_validate_spec.output-schema",
+    "title": "finance_validate_spec complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_validate_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_run_model.output-schema",
+    "title": "finance_run_model complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_run_model/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_run.output-schema",
+    "title": "finance_get_run complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_run/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_validate_post_generation.output-schema",
+    "title": "finance_validate_post_generation complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_validate_post_generation/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_promote_to_formal.output-schema",
+    "title": "finance_promote_to_formal complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_promote_to_formal/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_build_basis_of_estimate.output-schema",
+    "title": "finance_build_basis_of_estimate complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_build_basis_of_estimate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_basis_of_estimate.output-schema",
+    "title": "finance_get_basis_of_estimate complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_basis_of_estimate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_build_balance_sheet.output-schema",
+    "title": "finance_build_balance_sheet complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_build_balance_sheet/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_balance_sheet.output-schema",
+    "title": "finance_get_balance_sheet complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_balance_sheet/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_run_monte_carlo.output-schema",
+    "title": "finance_run_monte_carlo complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_run_monte_carlo/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_monte_carlo.output-schema",
+    "title": "finance_get_monte_carlo complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_monte_carlo/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_list_analyses.output-schema",
+    "title": "finance_list_analyses complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_list_analyses/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_read_analysis_resource.output-schema",
+    "title": "finance_read_analysis_resource complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_read_analysis_resource/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_generate_package.output-schema",
+    "title": "finance_generate_package complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_generate_package/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_import_vendor_review.output-schema",
+    "title": "finance_import_vendor_review complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_import_vendor_review/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-finance-model.finance_get_analysis.output-schema",
+    "title": "finance_get_analysis complete output schema",
+    "uri": "lvke://schemas/lvke-finance-model/finance_get_analysis/output"
+  },
+  {
     "description": "财务服务端用于准备、校验和运行的完整 FinanceSpec v3 候选 Schema。",
     "mimeType": "application/schema+json",
     "name": "finance-spec-v3",

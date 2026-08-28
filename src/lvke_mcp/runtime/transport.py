@@ -21,6 +21,7 @@ from typing import Any, Awaitable, Callable, Iterable, Literal
 import anyio
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError, ValidationError
+from lvke_mcp.runtime.schemas import make_lightweight_output_schema, make_tool_output_schema
 from mcp import types
 from mcp.server.caching import CacheHint
 from mcp.server.context import ServerRequestContext
@@ -41,6 +42,7 @@ from lvke_mcp.runtime.input_guards import (
     find_rejected_identifier,
     identifier_rejection_payload,
 )
+from lvke_mcp.runtime.outcomes import normalize_operation_outcome
 
 
 def _audit_hash(value: Any) -> str:
@@ -208,6 +210,7 @@ class OfficialStdioServer:
             Draft202012Validator.check_schema(public_input_schema)
         if output_schema is not None:
             Draft202012Validator.check_schema(output_schema)
+        effective_output = output_schema or make_tool_output_schema()
         if task_support not in {"forbidden", "optional", "required"}:
             raise ValueError(f"invalid task_support: {task_support}")
         if annotations is None:
@@ -220,12 +223,21 @@ class OfficialStdioServer:
             name=name,
             description=description,
             input_schema=input_schema,
-            output_schema=output_schema,
+            output_schema=effective_output,
             handler=handler,
             annotations=annotations,
             task_support=task_support,
             public_input_schema=public_input_schema,
         )
+        output_uri = self._tool_output_schema_uri(name)
+        if output_uri not in self._schema_resources:
+            self.register_schema_resource(
+                output_uri,
+                effective_output,
+                name=f"{self.server_name}.{name}.output-schema",
+                title=f"{name} complete output schema",
+                description="服务端实际执行的完整 output JSON Schema。",
+            )
 
     def register_resource_provider(
         self,
@@ -384,11 +396,7 @@ class OfficialStdioServer:
                         spec.input_schema,
                         public_schema=spec.public_input_schema,
                     ),
-                    # Full output schemas remain authoritative for server-side
-                    # validation.  Repeating them in tools/list accounted for a
-                    # large part of the model context and is not required for
-                    # structuredContent support.
-                    outputSchema=None,
+                    outputSchema=self._public_output_schema(spec),
                     annotations=spec.annotations,
                     execution=types.ToolExecution(taskSupport=spec.task_support),
                 )
@@ -427,13 +435,15 @@ class OfficialStdioServer:
             types.Resource(
                 name=f"{self.server_name}.{spec.name}.input-schema",
                 title=f"{spec.name} complete input schema",
-                uri=self._tool_schema_uri(spec.name),
+                uri=self._tool_input_schema_uri(spec.name),
                 description="服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
                 mimeType="application/schema+json",
             )
             for spec in self._tools.values()
             if self._schema_size(spec.input_schema) > _PUBLIC_SCHEMA_INLINE_LIMIT
+            and self._tool_input_schema_uri(spec.name) not in self._schema_resources
         ])
+        # output-schema 已在 register_tool 时写入 _schema_resources，此处不再重复追加。
         for provider in self._resource_providers:
             listed = provider.lister()
             if inspect.isawaitable(listed):
@@ -462,16 +472,21 @@ class OfficialStdioServer:
                     )
                 ]
             )
-        schema_name = self._tool_name_from_schema_uri(uri_text)
+        schema_name, schema_kind = self._tool_name_from_schema_uri(uri_text)
         if schema_name is not None:
             spec = self._tools.get(schema_name)
             if spec is None:
+                raise MCPError(types.INVALID_PARAMS, "Unknown schema resource")
+            schema_payload = (
+                spec.output_schema if schema_kind == "output" else spec.input_schema
+            )
+            if schema_payload is None:
                 raise MCPError(types.INVALID_PARAMS, "Unknown schema resource")
             return types.ReadResourceResult(
                 contents=[
                     types.TextResourceContents(
                         uri=uri_text,
-                        text=json.dumps(spec.input_schema, ensure_ascii=False, indent=2),
+                        text=json.dumps(schema_payload, ensure_ascii=False, indent=2),
                         mimeType="application/schema+json",
                     )
                 ]
@@ -717,51 +732,7 @@ class OfficialStdioServer:
         return value
 
     def _attach_runtime_metadata(self, result: dict[str, Any]) -> dict[str, Any]:
-        payload = dict(result)
-        raw_status = str(
-            payload.get("status")
-            or ("failed" if payload.get("success") is False else "ok")
-        ).strip().lower()
-        canonical_statuses = {
-            "ok", "accepted", "partial", "empty", "missing_inputs", "blocked",
-            "incomplete", "failed", "upstream_failure",
-        }
-        successful_terminal = {"applied", "released", "completed", "done", "cancelled"}
-        active_statuses = {"pending", "queued", "running", "started", "processing"}
-        if raw_status in canonical_statuses:
-            status = raw_status
-        elif raw_status in successful_terminal:
-            status = "ok"
-            payload.setdefault("domain_status", raw_status)
-        elif raw_status in active_statuses:
-            status = "accepted"
-            payload.setdefault("task_status", raw_status)
-        else:
-            status = "blocked" if payload.get("success") is False else "ok"
-            payload.setdefault("domain_status", raw_status)
-        system_success = bool(payload.get(
-            "system_success",
-            payload.get("transport_success", status != "failed"),
-        )) and status != "failed"
-        business_success = status in {"ok", "accepted"}
-        payload["status"] = status
-        payload["success"] = business_success
-        payload["business_success"] = business_success
-        payload["system_success"] = system_success
-        payload["transport_success"] = system_success
-        payload["completed"] = status == "ok"
-        payload["outcome"] = status
-        if not business_success:
-            payload.setdefault("code", f"{self.server_name}.{status}")
-            payload.setdefault("message", {
-                "partial": "工具仅完成部分业务结果",
-                "empty": "未找到可用业务结果",
-                "missing_inputs": "缺少完成业务所需输入",
-                "blocked": "业务门禁阻断当前操作",
-                "incomplete": "业务结果尚不完整",
-                "failed": "工具执行失败",
-                "upstream_failure": "上游服务未能提供结果",
-            }.get(status, "业务未成功完成"))
+        payload = normalize_operation_outcome(result, server_name=self.server_name)
         for field in ("resource_uris", "warnings", "blockers", "next_actions"):
             if payload.get(field) is None:
                 payload[field] = []
@@ -775,15 +746,34 @@ class OfficialStdioServer:
         payload["coordination"] = build_coordination(payload, server_name=self.server_name)
         return payload
 
-    def _tool_schema_uri(self, tool_name: str) -> str:
+    def _tool_input_schema_uri(self, tool_name: str) -> str:
         return f"lvke://schemas/{self.server_name}/{tool_name}/input"
 
-    def _tool_name_from_schema_uri(self, uri: str) -> str | None:
+    def _tool_output_schema_uri(self, tool_name: str) -> str:
+        return f"lvke://schemas/{self.server_name}/{tool_name}/output"
+
+    def _tool_schema_uri(self, tool_name: str) -> str:
+        """Backward-compatible alias for input schema URI."""
+
+        return self._tool_input_schema_uri(tool_name)
+
+    def _tool_name_from_schema_uri(self, uri: str) -> tuple[str | None, str | None]:
         prefix = f"lvke://schemas/{self.server_name}/"
-        if not uri.startswith(prefix) or not uri.endswith("/input"):
-            return None
-        value = uri[len(prefix) : -len("/input")]
-        return value if value and "/" not in value else None
+        if not uri.startswith(prefix):
+            return None, None
+        remainder = uri[len(prefix) :]
+        if remainder.endswith("/input"):
+            value = remainder[: -len("/input")]
+            return (value if value and "/" not in value else None), "input"
+        if remainder.endswith("/output"):
+            value = remainder[: -len("/output")]
+            return (value if value and "/" not in value else None), "output"
+        return None, None
+
+    def _public_output_schema(self, spec: ToolSpec) -> dict[str, Any]:
+        return make_lightweight_output_schema(
+            schema_uri=self._tool_output_schema_uri(spec.name),
+        )
 
     @staticmethod
     def _schema_size(schema: dict[str, Any]) -> int:

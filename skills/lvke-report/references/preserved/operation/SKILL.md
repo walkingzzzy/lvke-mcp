@@ -29,4 +29,5 @@ expert_review_status: pending_review
 - 安全保障停留口号，缺责任制与应急预案。
 
 ## 配套工具
-- `mcp_lvke_archive_get_chapter`：取同类项目运营方案章节的组织/安全/绩效写法。
+- `archive_extract_structure(report_id=..., with_appendix=True)`：取同类项目结构，
+  从返回章节清单里定位运营方案章，参考其组织/安全/绩效写法。

@@ -1,5 +1,82 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_ingest.output-schema",
+    "title": "analysis_ingest complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_ingest/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_status.output-schema",
+    "title": "analysis_status complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_query.output-schema",
+    "title": "analysis_query complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_query/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_extract_candidates.output-schema",
+    "title": "analysis_extract_candidates complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_extract_candidates/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_profile_tabular.output-schema",
+    "title": "analysis_profile_tabular complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_profile_tabular/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_compare.output-schema",
+    "title": "analysis_compare complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_compare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_normalize_compare.output-schema",
+    "title": "analysis_normalize_compare complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_normalize_compare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_compare_benchmark.output-schema",
+    "title": "analysis_compare_benchmark complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_compare_benchmark/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_financial_trends.output-schema",
+    "title": "analysis_financial_trends complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_financial_trends/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_list_unit_rules.output-schema",
+    "title": "analysis_list_unit_rules complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_list_unit_rules/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-analysis.analysis_build_evidence_pack.output-schema",
+    "title": "analysis_build_evidence_pack complete output schema",
+    "uri": "lvke://schemas/lvke-data-analysis/analysis_build_evidence_pack/output"
+  },
+  {
     "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
     "mimeType": "application/schema+json",
     "name": "lvke-data-analysis.analysis_build_evidence_pack.input-schema",

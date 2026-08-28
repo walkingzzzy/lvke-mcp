@@ -216,10 +216,12 @@ class FeasibilityDeliveryTest(unittest.TestCase):
         self.assertEqual(validated["blockers"], [])
         self.assertTrue(validated["quality_issues"])
 
+        # 过程验收允许"带限制放行"：阶段链未走完属置信度不足，可产出把全部
+        # 缺口写进 release_limitations 的记录。
         released = service.release({
             "workspace_id": self.workspace,
             "delivery_run_id": started["delivery_run_id"],
-            "release_scope": "project_delivery",
+            "release_scope": "process_acceptance",
             "release_note": "低质量发布记录回归",
             "idempotency_key": "release-low-quality-record",
         })
@@ -235,6 +237,33 @@ class FeasibilityDeliveryTest(unittest.TestCase):
             released["quality_issues"],
         )
         self.assertEqual(released["delivery_run"]["status"], "released")
+
+    def test_project_delivery_release_refuses_a_low_quality_chain(self) -> None:
+        """正式项目交付不接受"带限制放行"：这是与过程验收的分界线。
+
+        上一个用例证明过程验收可以带限制出件；这里证明同一条低质量链换成
+        project_delivery 就必须被拒，否则"过程验收"与"正式交付"两级就没有
+        实际区别了。
+        """
+
+        started = service.start({
+            "workspace_id": self.workspace,
+            "delivery_mode": "review_candidate",
+            "idempotency_key": "release-project-delivery-start",
+        })
+        refused = service.release({
+            "workspace_id": self.workspace,
+            "delivery_run_id": started["delivery_run_id"],
+            "release_scope": "project_delivery",
+            "idempotency_key": "release-project-delivery-refused",
+        })
+        self.assertFalse(refused["success"], refused)
+        self.assertEqual("blocked", refused["status"])
+        self.assertEqual(
+            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED", refused["code"]
+        )
+        self.assertIsNone(refused.get("release_id"))
+        self.assertTrue(refused["quality_issues"])
 
     def test_idempotency_conflict_is_blocked(self) -> None:
         args = {

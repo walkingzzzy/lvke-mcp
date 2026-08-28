@@ -146,6 +146,21 @@ def _finalize(
     if deprecated:
         payload["deprecated"] = True
     payload.update(extra)
+    # 质量信号必须在顶层可见。此前 quality_issues / release_limitations 只写在
+    # data 子层，顶层同名字段为 None，只读顶层的调用方会把"有 3 条质量问题"
+    # 误读成"无质量问题"。这里把 data 层的质量信号提升到顶层并与显式入参合并，
+    # 而不是让两层各说一套。
+    inner = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    for field in ("quality_issues", "release_limitations"):
+        merged = sorted({
+            *[str(item) for item in (payload.get(field) or []) if item],
+            *[str(item) for item in (inner.get(field) or []) if item],
+        })
+        if merged or field in payload or field in inner:
+            payload[field] = merged
+    inner_warnings = [str(item) for item in (inner.get("warnings") or []) if item]
+    if inner_warnings:
+        payload["warnings"] = list(dict.fromkeys([*payload["warnings"], *inner_warnings]))
     return payload
 
 

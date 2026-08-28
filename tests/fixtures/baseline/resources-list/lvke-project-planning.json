@@ -1,5 +1,299 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.project_context_create.output-schema",
+    "title": "project_context_create complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/project_context_create/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.project_context_validate.output-schema",
+    "title": "project_context_validate complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/project_context_validate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.project_context_revise.output-schema",
+    "title": "project_context_revise complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/project_context_revise/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare_market_case.output-schema",
+    "title": "planning_prepare_market_case complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare_market_case/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_compare_market_cases.output-schema",
+    "title": "planning_compare_market_cases complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_compare_market_cases/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_market_case.output-schema",
+    "title": "planning_validate_market_case complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_market_case/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_market_case.output-schema",
+    "title": "planning_confirm_market_case complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_market_case/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare_revenue_drivers.output-schema",
+    "title": "planning_prepare_revenue_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare_revenue_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_compare_revenue_candidates.output-schema",
+    "title": "planning_compare_revenue_candidates complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_compare_revenue_candidates/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_revenue_drivers.output-schema",
+    "title": "planning_validate_revenue_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_revenue_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_revenue_drivers.output-schema",
+    "title": "planning_confirm_revenue_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_revenue_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_get_industry_constraints.output-schema",
+    "title": "planning_get_industry_constraints complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_get_industry_constraints/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_solve_build_scale.output-schema",
+    "title": "planning_solve_build_scale complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_solve_build_scale/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_build_scale.output-schema",
+    "title": "planning_validate_build_scale complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_build_scale/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_build_scale.output-schema",
+    "title": "planning_confirm_build_scale complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_build_scale/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create_revenue_drivers.output-schema",
+    "title": "planning_create_revenue_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create_revenue_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create_build_scale.output-schema",
+    "title": "planning_create_build_scale complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create_build_scale/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create_cost_drivers.output-schema",
+    "title": "planning_create_cost_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create_cost_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create_labor_plan.output-schema",
+    "title": "planning_create_labor_plan complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create_labor_plan/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare_cost_drivers.output-schema",
+    "title": "planning_prepare_cost_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare_cost_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_calculate_cost_drivers.output-schema",
+    "title": "planning_calculate_cost_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_calculate_cost_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_cost_drivers.output-schema",
+    "title": "planning_validate_cost_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_cost_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_cost_drivers.output-schema",
+    "title": "planning_confirm_cost_drivers complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_cost_drivers/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_get_env_templates.output-schema",
+    "title": "planning_get_env_templates complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_get_env_templates/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_infer_labor_plan.output-schema",
+    "title": "planning_infer_labor_plan complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_infer_labor_plan/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_labor_plan.output-schema",
+    "title": "planning_validate_labor_plan complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_labor_plan/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_labor_plan.output-schema",
+    "title": "planning_confirm_labor_plan complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_labor_plan/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare_policy_basis.output-schema",
+    "title": "planning_prepare_policy_basis complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare_policy_basis/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_policy_basis.output-schema",
+    "title": "planning_confirm_policy_basis complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_policy_basis/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare_option_comparison.output-schema",
+    "title": "planning_prepare_option_comparison complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare_option_comparison/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_policy_basis.output-schema",
+    "title": "planning_validate_policy_basis complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_policy_basis/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate_option_comparison.output-schema",
+    "title": "planning_validate_option_comparison complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate_option_comparison/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_score_option_comparison.output-schema",
+    "title": "planning_score_option_comparison complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_score_option_comparison/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm_option_comparison.output-schema",
+    "title": "planning_confirm_option_comparison complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm_option_comparison/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_resolve_industry_skill.output-schema",
+    "title": "planning_resolve_industry_skill complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_resolve_industry_skill/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_get_object.output-schema",
+    "title": "planning_get_object complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_get_object/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.project_context_list.output-schema",
+    "title": "project_context_list complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/project_context_list/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_validate.output-schema",
+    "title": "planning_validate complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_validate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_compare.output-schema",
+    "title": "planning_compare complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_compare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_confirm.output-schema",
+    "title": "planning_confirm complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_confirm/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_prepare.output-schema",
+    "title": "planning_prepare complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_prepare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-project-planning.planning_create.output-schema",
+    "title": "planning_create complete output schema",
+    "uri": "lvke://schemas/lvke-project-planning/planning_create/output"
+  },
+  {
     "description": "规划领域所有候选类型的完整联合 Schema；服务端各工具仍执行其精确子 Schema。",
     "mimeType": "application/schema+json",
     "name": "project-planning-candidate",

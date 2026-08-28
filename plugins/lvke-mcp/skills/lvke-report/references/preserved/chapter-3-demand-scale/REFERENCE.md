@@ -100,13 +100,13 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view → 拿项目背景
+1. report_list_sections → 拿项目背景
 2. [调研]：mcp-statistics-cn / mcp-industry-research / web_search
 3. 选 1-2 种测算方法，把数据带回来
 4. 画供需缺口表
 5. 走规模 3 步法
 6. 写 4 节
-7. doc_propose → diff → apply
+7. report_propose_section → diff → apply
 ```
 
 ## 配套 skill

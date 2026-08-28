@@ -10,6 +10,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from lvke_mcp.domains.finance._run_service.base import (
+    DELIVERY_TABLE_META,
+    delivery_count_semantics,
+    delivery_table_contract_hash,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -90,18 +95,8 @@ def _recalculate_with_soffice(path: Path) -> dict[str, Any]:
         }
 
 
+# 工作簿交付 sheet 仅投影领域层的唯一十三表契约，不在适配器重复维护成员或顺序。
 _DELIVERY_SHEETS = {
-    "investment": "附表1",
-    "interest-during-construction": "附表2",
-    "working-capital": "附表3",
-    "funding": "附表4",
-    "income-statement": "附表5",
-    "total-cost": "附表6",
-    "wage": "附表6-1",
-    "depreciation": "附表6-2",
-    "amortization": "附表6-3",
-    "profit-distribution": "附表7",
-    "debt-service": "附表8",
-    "cashflow": "附表9",
-    "capital-cashflow": "附表10",
+    table_code: delivery_no
+    for table_code, delivery_no, _title in DELIVERY_TABLE_META
 }

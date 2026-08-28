@@ -1,0 +1,62 @@
+{
+  "workspace_id": "restart-acceptance-20260821-a",
+  "runtime_instance_samples": [
+    "1769eaa3fef1",
+    "0c3835bb3f5c",
+    "2332c7893398",
+    "fa3f004f526e",
+    "66515d65e9fd",
+    "1be35a829303"
+  ],
+  "tool_count_denominator": 171,
+  "build_metadata": {
+    "build_commit": "46a64b2f6fa7e7a28e4f4eb5bdd94a0bd8957ab6",
+    "build_time": "build_metadata_incomplete",
+    "build_metadata_complete": false,
+    "missing": ["build_time"],
+    "reason": "tracked worktree dirty; release build must be regenerated from clean checkout"
+  },
+  "chain": {
+    "project_context_id": "pctx_dd2845551a40376fe5958b6f",
+    "input_applicability_id": "iapp_5651d2d6e4c3b8d123ebfdf6",
+    "source_file_id": "src_85696ff87c194f48f06aaa43",
+    "analysis_task_id": "analysis_9ec1d4499eed36504a28e7c9",
+    "evidence_pack_id": "evp_6f7f9e792a31928235dd17f1",
+    "research_package_id": "drp_025b6c154d410bf66bd6e5aa",
+    "finance_spec_id": "fsp_b3b8eaf9b883cbde2df98fc0",
+    "finance_run_id": "run_4eb8ad97ac04",
+    "finance_tables_package_id": "ftp_e28396d8395b00987c14668a",
+    "report_preparation_id": "rprep_9487532645bacb4f27d3f618",
+    "report_revision_id": "rrv_ebcf92db23047b9de92cdd3c",
+    "review_id": "review_ebd2acadb0a1ef7d01bbc2bef21962a3"
+  },
+  "outcomes": {
+    "technical_chain": "PASS_WITH_LIMITATIONS",
+    "controlled_assumption_formal_export": "EXPECTED_REJECTION",
+    "review_retest_same_target": "EXPECTED_REJECTION",
+    "formal_candidate": "BLOCKED"
+  },
+  "findings": [
+    {
+      "id": "F-RESTART-001",
+      "severity": "P0",
+      "category": "release_gate",
+      "observed": "report_prepare returned formal_ready=true while finance tables were non-formal and project facts were uncertified",
+      "fix": "formal_ready is now computed fail-closed from quality_issues; draft_ready remains available for disclosed drafts"
+    },
+    {
+      "id": "F-RESTART-002",
+      "severity": "P0",
+      "category": "review_export_gate",
+      "observed": "review_export generated DOCX/XLSX when review quality_issues and release_limitations were present",
+      "fix": "formal DOCX/XLSX export now rejects unresolved quality issues or non-pass verdicts; JSON/Markdown process records remain available"
+    },
+    {
+      "id": "F-RESTART-003",
+      "severity": "P1",
+      "category": "build_integrity",
+      "observed": "all live envelopes expose build_metadata_incomplete because the tracked worktree is dirty",
+      "fix": "expected fail-closed behavior; clean checkout build and one restart are still required for release"
+    }
+  ]
+}

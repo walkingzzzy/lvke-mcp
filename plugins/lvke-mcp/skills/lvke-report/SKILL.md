@@ -23,4 +23,14 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Require self-contained licensed CJK fonts in formal DOCX output; audit the
   package and visually inspect every PNG-rendered page before acceptance.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-report` entry).
+
+| Tool | Server | Required inputs | Outcome notes |
+|------|--------|-----------------|---------------|
+| `report_prepare` / `report_start` | lvke-report-generation | `workspace_id`, finance binding | binds ReportPreparation |
+| `report_propose` → `report_apply` | lvke-report-generation | revision lineage | Codex narrative; MCP binds numbers |
+| `report_export_docx` | lvke-report-generation | confirmed revision | `FORMAL_ARTIFACT_QUALIFICATION_REQUIRED` = EXPECTED_REJECTION |
+
+Evidence tracks: `technical_fixture`, `controlled_assumption`, `formal_evidence`. Report numbers must bind same FinanceRun hash/lineage.

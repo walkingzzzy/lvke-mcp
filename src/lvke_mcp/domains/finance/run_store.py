@@ -211,6 +211,7 @@ def record_run(
     input_revision: int = 0,
     result_snapshot: Optional[dict[str, Any]] = None,
     force_new: bool = False,
+    parent_run_id: str = "",
 ) -> Optional[str]:
     """把一次 compute_financials 结果落 run 存储，返回 run_id（不可用则 None）。
 
@@ -302,7 +303,7 @@ def record_run(
         "spec_json": spec_json,
         "spec_id": fin.get("spec_id") or None,
         "spec_hash": spec_hash,
-        "parent_run_id": None,
+        "parent_run_id": parent_run_id or None,
         "input_hash": input_hash or fin.get("input_hash") or "",
         "idempotency_key": idempotency_key or "",
         "template_version": template_version or fin.get("template_version") or "",

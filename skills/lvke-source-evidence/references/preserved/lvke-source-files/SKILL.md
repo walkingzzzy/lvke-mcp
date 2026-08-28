@@ -12,7 +12,9 @@ description: "Import, upload, scan, parse, retry, cancel, and read governed Lvke
 1. 小于等于 8 MiB 的内容使用 `source_import_content`；较大内容使用 begin/upload/commit 分块链。
 2. 本地 stdio 可在宿主 allowlist 内使用 `source_import_local_path`；远程部署不得提交服务端路径。
 3. 分块时保持 `upload_id`、offset、chunk hash 和总 hash，一块不缺后再 commit。
-4. 分块上传用 `source_upload_status`，文件解析用 `source_parse_status`；只有安全扫描和解析满足下游要求时才读取 locator Resource。
+4. 上传与解析共用一个查询入口 `source_task_status`，按任务类型区分：分块上传传
+   `task_kind="upload"` + `upload_id`（`ups_` 前缀），文件解析传 `task_kind="parse"` + `job_id`（`job_` 前缀）；
+   任务类型必须与 ID 命名空间一致。只有安全扫描和解析满足下游要求时才读取 locator Resource。
 5. 可重试解析失败调用 `source_parse_retry` 生成新任务；取消使用 `source_parse_cancel`，不覆盖旧任务。
 
 ## 禁止行为

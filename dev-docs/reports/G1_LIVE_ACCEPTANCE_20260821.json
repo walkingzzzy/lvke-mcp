@@ -1,0 +1,3715 @@
+{
+  "generated_at": "2026-08-21T02:13:55Z",
+  "workspace_id": "g1-golden-20260821",
+  "build_metadata": {
+    "build_commit": "46a64b2f6fa7e7a28e4f4eb5bdd94a0bd8957ab6",
+    "build_time": "build_metadata_incomplete",
+    "plugin_version": "0.1.0+codex.20260814000912",
+    "build_metadata_complete": false,
+    "build_metadata_status": "build_metadata_incomplete",
+    "build_metadata_missing": [
+      "build_time"
+    ]
+  },
+  "tool_denominator": 171,
+  "expected_tool_denominator": 171,
+  "classification_counts": {
+    "UPSTREAM_FAILURE": 18,
+    "EXPECTED_REJECTION": 124,
+    "PASS": 29
+  },
+  "chain_classification_counts": {
+    "PASS": 21,
+    "UPSTREAM_FAILURE": 1,
+    "EXPECTED_REJECTION": 3
+  },
+  "upstream_failure_tools": [
+    "lvke-asset-acquisition.acquisition_validate_spec",
+    "lvke-asset-acquisition.acquisition_save_spec",
+    "lvke-data-acquisition.data_discover",
+    "lvke-data-acquisition.data_search",
+    "lvke-deep-research.dr_add_sources",
+    "lvke-deep-research.dr_resume",
+    "lvke-deliverable-review.review_disposition_finding",
+    "lvke-deliverable-review.review_retest",
+    "lvke-deliverable-review.review_attach_requirement_evidence",
+    "lvke-finance-model.finance_build_basis_of_estimate",
+    "lvke-finance-model.finance_read_analysis_resource",
+    "lvke-knowledge-governance.knowledge_submit_candidate",
+    "lvke-project-planning.planning_confirm",
+    "lvke-project-planning.planning_prepare",
+    "lvke-project-planning.planning_create",
+    "lvke-reference.reference_get",
+    "lvke-source-files.source_upload_begin",
+    "lvke-zero-material-delivery.delivery_transition"
+  ],
+  "protocol_error_tools": [
+    "lvke-asset-acquisition.acquisition_validate_spec",
+    "lvke-asset-acquisition.acquisition_save_spec",
+    "lvke-deep-research.dr_add_sources",
+    "lvke-deep-research.dr_resume",
+    "lvke-deliverable-review.review_disposition_finding",
+    "lvke-deliverable-review.review_retest",
+    "lvke-deliverable-review.review_attach_requirement_evidence",
+    "lvke-finance-model.finance_build_basis_of_estimate",
+    "lvke-finance-model.finance_read_analysis_resource",
+    "lvke-knowledge-governance.knowledge_submit_candidate",
+    "lvke-project-planning.planning_confirm",
+    "lvke-project-planning.planning_prepare",
+    "lvke-project-planning.planning_create",
+    "lvke-reference.reference_get",
+    "lvke-source-files.source_upload_begin",
+    "lvke-zero-material-delivery.delivery_transition"
+  ],
+  "tool_records": [
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_validate_spec",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:11:18Z",
+      "finished_at": "2026-08-21T02:11:20Z",
+      "duration_ms": 1741.2,
+      "input_summary": {
+        "spec": {
+          "version": "finance_spec.v3",
+          "transaction": {
+            "calculation_granularity": "monthly"
+          }
+        }
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_save_spec",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:11:20Z",
+      "finished_at": "2026-08-21T02:11:20Z",
+      "duration_ms": 848.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "spec": {
+          "version": "finance_spec.v3",
+          "transaction": {
+            "calculation_granularity": "monthly"
+          }
+        },
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_confirm_spec",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_fa6b46005af04834ae32c1c83ccac118",
+      "code": "SPEC_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:20Z",
+      "finished_at": "2026-08-21T02:11:21Z",
+      "duration_ms": 908.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "spec_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_run_model",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_505ad95aeaa44772899e1e4e643c6e03",
+      "code": "SPEC_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:21Z",
+      "finished_at": "2026-08-21T02:11:22Z",
+      "duration_ms": 844.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "spec_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_get_run",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d4ffaab5d90240c3b3b8d03ff42ce381",
+      "code": "RUN_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:22Z",
+      "finished_at": "2026-08-21T02:11:23Z",
+      "duration_ms": 935.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "acqrun_missing"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_create_scenario_matrix",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_79292680934447899268aa498812defb",
+      "code": "RUN_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:23Z",
+      "finished_at": "2026-08-21T02:11:24Z",
+      "duration_ms": 843.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "acqrun_missing",
+        "dimensions": {
+          "transaction.purchase_price": [
+            1.0
+          ]
+        },
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_solve_max_price",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a6595a502abe41228bcce9bb067bb748",
+      "code": "RUN_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:24Z",
+      "finished_at": "2026-08-21T02:11:25Z",
+      "duration_ms": 901.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "acqrun_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_generate_artifact",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b8cd763c347745ab8c9092f38b35354f",
+      "code": "RUN_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:25Z",
+      "finished_at": "2026-08-21T02:11:26Z",
+      "duration_ms": 836.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "acqrun_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_get_artifact",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_782468fad17b4d878d00984ca1992483",
+      "code": "ARTIFACT_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:26Z",
+      "finished_at": "2026-08-21T02:11:26Z",
+      "duration_ms": 844.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "artifact_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_render_tables",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d11a3b5dc215465591dc7dab77652c72",
+      "code": "RUN_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:26Z",
+      "finished_at": "2026-08-21T02:11:27Z",
+      "duration_ms": 836.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "acqrun_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_export_tables_xlsx",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ff6ac3fd807645c3a4990e7c719c2138",
+      "code": "TABLE_PACKAGE_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:27Z",
+      "finished_at": "2026-08-21T02:11:28Z",
+      "duration_ms": 881.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "acquisition_tables_package_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-asset-acquisition",
+      "tool": "acquisition_export_tables_csv",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_c510eb8a89a445f49269ab8aa71c41c7",
+      "code": "TABLE_PACKAGE_NOT_FOUND",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:28Z",
+      "finished_at": "2026-08-21T02:11:29Z",
+      "duration_ms": 983.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "acquisition_tables_package_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_discover",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "upstream_failure",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7fa82a5a29ce4bd1b0266bcece5b4a14",
+      "code": "lvke-data-acquisition.upstream_failure",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:30Z",
+      "finished_at": "2026-08-21T02:11:30Z",
+      "duration_ms": 567.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "queries": [
+          "g1-probe"
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_search",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "upstream_failure",
+      "success": false,
+      "system_success": true,
+      "trace_id": "be1a670f0235ec7871a09cf5",
+      "code": "lvke-data-acquisition.upstream_failure",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:30Z",
+      "finished_at": "2026-08-21T02:11:31Z",
+      "duration_ms": 653.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "query": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_fetch",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "eb13a6a3f1405cb9239f11c0",
+      "code": "trusted_extract_local_config_gap",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:31Z",
+      "finished_at": "2026-08-21T02:11:32Z",
+      "duration_ms": 585.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "urls": [
+          "https://example.com"
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_import_external_snapshot",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_3f382e13b8b846848c7159b1e4920bb7",
+      "code": "external_provider_tool_not_extract",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:32Z",
+      "finished_at": "2026-08-21T02:11:32Z",
+      "duration_ms": 547.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "url": "https://example.com",
+        "title": "g1-probe",
+        "content": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_collect",
+      "classification": "EXPECTED_REJECTION",
+      "status": "failed",
+      "success": false,
+      "system_success": false,
+      "trace_id": "mcp_5efd6ff11fcc4d8da990fa652b79de2a",
+      "code": "discovery_set_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:32Z",
+      "finished_at": "2026-08-21T02:11:33Z",
+      "duration_ms": 572.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "discovery_set_id": "g1-probe",
+        "selected_candidate_ids": [
+          "g1-probe"
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_audit_urls",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_beaf39025acd49fc9b719a92353b04cf",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:33Z",
+      "finished_at": "2026-08-21T02:11:33Z",
+      "duration_ms": 599.3,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "urls": [
+          "https://example.com"
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_get_url_audit",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_aca83c370f2a4f0d8d7840c331d2d4a0",
+      "code": "url_audit_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:33Z",
+      "finished_at": "2026-08-21T02:11:34Z",
+      "duration_ms": 597.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "url_audit_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_capture_source_view",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b86c7ca04d854216bfb024b361ba9706",
+      "code": "source_snapshot_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:34Z",
+      "finished_at": "2026-08-21T02:11:35Z",
+      "duration_ms": 567.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "source_snapshot_id": "g1-probe",
+        "image_file_id": "g1-probe",
+        "url": "https://example.com"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_get_visual_capture",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7ccee59ee56e403ea13f662a84a30c1b",
+      "code": "visual_capture_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:35Z",
+      "finished_at": "2026-08-21T02:11:35Z",
+      "duration_ms": 552.3,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "visual_capture_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-acquisition",
+      "tool": "data_provider_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_47ec019e0c2f49238c3d2975c6b742bc",
+      "code": "lvke-data-acquisition.blocked",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:35Z",
+      "finished_at": "2026-08-21T02:11:36Z",
+      "duration_ms": 550.7,
+      "input_summary": {}
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_ingest",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b30852929d6646208346fc23c7b1119f",
+      "code": "lvke-data-analysis.blocked",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:36Z",
+      "finished_at": "2026-08-21T02:11:37Z",
+      "duration_ms": 628.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty"
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d6af1b0f1dd149d5b75a19bb75cad54c",
+      "code": "analysis_task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:37Z",
+      "finished_at": "2026-08-21T02:11:38Z",
+      "duration_ms": 645.9,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "analysis_task_id": "analysis_missing"
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_query",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_cd943d2903c644b0a3e06d85fe851df6",
+      "code": "analysis_task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:38Z",
+      "finished_at": "2026-08-21T02:11:38Z",
+      "duration_ms": 630.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "analysis_task_id": "analysis_missing",
+        "query": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_extract_candidates",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_1950a638a38548a2bbb197240116495b",
+      "code": "analysis_task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:38Z",
+      "finished_at": "2026-08-21T02:11:39Z",
+      "duration_ms": 593.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "analysis_task_id": "analysis_missing",
+        "field_specs": [
+          {
+            "field": "g1-probe"
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_profile_tabular",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_e4444a3a2d7543f890ef12030ce0cec0",
+      "code": "analysis_task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:39Z",
+      "finished_at": "2026-08-21T02:11:39Z",
+      "duration_ms": 622.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "analysis_task_id": "analysis_missing"
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_compare",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_3d1c8ac5b98441988d1cad2e9518c2f8",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:39Z",
+      "finished_at": "2026-08-21T02:11:40Z",
+      "duration_ms": 600.5,
+      "input_summary": {
+        "observations": [
+          {
+            "source_id": "g1-probe",
+            "metric": "g1-probe",
+            "value": "g1-probe"
+          },
+          {
+            "source_id": "g1-probe",
+            "metric": "g1-probe",
+            "value": "g1-probe"
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_normalize_compare",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_8165b67eb4ce45809559b9f7fe329d7a",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:40Z",
+      "finished_at": "2026-08-21T02:11:41Z",
+      "duration_ms": 590.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "observations": [
+          {
+            "source_id": "g1-probe",
+            "metric": "g1-probe",
+            "value": "g1-probe"
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_compare_benchmark",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_9f0ba0185e674f35902d065edd48bef1",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:41Z",
+      "finished_at": "2026-08-21T02:11:41Z",
+      "duration_ms": 575.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "subject": {
+          "source_id": "g1-probe",
+          "metric": "g1-probe",
+          "value": 1.0,
+          "unit": "g1-probe",
+          "period": "g1-probe",
+          "region": "g1-probe",
+          "scope": "g1-probe",
+          "tax_basis": "g1-probe",
+          "locator": {}
+        },
+        "benchmarks": [
+          {
+            "source_id": "g1-probe",
+            "metric": "g1-probe",
+            "value": 1.0,
+            "unit": "g1-probe",
+            "period": "g1-probe",
+            "region": "g1-probe",
+            "scope": "g1-probe",
+            "tax_basis": "g1-probe",
+            "locator": {}
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_financial_trends",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_4ad781a23ead4ce8bc36a976096c42e3",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:41Z",
+      "finished_at": "2026-08-21T02:11:42Z",
+      "duration_ms": 582.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "observations": [
+          {
+            "source_id": "g1-probe",
+            "metric": "g1-probe",
+            "value": "g1-probe"
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_list_unit_rules",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_b27f19bb27c542899326b058035d1fe2",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:42Z",
+      "finished_at": "2026-08-21T02:11:42Z",
+      "duration_ms": 566.9,
+      "input_summary": {}
+    },
+    {
+      "server": "lvke-data-analysis",
+      "tool": "analysis_build_evidence_pack",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_03e2ea3700c64ee0894dcd4c565a2750",
+      "code": "analysis_task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:42Z",
+      "finished_at": "2026-08-21T02:11:43Z",
+      "duration_ms": 580.1,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "analysis_task_id": "analysis_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_prepare",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_31f885576e52463ea323dba4ba73e95e",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:44Z",
+      "finished_at": "2026-08-21T02:11:44Z",
+      "duration_ms": 608.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "topic": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_start",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_167bbbff9dab45c1bb5740ed95baf990",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:44Z",
+      "finished_at": "2026-08-21T02:11:45Z",
+      "duration_ms": 610.1,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "topic": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_get_plan",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_53b46275a91048519c9fc087110c6d7d",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:45Z",
+      "finished_at": "2026-08-21T02:11:45Z",
+      "duration_ms": 611.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_propose_plan_revision",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_60cd99797637440c9ba23e82a149e9f9",
+      "code": "plan_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:45Z",
+      "finished_at": "2026-08-21T02:11:46Z",
+      "duration_ms": 653.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "changes": {
+          "research_brief": {}
+        }
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_apply_plan_revision",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_f96193eee02845409a6b34c9079efb20",
+      "code": "proposal_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:46Z",
+      "finished_at": "2026-08-21T02:11:47Z",
+      "duration_ms": 618.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "proposal_id": "g1-probe",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_add_sources",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:11:47Z",
+      "finished_at": "2026-08-21T02:11:47Z",
+      "duration_ms": 612.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "sources": [
+          {
+            "source_type": "source_snapshot",
+            "object_id": "g1-probe",
+            "resource_uri": "g1-probe",
+            "content_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "locator": "g1-probe",
+            "evidence_track": "real",
+            "allowed_uses": [
+              "discovery"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_remove_sources",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_0c3ffcba7d53452ba8506ef677176dea",
+      "code": "plan_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:47Z",
+      "finished_at": "2026-08-21T02:11:48Z",
+      "duration_ms": 668.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "source_object_ids": [
+          "g1-probe"
+        ]
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_list_events",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a9ee12f5103644ebaf324026b9c31445",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:48Z",
+      "finished_at": "2026-08-21T02:11:49Z",
+      "duration_ms": 640.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_create_checkpoint",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_30de4c01271948b0974a4495e12d8d46",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:49Z",
+      "finished_at": "2026-08-21T02:11:49Z",
+      "duration_ms": 620.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_resume",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:11:49Z",
+      "finished_at": "2026-08-21T02:11:50Z",
+      "duration_ms": 601.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "resume_token": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_submit",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b4808734a1344b3da9cbe503ede5f9d4",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:50Z",
+      "finished_at": "2026-08-21T02:11:50Z",
+      "duration_ms": 645.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing",
+        "report_md": "g1-probe",
+        "citations": [
+          {}
+        ]
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_continue",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_4a2b25d48942446ba8e6bc656317e609",
+      "code": "legacy_task_read_only",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:50Z",
+      "finished_at": "2026-08-21T02:11:51Z",
+      "duration_ms": 649.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_confirm_quality",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_59b8cef322ca4e6f9a3ad63139eebcfb",
+      "code": "research_package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:51Z",
+      "finished_at": "2026-08-21T02:11:52Z",
+      "duration_ms": 636.9,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "research_package_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d715447d00e04f279b412980f9e1ec42",
+      "code": "lvke-deep-research.task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:52Z",
+      "finished_at": "2026-08-21T02:11:52Z",
+      "duration_ms": 607.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_cancel",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a53daf5bdece45dfa4804c8eccdd11f9",
+      "code": "lvke-deep-research.task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:52Z",
+      "finished_at": "2026-08-21T02:11:53Z",
+      "duration_ms": 638.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_get_report",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ada8ab98ba454332ab45c6c1d13125fb",
+      "code": "lvke-deep-research.task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:53Z",
+      "finished_at": "2026-08-21T02:11:54Z",
+      "duration_ms": 646.1,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_get_evidence",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d22694f9ebab4fbcb725da467c831759",
+      "code": "lvke-deep-research.task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:54Z",
+      "finished_at": "2026-08-21T02:11:54Z",
+      "duration_ms": 637.1,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deep-research",
+      "tool": "dr_get_bundle",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_663607a71a8f4536a9613f0f26c6c58c",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:54Z",
+      "finished_at": "2026-08-21T02:11:55Z",
+      "duration_ms": 606.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "task_id": "drtask_missing"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_list_rubrics",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_3ac2c0506e4d4ffdb67af7a461ff98e1",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:56Z",
+      "finished_at": "2026-08-21T02:11:57Z",
+      "duration_ms": 1097.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_score_section",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_3143875f7f654b6f8cab03e270bf9fe3",
+      "code": "rubric_revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:57Z",
+      "finished_at": "2026-08-21T02:11:58Z",
+      "duration_ms": 879.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "report_revision_id": "g1-probe",
+        "section_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_compare_assessments",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_934635ab4c68475a8532d226ee8ab286",
+      "code": "rubric_assessment_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:58Z",
+      "finished_at": "2026-08-21T02:11:59Z",
+      "duration_ms": 977.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "before_assessment_id": "g1-probe",
+        "after_assessment_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_prepare",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a4f227d22b824791ae6904a2191f50f4",
+      "code": "finance_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:11:59Z",
+      "finished_at": "2026-08-21T02:12:00Z",
+      "duration_ms": 889.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "idempotency_key": "g1-probe",
+        "target": {
+          "target_type": "finance_run",
+          "target_id": "g1-probe"
+        }
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_start",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_24d4546f3af84a33ad54f2b6abdee6e4",
+      "code": "preparation_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:00Z",
+      "finished_at": "2026-08-21T02:12:00Z",
+      "duration_ms": 855.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "idempotency_key": "g1-probe",
+        "review_preparation_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_get",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_49ee2e74cd734dd5b077567f9f60a1e4",
+      "code": "review_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:00Z",
+      "finished_at": "2026-08-21T02:12:01Z",
+      "duration_ms": 850.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "review_id": "review_missing"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_list_findings",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_1a0a628b28df4f189395e442e2fade01",
+      "code": "review_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:01Z",
+      "finished_at": "2026-08-21T02:12:02Z",
+      "duration_ms": 858.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "review_id": "review_missing"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_get_finding",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_82aa53deff7349d2b76c4d0b593d15bc",
+      "code": "review_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:02Z",
+      "finished_at": "2026-08-21T02:12:03Z",
+      "duration_ms": 857.1,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "review_id": "review_missing",
+        "finding_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_disposition_finding",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:03Z",
+      "finished_at": "2026-08-21T02:12:05Z",
+      "duration_ms": 1757.7,
+      "input_summary": {}
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_retest",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:05Z",
+      "finished_at": "2026-08-21T02:12:07Z",
+      "duration_ms": 1762.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "idempotency_key": "g1-probe",
+        "review_id": "review_missing",
+        "target": {
+          "target_type": "finance_run",
+          "target_id": "g1-probe"
+        }
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_export",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_d54ab407009d4eaa937cd25aa2314946",
+      "code": "review_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:07Z",
+      "finished_at": "2026-08-21T02:12:07Z",
+      "duration_ms": 859.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "idempotency_key": "g1-probe",
+        "review_id": "review_missing"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_resolve_standards",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_e51d160b7b134756ba06274dec639771",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:07Z",
+      "finished_at": "2026-08-21T02:12:08Z",
+      "duration_ms": 854.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "project_context": {},
+        "facilities": []
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_list_requirements",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b7774619b0554dd7a029a53f39dacedc",
+      "code": "standard_applicability_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:08Z",
+      "finished_at": "2026-08-21T02:12:09Z",
+      "duration_ms": 858.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "standard_applicability_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_attach_requirement_evidence",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:09Z",
+      "finished_at": "2026-08-21T02:12:10Z",
+      "duration_ms": 856.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "idempotency_key": "g1-probe",
+        "standard_applicability_id": "g1-probe",
+        "requirement_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-deliverable-review",
+      "tool": "review_validate_standards",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_08be9a26636f45b79cf454b41ff81dda",
+      "code": "standard_applicability_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:10Z",
+      "finished_at": "2026-08-21T02:12:11Z",
+      "duration_ms": 851.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "standard_applicability_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_start",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_b83691693f3b4593931d3860c37d6a6b",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:11Z",
+      "finished_at": "2026-08-21T02:12:12Z",
+      "duration_ms": 570.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_mode": "estimate_preview",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a137e5a2edd6447aa55ecda08e8860f0",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:12Z",
+      "finished_at": "2026-08-21T02:12:13Z",
+      "duration_ms": 552.9,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_stage",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2d61182b79684fb8a4c5f23e0ac8a35c",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:13Z",
+      "finished_at": "2026-08-21T02:12:13Z",
+      "duration_ms": 543.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing",
+        "stage": "project",
+        "status": "pending"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_next_actions",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_0fff161007e445708563dcf18e1d3c38",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:13Z",
+      "finished_at": "2026-08-21T02:12:14Z",
+      "duration_ms": 573.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_checkpoint",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7e35b952d4bb489f8e9d1c9e99e354e0",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:14Z",
+      "finished_at": "2026-08-21T02:12:14Z",
+      "duration_ms": 543.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_resume",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2c46eab49e474c08bc689e945843cc39",
+      "code": "checkpoint_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:14Z",
+      "finished_at": "2026-08-21T02:12:15Z",
+      "duration_ms": 541.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "checkpoint_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_validate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_8d1e1936533749009bc842aafbb316cb",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:15Z",
+      "finished_at": "2026-08-21T02:12:15Z",
+      "duration_ms": 544.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "feasibility_release",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_245e2c10e93c4a00b9947a93f8383cea",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:15Z",
+      "finished_at": "2026-08-21T02:12:16Z",
+      "duration_ms": 553.3,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "fdr_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "lvke_list_resources",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_0ba3090d4a8540ddb67809c9433b6086",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:16Z",
+      "finished_at": "2026-08-21T02:12:16Z",
+      "duration_ms": 549.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "domain": "source-files"
+      }
+    },
+    {
+      "server": "lvke-feasibility-delivery",
+      "tool": "lvke_read_resource",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_8e7cbbf88c434d2e82a5ce73034c82b1",
+      "code": "resource_domain_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:16Z",
+      "finished_at": "2026-08-21T02:12:17Z",
+      "duration_ms": 542.2,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "uri": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_calculate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "failed",
+      "success": false,
+      "system_success": false,
+      "trace_id": "mcp_29f6c63c17064e88a8cb9a472ea633ff",
+      "code": "lvke-finance-model.calculator_input_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:18Z",
+      "finished_at": "2026-08-21T02:12:19Z",
+      "duration_ms": 958.9,
+      "input_summary": {
+        "operation": "irr",
+        "inputs": {}
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_prepare_fact_pack",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_34f5d98b44cb484080e33ec7feec7830",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:19Z",
+      "finished_at": "2026-08-21T02:12:20Z",
+      "duration_ms": 983.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "fact_pack": {
+          "version": "g1-probe",
+          "evidence_policy": "formal_evidence",
+          "domains": {},
+          "evidence": []
+        },
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_confirm_fact_pack",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_af2dd424900c4a369e41f880119ee203",
+      "code": "lvke-finance-model.fact_pack_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:20Z",
+      "finished_at": "2026-08-21T02:12:21Z",
+      "duration_ms": 977.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "fact_pack_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_prepare_spec",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_639ccd5f2b114713a91b553dcc6c0901",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:21Z",
+      "finished_at": "2026-08-21T02:12:24Z",
+      "duration_ms": 2912.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_confirm_spec",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7b9ddcb384a940d48e78f3624acd1ba5",
+      "code": "lvke-finance-model.spec_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:24Z",
+      "finished_at": "2026-08-21T02:12:25Z",
+      "duration_ms": 981.3,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "spec_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_validate_spec",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_d61cb3aceec74dc6861b3ad08cca841c",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:25Z",
+      "finished_at": "2026-08-21T02:12:26Z",
+      "duration_ms": 978.0,
+      "input_summary": {
+        "spec": {
+          "revenue": {
+            "model": "product_sales"
+          }
+        }
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_run_model",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_f3832e8bebde4096979a359f5c9b1c32",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:26Z",
+      "finished_at": "2026-08-21T02:12:28Z",
+      "duration_ms": 2000.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_get_run",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_121166783f0e40c48fa4aa446f8df8d9",
+      "code": "lvke-finance-model.no_finance_run",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:28Z",
+      "finished_at": "2026-08-21T02:12:29Z",
+      "duration_ms": 982.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_validate_post_generation",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_7e3c5c008fc44548bb8af9be5fa730b3",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:29Z",
+      "finished_at": "2026-08-21T02:12:30Z",
+      "duration_ms": 991.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "run_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_promote_to_formal",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_047ec717a334453c860db6dd7e2e0640",
+      "code": "prior_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:30Z",
+      "finished_at": "2026-08-21T02:12:31Z",
+      "duration_ms": 974.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "prior_run_id": "g1-probe",
+        "new_fin": {}
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_build_basis_of_estimate",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:31Z",
+      "finished_at": "2026-08-21T02:12:32Z",
+      "duration_ms": 977.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "spec_id": "g1-probe",
+        "planning_object_ids": [],
+        "evidence_pack_ids": []
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_build_balance_sheet",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_50e527c292e34110bb64ebb3b8745454",
+      "code": "lvke-finance-model.base_run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:32Z",
+      "finished_at": "2026-08-21T02:12:33Z",
+      "duration_ms": 984.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "run_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_run_monte_carlo",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a51080e5335742808a29e792aeda49b7",
+      "code": "lvke-finance-model.base_run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:33Z",
+      "finished_at": "2026-08-21T02:12:34Z",
+      "duration_ms": 983.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "run_id": "g1-probe",
+        "distributions": [
+          {
+            "field": "revenue_scale",
+            "distribution": "uniform",
+            "low": 1.0,
+            "high": 1.0
+          }
+        ],
+        "seed": 1
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_list_analyses",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_c5815442529249b0aafa0e978c45e7c7",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:34Z",
+      "finished_at": "2026-08-21T02:12:35Z",
+      "duration_ms": 966.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_read_analysis_resource",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:35Z",
+      "finished_at": "2026-08-21T02:12:36Z",
+      "duration_ms": 962.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "uri": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_generate_package",
+      "classification": "EXPECTED_REJECTION",
+      "status": "missing_inputs",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a37e4645f66e4fc19800c5011663da4a",
+      "code": "lvke-finance-model.missing_inputs",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:36Z",
+      "finished_at": "2026-08-21T02:12:37Z",
+      "duration_ms": 1029.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_import_vendor_review",
+      "classification": "EXPECTED_REJECTION",
+      "status": "failed",
+      "success": false,
+      "system_success": false,
+      "trace_id": "mcp_17f3029d50ce40f49d58d645e11cd9ed",
+      "code": "lvke-finance-model.vendor_workbook_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:37Z",
+      "finished_at": "2026-08-21T02:12:38Z",
+      "duration_ms": 980.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "xlsx_path": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-model",
+      "tool": "finance_get_analysis",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_61eb5915dfd44a7893f6c7bc61b344b0",
+      "code": "lvke-finance-model.analysis_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:38Z",
+      "finished_at": "2026-08-21T02:12:39Z",
+      "duration_ms": 964.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "kind": "balance_sheet",
+        "target_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_render",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_aeee975125744ac68f70b3fce88ab2cd",
+      "code": "run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:39Z",
+      "finished_at": "2026-08-21T02:12:40Z",
+      "duration_ms": 554.7,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "run_missing"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_validate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2119b6e10aa9411b800c2b240775b368",
+      "code": "run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:40Z",
+      "finished_at": "2026-08-21T02:12:40Z",
+      "duration_ms": 550.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "run_missing"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_export_xlsx",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7cf6ffa314a349ce99db0645fd1c364d",
+      "code": "run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:40Z",
+      "finished_at": "2026-08-21T02:12:41Z",
+      "duration_ms": 552.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "run_missing"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_export_csv",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_5946ed3ad783462b94a352ad2426406c",
+      "code": "run_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:41Z",
+      "finished_at": "2026-08-21T02:12:41Z",
+      "duration_ms": 564.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "run_id": "run_missing"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_get_package",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a92fa3444e184f52b55776fb0f1c8b36",
+      "code": "package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:41Z",
+      "finished_at": "2026-08-21T02:12:42Z",
+      "duration_ms": 565.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "finance_tables_package_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_list_tables",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_32232eb7ba874900b8feec8f55ca3391",
+      "code": "package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:42Z",
+      "finished_at": "2026-08-21T02:12:43Z",
+      "duration_ms": 631.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "finance_tables_package_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_get_table",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_217b1907cd794b13ab6c7b4eb34f0807",
+      "code": "package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:43Z",
+      "finished_at": "2026-08-21T02:12:43Z",
+      "duration_ms": 552.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "finance_tables_package_id": "g1-probe",
+        "table_id": "amortization"
+      }
+    },
+    {
+      "server": "lvke-finance-tables",
+      "tool": "tables_validate_table",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_04ac57f003c24c368ac10341aa402124",
+      "code": "package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:43Z",
+      "finished_at": "2026-08-21T02:12:44Z",
+      "duration_ms": 552.0,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "finance_tables_package_id": "g1-probe",
+        "table_id": "amortization"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_submit_candidate",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:12:44Z",
+      "finished_at": "2026-08-21T02:12:45Z",
+      "duration_ms": 589.1,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "candidate": {
+          "candidate_type": "accepted_revision",
+          "title": "g1-probe",
+          "content": "g1-probe",
+          "layer": "semantic",
+          "knowledge_type": "g1-probe",
+          "scope": "global",
+          "rubric_assessment_id": "g1-probe",
+          "evidence_bindings": [
+            {
+              "source_type": "source_snapshot",
+              "resource_uri": "g1-probe",
+              "content_hash": "?:sha256:probe",
+              "locator": "g1-probe",
+              "evidence_track": "real"
+            }
+          ],
+          "confidence": 1.0
+        },
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_list_candidates",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_122b4eb408b54f6d95610ac7de83776d",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:45Z",
+      "finished_at": "2026-08-21T02:12:45Z",
+      "duration_ms": 593.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_get_candidate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a96287d7a7b94a2d9541a0cb9e28f109",
+      "code": "knowledge_candidate_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:45Z",
+      "finished_at": "2026-08-21T02:12:46Z",
+      "duration_ms": 589.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "candidate_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_create_snapshot",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_af735dd05b84482eb34cafb26094c2a8",
+      "code": "knowledge_candidate_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:46Z",
+      "finished_at": "2026-08-21T02:12:47Z",
+      "duration_ms": 597.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "candidate_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_review_candidate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2cbe5fe8d1db4178aa78dbc43226f11c",
+      "code": "knowledge_candidate_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:47Z",
+      "finished_at": "2026-08-21T02:12:47Z",
+      "duration_ms": 594.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "candidate_id": "g1-probe",
+        "decision": "accepted",
+        "reason": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-knowledge-governance",
+      "tool": "knowledge_publish_release",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_e3127ea981dc486b9867298d779d7f8d",
+      "code": "knowledge_candidate_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:47Z",
+      "finished_at": "2026-08-21T02:12:48Z",
+      "duration_ms": 600.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "candidate_id": "g1-probe",
+        "review_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "project_context_create",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_656337bf359e4a8694d14acc309c8fa8",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:49Z",
+      "finished_at": "2026-08-21T02:12:50Z",
+      "duration_ms": 850.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "context": {
+          "project_name": "g1-probe"
+        },
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "project_context_validate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7f3a5e8367c14e1eaaa8bdfd3a7d83db",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:50Z",
+      "finished_at": "2026-08-21T02:12:50Z",
+      "duration_ms": 849.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "project_context_revise",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b3c796fa0176459db680d1ddf855fce7",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:50Z",
+      "finished_at": "2026-08-21T02:12:51Z",
+      "duration_ms": 845.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe",
+        "expected_basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "patch": {
+          "project_name": "g1-probe"
+        }
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_get_industry_constraints",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_54efa3019f784f2484c61d0ab3a8ae39",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:51Z",
+      "finished_at": "2026-08-21T02:12:52Z",
+      "duration_ms": 865.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_solve_build_scale",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a7248a5a1c1a420a84a42de88924c46c",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:52Z",
+      "finished_at": "2026-08-21T02:12:53Z",
+      "duration_ms": 850.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe",
+        "market_case_id": "g1-probe",
+        "alternatives": [
+          {
+            "candidate_id": "g1-probe",
+            "target_capacity": {
+              "value": 1.0,
+              "unit": "g1-probe"
+            },
+            "land_area_m2": 1.0,
+            "capacity_intensity_per_m2": 1.0,
+            "constraints": {
+              "plot_ratio_min": 1.0,
+              "plot_ratio_max": 1.0,
+              "building_coverage_max": 1.0,
+              "green_ratio_min": 1.0,
+              "green_area_m2": 1.0
+            },
+            "facilities": [
+              {
+                "name": "g1-probe",
+                "purpose": "g1-probe",
+                "floor_area_m2": 1.0,
+                "footprint_m2": 1.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_calculate_cost_drivers",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_4755d50156bc47c2acb65316c8edcf23",
+      "code": "costdriverset_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:53Z",
+      "finished_at": "2026-08-21T02:12:54Z",
+      "duration_ms": 858.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "cost_driver_set_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_get_env_templates",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_db4eecd51aa64a9c934cc2821d51cabc",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:54Z",
+      "finished_at": "2026-08-21T02:12:55Z",
+      "duration_ms": 849.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_type": "g1-probe",
+        "pollutant_types": [
+          "wastewater"
+        ]
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_infer_labor_plan",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_eefd5dd08cfd4cdaba1ae0f3c7dd960a",
+      "code": "labor_plan_basis_not_confirmed",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:55Z",
+      "finished_at": "2026-08-21T02:12:56Z",
+      "duration_ms": 846.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe",
+        "build_scale_case_id": "g1-probe",
+        "position_requirements": [
+          {
+            "category": "g1-probe",
+            "name": "g1-probe",
+            "annual_workload": 1.0,
+            "workload_unit": "g1-probe",
+            "capacity_per_person_shift": 1.0,
+            "shift_count": 1,
+            "coverage_factor": 1.0,
+            "automation_adjustment": 1.0,
+            "avg_wage_yuan": 1.0,
+            "welfare_rate": 1.0,
+            "evidence_bindings": []
+          }
+        ]
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_score_option_comparison",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ee0649e2e12c4442a0afc3e761d1146d",
+      "code": "option_comparison_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:56Z",
+      "finished_at": "2026-08-21T02:12:56Z",
+      "duration_ms": 846.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "option_comparison_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_resolve_industry_skill",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ccc30c6bed5d4ae496778850c099331d",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:56Z",
+      "finished_at": "2026-08-21T02:12:57Z",
+      "duration_ms": 845.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_context_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_get_object",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b3f486213a9f49acb1824c1fe0054548",
+      "code": "project_context_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:57Z",
+      "finished_at": "2026-08-21T02:12:58Z",
+      "duration_ms": 843.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_type": "ProjectContext",
+        "object_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "project_context_list",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_8cbc5b059a674234a80b22e0bda9515e",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:58Z",
+      "finished_at": "2026-08-21T02:12:59Z",
+      "duration_ms": 845.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_validate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_c813b7fd98cf4eaea16ea532fad0d028",
+      "code": "market_case_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:12:59Z",
+      "finished_at": "2026-08-21T02:13:00Z",
+      "duration_ms": 846.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_kind": "market_case",
+        "target_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_compare",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a091375e3f7b40409e4610dc944d1720",
+      "code": "market_case_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:00Z",
+      "finished_at": "2026-08-21T02:13:01Z",
+      "duration_ms": 849.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_kind": "market_case",
+        "target_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_confirm",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:01Z",
+      "finished_at": "2026-08-21T02:13:01Z",
+      "duration_ms": 842.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_kind": "market_case",
+        "target_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_prepare",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:01Z",
+      "finished_at": "2026-08-21T02:13:02Z",
+      "duration_ms": 847.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_kind": "market_case",
+        "project_context_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-project-planning",
+      "tool": "planning_create",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:02Z",
+      "finished_at": "2026-08-21T02:13:03Z",
+      "duration_ms": 848.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "object_kind": "revenue_drivers",
+        "project_context_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "reference_search",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_02556238e51f441b816d5f2c6b7c6da3",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:04Z",
+      "finished_at": "2026-08-21T02:13:04Z",
+      "duration_ms": 519.8,
+      "input_summary": {
+        "dataset": "industry_reports"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "reference_get",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:04Z",
+      "finished_at": "2026-08-21T02:13:05Z",
+      "duration_ms": 519.0,
+      "input_summary": {
+        "dataset": "statistics_dictionaries",
+        "record_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "reference_list",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_60c8218e12a0454f9594881196c7e54c",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:05Z",
+      "finished_at": "2026-08-21T02:13:05Z",
+      "duration_ms": 517.9,
+      "input_summary": {
+        "dataset": "environment_locations"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "reference_observe",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_53ee140c41ac414fbf8c5ff5edc7ed1a",
+      "code": "environmental-data.not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:05Z",
+      "finished_at": "2026-08-21T02:13:06Z",
+      "duration_ms": 513.0,
+      "input_summary": {
+        "dataset": "air_quality",
+        "subject": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "reference_verify",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_a98f7966a0114679a92116ef9e937f60",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:06Z",
+      "finished_at": "2026-08-21T02:13:06Z",
+      "duration_ms": 516.6,
+      "input_summary": {
+        "dataset": "policy",
+        "record_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "template_fill",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ee798e8e3ea0406e914960ebe823f85d",
+      "code": "lvke-templates.not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:06Z",
+      "finished_at": "2026-08-21T02:13:07Z",
+      "duration_ms": 519.7,
+      "input_summary": {
+        "template_id": "g1-probe",
+        "data": {}
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "geo_query",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_9c32ba7ac318453f870edce51cb78172",
+      "code": "map-geo.not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:07Z",
+      "finished_at": "2026-08-21T02:13:07Z",
+      "duration_ms": 513.6,
+      "input_summary": {
+        "operation": "geocode",
+        "query_or_point": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "geo_distance_matrix",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_66dac04cd1e54d389b0efe39072de1f1",
+      "code": "map-geo.not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:07Z",
+      "finished_at": "2026-08-21T02:13:08Z",
+      "duration_ms": 516.6,
+      "input_summary": {
+        "origins": [
+          "g1-probe"
+        ],
+        "destinations": [
+          "g1-probe"
+        ]
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "archive_find_similar_projects",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_ae714a1479ce4863ab7b4c82868694c7",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:08Z",
+      "finished_at": "2026-08-21T02:13:08Z",
+      "duration_ms": 525.5,
+      "input_summary": {
+        "brief": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "archive_extract_structure",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_7f23b32bcbd043c594e9011215a19af9",
+      "code": "lvke-archive.index_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:08Z",
+      "finished_at": "2026-08-21T02:13:09Z",
+      "duration_ms": 521.6,
+      "input_summary": {
+        "report_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "archive_compare_cases",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_a3009e4f7e734250a69847c6513237d0",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:09Z",
+      "finished_at": "2026-08-21T02:13:09Z",
+      "duration_ms": 517.7,
+      "input_summary": {
+        "report_ids": [
+          "g1-probe"
+        ]
+      }
+    },
+    {
+      "server": "lvke-reference",
+      "tool": "archive_get_template_paragraph",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_8d0b65616d5b4d369bcdbbaef218a286",
+      "code": "lvke-archive.index_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:09Z",
+      "finished_at": "2026-08-21T02:13:10Z",
+      "duration_ms": 518.3,
+      "input_summary": {
+        "scene": "policy-driver"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_prepare",
+      "classification": "PASS",
+      "status": "partial",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_ceb9ffe3798b4cbebe1331bceaf95f64",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:11Z",
+      "finished_at": "2026-08-21T02:13:11Z",
+      "duration_ms": 666.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "evidence_pack_ids": [],
+        "research_package_ids": []
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_start",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_4b7d0b872c374f58a693f25be160621c",
+      "code": "preparation_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:11Z",
+      "finished_at": "2026-08-21T02:13:12Z",
+      "duration_ms": 632.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_preparation_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_e3bf40b31c5c4c0cbb0e9123b0a62435",
+      "code": "task_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:12Z",
+      "finished_at": "2026-08-21T02:13:13Z",
+      "duration_ms": 633.3,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "task_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_validate",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_aea87325e60845349d0e9bcad7e997b8",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:13Z",
+      "finished_at": "2026-08-21T02:13:13Z",
+      "duration_ms": 688.4,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_list_sections",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_61ceaf1426644f95bfb2972cbe2fe8b3",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:13Z",
+      "finished_at": "2026-08-21T02:13:14Z",
+      "duration_ms": 641.0,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_get_section",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_461218b670144f97983db543d3ee59fc",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:14Z",
+      "finished_at": "2026-08-21T02:13:15Z",
+      "duration_ms": 635.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe",
+        "section_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_propose_section",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b6fa26c3150443a3ac2b511eda8fb83b",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:15Z",
+      "finished_at": "2026-08-21T02:13:15Z",
+      "duration_ms": 634.1,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe",
+        "section_id": "g1-probe",
+        "summary": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_validate_section",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_3dbd34bcaa7e4935b14864f2f3e95145",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:15Z",
+      "finished_at": "2026-08-21T02:13:16Z",
+      "duration_ms": 638.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe",
+        "section_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_export_docx",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2cf83c1518714deea3b30bfd7136f3f9",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:16Z",
+      "finished_at": "2026-08-21T02:13:16Z",
+      "duration_ms": 683.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "report_revision_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_propose",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_a04bc498359b48dfbad44d96aa1a2f6b",
+      "code": "proposal_basis_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:16Z",
+      "finished_at": "2026-08-21T02:13:17Z",
+      "duration_ms": 642.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "summary": "g1-probe",
+        "proposed_content": "g1-probe",
+        "basis": {
+          "report_preparation_id": "g1-probe",
+          "basis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "report_revision_id": "g1-probe"
+        }
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_diff",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b5167cbcf73745f5a82629d577fdd61f",
+      "code": "proposal_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:17Z",
+      "finished_at": "2026-08-21T02:13:18Z",
+      "duration_ms": 642.7,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "proposal_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_apply",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_88966ae713c649448444d186aefb540c",
+      "code": "proposal_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:18Z",
+      "finished_at": "2026-08-21T02:13:18Z",
+      "duration_ms": 626.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "proposal_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-report-generation",
+      "tool": "report_get_readiness",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_49b11532d81b459aaf9698357379e39a",
+      "code": "revision_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:18Z",
+      "finished_at": "2026-08-21T02:13:19Z",
+      "duration_ms": 632.1,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_external_corpus_resolve",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_751e759920e2432aad5b054630187b2f",
+      "code": "external_corpus_unavailable",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:20Z",
+      "finished_at": "2026-08-21T02:13:20Z",
+      "duration_ms": 574.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "project_name": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_import_content",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2720103596804f828046efe2fa657a20",
+      "code": "content_encoding_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:20Z",
+      "finished_at": "2026-08-21T02:13:21Z",
+      "duration_ms": 558.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "original_filename": "g1-probe",
+        "declared_mime": "g1-probe",
+        "content_base64": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_import_local_path",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ef6821b9a160491f9f6ec4d52ce5244a",
+      "code": "local_path_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:21Z",
+      "finished_at": "2026-08-21T02:13:21Z",
+      "duration_ms": 566.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "local_path": "g1-probe",
+        "original_filename": "g1-probe",
+        "declared_mime": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_upload_begin",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:21Z",
+      "finished_at": "2026-08-21T02:13:22Z",
+      "duration_ms": 566.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "original_filename": "g1-probe",
+        "declared_mime": "g1-probe",
+        "total_size": 1
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_upload_chunk",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_3504b29211b547f6acd2773ed2387b06",
+      "code": "content_encoding_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:22Z",
+      "finished_at": "2026-08-21T02:13:22Z",
+      "duration_ms": 566.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "upload_id": "g1-probe",
+        "offset_bytes": 1,
+        "content_base64": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_upload_commit",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_bc416123094f4de3aac91195c7b78acc",
+      "code": "source_upload_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:22Z",
+      "finished_at": "2026-08-21T02:13:23Z",
+      "duration_ms": 570.2,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "upload_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_upload_abort",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_612a82ab16334969bdcef7cfee91893a",
+      "code": "source_upload_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:23Z",
+      "finished_at": "2026-08-21T02:13:24Z",
+      "duration_ms": 572.8,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "upload_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_file_list",
+      "classification": "PASS",
+      "status": "ok",
+      "success": true,
+      "system_success": true,
+      "trace_id": "mcp_6e44fe71b7bc471d8fd40c7f21b9d8da",
+      "code": "",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:24Z",
+      "finished_at": "2026-08-21T02:13:24Z",
+      "duration_ms": 573.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_file_get",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_f799baaa401c4749a2273c842ea08a65",
+      "code": "source_file_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:24Z",
+      "finished_at": "2026-08-21T02:13:25Z",
+      "duration_ms": 576.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "file_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_parse_retry",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_2698d10199644ff78bad86ec4d312671",
+      "code": "source_parse_job_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:25Z",
+      "finished_at": "2026-08-21T02:13:25Z",
+      "duration_ms": 573.5,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "job_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_parse_cancel",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_e398bb8ac1fa4d6cbf2e176a241a7009",
+      "code": "source_parse_job_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:25Z",
+      "finished_at": "2026-08-21T02:13:26Z",
+      "duration_ms": 629.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "job_id": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_inspect_workbook",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_3b11bc8ae26b45aab0e5e92494fad94a",
+      "code": "source_workbook_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:26Z",
+      "finished_at": "2026-08-21T02:13:27Z",
+      "duration_ms": 573.9,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "file_id": "g1-probe",
+        "operation": "list_sheets"
+      }
+    },
+    {
+      "server": "lvke-source-files",
+      "tool": "source_task_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_6013d3a8206b4daa8284addde66bda7f",
+      "code": "task_status_identifier_invalid",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:27Z",
+      "finished_at": "2026-08-21T02:13:27Z",
+      "duration_ms": 578.6,
+      "input_summary": {
+        "workspace_id": "g1-golden-20260821",
+        "task_kind": "parse"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_create_from_sentence",
+      "classification": "EXPECTED_REJECTION",
+      "status": "missing_inputs",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b9f722da2fdc4fc9be399a1bd090853d",
+      "code": "missing_route",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:28Z",
+      "finished_at": "2026-08-21T02:13:28Z",
+      "duration_ms": 657.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "sentence": "g1-probe",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_start",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_ff2b20cc61cc4fc6b3cff2ffd87cf60d",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:28Z",
+      "finished_at": "2026-08-21T02:13:29Z",
+      "duration_ms": 661.5,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "zmr_missing",
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_status",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_b3dfc827f99e4dd28e1e0e4f1763161a",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:29Z",
+      "finished_at": "2026-08-21T02:13:30Z",
+      "duration_ms": 665.9,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "zmr_missing"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_get",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_1a7f8d03509f45ae8c845c387a9632b9",
+      "code": "delivery_object_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:30Z",
+      "finished_at": "2026-08-21T02:13:30Z",
+      "duration_ms": 694.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "object_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_list_assumptions",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_839a35bf35b7403b8998abf6948e98a4",
+      "code": "assumption_package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:30Z",
+      "finished_at": "2026-08-21T02:13:31Z",
+      "duration_ms": 686.8,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "assumption_package_id": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_confirm_assumptions",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_1c5b3c15af924574bab00fb234433794",
+      "code": "assumption_package_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:31Z",
+      "finished_at": "2026-08-21T02:13:32Z",
+      "duration_ms": 650.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "assumption_package_id": "g1-probe",
+        "confirmations": [
+          {
+            "name": "g1-probe",
+            "value": 1.0
+          }
+        ],
+        "idempotency_key": "g1-probe"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_get_artifacts",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "success": false,
+      "system_success": true,
+      "trace_id": "mcp_6029035467084524961114ed03a3e2ac",
+      "code": "delivery_run_not_found",
+      "protocol_error": "",
+      "started_at": "2026-08-21T02:13:32Z",
+      "finished_at": "2026-08-21T02:13:33Z",
+      "duration_ms": 686.4,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "delivery_run_id": "zmr_missing"
+      }
+    },
+    {
+      "server": "lvke-zero-material-delivery",
+      "tool": "delivery_transition",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "protocol_error",
+      "success": false,
+      "system_success": null,
+      "trace_id": "",
+      "code": "-32602",
+      "protocol_error": "-32602",
+      "started_at": "2026-08-21T02:13:33Z",
+      "finished_at": "2026-08-21T02:13:33Z",
+      "duration_ms": 710.6,
+      "input_summary": {
+        "workspace_id": "mcp-acceptance-empty",
+        "operation": "cancel",
+        "delivery_run_id": "zmr_missing",
+        "idempotency_key": "g1-probe"
+      }
+    }
+  ],
+  "golden_chain": [
+    {
+      "step": "ProjectContext",
+      "tool": "project_context_create",
+      "server": "lvke-project-planning",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "pctx_5ea6492152812bc25b037758",
+      "trace_id": "mcp_87667c0bf6b24c5282f3bc9da7dcbf51",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "SourceSnapshot",
+      "tool": "source_import_content",
+      "server": "lvke-source-files",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "src_994993b01e2a63e38960e3ac",
+      "trace_id": "mcp_689e7fbffd5043cfb7eeee2a94e5e596",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "DiscoverySet",
+      "tool": "data_discover",
+      "server": "lvke-data-acquisition",
+      "classification": "UPSTREAM_FAILURE",
+      "status": "upstream_failure",
+      "object_id": "discovery_6d5b35f298c055eff28a735b",
+      "trace_id": "mcp_20906e4f076540c59a91add52ccf6a08",
+      "code": "lvke-data-acquisition.upstream_failure",
+      "protocol_error": "",
+      "notes": "candidate summaries ≠ evidence"
+    },
+    {
+      "step": "CandidateSet",
+      "tool": "analysis_ingest",
+      "server": "lvke-data-analysis",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "analysis_71af3ed0d8aee6d8031978b8",
+      "trace_id": "mcp_2998ca4a93f64d9d8d5c178edc9b863f",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "EvidencePack",
+      "tool": "analysis_build_evidence_pack",
+      "server": "lvke-data-analysis",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "object_id": "",
+      "trace_id": "mcp_24bd3c0714c648b4ba96e3fcd996ca1e",
+      "code": "source_reconstruction_invalid",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ResearchPackage",
+      "tool": "dr_prepare",
+      "server": "lvke-deep-research",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "",
+      "trace_id": "mcp_6648ebd496f94a5d83e150959bc9d1d8",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "DeliveryRun",
+      "tool": "feasibility_start",
+      "server": "lvke-feasibility-delivery",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "fdr_5d13b0f8a9771bea7de0554e",
+      "trace_id": "mcp_1479d11f24054f43a507289022f0f6c4",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "IndustryConstraints",
+      "tool": "planning_get_industry_constraints",
+      "server": "lvke-project-planning",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "",
+      "trace_id": "mcp_e08a1b040170489a92ab7be990fe4105",
+      "code": "",
+      "protocol_error": "",
+      "notes": "planning chain entry without market_case dependency"
+    },
+    {
+      "step": "FinanceSpec",
+      "tool": "finance_prepare_spec",
+      "server": "lvke-finance-model",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "fsp_fe5d2d6f3b015c06b9d1ab90",
+      "trace_id": "mcp_7448092ed442490f8e5a11dad4ffb21f",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "FinanceSpecConfirmed",
+      "tool": "finance_confirm_spec",
+      "server": "lvke-finance-model",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "fsp_43d65d5c3c601711497f63c7",
+      "trace_id": "mcp_43ffa2aabe814087b3f44c1ad839eadc",
+      "code": "lvke-finance-model.partial",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "FinanceRun",
+      "tool": "finance_run_model",
+      "server": "lvke-finance-model",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "run_27d443009f15",
+      "trace_id": "mcp_5356b6918fc8478fb8e6a41ac967c565",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "FinanceTablesPackage",
+      "tool": "tables_render",
+      "server": "lvke-finance-tables",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "run_27d443009f15",
+      "trace_id": "mcp_34bc19d581c04cc78473b35ff1a11a5c",
+      "code": "",
+      "protocol_error": "",
+      "notes": "validation_complete may be false for estimate_preview"
+    },
+    {
+      "step": "TablesExportCsv",
+      "tool": "tables_export_csv",
+      "server": "lvke-finance-tables",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "object_id": "",
+      "trace_id": "mcp_5025705e91564ee195118e3427589e6f",
+      "code": "finance_tables_package_not_found",
+      "protocol_error": "",
+      "notes": "technical scope process artifact"
+    },
+    {
+      "step": "ReviewPrepare",
+      "tool": "review_prepare",
+      "server": "lvke-deliverable-review",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "rvprep_e3cbe1e063b4a7d29fd9d617",
+      "trace_id": "mcp_c2d977aa0c4c4654bd8f35f13b67d011",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "Review",
+      "tool": "review_start",
+      "server": "lvke-deliverable-review",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "review_8a4a5dd64b953f220a747d9af667df51",
+      "trace_id": "mcp_b44cf5a620db42cab888d9a1bba8297c",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReviewFindings",
+      "tool": "review_list_findings",
+      "server": "lvke-deliverable-review",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "review_8a4a5dd64b953f220a747d9af667df51",
+      "trace_id": "mcp_9451a020500f4223a5df106048840839",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportPreparation",
+      "tool": "report_prepare",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "rprep_136c142a287c55ddf096564f",
+      "trace_id": "mcp_70989a721864425f83b9264e376ab4b2",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportRevisionDraft",
+      "tool": "report_start",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "rrv_950346e08d4cec13260f6ed6",
+      "trace_id": "mcp_261081bf3c314f3a80b99b92ce7c01a5",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportRevision",
+      "tool": "report_status",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "rrv_9e878effb1535486dbef10f3",
+      "trace_id": "mcp_2166d88cbae54ee181376525bd4e2651",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportPropose",
+      "tool": "report_propose",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "prop_f9ac3b157c4912a9",
+      "trace_id": "mcp_0fe2c36c5b25485cbddaf49f9b8ea639",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportDiff",
+      "tool": "report_diff",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "prop_f9ac3b157c4912a9",
+      "trace_id": "mcp_65a4970abff24a368f50c70e6693ab86",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReportApply",
+      "tool": "report_apply",
+      "server": "lvke-report-generation",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "rrv_f1a29b7540fd58c370107421",
+      "trace_id": "mcp_9525a5f44d044b01b1c77f744782dfbb",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    },
+    {
+      "step": "ReviewRetest",
+      "tool": "review_retest",
+      "server": "lvke-deliverable-review",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "object_id": "",
+      "trace_id": "mcp_9dcaa03da1434706958081e845b53465",
+      "code": "retest_target_not_newer",
+      "protocol_error": "",
+      "notes": "formal export blocked without EVD-2"
+    },
+    {
+      "step": "ReviewExport",
+      "tool": "review_export",
+      "server": "lvke-deliverable-review",
+      "classification": "PASS",
+      "status": "ok",
+      "object_id": "review_8a4a5dd64b953f220a747d9af667df51",
+      "trace_id": "mcp_08d22f0099d6491799030ecdb4e64055",
+      "code": "",
+      "protocol_error": "",
+      "notes": "formal DOCX requires EVD-2 — process JSON only"
+    },
+    {
+      "step": "FeasibilityValidate",
+      "tool": "feasibility_validate",
+      "server": "lvke-feasibility-delivery",
+      "classification": "PASS",
+      "status": "partial",
+      "object_id": "fdr_5d13b0f8a9771bea7de0554e",
+      "trace_id": "mcp_034f7bb1dc824eff9d559b0590a182c5",
+      "code": "",
+      "protocol_error": "",
+      "notes": ""
+    }
+  ]
+}

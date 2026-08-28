@@ -162,6 +162,14 @@ class BuildMetadataSourceCheckoutTest(unittest.TestCase):
 
 
 class BuildMetadataWriterTest(unittest.TestCase):
+    def test_writer_rejects_dirty_worktree_in_release_mode(self) -> None:
+        from scripts import write_build_metadata as writer
+
+        with patch.object(writer, "_tracked_worktree_clean", return_value=False):
+            with self.assertRaises(RuntimeError) as ctx:
+                writer.write_build_metadata(require_clean=True)
+        self.assertIn("tracked worktree", str(ctx.exception))
+
     def test_writer_uses_package_local_target_and_full_plugin_version(self) -> None:
         from scripts import write_build_metadata as writer
 

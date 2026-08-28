@@ -1,6 +1,6 @@
 {
   "schema": "finance_tables_roundtrip.v1",
-  "status": "ok",
+  "status": "partial",
   "run_binding": true,
   "table_count": 13,
   "table_ids": [

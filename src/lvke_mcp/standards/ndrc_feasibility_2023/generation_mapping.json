@@ -1,0 +1,141 @@
+{
+  "schema_version": "ndrc-feasibility-generation-mapping.v1",
+  "standard_id": "ndrc-feasibility-outline-2023",
+  "source_fingerprint": "sha256:5b5fe34a72fa316e925a9a92807c956aa4a14f7437500e4a93e2258882a53429",
+  "generation_policy": "generate_then_validate_then_promote",
+  "project_type_profiles": {
+    "government_direct_investment": {
+      "outline_document": "government_outline",
+      "finance_clause": "government_outline.7",
+      "report_chapters": [
+        "government_outline.1", "government_outline.2", "government_outline.3",
+        "government_outline.4", "government_outline.5", "government_outline.6",
+        "government_outline.7", "government_outline.8", "government_outline.9",
+        "government_outline.10", "government_outline.11"
+      ]
+    },
+    "government_capital_injection": {
+      "outline_document": "government_outline",
+      "finance_clause": "government_outline.7",
+      "report_chapters": [
+        "government_outline.1", "government_outline.2", "government_outline.3",
+        "government_outline.4", "government_outline.5", "government_outline.6",
+        "government_outline.7", "government_outline.8", "government_outline.9",
+        "government_outline.10", "government_outline.11"
+      ]
+    },
+    "enterprise_investment": {
+      "outline_document": "enterprise_outline",
+      "finance_clause": "enterprise_outline.6",
+      "report_chapters": [
+        "enterprise_outline.1", "enterprise_outline.2", "enterprise_outline.3",
+        "enterprise_outline.4", "enterprise_outline.5", "enterprise_outline.6",
+        "enterprise_outline.7", "enterprise_outline.8", "enterprise_outline.9",
+        "enterprise_outline.10"
+      ]
+    }
+  },
+  "finance_requirements": [
+    {
+      "requirement_id": "investment_estimate",
+      "title": "投资估算与分年度投资计划",
+      "source_clauses": ["government_outline.7.1", "enterprise_outline.6.1", "outline_explanation.4.7"],
+      "finance_spec_paths": [
+        "finance.total_investment_wan", "finance.invest_breakdown", "finance.build_period_months",
+        "finance.construction_investment_by_year", "finance.construction_interest_by_year",
+        "finance.working_capital_by_year", "finance.funding_annual_schedule"
+      ],
+      "finance_run_outputs": [
+        "investment.total_investment", "investment.construction_investment",
+        "investment.construction_interest", "investment.working_capital", "funding.annual_schedule"
+      ],
+      "delivery_tables": ["investment", "interest-during-construction", "working-capital", "funding"],
+      "report_sections": ["investment_estimate", "funding_plan"],
+      "generation_when_missing": "deterministic_estimate_with_assumption_ledger",
+      "validation_rules": ["investment_reconciles", "annual_plan_reconciles", "estimate_accuracy_target_disclosed"],
+      "formal_evidence": ["estimate_basis", "quantity_price_or_indicator_basis", "annual_investment_plan"],
+      "explanation_constraints": {"feasibility_estimate_accuracy_target": "±10%"}
+    },
+    {
+      "requirement_id": "profitability",
+      "title": "盈利能力、利润与现金流分析",
+      "source_clauses": ["government_outline.7.2", "enterprise_outline.6.2", "outline_explanation.4.7"],
+      "finance_spec_paths": [
+        "finance.annual_revenue_wan", "finance.revenue_products", "finance.cost_items",
+        "finance.operating_cost_by_year", "finance.discount_rate", "finance.income_tax_rate",
+        "finance.depreciation_classes", "finance.amort_bases"
+      ],
+      "finance_run_outputs": [
+        "indicators.irr", "indicators.npv", "indicators.payback_period",
+        "indicators.break_even", "indicators.sensitivity", "operating.revenue",
+        "operating.total_cost", "operating.profit", "cashflow.project_cashflow"
+      ],
+      "delivery_tables": [
+        "income-statement", "total-cost", "wage", "depreciation", "amortization",
+        "profit-distribution", "cashflow", "capital-cashflow"
+      ],
+      "report_sections": ["profitability_analysis", "break_even_analysis", "sensitivity_analysis"],
+      "generation_when_missing": "deterministic_volume_price_and_cost_assumptions",
+      "validation_rules": ["revenue_traceable", "cost_tree_reconciles", "profit_cashflow_consistent"],
+      "formal_evidence": ["volume_price_support", "cost_basis", "tax_basis"]
+    },
+    {
+      "requirement_id": "financing_plan",
+      "title": "融资结构、资金成本与到位计划",
+      "source_clauses": ["government_outline.7.3", "enterprise_outline.6.3", "outline_explanation.4.7"],
+      "finance_spec_paths": [
+        "finance.capital_own_wan", "finance.loan_wan", "finance.gov_subsidy_wan",
+        "finance.loan_rate", "finance.loan_years", "finance.loan_draw_plan",
+        "finance.equity_inject_by_year", "finance.funding_annual_schedule"
+      ],
+      "finance_run_outputs": ["funding.sources", "funding.structure", "funding.cost", "funding.annual_schedule"],
+      "delivery_tables": ["funding", "debt-service", "capital-cashflow"],
+      "report_sections": ["financing_plan", "financing_risk"],
+      "generation_when_missing": "controlled_capital_debt_mix_assumption",
+      "validation_rules": ["sources_equal_uses", "draw_schedule_reconciles", "funding_cost_disclosed"],
+      "formal_evidence": ["shareholder_funding_capacity", "financing_term_sheet", "subsidy_basis"]
+    },
+    {
+      "requirement_id": "debt_service_capacity",
+      "title": "债务清偿能力",
+      "source_clauses": ["government_outline.7.4", "enterprise_outline.6.4", "outline_explanation.4.7"],
+      "finance_spec_paths": [
+        "finance.loan_wan", "finance.loan_rate", "finance.loan_years", "finance.loan_grace_years",
+        "finance.loan_principal_by_year", "finance.loan_interest_by_year", "finance.debt_repay_sources"
+      ],
+      "finance_run_outputs": [
+        "indicators.dscr", "indicators.icr", "indicators.asset_liability_ratio",
+        "debt.principal", "debt.interest", "debt.repayment_sources"
+      ],
+      "delivery_tables": ["debt-service", "cashflow", "capital-cashflow"],
+      "report_sections": ["debt_service_capacity"],
+      "generation_when_missing": "deterministic_repayment_schedule_with_disclosure",
+      "validation_rules": ["debt_balance_reconciles", "repayment_sources_traceable", "coverage_ratios_recomputed"],
+      "formal_evidence": ["financing_terms", "repayment_source_evidence"]
+    },
+    {
+      "requirement_id": "financial_sustainability",
+      "title": "财务可持续性与资金接续",
+      "source_clauses": ["government_outline.7.5", "enterprise_outline.6.5", "outline_explanation.4.7"],
+      "finance_spec_paths": [
+        "finance.operating_cost_by_year", "finance.annual_operating_subsidy_wan",
+        "finance.fiscal_support_policy", "finance.renewal_capex_plan"
+      ],
+      "finance_run_outputs": [
+        "cashflow.net_cashflow_by_year", "cashflow.cumulative_surplus",
+        "cashflow.funding_gap", "cashflow.continuation_plan"
+      ],
+      "delivery_tables": ["cashflow", "capital-cashflow"],
+      "report_sections": ["financial_sustainability", "funding_continuation_plan"],
+      "generation_when_missing": "cash_gap_projection_with_explicit_support_assumption",
+      "validation_rules": ["annual_cash_balance_reconciles", "negative_cash_years_disclosed"],
+      "formal_evidence": ["support_commitment", "working_capital_and_renewal_plan"],
+      "known_gap": "2023大纲要求财务计划现金流量表；当前十三表未设置独立同名表，只能由项目投资现金流量表和资本金现金流量表部分覆盖，正式版必须补充独立表或明确适用性说明。"
+    }
+  ],
+  "non_blocking_conformance": {
+    "statuses": ["conformant", "partial", "not_applicable", "unverified"],
+    "generation_allowed": ["conformant", "partial", "not_applicable", "unverified"],
+    "formal_promotion_requires": ["source_integrity_valid", "technical_validation_complete", "standard_gaps_disposed"]
+  }
+}

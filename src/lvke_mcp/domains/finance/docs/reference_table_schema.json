@@ -4,6 +4,12 @@
   "program_package": "S2-续代/L-opt",
   "source": {
     "verification_scope": "reviewed_extraction_bundle",
+    "count_semantics": {
+      "engine_delivery_count": 13,
+      "reference_source_sheet_count": 15,
+      "review_workbook_sheet_count": 16,
+      "note": "15 张 canonical_tables 是参考结构来源，16 张 review workbook sheets 含投资复核；二者均不得参与十三表交付完整性计数。"
+    },
     "workbook_provenance": {
       "original_filename": "投资类项目经济计算表.xlsx",
       "original_sha256": "2d15352ab77f29939cea38884107f7ac22e142480234158a2ee0c6f2f21202e3",

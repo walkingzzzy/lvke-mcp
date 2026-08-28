@@ -26,4 +26,6 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   and `business_success=false`; MCP input-schema `-32602` rejections remain
   protocol errors and do not require a business envelope.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Contract Skill — validates against `tests/fixtures/baseline/contracts/` and `lvke://schemas/{server}/{tool}/output` Resources. Run `python scripts/freeze_baseline.py` after intentional contract changes; `python scripts/validate_skill_tool_mapping.py --strict` before plugin release.

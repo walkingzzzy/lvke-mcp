@@ -11,7 +11,11 @@ from lvke_mcp.domains.finance import gate as finance_gate
 from lvke_mcp.domains.finance.run_service import (
     DELIVERY_TABLE_KEYS,
     DELIVERY_TABLE_META,
+    ENGINE_DELIVERY_COUNT,
     TEMPLATE_VERSION,
+    delivery_count_semantics,
+    delivery_table_contract,
+    delivery_table_contract_hash,
     get_workspace_finance_run,
     render_workspace_finance_tables,
 )
@@ -65,6 +69,10 @@ def structured_table_manifest(
         key: (delivery_no, title)
         for key, delivery_no, title in DELIVERY_TABLE_META
     }
+    contract_by_key = {
+        item["table_code"]: item for item in delivery_table_contract()
+    }
+    contract_hash = delivery_table_contract_hash()
     manifest: list[dict[str, Any]] = []
     for key in delivery_keys():
         table = (tables or {}).get(key)
@@ -72,10 +80,25 @@ def structured_table_manifest(
             continue
         rows = table.get("rows") or []
         delivery_no, title = meta_by_key.get(key, ("", key))
+        contract = contract_by_key.get(key, {})
         manifest.append({
+            "table_code": key,
             "table_id": key,
             "delivery_no": delivery_no,
             "title": title,
+            "order": contract.get("order"),
+            "unit": contract.get("unit"),
+            "period_semantics": contract.get("period_semantics"),
+            "required_columns": list(contract.get("required_columns") or []),
+            "required_column_groups": [
+                list(group) for group in contract.get("required_column_groups") or []
+            ],
+            "minimum_rows": contract.get("minimum_rows"),
+            "formula_dependencies": list(contract.get("formula_dependencies") or []),
+            "reconciliation_rules": list(contract.get("reconciliation_rules") or []),
+            "source": contract.get("source"),
+            "schema_version": contract.get("schema_version"),
+            "contract_hash": contract_hash,
             "run_id": str(run_id or ""),
             "template_version": str(template_version or TEMPLATE_VERSION),
             "row_count": len(rows) if isinstance(rows, list) else 0,
@@ -200,15 +223,58 @@ def validate_render(data: dict[str, Any]) -> dict[str, Any]:
     tables = data.get("tables") or {}
     missing = [key for key in delivery_keys() if key not in tables]
     manifest = data.get("table_manifest") or []
+    manifest_codes = [
+        str(item.get("table_code") or item.get("table_id") or "")
+        for item in manifest
+        if isinstance(item, dict)
+    ]
+    expected_codes = list(delivery_keys())
+    contract_hash = delivery_table_contract_hash()
     blockers: list[str] = []
     warnings: list[str] = []
     table_quality: dict[str, dict[str, Any]] = {}
     if missing:
         blockers.append("missing_delivery_tables")
-    if len(manifest) < len(delivery_keys()):
+    if len(manifest) != ENGINE_DELIVERY_COUNT:
         blockers.append("incomplete_table_manifest")
+    if manifest_codes != expected_codes:
+        blockers.append("table_manifest_order_or_membership_mismatch")
+    if any(
+        str(item.get("contract_hash") or "") != contract_hash
+        for item in manifest
+        if isinstance(item, dict)
+    ):
+        blockers.append("table_manifest_contract_hash_mismatch")
+    contract_by_key = {
+        item["table_code"]: item for item in delivery_table_contract()
+    }
     for key in delivery_keys():
         quality = structured_table_quality(tables.get(key))
+        columns = {
+            str(column.get("key") or "")
+            for column in ((tables.get(key) or {}).get("columns") or [])
+            if isinstance(column, dict)
+        } if isinstance(tables.get(key), dict) else set()
+        required_columns = set(contract_by_key[key]["required_columns"])
+        missing_columns = sorted(required_columns - columns)
+        unsatisfied_groups = [
+            list(group)
+            for group in contract_by_key[key].get("required_column_groups") or []
+            if not columns.intersection(group)
+        ]
+        if missing_columns or unsatisfied_groups:
+            quality = dict(quality)
+            quality["valid"] = False
+            quality["blockers"] = [
+                *list(quality.get("blockers") or []),
+                *(f"missing_required_column:{column}" for column in missing_columns),
+                *(
+                    "missing_required_column_group:" + "|".join(group)
+                    for group in unsatisfied_groups
+                ),
+            ]
+            quality["missing_required_columns"] = missing_columns
+            quality["unsatisfied_required_column_groups"] = unsatisfied_groups
         table_quality[key] = quality
         if not quality["valid"]:
             blockers.extend(
@@ -217,8 +283,10 @@ def validate_render(data: dict[str, Any]) -> dict[str, Any]:
         warnings.extend(f"{key}:{warning}" for warning in quality["warnings"])
     return {
         "valid": not blockers,
-        "required_table_count": len(delivery_keys()),
+        **delivery_count_semantics(),
+        "required_table_count": ENGINE_DELIVERY_COUNT,
         "manifest_count": len(manifest),
+        "table_contract_hash": contract_hash,
         "missing_delivery_keys": missing,
         "blockers": blockers,
         "warnings": (
@@ -498,14 +566,18 @@ def validate_tables(
         else result["formal_validation"]
     )
     quality_issues = sorted(set(selected_blockers))
+    # 显式问 formal 却没过正式门禁，就不能报 success=true：调用方问的正是
+    # "这套表能不能正式使用"，答案是不能。technical scope 仍按"带诊断放行"
+    # 处理——那条路径本来就是给过程验收用的。
+    formal_failed = scope == "formal" and bool(selected_blockers)
     return {
-        "success": True,
+        "success": not formal_failed,
         "transport_success": True,
         "system_success": True,
-        "business_success": True,
-        "completed": True,
-        "outcome": "partial" if quality_issues else "ok",
-        "status": "partial" if quality_issues else "ok",
+        "business_success": not formal_failed,
+        "completed": not formal_failed,
+        "outcome": "blocked" if formal_failed else ("partial" if quality_issues else "ok"),
+        "status": "blocked" if formal_failed else ("partial" if quality_issues else "ok"),
         "validation_scope": scope,
         "run_id": run_id,
         "validation": selected_validation,
@@ -519,7 +591,7 @@ def validate_tables(
             *list(result["warnings"]),
             *(f"质量提示：{item}" for item in quality_issues),
         ],
-        "blockers": [],
+        "blockers": list(selected_blockers) if formal_failed else [],
         "next_actions": ["校验已完成；质量问题不阻止表包或导出生成"],
     }
 

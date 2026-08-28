@@ -1,5 +1,89 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_validate_spec.output-schema",
+    "title": "acquisition_validate_spec complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_validate_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_save_spec.output-schema",
+    "title": "acquisition_save_spec complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_save_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_confirm_spec.output-schema",
+    "title": "acquisition_confirm_spec complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_confirm_spec/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_run_model.output-schema",
+    "title": "acquisition_run_model complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_run_model/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_get_run.output-schema",
+    "title": "acquisition_get_run complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_get_run/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_create_scenario_matrix.output-schema",
+    "title": "acquisition_create_scenario_matrix complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_create_scenario_matrix/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_solve_max_price.output-schema",
+    "title": "acquisition_solve_max_price complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_solve_max_price/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_generate_artifact.output-schema",
+    "title": "acquisition_generate_artifact complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_generate_artifact/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_get_artifact.output-schema",
+    "title": "acquisition_get_artifact complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_get_artifact/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_render_tables.output-schema",
+    "title": "acquisition_render_tables complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_render_tables/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_export_tables_xlsx.output-schema",
+    "title": "acquisition_export_tables_xlsx complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_export_tables_xlsx/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-asset-acquisition.acquisition_export_tables_csv.output-schema",
+    "title": "acquisition_export_tables_csv complete output schema",
+    "uri": "lvke://schemas/lvke-asset-acquisition/acquisition_export_tables_csv/output"
+  },
+  {
     "description": "酒店租赁与光伏资产收购服务端使用的完整判别式 Spec Schema。",
     "mimeType": "application/schema+json",
     "name": "asset-acquisition-spec",

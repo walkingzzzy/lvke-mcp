@@ -111,12 +111,12 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + doc_read range="1,2,3,4,5,6,7,8"  # 通读全部章节
+1. report_list_sections + report_get_section section_id=<第1,2,3,4,5,6,7,8章对应的 section_id>  # 通读全部章节
 2. 编 9.2 技术经济指标汇总表 → 数据一致性核对
 3. 起草 9.1 综合评价结论（态度明确）
 4. 起草 9.3 主要问题与改进建议
 5. 起草 9.4 报批建议
-6. doc_propose → doc_diff → doc_apply
+6. report_propose_section → report_diff → report_apply
 ```
 
 ## 配套 skill

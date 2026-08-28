@@ -16,6 +16,7 @@ from lvke_mcp.runtime.evidence_qualification import (
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -79,13 +80,25 @@ def _envelope(
     return result
 
 
-def _blocked(code: str, message: str, *, next_actions: list[str] | None = None, **extra: Any) -> dict[str, Any]:
+def _blocked(
+    code: str,
+    message: str,
+    *,
+    next_actions: list[str] | None = None,
+    blockers: list[str] | None = None,
+    **extra: Any,
+) -> dict[str, Any]:
+    # blockers 默认就是拒绝码本身；调用方可以传更完整的一组（例如把全部
+    # 口径阻断项都列出来），此时拒绝码仍保证在列表里。
+    resolved = list(blockers) if blockers else [code]
+    if code not in resolved:
+        resolved = [code, *resolved]
     return _envelope(
         False,
         "blocked",
         code=code,
         message=message,
-        blockers=[code],
+        blockers=resolved,
         next_actions=next_actions,
         **extra,
     )
@@ -1264,7 +1277,11 @@ def _validation(run: dict[str, Any], scope: str, workspace_id: str = "") -> tupl
         blockers.append("project_fact_evidence_missing")
     if scope == "formal" and release_scope == "project_delivery" and not run.get("project_fact_certified"):
         blockers.append("project_fact_certification_required")
-    if scope == "formal" and evidence_policy == "source_reconstructed":
+    # 重建记录的完整性与自洽性在两个 scope 都要查。technical 放宽的是
+    # "证据是否达到正式资格"，不是"声称重建却拿不出重建记录"——后者是
+    # 数据自相矛盾：evidence_policy 说值来自重建，却没有任何记录说明
+    # 重建自何处、用什么方法。这种链在过程验收阶段同样不可采信。
+    if evidence_policy == "source_reconstructed":
         if not run.get("reconstructed_source_ids"):
             blockers.append("reconstructed_source_ids_missing")
         records = list(run.get("reconstruction_records") or [])
@@ -1313,22 +1330,38 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("validation_scope_invalid", "scope 必须是 technical 或 formal")
     run = _view(record)
     passed, blockers, warnings = _validation(run, scope, workspace_id)
-    quality_issues = sorted(set(blockers))
+    # 区分"口径非法"与"置信度不足"：前者必须留在 blockers 并让 success=False，
+    # 后者才是 quality_issues。此前这里把两类一律降级、blockers 恒为 []，
+    # 于是"受控假设走正式发布"这种非法口径也报 success=True。
+    blocking_codes, quality_issues = split_quality_codes(blockers)
     return _envelope(
-        True,
-        "ok" if passed else "partial",
-        message="交付校验已完成；质量问题不阻止后续发布",
+        not blocking_codes,
+        "blocked" if blocking_codes else ("ok" if passed else "partial"),
+        message=(
+            "交付校验发现口径阻断项，必须修复后才能继续"
+            if blocking_codes
+            else "交付校验已完成；质量问题不阻止后续发布"
+        ),
         validation={
             "scope": scope,
-            "passed": True,
+            "passed": not blocking_codes,
             "quality_passed": passed,
-            "blockers": [],
+            "validation_complete": passed,
+            "blockers": blocking_codes,
             "quality_issues": quality_issues,
             "warnings": warnings,
         },
-        blockers=[],
+        blockers=blocking_codes,
         quality_issues=quality_issues,
-        warnings=[*warnings, *(f"质量提示：{item}" for item in quality_issues)],
+        warnings=[
+            *warnings,
+            *(f"阻断项：{item}" for item in blocking_codes),
+            *(
+                f"质量提示：{item}"
+                for item in quality_issues
+                if item not in set(blocking_codes)
+            ),
+        ],
         delivery_run_id=record["object_id"],
         release_scope=str(run.get("release_scope") or "project_delivery"),
         evidence_policy=str(run.get("evidence_policy") or "formal_evidence"),
@@ -1354,7 +1387,55 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         run = {**run, "release_scope": requested_scope}
     validation_scope = "technical" if requested_scope == "process_acceptance" else "formal"
     passed, blockers, warnings = _validation(run, validation_scope, workspace_id)
-    quality_issues = sorted(set(blockers))
+    blocking_codes, quality_issues = split_quality_codes(blockers)
+    if validation_scope == "formal" and not passed:
+        # 能指名根因就指名，不要一律回落到笼统的 FORMAL_ARTIFACT_...：
+        # 调用方拿到 project_fact_evidence_missing 知道要去补项目事实证据，
+        # 拿到笼统码只知道"不合格"。口径类阻断项优先作为拒绝码。
+        specific_rejections = [
+            code
+            for code in (
+                "project_fact_evidence_missing",
+                "controlled_assumption_formal_forbidden",
+                "preview_cannot_formal_release",
+                "reconstruction_records_missing",
+                "reconstructed_source_ids_missing",
+            )
+            if code in set(blocking_codes)
+        ]
+        rejection_code = (
+            specific_rejections[0]
+            if specific_rejections
+            else quality_issues[0]
+            if len(quality_issues) == 1 and quality_issues[0] == "project_fact_certification_required"
+            else "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED"
+        )
+        return _blocked(
+            rejection_code,
+            "正式项目交付仍存在未关闭的资格阻断项",
+            delivery_run_id=delivery_run_id,
+            release_scope=requested_scope,
+            validation_scope=validation_scope,
+            quality_issues=quality_issues,
+            blockers=blocking_codes or [rejection_code],
+            warnings=warnings,
+            next_actions=["补齐 EVD-2 证据、正式财务校验和审查复测后重试"],
+        )
+    if validation_scope == "technical" and blocking_codes:
+        # 过程验收允许"带限制放行"，但那只针对置信度不足；口径非法
+        # （重建来源缺记录、受控假设、规模不一致）不能靠标注放过——
+        # 那会让一个非法基准拿到 release 对象并对外流转。
+        return _blocked(
+            "technical_validation_required",
+            "过程验收仍存在口径阻断项，不能发布",
+            delivery_run_id=delivery_run_id,
+            release_scope=requested_scope,
+            validation_scope=validation_scope,
+            quality_issues=quality_issues,
+            blockers=blocking_codes,
+            warnings=warnings,
+            next_actions=["修复 blockers 中的口径阻断项后重试过程验收发布"],
+        )
     warnings = [
         *warnings,
         *(f"发布质量提示：{item}" for item in quality_issues),

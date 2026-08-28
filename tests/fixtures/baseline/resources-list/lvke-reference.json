@@ -1,1 +1,86 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.reference_search.output-schema",
+    "title": "reference_search complete output schema",
+    "uri": "lvke://schemas/lvke-reference/reference_search/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.reference_get.output-schema",
+    "title": "reference_get complete output schema",
+    "uri": "lvke://schemas/lvke-reference/reference_get/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.reference_list.output-schema",
+    "title": "reference_list complete output schema",
+    "uri": "lvke://schemas/lvke-reference/reference_list/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.reference_observe.output-schema",
+    "title": "reference_observe complete output schema",
+    "uri": "lvke://schemas/lvke-reference/reference_observe/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.reference_verify.output-schema",
+    "title": "reference_verify complete output schema",
+    "uri": "lvke://schemas/lvke-reference/reference_verify/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.template_fill.output-schema",
+    "title": "template_fill complete output schema",
+    "uri": "lvke://schemas/lvke-reference/template_fill/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.geo_query.output-schema",
+    "title": "geo_query complete output schema",
+    "uri": "lvke://schemas/lvke-reference/geo_query/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.geo_distance_matrix.output-schema",
+    "title": "geo_distance_matrix complete output schema",
+    "uri": "lvke://schemas/lvke-reference/geo_distance_matrix/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.archive_find_similar_projects.output-schema",
+    "title": "archive_find_similar_projects complete output schema",
+    "uri": "lvke://schemas/lvke-reference/archive_find_similar_projects/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.archive_extract_structure.output-schema",
+    "title": "archive_extract_structure complete output schema",
+    "uri": "lvke://schemas/lvke-reference/archive_extract_structure/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.archive_compare_cases.output-schema",
+    "title": "archive_compare_cases complete output schema",
+    "uri": "lvke://schemas/lvke-reference/archive_compare_cases/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-reference.archive_get_template_paragraph.output-schema",
+    "title": "archive_get_template_paragraph complete output schema",
+    "uri": "lvke://schemas/lvke-reference/archive_get_template_paragraph/output"
+  }
+]

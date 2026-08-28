@@ -23,24 +23,6 @@ MODEL_VERSION = "finance_model.v2.4"
 TEMPLATE_VERSION = "finance_tables.v3"
 
 
-# 13 张交付附表 key（与 finance_model / 测试对齐，不含控制/展示表）
-DELIVERY_TABLE_KEYS: tuple[str, ...] = (
-    "investment",
-    "interest-during-construction",
-    "working-capital",
-    "funding",
-    "income-statement",
-    "total-cost",
-    "wage",
-    "depreciation",
-    "amortization",
-    "profit-distribution",
-    "debt-service",
-    "cashflow",
-    "capital-cashflow",
-)
-
-
 # 正式交付编号（附表6-1/6-2/6-3不是简单的第7/8/9张表）。
 DELIVERY_TABLE_META: tuple[tuple[str, str, str], ...] = (
     ("investment", "附表1", "固定资产投资估算表"),
@@ -57,6 +39,112 @@ DELIVERY_TABLE_META: tuple[tuple[str, str, str], ...] = (
     ("cashflow", "附表9", "项目投资现金流量表"),
     ("capital-cashflow", "附表10", "项目资本金流量表"),
 )
+
+
+# 唯一交付成员和顺序由 DELIVERY_TABLE_META 派生；参考来源 sheet 不得进入此集合。
+DELIVERY_TABLE_KEYS: tuple[str, ...] = tuple(item[0] for item in DELIVERY_TABLE_META)
+DELIVERY_TABLE_SCHEMA_VERSION = "finance_delivery_tables.v1"
+ENGINE_DELIVERY_COUNT = len(DELIVERY_TABLE_KEYS)
+REFERENCE_SOURCE_SHEET_COUNT = 15
+REVIEW_WORKBOOK_SHEET_COUNT = 16
+
+# 必需列只描述跨渲染后端必须存在的稳定语义；可变的明细列仍由表 builder 管理。
+_DELIVERY_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
+    "investment": ("name",),
+    "interest-during-construction": ("item", "total"),
+    "working-capital": ("item", "amount"),
+    "funding": ("name", "amount"),
+    "income-statement": ("item", "total"),
+    "total-cost": ("item", "total"),
+    "wage": ("item", "total"),
+    "depreciation": ("item", "total"),
+    "amortization": ("item", "total"),
+    "profit-distribution": ("item", "total"),
+    "debt-service": ("item", "total"),
+    "cashflow": ("item", "total"),
+    "capital-cashflow": ("item", "total"),
+}
+
+_DELIVERY_REQUIRED_COLUMN_GROUPS: dict[str, tuple[tuple[str, ...], ...]] = {
+    "investment": (("amount", "total"),),
+}
+
+_DELIVERY_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "investment": ("finance_inputs.invest_breakdown", "investment"),
+    "interest-during-construction": ("funding.loan", "annual.interest_during_construction"),
+    "working-capital": ("finance_inputs.wc_turnover", "investment.working_capital"),
+    "funding": ("investment.total", "funding"),
+    "income-statement": ("annual.income_statement",),
+    "total-cost": ("annual.total_cost",),
+    "wage": ("annual.wage",),
+    "depreciation": ("annual.depreciation_table",),
+    "amortization": ("annual.amortization_table",),
+    "profit-distribution": ("annual.profit_distribution",),
+    "debt-service": ("annual.debt_service",),
+    "cashflow": ("annual.project_cashflow",),
+    "capital-cashflow": ("annual.capital_cashflow",),
+}
+
+_DELIVERY_RECONCILIATION_RULES: dict[str, tuple[str, ...]] = {
+    "investment": ("investment_total_reconciles",),
+    "interest-during-construction": ("construction_interest_reconciles",),
+    "working-capital": ("working_capital_reconciles",),
+    "funding": ("funding_sources_equal_uses", "annual_funding_plan_reconciles"),
+    "income-statement": ("revenue_tax_reconciles",),
+    "total-cost": ("total_cost_reconciles",),
+    "wage": ("wage_subtotal_reconciles",),
+    "depreciation": ("depreciation_rollforward_reconciles",),
+    "amortization": ("amortization_rollforward_reconciles",),
+    "profit-distribution": ("profit_distribution_reconciles",),
+    "debt-service": ("debt_balance_reconciles", "coverage_ratios_recompute"),
+    "cashflow": ("project_cashflow_reconciles",),
+    "capital-cashflow": ("capital_cashflow_reconciles",),
+}
+
+
+def delivery_table_contract() -> list[dict[str, Any]]:
+    """Return the versioned 13-table contract in immutable delivery order."""
+
+    return [
+        {
+            "table_code": key,
+            "table_id": key,
+            "delivery_no": delivery_no,
+            "title": title,
+            "order": order,
+            "unit": "万元",
+            "period_semantics": (
+                "construction_and_operation_years"
+                if key in {"cashflow", "capital-cashflow"}
+                else "construction_years"
+                if key in {"investment", "interest-during-construction", "funding"}
+                else "operation_years"
+            ),
+            "required_columns": list(_DELIVERY_REQUIRED_COLUMNS[key]),
+            "required_column_groups": [
+                list(group)
+                for group in _DELIVERY_REQUIRED_COLUMN_GROUPS.get(key, ())
+            ],
+            "minimum_rows": 1,
+            "formula_dependencies": list(_DELIVERY_DEPENDENCIES[key]),
+            "reconciliation_rules": list(_DELIVERY_RECONCILIATION_RULES[key]),
+            "source": "deterministic_finance_run",
+            "schema_version": DELIVERY_TABLE_SCHEMA_VERSION,
+        }
+        for order, (key, delivery_no, title) in enumerate(DELIVERY_TABLE_META, start=1)
+    ]
+
+
+def delivery_table_contract_hash() -> str:
+    return _sha256_hex(_stable_json(delivery_table_contract()))
+
+
+def delivery_count_semantics() -> dict[str, int]:
+    return {
+        "engine_delivery_count": ENGINE_DELIVERY_COUNT,
+        "reference_source_sheet_count": REFERENCE_SOURCE_SHEET_COUNT,
+        "review_workbook_sheet_count": REVIEW_WORKBOOK_SHEET_COUNT,
+    }
 
 
 def _stable_json(obj: Any) -> str:
@@ -219,11 +307,16 @@ def _table_manifest(fin: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
     tables = (fin or {}).get("tables") or {}
     out: list[dict[str, Any]] = []
     meta_by_key = {key: (delivery_no, title) for key, delivery_no, title in DELIVERY_TABLE_META}
+    contract_by_key = {
+        item["table_code"]: item for item in delivery_table_contract()
+    }
+    contract_hash = delivery_table_contract_hash()
     for key in DELIVERY_TABLE_KEYS:
         tbl = tables.get(key)
         if tbl is None:
             continue
         delivery_no, title = meta_by_key.get(key, ("", key))
+        contract = contract_by_key.get(key, {})
         content = _stable_json(tbl)
         if isinstance(tbl, list):
             row_count = len(tbl)
@@ -234,9 +327,23 @@ def _table_manifest(fin: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
         else:
             row_count = 0
         out.append({
+            "table_code": key,
             "table_id": key,
             "delivery_no": delivery_no,
             "title": title,
+            "order": contract.get("order"),
+            "unit": contract.get("unit"),
+            "period_semantics": contract.get("period_semantics"),
+            "required_columns": list(contract.get("required_columns") or []),
+            "required_column_groups": [
+                list(group) for group in contract.get("required_column_groups") or []
+            ],
+            "minimum_rows": contract.get("minimum_rows"),
+            "formula_dependencies": list(contract.get("formula_dependencies") or []),
+            "reconciliation_rules": list(contract.get("reconciliation_rules") or []),
+            "source": contract.get("source"),
+            "schema_version": contract.get("schema_version"),
+            "contract_hash": contract_hash,
             "run_id": run_id or fin.get("run_id") or "",
             "template_version": fin.get("template_version") or TEMPLATE_VERSION,
             "row_count": row_count,

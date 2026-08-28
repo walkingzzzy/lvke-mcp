@@ -13,6 +13,7 @@ from datetime import date
 from typing import Any
 
 
+from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import sha256_json
 from lvke_mcp.domains.reports._doc_service.outline import REPORT_CHAPTERS
 
@@ -631,17 +632,17 @@ def execute(
         *[str(item) for item in report_preparation.get("quality_issues") or []],
         *export_blockers,
     ])
-    quality_issues = sorted(set(quality_issues))
+    blocking_codes, quality_issues = split_quality_codes(quality_issues)
     return {
-        "status": "partial" if quality_issues else "ok",
+        "status": "blocked" if blocking_codes else ("partial" if quality_issues else "ok"),
         "stage": "tables_ready" if not export_blockers else "finance_ready",
         "route": route,
         "finance_kind": finance_kind,
         "acceptance_level": "generated_with_warnings" if quality_issues else "complete",
         "system_success": True,
-        "business_success": True,
-        "completed": True,
-        "formal_ready": not export_blockers,
+        "business_success": not blocking_codes,
+        "completed": not blocking_codes,
+        "formal_ready": not export_blockers and not blocking_codes,
         "research": research,
         "project_context": project_context,
         "finance_validation": validation,
@@ -652,12 +653,13 @@ def execute(
         "csv_export": csv_export,
         "xlsx_export": xlsx_export,
         "report_preparation": report_preparation,
-        "blockers": [],
+        "blockers": blocking_codes,
         "quality_issues": quality_issues,
         "warnings": [
             "研究、规划与财务由 MCP 状态机编排，不依赖自由文本编排。",
             "受控假设已显式记录；补充项目事实后可提高交付置信度。",
-            *(f"质量提示：{item}" for item in quality_issues),
+            *(f"阻断项：{item}" for item in blocking_codes),
+            *(f"质量提示：{item}" for item in quality_issues if item not in set(blocking_codes)),
         ],
         "object_refs": {
             "research_task_id": str(research.get("task_id") or ""),

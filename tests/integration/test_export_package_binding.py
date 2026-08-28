@@ -18,6 +18,10 @@ from pathlib import Path
 from lvke_mcp.domains.finance import tables_application, tables_service
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.model_application import run_model
+from lvke_mcp.domains.finance.run_service import (
+    DELIVERY_TABLE_KEYS,
+    delivery_table_contract_hash,
+)
 
 
 def _scenario(industry: str, archetype: str) -> dict:
@@ -78,6 +82,10 @@ class ExportPackageBindingTest(unittest.TestCase):
         self.assertEqual(str(run.get("spec_hash") or ""), payload.get("spec_hash"))
         self.assertEqual(str(run.get("spec_id") or ""), payload.get("spec_id"))
         self.assertTrue(payload.get("spec_hash"), "package 未记录 spec_hash")
+        self.assertEqual(payload.get("engine_delivery_count"), 13)
+        self.assertEqual(payload.get("reference_source_sheet_count"), 15)
+        self.assertEqual(payload.get("review_workbook_sheet_count"), 16)
+        self.assertEqual(payload.get("table_contract_hash"), delivery_table_contract_hash())
 
     def test_xlsx_reuses_the_given_package(self) -> None:
         exported = tables_service.export_xlsx(
@@ -92,7 +100,14 @@ class ExportPackageBindingTest(unittest.TestCase):
         )
         self.assertEqual(exported["finance_tables_package_id"], self.package_id)
         self.assertTrue(exported["source_package_reused"])
-
+        self.assertEqual(
+            [item["table_code"] for item in exported["csv_manifest"]],
+            list(DELIVERY_TABLE_KEYS),
+        )
+        self.assertTrue(all(
+            item["table_contract_hash"] == delivery_table_contract_hash()
+            for item in exported["csv_manifest"]
+        ))
     def test_exports_record_their_provenance(self) -> None:
         xlsx = tables_service.export_xlsx(
             self.workspace, self.run_id, "", self.package_id, "technical"

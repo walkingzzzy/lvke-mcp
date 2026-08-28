@@ -119,11 +119,11 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + doc_read range="7"        # 看第 7 章风险清单
+1. report_list_sections + report_get_section section_id=<第7章对应的 section_id>        # 看第 7 章风险清单
 2. 对每项中高风险设计对应保障措施
 3. 起草 8.1-8.7 各类
 4. 数字与 4 / 5 / 6 章交叉核对
-5. doc_propose → doc_diff → doc_apply
+5. report_propose_section → report_diff → report_apply
 ```
 
 ## 配套 skill

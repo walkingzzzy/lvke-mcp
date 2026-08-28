@@ -39,6 +39,11 @@ from .run_tools import (
     _tool_run_model,
 )
 
+from .validation_tools import (
+    _tool_promote_to_formal,
+    _tool_validate_post_generation,
+)
+
 from .schemas import (
     SERVER_NAME,
     SERVER_VERSION,
@@ -56,6 +61,11 @@ from .spec_tools import (
     _tool_prepare_fact_pack,
     _tool_prepare_spec,
     _tool_validate_spec,
+)
+
+from .validation_tools import (
+    _tool_promote_to_formal,
+    _tool_validate_post_generation,
 )
 
 
@@ -428,6 +438,112 @@ def build_server() -> OfficialStdioServer:
             success_required=["run_id", "view"],
         ),
         annotations=read_closed,
+    )
+    server.register_tool(
+        name="finance_validate_post_generation",
+        description=(
+            "对已完成的 FinanceRun 执行四维后置校验（技术/大纲标准/证据绑定/生存能力），"
+            "返回结构化 ValidationReport。永不阻断生成，始终返回结果。"
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": {"type": "string", "minLength": 1},
+                "run_id": {"type": "string", "minLength": 1},
+                "spec": {
+                    "type": "object",
+                    "description": "可选 FinanceSpec，传入后校验证据绑定维度",
+                },
+                "validation_scope": {
+                    "type": "string",
+                    "enum": ["technical", "formal"],
+                    "default": "technical",
+                },
+                "finance_inputs": {
+                    "type": "object",
+                    "description": "可选，传入后校验大纲标准覆盖率",
+                },
+                "table_manifest": {
+                    "type": "array",
+                    "items": {"type": "object"},
+                    "description": "可选，传入后校验大纲标准覆盖率",
+                },
+                "report_sections": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "可选，传入后校验大纲标准覆盖率",
+                },
+            },
+            "required": ["workspace_id", "run_id"],
+        },
+        handler=_tool_validate_post_generation,
+        output_schema=_output_schema(
+            {
+                "validation_scope": {"type": "string"},
+                "dimensions": {"type": "object"},
+                "blockers": {"type": "array", "items": {"type": "string"}},
+                "quality_issues": {"type": "array", "items": {"type": "string"}},
+                "warnings": {"type": "array", "items": {"type": "string"}},
+                "overall_status": {"type": "string"},
+                "generated_against_standard": {"type": "boolean"},
+                "validation_stage": {"type": "string"},
+                "dimension_count": {"type": "integer"},
+                "dimension_names": {"type": "array", "items": {"type": "string"}},
+            },
+            success_required=[
+                "validation_scope",
+                "dimensions",
+                "overall_status",
+                "dimension_count",
+                "dimension_names",
+            ],
+        ),
+        annotations=read_closed,
+    )
+    server.register_tool(
+        name="finance_promote_to_formal",
+        description=(
+            "基于前序 FinanceRun 创建不可变正式版修订，链接 parent_run_id，"
+            "保留旧版本并返回指标、假设和字段的结构化差异。"
+        ),
+        input_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "workspace_id": {"type": "string", "minLength": 1},
+                "prior_run_id": {"type": "string", "minLength": 1},
+                "new_fin": {"type": "object"},
+                "validation_report": {"type": "object"},
+                "idempotency_key": {"type": "string", "maxLength": 256},
+                "model_version": {"type": "string"},
+                "template_version": {"type": "string"},
+                "input_hash": {"type": "string"},
+                "table_bundle_hash": {"type": "string"},
+                "agent_trace_id": {"type": "string"},
+                "tool_call_id": {"type": "string"},
+            },
+            "required": ["workspace_id", "prior_run_id", "new_fin"],
+        },
+        handler=_tool_promote_to_formal,
+        output_schema=_output_schema(
+            {
+                "run_id": {"type": ["string", "null"]},
+                "prior_run_id": {"type": ["string", "null"]},
+                "formal_grade": {"type": ["string", "null"]},
+                "version_sequence": {"type": ["integer", "null"]},
+                "diff": {"type": "object"},
+                "validation_report": {"type": "object"},
+            },
+            success_required=[
+                "run_id",
+                "prior_run_id",
+                "formal_grade",
+                "version_sequence",
+                "diff",
+            ],
+        ),
+        annotations=write_deterministic,
     )
     server.register_tool(
         name="finance_build_basis_of_estimate",

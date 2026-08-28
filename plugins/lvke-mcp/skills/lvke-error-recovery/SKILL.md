@@ -21,5 +21,9 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Diagnose before retrying and use checkpoint/resume where available.
 - Do not loop on the same failure or hide a blocker by changing acceptance criteria.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Recovery Skill — use `trace_id`, `blockers`, and `next_actions` from any MCP envelope. Cross-service resume: `feasibility_checkpoint`, `dr_resume`, `source_parse_retry`.
+
+Required inputs: `workspace_id`, failing `trace_id`. Never treat `invalid_tool_output` as retryable without fixing the handler/schema mismatch first.
 

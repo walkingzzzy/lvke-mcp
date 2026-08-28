@@ -64,11 +64,27 @@ def _plugin_version() -> str:
     return str(payload.get("version") or "") if isinstance(payload, dict) else ""
 
 
+def _tracked_worktree_clean() -> bool:
+    try:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return not completed.stdout.strip()
+
+
 def write_build_metadata(
     *,
     commit: str = "",
     build_time: str = "",
     plugin_version: str = "",
+    require_clean: bool = False,
 ) -> dict[str, str]:
     """Resolve and persist build metadata; return the written payload.
 
@@ -79,6 +95,12 @@ def write_build_metadata(
     resolved_commit = commit.strip() or _git_sha()
     resolved_time = build_time.strip() or utc_now_iso()
     resolved_version = plugin_version.strip() or _plugin_version() or _project_version()
+
+    if require_clean and not _tracked_worktree_clean():
+        raise RuntimeError(
+            "build_metadata_incomplete: tracked worktree 非 clean，"
+            "只能生成研发包；技术发布/正式候选须 clean checkout"
+        )
 
     missing = [
         name
@@ -113,6 +135,16 @@ def main() -> int:
     parser.add_argument("--commit", default="", help="覆盖 build_commit")
     parser.add_argument("--build-time", default="", help="覆盖 build_time (UTC ISO-8601)")
     parser.add_argument("--plugin-version", default="", help="覆盖 plugin_version")
+    parser.add_argument(
+        "--require-clean",
+        action="store_true",
+        help="拒绝 dirty tracked worktree（技术发布/正式候选）",
+    )
+    parser.add_argument(
+        "--release",
+        action="store_true",
+        help="技术发布模式：等价于 --require-clean",
+    )
     args = parser.parse_args()
 
     try:
@@ -120,6 +152,7 @@ def main() -> int:
             commit=args.commit,
             build_time=args.build_time,
             plugin_version=args.plugin_version,
+            require_clean=args.require_clean or args.release,
         )
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)

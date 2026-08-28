@@ -28,4 +28,6 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   coverage, then render every page to PNG and inspect visible Chinese text,
   tables, pagination, clipping, and blank pages.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Local verify complements — does not replace — live MCP acceptance (`lvke-mcp-acceptance`). Scripts: `scripts/g1_live_acceptance.py`, `scripts/g2_evidence_acceptance.py`, `scripts/g3_formal_candidate_acceptance.py`, `scripts/release_preflight.py`.

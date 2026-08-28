@@ -17,10 +17,10 @@ platforms: [linux, windows, macos]
 ## 工作流
 
 ```
-1. doc_read 取全文（或 context_view 取章节摘要）
+1. report_get_section 取全文（或 report_list_sections 取章节摘要）
 2. 抽取所有关键数字 → 按维度分组
 3. 比对组内一致性 → 标记冲突
-4. doc_review 提交 issues（每条 issue = 一个冲突点 + 严重度）
+4. review_start 提交 issues（每条 issue = 一个冲突点 + 严重度）
 ```
 
 ## 关键数字维度（6 类）
@@ -67,7 +67,7 @@ platforms: [linux, windows, macos]
 ### 步骤 1：扫描全文抽取
 
 ```
-对每个章节做 doc_read（按 range="3"、"4"、"5"、"6" 分章读）
+对每个章节做 report_get_section（先用 report_list_sections 拿稳定 section_id，逐章读）
 按 6 类维度建表格记录每个数字的出处
 ```
 
@@ -116,10 +116,10 @@ platforms: [linux, windows, macos]
 
 ## 配套工具
 
-- `doc_read`：按章节分块读
-- `context_view`：获取章节列表与正文长度
-- `doc_review`（with issues）：写入 issue_center
-- `issue_update`：跟踪 issue 状态
+- `report_get_section`：按章节分块读
+- `report_list_sections`：获取章节列表与正文长度
+- `review_start`（with issues）：写入 issue_center
+- `review_disposition_finding`：跟踪 issue 状态
 
 ## 常见陷阱
 

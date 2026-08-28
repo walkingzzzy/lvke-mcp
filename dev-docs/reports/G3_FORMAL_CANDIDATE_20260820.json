@@ -1,0 +1,117 @@
+{
+  "generated_at": "2026-08-20T11:29:40Z",
+  "workspace_id": "g3-final-20260820",
+  "build_metadata": {
+    "build_commit": "46a64b2f6fa7e7a28e4f4eb5bdd94a0bd8957ab6",
+    "build_time": "build_metadata_incomplete",
+    "plugin_version": "0.1.0+codex.20260814000912",
+    "build_metadata_complete": false,
+    "build_metadata_status": "build_metadata_incomplete",
+    "build_metadata_missing": [
+      "build_time"
+    ]
+  },
+  "summary": {
+    "p0_total": 24,
+    "p0_evd2_count": 0,
+    "p0_status": {
+      "P0-01": "EVD-0/1 (SIM-A)",
+      "P0-02": "EVD-0/1 (SIM-A)",
+      "P0-03": "EVD-0/1 (SIM-A)",
+      "P0-04": "EVD-0/1 (SIM-A)",
+      "P0-05": "EVD-0/1 (SIM-A)",
+      "P0-06": "EVD-0/1 (SIM-A)",
+      "P0-07": "EVD-0/1 (SIM-A)",
+      "P0-08": "EVD-0/1 (SIM-A)",
+      "P0-09": "EVD-0/1 (SIM-A)",
+      "P0-10": "EVD-0/1 (SIM-A)",
+      "P0-11": "EVD-0/1 (SIM-A)",
+      "P0-12": "EVD-0/1 (SIM-A)",
+      "P0-13": "EVD-0/1 (SIM-A)",
+      "P0-14": "EVD-0/1 (SIM-A)",
+      "P0-15": "EVD-0/1 (SIM-A)",
+      "P0-16": "EVD-0/1 (SIM-A)",
+      "P0-17": "EVD-0/1 (SIM-A)",
+      "P0-18": "EVD-0/1 (SIM-A)",
+      "P0-19": "EVD-0/1 (SIM-A)",
+      "P0-20": "EVD-0/1 (SIM-A)",
+      "P0-21": "EVD-0/1 (SIM-A)",
+      "P0-22": "EVD-0/1 (SIM-A)",
+      "P0-23": "EVD-0/1 (SIM-A)",
+      "P0-24": "EVD-0/1 (SIM-A)"
+    },
+    "formal_candidate_eligible": false,
+    "release_ready": false,
+    "seeded_object_ids": {
+      "ProjectContext": "pctx_5ea6492152812bc25b037758",
+      "SourceSnapshot": "src_994993b01e2a63e38960e3ac",
+      "DiscoverySet": "discovery_d5b73a841477cfe971fb58c8",
+      "CandidateSet": "analysis_0e2086d279d3903b64c96fd4",
+      "DeliveryRun": "fdr_194c14d5f635b871e3d4066d",
+      "delivery_run_id": "fdr_194c14d5f635b871e3d4066d",
+      "FinanceSpec": "fsp_fe5d2d6f3b015c06b9d1ab90",
+      "FinanceSpecConfirmed": "fsp_43d65d5c3c601711497f63c7",
+      "FinanceRun": "run_1beaf8cc0bd4",
+      "run_id": "run_1beaf8cc0bd4",
+      "FinanceTablesPackage": "run_1beaf8cc0bd4",
+      "ReviewPrepare": "rvprep_54d4f2f355459d43475b8c1d",
+      "Review": "review_3d66ff88bf4902eda8e26d417451c70b",
+      "review_id": "review_3d66ff88bf4902eda8e26d417451c70b",
+      "ReviewFindings": "review_3d66ff88bf4902eda8e26d417451c70b",
+      "ReportPreparation": "rprep_5a89253cbf91d5d31e54d884",
+      "ReportRevisionDraft": "rrv_78744f0d9b1b815a109ff657",
+      "ReportRevision": "rrv_deb4fe5aeb0ed6bbdad6f34b",
+      "report_revision_id": "rrv_deb4fe5aeb0ed6bbdad6f34b",
+      "ReportPropose": "prop_2ae5f69af4f4ebdf",
+      "ReportDiff": "prop_2ae5f69af4f4ebdf",
+      "ReportApply": "rrv_79744b8a5b925d6d4f08a919",
+      "ReviewExport": "review_3d66ff88bf4902eda8e26d417451c70b",
+      "FeasibilityValidate": "fdr_194c14d5f635b871e3d4066d"
+    }
+  },
+  "gates": [
+    {
+      "name": "release_preflight",
+      "status": "blocked",
+      "passed": [
+        "calculation_gate: pass"
+      ],
+      "failed": [
+        "artifact_gate: fail",
+        "evidence_gate: fail",
+        "release_gate: fail"
+      ],
+      "blockers": []
+    }
+  ],
+  "formal_export_probes": [
+    {
+      "tool": "review_export",
+      "server": "lvke-deliverable-review",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_847a745abf894e2084399f08396403e5",
+      "protocol_error": ""
+    },
+    {
+      "tool": "report_export_docx",
+      "server": "lvke-report-generation",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_86c936b313c441a49eb1f21b42394632",
+      "protocol_error": ""
+    },
+    {
+      "tool": "feasibility_release",
+      "server": "lvke-feasibility-delivery",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_635d7c2fe6b149d1abf184cbcfe7de8e",
+      "protocol_error": ""
+    }
+  ],
+  "seed_chain_steps": 25
+}

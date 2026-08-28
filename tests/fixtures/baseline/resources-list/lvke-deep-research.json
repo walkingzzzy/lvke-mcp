@@ -1,5 +1,131 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_prepare.output-schema",
+    "title": "dr_prepare complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_prepare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_start.output-schema",
+    "title": "dr_start complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_start/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_get_plan.output-schema",
+    "title": "dr_get_plan complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_get_plan/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_propose_plan_revision.output-schema",
+    "title": "dr_propose_plan_revision complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_propose_plan_revision/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_apply_plan_revision.output-schema",
+    "title": "dr_apply_plan_revision complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_apply_plan_revision/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_add_sources.output-schema",
+    "title": "dr_add_sources complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_add_sources/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_remove_sources.output-schema",
+    "title": "dr_remove_sources complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_remove_sources/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_list_events.output-schema",
+    "title": "dr_list_events complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_list_events/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_create_checkpoint.output-schema",
+    "title": "dr_create_checkpoint complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_create_checkpoint/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_resume.output-schema",
+    "title": "dr_resume complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_resume/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_submit.output-schema",
+    "title": "dr_submit complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_submit/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_continue.output-schema",
+    "title": "dr_continue complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_continue/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_confirm_quality.output-schema",
+    "title": "dr_confirm_quality complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_confirm_quality/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_status.output-schema",
+    "title": "dr_status complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_cancel.output-schema",
+    "title": "dr_cancel complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_cancel/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_get_report.output-schema",
+    "title": "dr_get_report complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_get_report/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_get_evidence.output-schema",
+    "title": "dr_get_evidence complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_get_evidence/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deep-research.dr_get_bundle.output-schema",
+    "title": "dr_get_bundle complete output schema",
+    "uri": "lvke://schemas/lvke-deep-research/dr_get_bundle/output"
+  },
+  {
     "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
     "mimeType": "application/schema+json",
     "name": "lvke-deep-research.dr_add_sources.input-schema",

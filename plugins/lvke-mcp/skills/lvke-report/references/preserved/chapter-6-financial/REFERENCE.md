@@ -121,12 +121,12 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + finance_view              # 看是否已有 finance.tools 算好
-2. doc_read range="4" + range="5"           # 拿规模 / 投资
+1. report_list_sections + finance_get_run              # 看是否已有 finance.tools 算好
+2. report_get_section section_id=<第4章对应的 section_id> + section_id=<第5章>           # 拿规模 / 投资
 3. [优先] 用 finance.tools 重算 IRR / NPV / 敏感性
 4. 起草 6.1-6.7
 5. 数字精度统一 → cross-check
-6. doc_propose → doc_diff → doc_apply
+6. report_propose_section → report_diff → report_apply
 ```
 
 ## 配套 skill

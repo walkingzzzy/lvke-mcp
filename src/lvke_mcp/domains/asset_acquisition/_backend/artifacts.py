@@ -160,13 +160,26 @@ def _preflight_formal_artifact(
     if open_blockers:
         qualification_failures.append("open_blocking_issues")
     if qualification_failures:
-        quality_issues.append({
-            "code": _FORMAL_ARTIFACT_REQUIRED,
-            "message": "正式资格未满足；工件仍会生成并携带限制说明。",
-            "delivery_mode": run.get("delivery_mode"),
-            "qualification_failures": qualification_failures,
-            "open_blockers": open_blockers,
-        })
+        # 正式资格未满足时拒绝出件，而不是"照出并附一段限制说明"。
+        # 收购工件（Word/Excel/report-data）一旦生成就会被当成交付物流转，
+        # 附注留在 MCP 响应里、不在文件里，收件人看不到；此前这里降级成
+        # quality_issues 且从未回传，等于预览件与正式件对外不可区分。
+        # 需要过程验收件时走 render_tables + export_tables_csv/xlsx，
+        # 那条路径的文件内首行带不可正式使用标记。
+        return None, _artifact_blocked(
+            _FORMAL_ARTIFACT_REQUIRED,
+            "正式资格未满足，不生成收购正式工件；需要过程验收件请用十三表导出（文件内带技术预览标记）。",
+            details={
+                "delivery_mode": run.get("delivery_mode"),
+                "qualification_failures": qualification_failures,
+                "open_blockers": open_blockers,
+                "quality_issues": quality_issues,
+            },
+            next_actions=[
+                "补齐正式证据并通过 acquisition_validate_spec 正式校验后重试",
+                "仅需过程验收时改用 acquisition_render_tables + acquisition_export_tables_csv/xlsx",
+            ],
+        )
     run = dict(run)
     run["artifact_quality_issues"] = quality_issues
     return run, None

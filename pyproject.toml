@@ -79,8 +79,13 @@ lvke_mcp = [
   "domains/**/config/**/*",
   "domains/**/docs/**/*",
   "domains/**/assets/**/*",
+  "standards/**/*",
   "servers/*/seed/**/*",
   "config/**/*",
   "runtime/build_metadata.json",
   "runtime/skill_inventory.json",
+  # 与上面两个同目录的 runtime 契约文件一起打包。此前漏掉它，导致
+  # src/lvke_mcp/runtime/ 下三个 json 只有两个进 wheel——放在包内却不随包
+  # 分发，定位矛盾。
+  "runtime/skill_tool_mapping.json",
 ]

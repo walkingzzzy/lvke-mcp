@@ -131,8 +131,8 @@ platforms: [linux, windows, macos]
 ### 步骤 1：抓风险章节
 
 ```
-doc_read range="7"  # 第 7 章风险分析与对策
-context_view  # 拿全文摘要做联动核对
+report_get_section section_id=<第7章对应的 section_id>  # 第 7 章风险分析与对策
+report_list_sections  # 拿全文摘要做联动核对
 ```
 
 ### 步骤 2：维度核对
@@ -170,10 +170,10 @@ context_view  # 拿全文摘要做联动核对
 
 ## 配套工具
 
-- `doc_read range="7"`：取风险章节
-- `context_view`：拿摘要 + 财务 + 章节联动
-- `doc_review` + issues：写入
-- `doc_propose`：如重要遗漏，可提议补段
+- `report_get_section section_id=<第7章对应的 section_id>`：取风险章节
+- `report_list_sections`：拿摘要 + 财务 + 章节联动
+- `review_start` + issues：写入
+- `report_propose_section`：如重要遗漏，可提议补段
 
 ## 与其他 skill 协同
 

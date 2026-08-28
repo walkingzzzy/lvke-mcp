@@ -10,6 +10,7 @@ from lvke_mcp.adapters.report_repository import REVISION_STORE
 from lvke_mcp.adapters.project_planning_repository import PROJECT_CONTEXT_STORE
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.model_application import run_model
+from lvke_mcp.domains.finance.run_service import delivery_table_contract_hash
 from lvke_mcp.domains.finance import tables_service
 from lvke_mcp.domains.reports import application as report_application
 from lvke_mcp.servers.lvke_feasibility_delivery import service as delivery_service
@@ -77,6 +78,13 @@ class McpDeliveryChainTest(unittest.TestCase):
             "outline": [{"title": f"第{i}章", "section_id": f"sec_chapter_{i}"} for i in range(1, 10)],
         })
         self.assertTrue(prepared["success"], prepared)
+        contract_snapshot = prepared["finance_table_contract"]
+        self.assertTrue(contract_snapshot["contract_valid"], contract_snapshot)
+        self.assertEqual(contract_snapshot["manifest_count"], 13)
+        self.assertEqual(
+            contract_snapshot["table_contract_hash"],
+            delivery_table_contract_hash(),
+        )
         started = report_application.start({
             "workspace_id": self.workspace,
             "report_preparation_id": prepared["report_preparation_id"],
@@ -88,6 +96,10 @@ class McpDeliveryChainTest(unittest.TestCase):
         upstream = (revision or {}).get("payload", {}).get("upstream", {})
         self.assertEqual(upstream["run_id"], run_id)
         self.assertEqual(upstream["finance_tables_package_id"], package_id)
+        self.assertEqual(
+            upstream["finance_table_contract"]["table_contract_hash"],
+            delivery_table_contract_hash(),
+        )
 
         project = PROJECT_CONTEXT_STORE.put(
             self.workspace,

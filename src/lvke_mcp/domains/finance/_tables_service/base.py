@@ -53,6 +53,14 @@ def _delivery_keys() -> tuple[str, ...]:
     return tables_application.delivery_keys()
 
 
+def _delivery_count_semantics() -> dict[str, int]:
+    return tables_application.delivery_count_semantics()
+
+
+def _delivery_table_contract_hash() -> str:
+    return tables_application.delivery_table_contract_hash()
+
+
 def _structured_delivery_tables(
     workspace_id: str,
     run_id: str,
@@ -99,6 +107,10 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         # 与 run_id 同级透出，让 package / CSV / XLSX 的消费方都能反查 confirmed Spec
         "spec_id": payload.get("spec_id"),
         "spec_hash": payload.get("spec_hash"),
+        "table_contract_hash": payload.get("table_contract_hash"),
+        "engine_delivery_count": payload.get("engine_delivery_count"),
+        "reference_source_sheet_count": payload.get("reference_source_sheet_count"),
+        "review_workbook_sheet_count": payload.get("review_workbook_sheet_count"),
         "table_manifest": payload.get("table_manifest") or [],
         "validation": validation,
         "validation_complete": bool(payload.get("validation_complete", False)),

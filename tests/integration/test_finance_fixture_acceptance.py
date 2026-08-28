@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import copy
+import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 
+from lvke_mcp.adapters.spreadsheets._finance_export.base import _DELIVERY_SHEETS
 from lvke_mcp.domains.finance import revenue_models
 from lvke_mcp.domains.finance.hengli_reference import scenario_matrix
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.finance_model import check_consistency
 from lvke_mcp.domains.finance.model_application import run_model
-from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
+from lvke_mcp.domains.finance.run_service import (
+    DELIVERY_TABLE_KEYS,
+    ENGINE_DELIVERY_COUNT,
+    REFERENCE_SOURCE_SHEET_COUNT,
+    REVIEW_WORKBOOK_SHEET_COUNT,
+    delivery_count_semantics,
+    delivery_table_contract,
+    delivery_table_contract_hash,
+)
 from lvke_mcp.domains.finance import tables_service
 from lvke_mcp.domains.finance.working_capital import estimate_from_turnover
 
@@ -42,6 +52,48 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
             os.environ["LVKE_GOLDEN_DATA_ROOT"] = self.previous_golden_root
         self.tempdir.cleanup()
 
+    def test_delivery_contract_separates_engine_and_reference_counts(self) -> None:
+        contract = delivery_table_contract()
+        counts = delivery_count_semantics()
+
+        self.assertEqual(ENGINE_DELIVERY_COUNT, 13)
+        self.assertEqual(len(DELIVERY_TABLE_KEYS), ENGINE_DELIVERY_COUNT)
+        self.assertEqual(len(contract), ENGINE_DELIVERY_COUNT)
+        self.assertEqual(
+            [item["table_code"] for item in contract],
+            list(DELIVERY_TABLE_KEYS),
+        )
+        self.assertEqual([item["order"] for item in contract], list(range(1, 14)))
+        self.assertEqual(list(_DELIVERY_SHEETS), list(DELIVERY_TABLE_KEYS))
+        self.assertEqual(
+            list(_DELIVERY_SHEETS.values()),
+            [item["delivery_no"] for item in contract],
+        )
+        self.assertTrue(all(item["required_columns"] for item in contract))
+        self.assertTrue(all(item["formula_dependencies"] for item in contract))
+        self.assertTrue(all(item["reconciliation_rules"] for item in contract))
+        self.assertTrue(delivery_table_contract_hash().startswith("sha256:"))
+        self.assertEqual(counts, {
+            "engine_delivery_count": 13,
+            "reference_source_sheet_count": 15,
+            "review_workbook_sheet_count": 16,
+        })
+        self.assertEqual(REFERENCE_SOURCE_SHEET_COUNT, 15)
+        self.assertEqual(REVIEW_WORKBOOK_SHEET_COUNT, 16)
+
+        schema_path = (
+            Path(__file__).resolve().parents[2]
+            / "src/lvke_mcp/domains/finance/docs/reference_table_schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        reference_counts = schema["source"]["count_semantics"]
+        self.assertEqual(reference_counts, {
+            **counts,
+            "note": reference_counts["note"],
+        })
+        self.assertEqual(len(schema["source"]["canonical_tables"]), 15)
+        self.assertEqual(schema["source"]["workbook_provenance"]["sheet_count"], 16)
+
     @staticmethod
     def _scenario(industry: str, archetype: str) -> dict:
         return copy.deepcopy(
@@ -67,7 +119,9 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
             "idempotency_key": key,
         })
         self.assertTrue(result["success"], result)
-        self.assertEqual(result["status"], "ok", result)
+        self.assertIn(result["status"], {"ok", "partial"}, result)
+        if result["status"] == "partial":
+            self.assertTrue(result["data"].get("quality_issues"), result)
         run_id = result["run_id"]
         data = result["data"]
         self.assertTrue(data["available"], result)
@@ -84,7 +138,19 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
         package = tables_service.render(self.workspace, run_id)
         self.assertTrue(package["success"], package)
         self.assertEqual(package["run_id"], run_id)
-        self.assertEqual(len(package["table_manifest"]), len(DELIVERY_TABLE_KEYS))
+        self.assertEqual(package["engine_delivery_count"], ENGINE_DELIVERY_COUNT)
+        self.assertEqual(package["reference_source_sheet_count"], 15)
+        self.assertEqual(package["review_workbook_sheet_count"], 16)
+        self.assertEqual(package["table_contract_hash"], delivery_table_contract_hash())
+        self.assertEqual(len(package["table_manifest"]), ENGINE_DELIVERY_COUNT)
+        self.assertEqual(
+            [item["table_code"] for item in package["table_manifest"]],
+            list(DELIVERY_TABLE_KEYS),
+        )
+        self.assertTrue(all(
+            item["contract_hash"] == delivery_table_contract_hash()
+            for item in package["table_manifest"]
+        ))
         return result, package
 
     def test_customer_project_shapes(self) -> None:

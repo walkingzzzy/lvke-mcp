@@ -46,7 +46,16 @@ class FeasibilityReleaseScopeSemanticsTest(unittest.TestCase):
             **overrides,
         }
 
-    def test_technical_validation_rejects_an_empty_stage_chain(self) -> None:
+    def test_technical_validation_exposes_an_empty_stage_chain(self) -> None:
+        """空阶段链必须被如实拆穿，但按质量项而非口径阻断项处理。
+
+        产品口径：阶段链"还没走完"是置信度不足，允许产出把全部缺口写进
+        release_limitations 的过程验收件；只有口径非法（规模不一致、重建
+        来源缺记录、受控假设走正式发布）才进 blockers 并阻断。所以这里断
+        的是"每一项缺口都出现在 quality_issues 且顶层如实暴露"，而不是
+        要求 success=False。
+        """
+
         started = delivery.start({
             "workspace_id": "empty-technical-chain",
             "delivery_mode": "estimate_preview",
@@ -60,10 +69,18 @@ class FeasibilityReleaseScopeSemanticsTest(unittest.TestCase):
             "delivery_run_id": started["delivery_run_id"],
             "scope": "technical",
         })
-        self.assertFalse(result["success"], result)
-        self.assertIn("project_pending", result["blockers"])
-        self.assertIn("research_output_refs_missing", result["blockers"])
-        self.assertIn("review_basis_hash_missing", result["blockers"])
+        # 结构缺口不阻断，但绝不能被隐藏：quality_passed 必须为 False。
+        self.assertFalse(result["validation"]["quality_passed"], result)
+        self.assertEqual("partial", result["status"])
+        for code in (
+            "project_pending",
+            "research_output_refs_missing",
+            "review_basis_hash_missing",
+        ):
+            with self.subTest(code=code):
+                self.assertIn(code, result["quality_issues"])
+        # 结构缺口不得出现在 blockers（那是口径非法专用）。
+        self.assertEqual([], result["blockers"], result["blockers"])
 
     def test_technical_scope_relaxes_only_formal_qualification(self) -> None:
         run = self._structurally_complete_run()

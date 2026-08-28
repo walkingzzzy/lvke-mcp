@@ -1,5 +1,47 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_submit_candidate.output-schema",
+    "title": "knowledge_submit_candidate complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_submit_candidate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_list_candidates.output-schema",
+    "title": "knowledge_list_candidates complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_list_candidates/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_get_candidate.output-schema",
+    "title": "knowledge_get_candidate complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_get_candidate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_create_snapshot.output-schema",
+    "title": "knowledge_create_snapshot complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_create_snapshot/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_review_candidate.output-schema",
+    "title": "knowledge_review_candidate complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_review_candidate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-knowledge-governance.knowledge_publish_release.output-schema",
+    "title": "knowledge_publish_release complete output schema",
+    "uri": "lvke://schemas/lvke-knowledge-governance/knowledge_publish_release/output"
+  },
+  {
     "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
     "mimeType": "application/schema+json",
     "name": "lvke-knowledge-governance.knowledge_submit_candidate.input-schema",

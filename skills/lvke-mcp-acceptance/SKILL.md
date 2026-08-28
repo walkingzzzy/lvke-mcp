@@ -27,4 +27,13 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Inspect DOCX embedded CJK font relationships, license metadata and glyph
   coverage, and visually inspect every rendered PNG page.
 
+## MCP Tool Mapping
+
+- **Denominator**: live `tools/list` after one restart (171 tools across 14 servers).
+- **Classifications**: `PASS`, `EXPECTED_REJECTION`, `UPSTREAM_FAILURE`, `SKIPPED` only.
+- **Envelope fields** (every call): `transport_success`, `business_success`, `status`, `trace_id`, `input_hash`, `basis_hash`, `content_hash`, `lineage`, `resource_uris`, `blockers`, `next_actions`.
+- **Build gate**: `build_metadata_complete=true` required for G1+ acceptance; dirty checkout → dev build only.
+- **Formal candidate (G3)**: 24× P0 EVD-2 only; SIM-A / controlled_assumption / hash-only sources → `EXPECTED_REJECTION` for formal export.
+- Mapping manifest: `src/lvke_mcp/runtime/skill_tool_mapping.json`; validate via `python scripts/validate_skill_tool_mapping.py`.
+
 The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.

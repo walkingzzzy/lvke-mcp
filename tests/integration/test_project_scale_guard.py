@@ -355,7 +355,15 @@ class ScaleGateMcpEntryTest(unittest.TestCase):
             "idempotency_key": "scale-gate-pass-1",
         })
         self.assertTrue(result["success"], result.get("blockers"))
-        self.assertEqual("ok", result["status"])
+        # 本夹具 spec 本身缺行业必填字段，所以诚实结果是 partial + 质量诊断。
+        # 这里要断的是"尺度门禁没有阻断"，即 blockers 里没有尺度码、run 已建，
+        # 而不是要求整体 status 必须为 ok（那会把其它真实质量问题当成失败）。
+        self.assertIn(result["status"], {"ok", "partial"})
+        self.assertEqual([], result["blockers"])
+        self.assertNotIn(
+            "project_scale_inconsistent",
+            result.get("quality_issues") or [],
+        )
         self.assertTrue(result["run_id"])
 
 

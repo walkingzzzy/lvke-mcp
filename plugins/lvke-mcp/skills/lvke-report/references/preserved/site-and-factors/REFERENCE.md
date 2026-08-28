@@ -28,6 +28,6 @@ expert_review_status: pending_review
 - 要素保障不落到指标（用地/用水/能耗/环境承载）。
 
 ## 配套工具
-- `mcp_lvke_archive_find_similar_projects` / `get_chapter`：取同区域同行业标杆的选址与建设条件写法。
-- `mcp_lvke_map_geo_*`：区位与距离测算。
-- `mcp_lvke_policy_search_*`：国土空间规划、耕地保护、生态红线相关政策核验。
+- `archive_find_similar_projects` / `get_chapter`：取同区域同行业标杆的选址与建设条件写法。
+- `geo_query*`：区位与距离测算。
+- `reference_search*`：国土空间规划、耕地保护、生态红线相关政策核验。

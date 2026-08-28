@@ -204,7 +204,116 @@
       "additionalProperties": false,
       "x-lvke-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_submit_candidate/input"
     },
-    "name": "knowledge_submit_candidate"
+    "name": "knowledge_submit_candidate",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_submit_candidate/output"
+    }
   },
   {
     "annotations": {
@@ -270,7 +379,116 @@
       "type": "object",
       "additionalProperties": false
     },
-    "name": "knowledge_list_candidates"
+    "name": "knowledge_list_candidates",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_list_candidates/output"
+    }
   },
   {
     "annotations": {
@@ -301,7 +519,116 @@
       "type": "object",
       "additionalProperties": false
     },
-    "name": "knowledge_get_candidate"
+    "name": "knowledge_get_candidate",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_get_candidate/output"
+    }
   },
   {
     "annotations": {
@@ -338,7 +665,116 @@
       "type": "object",
       "additionalProperties": false
     },
-    "name": "knowledge_create_snapshot"
+    "name": "knowledge_create_snapshot",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_create_snapshot/output"
+    }
   },
   {
     "annotations": {
@@ -406,7 +842,116 @@
       "type": "object",
       "additionalProperties": false
     },
-    "name": "knowledge_review_candidate"
+    "name": "knowledge_review_candidate",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_review_candidate/output"
+    }
   },
   {
     "annotations": {
@@ -456,6 +1001,115 @@
       "type": "object",
       "additionalProperties": false
     },
-    "name": "knowledge_publish_release"
+    "name": "knowledge_publish_release",
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-knowledge-governance/knowledge_publish_release/output"
+    }
   }
 ]

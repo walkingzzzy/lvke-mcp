@@ -223,10 +223,21 @@ def confirm_saved_spec(
             workspace_id,
             candidate,
         )
-        confirmation_quality_issues.extend(
-            {"code": "SPEC_VALIDATION_FAILED", "message": str(item)}
-            for item in schema_errors
-        )
+        if not schema_ok:
+            # 结构校验失败必须拒绝确认，不能降级成 quality_issues。确认修订是
+            # 不可变基准，run/tables/artifact 全部以它为准；让一个结构非法的
+            # spec 拿到确认修订，等于把非法基准固化进整条交付链。
+            # 受控假设预览也走这条：预览路线只放宽"正式证据"，不放宽"七项必填齐全"。
+            return {
+                "ok": False,
+                "error": "SPEC_VALIDATION_FAILED",
+                "message": "Spec 结构校验未通过，不创建确认修订",
+                "details": [str(item) for item in schema_errors],
+                "blockers": ["SPEC_VALIDATION_FAILED"],
+                "next_actions": [
+                    "按 details 修正 spec 后重新 acquisition_save_spec 并确认",
+                ],
+            }
         if not estimate_preview and not process_acceptance and not evidence_binding.get("formal_ok"):
             confirmation_quality_issues.append({
                 "code": "EVIDENCE_REVIEW_REQUIRED",

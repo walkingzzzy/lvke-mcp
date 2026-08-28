@@ -2,11 +2,8 @@
   "schema": "report_revision_roundtrip.v1",
   "preparation_status": "partial",
   "revision_status": "ok",
-  "validation_valid": false,
-  "validation_blockers": [
-    "finance_reference_structure_incomplete",
-    "finance_tables_package_invalid"
-  ],
+  "validation_valid": true,
+  "validation_blockers": [],
   "lineage_bound": true,
   "upstream_hash_contract": true,
   "revision_resource_roundtrip": true,

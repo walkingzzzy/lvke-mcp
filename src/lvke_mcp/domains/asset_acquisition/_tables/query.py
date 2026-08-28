@@ -69,14 +69,67 @@ def resolve_resource(
     return None
 
 
+#: 文件内标记：脱离 MCP 响应单看 CSV/XLSX 的人也必须知道它能不能正式使用。
+#: 通用财务域已有同类机制（domains/finance/_tables_service/export.py）。
+_CSV_PREVIEW_BANNER = (
+    "【技术预览·不可正式使用】本文件由受控假设或未认证项目事实导出，"
+    "未通过正式收购交付门禁，仅供过程验收与结构核对；不得作为对外交付物或投资决策依据。"
+)
+
+_XLSX_PREVIEW_BANNER = (
+    "【估算预览】仅供过程验收使用，不得作为正式投资决策依据。"
+)
+
+
+def _release_grade(payload: dict[str, Any]) -> tuple[str, list[str]]:
+    """Return ``(release_grade, reasons)`` derived from the package itself.
+
+    口径全部取自 package 已固化的字段，不新增参数：调用方无法通过省略参数
+    把预览件"提级"成正式件。
+    """
+
+    reasons: list[str] = []
+    policy = str(payload.get("evidence_policy") or "formal_evidence")
+    if policy != "formal_evidence":
+        reasons.append(f"evidence_policy={policy}")
+    if str(payload.get("delivery_mode") or "") == "estimate_preview":
+        reasons.append("delivery_mode=estimate_preview")
+    if not payload.get("project_fact_certified"):
+        reasons.append("project_fact_not_certified")
+    reasons.extend(
+        f"release_limitation:{item}"
+        for item in (payload.get("release_limitations") or [])
+        if str(item)
+    )
+    reasons.extend(
+        f"unresolved_input:{item}"
+        for item in (payload.get("unresolved_inputs") or [])
+        if str(item)
+    )
+    grade = "technical_preview" if reasons else "formal_candidate"
+    return grade, sorted(set(reasons))
+
+
 def _result(record: dict[str, Any]) -> dict[str, Any]:
     payload = record.get("payload") or {}
     integrity = payload.get("integrity") or {}
     blockers = list(integrity.get("blockers") or [])
     warnings = list(integrity.get("warnings") or [])
+    # 等级必须在这里就带上：_result 是 render / get_package / list_tables /
+    # export 共用的构造器，只在 export 层补标记的话，直接消费或绑定 table
+    # package 的调用方（例如 report_prepare 的 finance_binding）看到的仍是
+    # 一个不带任何限制说明的 status=ok，从而把预览件当正式件用。
+    grade, grade_reasons = _release_grade(payload)
+    preview = grade == "technical_preview"
+    if preview:
+        warnings = [
+            *warnings,
+            f"技术预览：{_CSV_PREVIEW_BANNER}",
+            *(f"限制：{item}" for item in grade_reasons),
+        ]
     return {
         "success": True,
-        "status": "ok" if integrity.get("status") == "passed" else "partial",
+        "status": "partial" if (preview or integrity.get("status") != "passed") else "ok",
         "object_id": record["object_id"],
         "acquisition_tables_package_id": record["object_id"],
         "run_id": payload.get("run_id"),
@@ -87,10 +140,23 @@ def _result(record: dict[str, Any]) -> dict[str, Any]:
         "table_manifest": payload.get("table_manifest") or [],
         "formula_lineage": payload.get("formula_lineage") or [],
         "integrity": integrity,
+        "release_grade": grade,
+        "technical_preview": preview,
+        "formal_usable": not preview,
+        "release_limitations": grade_reasons,
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
         "blockers": blockers,
-        "next_actions": [] if blockers else ["使用 package_id 导出 CSV/XLSX 或绑定资产收购报告"],
+        "next_actions": (
+            []
+            if blockers
+            else [
+                "补齐项目事实证据并通过正式校验后方可正式使用；"
+                "当前仅可作为过程验收件导出 CSV/XLSX",
+            ]
+            if preview
+            else ["使用 package_id 导出 CSV/XLSX 或绑定资产收购报告"]
+        ),
     }
 
 

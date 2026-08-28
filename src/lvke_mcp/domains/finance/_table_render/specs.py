@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from lvke_mcp.domains.finance._run_service.base import (
+    DELIVERY_TABLE_KEYS,
+    DELIVERY_TABLE_META,
+)
 
 
 def _fmt(v: Any) -> str:
@@ -247,18 +251,9 @@ _TABLE_SPECS: dict[str, dict[str, Any]] = {
 }
 
 
-DELIVERY_ORDER = [
-    "investment",
-    "interest-during-construction",
-    "working-capital",
-    "funding",
-    "income-statement",
-    "total-cost",
-    "wage",
-    "depreciation",
-    "amortization",
-    "profit-distribution",
-    "debt-service",
-    "cashflow",
-    "capital-cashflow",
-]
+# 表号、标题和交付顺序只能由 run_service.base 的正式 manifest 决定。
+for _key, _delivery_no, _title in DELIVERY_TABLE_META:
+    _TABLE_SPECS[_key]["delivery_no"] = _delivery_no
+    _TABLE_SPECS[_key]["title"] = _title
+
+DELIVERY_ORDER = list(DELIVERY_TABLE_KEYS)

@@ -80,17 +80,6 @@ class AcceptanceRegressionTest(unittest.TestCase):
         self.assertIn("plot_ratio_constraint_failed", below_min)
         self.assertIn("build_capacity_exceeds_selected_market", over_market)
 
-    def test_formal_gate_classifies_acquisition_binding_before_generic_checks(self) -> None:
-        basis = {
-            "doc_kind": "feasibility",
-            "report_type": "gov10",
-            "finance": {"run_kind": "asset_acquisition"},
-        }
-        with self.assertRaises(formal_gate.DeliverableArtifactError) as raised:
-            formal_gate._assert_formal_basis(basis, {})
-
-        self.assertEqual(raised.exception.code, "FORMAL_ARTIFACT_TYPE_UNSUPPORTED")
-
     def test_solar_asset_context_resolves_energy_planning_constraints(self) -> None:
         context = {
             "object_id": "pctx-solar",

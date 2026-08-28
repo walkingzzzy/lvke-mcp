@@ -29,7 +29,7 @@ SOP：
 3. **提供选项**：
    - 「等对方完成」（推荐）
    - 「联系管理员接管」（admin 才能做）
-   - 「切换到只读分析」（不写正文，只 doc_review 写 issue）
+   - 「切换到只读分析」（不写正文，只 review_start 写 issue）
 
 ### 2️⃣ LLM 网关未配置
 
@@ -53,11 +53,11 @@ SOP：
 ```
 
 SOP：
-1. doc_read 拉最新版
+1. report_get_section 拉最新版
 2. 把本次改动重新合并到最新版
-3. 重新 doc_propose（旧 proposal 自动作废，不需要 reject）
-4. 重新 doc_diff
-5. 重新 doc_apply
+3. 重新 report_propose_section（旧 proposal 自动作废，不需要 reject）
+4. 重新 report_diff
+5. 重新 report_apply
 
 **告诉用户**：「检测到工作区在我们改稿期间被他人更新，已基于最新版重新生成提案 prop_yyy，请重新复核」
 
@@ -72,7 +72,7 @@ SOP：
 1. 检查 content 是否完整带了所有 9 章
 2. 检查标题层级（`## 1. XXX`，不是 `### 1. XXX` 不是 `# 1. XXX`）
 3. 检查标题编号顺序
-4. 修正后重新 doc_propose
+4. 修正后重新 report_propose_section
 
 不要直接 reject —— 这是技术错误，不是内容错误。
 
@@ -84,14 +84,14 @@ SOP：
 ```
 
 SOP：
-1. finance_view 看当前 required_markers 列表
-2. doc_read 看正文是否真的缺这些关键词
+1. finance_get_run 看当前 required_markers 列表
+2. report_get_section 看正文是否真的缺这些关键词
 3. 三种情况：
    - **正文确实没**：补充正文（如确实漏了 IRR 段）→ 重新 propose
    - **正文有但措辞不同**：调整正文用 markers 中的标准词
    - **markers 不合理**（如要求"折现率"但项目没用折现率）：与用户确认是否调整 finance.required_markers
 
-### 6️⃣ doc_propose 内容为空 / 格式异常
+### 6️⃣ report_propose_section 内容为空 / 格式异常
 
 错误特征：
 ```
@@ -111,11 +111,11 @@ SOP：
 1. **第 2 次失败时停下**，不要尝试第 3 次
 2. 告诉用户：「连续 N 次 [工具名] 调用失败，可能后端服务不稳定，建议稍后重试」
 3. **降级方案**：
-   - 如失败的是 doc_read → 用 context_view 拿摘要
-   - 如失败的是 finance_view → 让用户提供财务数据手写到 prompt
+   - 如失败的是 report_get_section → 用 report_list_sections 拿摘要
+   - 如失败的是 finance_get_run → 让用户提供财务数据手写到 prompt
    - 如失败的是 MCP server → 提示用户检查 MCP 配置
 
-### 8️⃣ issue_update 找不到 issue
+### 8️⃣ review_disposition_finding 找不到 issue
 
 错误特征：
 ```
@@ -123,8 +123,8 @@ SOP：
 ```
 
 SOP：
-1. 不要凭印象 issue_update，issue_id 可能写错
-2. **先 issue_list** 拿当前 open / in_progress 的 issue 真实 id
+1. 不要凭印象 review_disposition_finding，issue_id 可能写错
+2. **先 review_list_findings** 拿当前 open / in_progress 的 issue 真实 id
 3. 用真实 id 重新 update
 
 ## 通用恢复原则
@@ -149,8 +149,8 @@ SOP：
 如果 chat turn 中间被中断（超时 / 用户取消 / 工具失败重启），**先恢复上下文**：
 
 ```
-context_view                    # 拿当前章节列表 + issue 数
-issue_list status="open"        # 看是否之前已写过 issue
+report_list_sections                    # 拿当前章节列表 + issue 数
+review_list_findings status="open"        # 看是否之前已写过 issue
 [与用户确认从哪步继续]
 ```
 

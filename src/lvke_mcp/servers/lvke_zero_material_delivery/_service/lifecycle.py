@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 
+from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -135,15 +136,18 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 *list(delivery_artifacts.get("resource_uris") or []),
             }
         )
-        quality_issues = sorted({
-            *[str(item) for item in domain.get("blockers") or []],
-            *[str(item) for item in domain.get("quality_issues") or []],
-            *[str(item) for item in delivery_artifacts.get("blockers") or []],
-            *[str(item) for item in delivery_artifacts.get("quality_issues") or []],
-        } - {""})
+        blocking_codes, quality_issues = split_quality_codes([
+            *(domain.get("blockers") or []),
+            *(domain.get("quality_issues") or []),
+            *(delivery_artifacts.get("blockers") or []),
+            *(delivery_artifacts.get("quality_issues") or []),
+        ])
+        # 基准不可信时不得声称过程验收件已就绪：那正是"顶层报 ok、内部有
+        # 阻断项"的来源。
         technical_preview_ready = (
             str(domain.get("stage") or "") == "tables_ready"
             and not delivery_artifacts.get("blockers")
+            and not blocking_codes
         )
         next_run = _new_run(
             workspace_id,
@@ -151,7 +155,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             assumption_package_id=assumption["object_id"],
             previous_run_id=run_id,
             stage="preview_ready" if technical_preview_ready else str(domain.get("stage") or "assumptions_ready"),
-            blockers=[],
+            blockers=blocking_codes,
             status_reason=str(domain.get("status") or "partial"),
             object_refs=object_refs,
             artifact_uris=artifact_uris,
@@ -168,17 +172,22 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             object_id=planned_delivery_run_id,
         )
         return _envelope(
-            True,
-            "partial" if quality_issues else "ok",
+            not blocking_codes,
+            "blocked" if blocking_codes else ("partial" if quality_issues else "ok"),
             warnings=[
                 "行业场景仅作为受控假设种子，不是项目证据",
                 *list(domain.get("warnings") or []),
-                *(f"质量提示：{item}" for item in quality_issues),
+                *(f"阻断项：{item}" for item in blocking_codes),
+                *(
+                    f"质量提示：{item}"
+                    for item in quality_issues
+                    if item not in set(blocking_codes)
+                ),
             ],
-            blockers=[],
+            blockers=blocking_codes,
             quality_issues=quality_issues,
             release_limitations=quality_issues,
-            completed=True,
+            completed=not blocking_codes,
             technical_preview_ready=technical_preview_ready,
             next_actions=(
                 ["按 quality_issues 补充资料或修复工件后重算；当前运行快照仍可读取"]

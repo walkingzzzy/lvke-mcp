@@ -190,6 +190,38 @@ def _export_review_locked(
     allowed = {"json", "markdown", "docx", "xlsx"}
     if not requested or any(item not in allowed for item in requested):
         return _blocked("export_format_invalid", "导出格式仅支持 json、markdown、docx、xlsx")
+    if any(item in {"docx", "xlsx"} for item in requested) and not state.get("validation_complete"):
+        return _blocked(
+            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            "DOCX/XLSX 正式导出要求审查验证完成；当前仅允许 JSON/Markdown 过程记录",
+            review_id=review_id,
+            quality_issues=["review_validation_incomplete"],
+        )
+    # A completed review can still be incomplete or explicitly blocked.  Do
+    # not let a successful technical run, controlled-assumption input, or
+    # unresolved finding masquerade as a formal review export.
+    formal_issues: list[str] = []
+    formal_issues.extend(str(item) for item in state.get("quality_issues") or [])
+    formal_issues.extend(str(item) for item in state.get("release_limitations") or [])
+    for verdict_key in ("overall_verdict", "technical_verdict", "release_verdict"):
+        verdict = str(state.get(verdict_key) or "").lower()
+        if verdict and verdict not in {"pass", "passed", "ok", "complete", "completed"}:
+            formal_issues.append(f"{verdict_key}:{verdict}")
+    if formal_issues and any(item in {"docx", "xlsx"} for item in requested):
+        return _blocked(
+            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            "审查仍存在未关闭的质量或发布资格问题，禁止正式 DOCX/XLSX 导出",
+            review_id=review_id,
+            quality_issues=sorted(set(formal_issues)),
+        )
+    review_purpose = str((state.get("project_context") or {}).get("review_purpose") or "")
+    if any(item in {"docx", "xlsx"} for item in requested) and review_purpose != "project_delivery":
+        return _blocked(
+            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            "正式 DOCX/XLSX 审查导出要求 project_delivery 审查目的",
+            review_id=review_id,
+            quality_issues=["review_release_scope_not_formal"],
+        )
     export_basis = {
         "review_id": review_id,
         "event_chain_hash": state.get("event_chain_hash"),

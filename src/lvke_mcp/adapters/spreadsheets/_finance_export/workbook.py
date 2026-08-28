@@ -15,6 +15,8 @@ from .base import (
     _DELIVERY_SHEETS,
     _recalculate_with_soffice,
     _require_openpyxl,
+    delivery_count_semantics,
+    delivery_table_contract_hash,
 )
 
 from .delivery_tables import (
@@ -195,6 +197,7 @@ def export_finance_workbook(
         cell.font = meta_font
     schema = fin.get("schema") or {}
     manifest = fin.get("model_manifest") or {}
+    count_semantics = delivery_count_semantics()
     meta_rows = [
         ("run_id", run_id or ""),
         ("model_version", model_version),
@@ -210,6 +213,10 @@ def export_finance_workbook(
         ("industry", fin.get("industry") or ""),
         ("exported_at", datetime.now(timezone.utc).isoformat(timespec="seconds")),
         ("export_profile", "professional_13_table_v1"),
+        ("table_contract_hash", delivery_table_contract_hash()),
+        ("engine_delivery_count", count_semantics["engine_delivery_count"]),
+        ("reference_source_sheet_count", count_semantics["reference_source_sheet_count"]),
+        ("review_workbook_sheet_count", count_semantics["review_workbook_sheet_count"]),
         ("delivery_sheet_count", len(_DELIVERY_SHEETS)),
         ("validation_complete", bool(delivery_quality.get("validation_complete"))),
     ]
@@ -296,6 +303,8 @@ def export_finance_workbook(
         "input_keys": list(key_rows.keys()),
         "delivery_sheets": list(_DELIVERY_SHEETS.values()),
         "delivery_sheet_count": len(_DELIVERY_SHEETS),
+        **count_semantics,
+        "table_contract_hash": delivery_table_contract_hash(),
         "control_sheets_included": include_control_sheets,
         "artifact_notice": artifact_notice,
         "cell_lineage_count": len(lineage),

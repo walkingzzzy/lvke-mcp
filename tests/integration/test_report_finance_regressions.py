@@ -373,9 +373,17 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
             "missing_delivery_keys": list(DELIVERY_TABLE_KEYS),
         })
 
-        self.assertTrue(validation["valid"], validation)
+        # 本用例只管一件事：结构化 tables 已经给全 13 张表时，调用方传进来的
+        # 陈旧 missing_delivery_keys 必须被忽略，不得据此报缺表。
+        # 这里的 fixture 每张表只有一个占位列，因此必然触发列级契约 blocker
+        # （missing_required_column:*）——那是另一条正确生效的校验，不能用
+        # valid=True 把它一起断掉，否则这个用例会掩盖真实的列缺失。
         self.assertEqual(validation["missing_delivery_keys"], [])
         self.assertNotIn("renderer_missing_delivery_keys", validation["blockers"])
+        self.assertFalse(
+            [item for item in validation["blockers"] if "missing_delivery_tables" in item],
+            validation["blockers"],
+        )
 
     def test_partial_finance_package_is_generated_with_quality_diagnostics(self) -> None:
         evidence = {"basis_hash": "sha256:" + "c" * 64, "payload": {}}
@@ -417,14 +425,15 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
                 },
             })
 
+        # 绑定的十三表 package 自称 validation_complete=False，所以：
+        # 草稿可以出（draft_ready），但绝不能声称正式就绪。此前这里断言
+        # formal_ready=True 且 formal_blockers=[]，等于让一个未过正式校验的
+        # package 把报告标成正式可交付。
         self.assertTrue(result["success"])
         self.assertTrue(result["draft_ready"])
-        self.assertTrue(result["formal_ready"])
-        self.assertTrue(result["ready"])
-        self.assertEqual(result["formal_blockers"], [])
-        self.assertIn("finance_tables_package_not_formal", result["quality_issues"])
-        self.assertTrue(stored["formal_ready"])
-        self.assertIn("finance_tables_package_not_formal", stored["quality_issues"])
+        self.assertFalse(result["formal_ready"], result["formal_blockers"])
+        self.assertIn("finance_tables_package_not_formal", result["formal_blockers"])
+        self.assertFalse(stored["formal_ready"])
 
 
 if __name__ == "__main__":

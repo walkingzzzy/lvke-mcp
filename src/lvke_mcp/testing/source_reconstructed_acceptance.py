@@ -870,6 +870,10 @@ def run_reconstructed_acquisition_case(
         "selected_scenario_id": scenario_id,
         "industry": "hotel",
         "invest_type": "asset_acquisition",
+        # finance_kind 必须显式声明：缺失时收购模型只能注入执行默认值，
+        # 于是 validation_status 停在 calculated 而非 passed。invest_type
+        # 是投资属性，不能替代模型路线。
+        "finance_kind": "asset_acquisition",
         "revenue": {"model": "flat", "annual_revenue_wan": 511.04},
         "cost": {"cost_items": {"owner_opex_wan": 0}},
         "tax": {"income_tax_rate": 0.25},
@@ -1018,8 +1022,16 @@ def run_reconstructed_acquisition_case(
         raise ValueError(f"acquisition max-price analysis failed: {max_price}")
     run = backend.get_run(workspace_id, str(run["run_id"]))
     package = tables.render(workspace_id, str(run["run_id"]))
-    if package.get("status") != "ok":
-        raise ValueError(f"acquisition tables failed: {package}")
+    # 本夹具刻意是 source_reconstructed + 未认证项目事实，所以十三表的诚实
+    # 结论是 partial + technical_preview：断 status=="ok" 会要求"重建来源也报
+    # 正式就绪"。这里断的是真正该守的两件事——勾稽通过，且等级如实标为预览。
+    if (package.get("integrity") or {}).get("status") != "passed":
+        raise ValueError(f"acquisition tables integrity failed: {package.get('integrity')}")
+    if package.get("formal_usable") is not False:
+        raise ValueError(
+            "source_reconstructed package must not claim formal usability: "
+            f"release_grade={package.get('release_grade')}"
+        )
     package_id = str(package["acquisition_tables_package_id"])
     xlsx = tables.export_xlsx(workspace_id, package_id)
     csv = tables.export_csv(workspace_id, package_id)

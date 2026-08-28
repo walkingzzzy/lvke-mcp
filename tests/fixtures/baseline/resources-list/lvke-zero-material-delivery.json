@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_create_from_sentence.output-schema",
+    "title": "delivery_create_from_sentence complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_create_from_sentence/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_start.output-schema",
+    "title": "delivery_start complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_start/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_status.output-schema",
+    "title": "delivery_status complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_get.output-schema",
+    "title": "delivery_get complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_get/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_list_assumptions.output-schema",
+    "title": "delivery_list_assumptions complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_list_assumptions/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_confirm_assumptions.output-schema",
+    "title": "delivery_confirm_assumptions complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_confirm_assumptions/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_get_artifacts.output-schema",
+    "title": "delivery_get_artifacts complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_get_artifacts/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_cancel.output-schema",
+    "title": "delivery_cancel complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_cancel/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_resume.output-schema",
+    "title": "delivery_resume complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_resume/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-zero-material-delivery.delivery_transition.output-schema",
+    "title": "delivery_transition complete output schema",
+    "uri": "lvke://schemas/lvke-zero-material-delivery/delivery_transition/output"
+  }
+]

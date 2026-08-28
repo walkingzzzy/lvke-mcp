@@ -17,11 +17,11 @@ platforms: [linux, windows, macos]
 ## 工作流
 
 ```
-1. doc_read 或 context_view 抓全文
+1. report_get_section 或 report_list_sections 抓全文
 2. 扫描引用 → 按类型分组
 3. 逐条核查（如有 mcp-policy-search / mcp-statistics-cn，优先调用）
 4. 标记三态：✓ 真实有效 / ⚠️ 真实但已过期 / ❌ 未找到或异常
-5. doc_review 写入 issue
+5. review_start 写入 issue
 ```
 
 ## 引用类型清单
@@ -89,7 +89,7 @@ platforms: [linux, windows, macos]
 ### 步骤 1：抽取所有引用
 
 ```
-doc_read 全文，做 grep：
+report_get_section 全文，做 grep：
 - 正则：\d+[年〔[][\d-]+\d+[]〕号]
 - 关键词："根据"、"按照"、"参照"、"来源："、"国家统计局"、"GB"、"JGJ"...
 按出现位置 + 引用类型分组
@@ -133,11 +133,11 @@ doc_read 全文，做 grep：
 
 ## 配套工具
 
-- `doc_read` / `context_view`：抓引用
+- `report_get_section` / `report_list_sections`：抓引用
 - `mcp_policy_search_*`（如配置）：政策检索（首选）
 - `mcp_statistics_cn_*`（如配置）：统计核查
 - `web_search`：通用核查（兜底）
-- `doc_review` / `issue_update`：issue 流转
+- `review_start` / `review_disposition_finding`：issue 流转
 
 ## 常见陷阱
 

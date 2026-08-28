@@ -27,4 +27,18 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   `finance_binding.kind=asset_acquisition`; classify direct preview/process
   formal-artifact calls as `EXPECTED_REJECTION`.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-feasibility-study` entry).
+
+| Tool | Server | Required inputs | Outcome notes |
+|------|--------|-----------------|---------------|
+| `feasibility_start` / `feasibility_status` | lvke-feasibility-delivery | `workspace_id`, `project_context_id` | binds `delivery_run_id` |
+| `feasibility_validate` | lvke-feasibility-delivery | `delivery_run_id` | `quality_passed=false` ≠ release pass |
+| `feasibility_release` | lvke-feasibility-delivery | validated run | blocked without evidence gate |
+| `feasibility_resume` | lvke-feasibility-delivery | `checkpoint_id`, `idempotency_key` | creates a NEW immutable run snapshot from a checkpoint; the original run is never mutated |
+| `lvke_list_resources` / `lvke_read_resource` | lvke-feasibility-delivery | `domain` / `uri` + explicit `workspace_id` | raw cross-domain Resource access; URIs are never rewritten and cross-workspace reads stay fail-closed |
+
+Knowledge closure (lvke-knowledge-governance): `knowledge_submit_candidate` → `knowledge_create_snapshot` → `knowledge_review_candidate` → `knowledge_publish_release`. `knowledge_list_candidates` / `knowledge_get_candidate` are read-only; only an `accepted` candidate may be published, and a snapshot is content-addressed so it cannot be edited after the fact.
+
+Evidence tracks: `technical_fixture`, `controlled_assumption`, `source_reconstructed`, `formal_evidence`. Orchestrates domain Skills; do not skip immutable object boundaries between stages.

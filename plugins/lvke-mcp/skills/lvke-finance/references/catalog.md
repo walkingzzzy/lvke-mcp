@@ -4,6 +4,7 @@ Read only the entries needed for the current task, then follow the linked `SKILL
 
 | Topic | Preserved specialist source |
 |---|---|
+| asset acquisition (hotel / solar) | [SKILL.md](preserved/lvke-asset-acquisition/REFERENCE.md) |
 | finance modeling | [SKILL.md](preserved/lvke-finance-modeling/REFERENCE.md) |
 | finance spec | [SKILL.md](preserved/lvke-finance-spec/REFERENCE.md) |
 | thirteen tables | [SKILL.md](preserved/lvke-finance-tables/REFERENCE.md) |

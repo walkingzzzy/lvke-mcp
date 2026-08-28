@@ -115,13 +115,13 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view 看是否已有上下文
+1. report_list_sections 看是否已有上下文
 2. [调研]：mcp_policy_search / web_search 拉政策清单
 3. [调研]：mcp_statistics_cn 拉相关数据
 4. 拉 3 层政策金字塔（国 / 行 / 地）
 5. 选最强 2-3 个必要性维度写深
 6. 写 2.4 可行性概述（克制，不抢风头）
-7. doc_propose → diff → apply
+7. report_propose_section → diff → apply
 ```
 
 ## 配套 skill

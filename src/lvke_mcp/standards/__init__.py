@@ -1,0 +1,1 @@
+"""Versioned standards used as generation bases and later conformance checks."""

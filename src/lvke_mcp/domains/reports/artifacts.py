@@ -81,8 +81,6 @@ from ._artifacts.directory import (  # noqa: F401
     _verify_files,
 )
 from ._artifacts.formal_gate import (  # noqa: F401
-    _assert_formal_basis,
-    _basis_problem,
     _capture_basis,
     _draft_basis_blockers,
     _marker_markdown,

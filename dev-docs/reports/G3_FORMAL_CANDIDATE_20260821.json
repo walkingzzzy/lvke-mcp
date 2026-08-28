@@ -1,0 +1,117 @@
+{
+  "generated_at": "2026-08-21T01:51:42Z",
+  "workspace_id": "restart-g3-20260821-a",
+  "build_metadata": {
+    "build_commit": "46a64b2f6fa7e7a28e4f4eb5bdd94a0bd8957ab6",
+    "build_time": "build_metadata_incomplete",
+    "plugin_version": "0.1.0+codex.20260814000912",
+    "build_metadata_complete": false,
+    "build_metadata_status": "build_metadata_incomplete",
+    "build_metadata_missing": [
+      "build_time"
+    ]
+  },
+  "summary": {
+    "p0_total": 24,
+    "p0_evd2_count": 0,
+    "p0_status": {
+      "P0-01": "EVD-0/1 (SIM-A)",
+      "P0-02": "EVD-0/1 (SIM-A)",
+      "P0-03": "EVD-0/1 (SIM-A)",
+      "P0-04": "EVD-0/1 (SIM-A)",
+      "P0-05": "EVD-0/1 (SIM-A)",
+      "P0-06": "EVD-0/1 (SIM-A)",
+      "P0-07": "EVD-0/1 (SIM-A)",
+      "P0-08": "EVD-0/1 (SIM-A)",
+      "P0-09": "EVD-0/1 (SIM-A)",
+      "P0-10": "EVD-0/1 (SIM-A)",
+      "P0-11": "EVD-0/1 (SIM-A)",
+      "P0-12": "EVD-0/1 (SIM-A)",
+      "P0-13": "EVD-0/1 (SIM-A)",
+      "P0-14": "EVD-0/1 (SIM-A)",
+      "P0-15": "EVD-0/1 (SIM-A)",
+      "P0-16": "EVD-0/1 (SIM-A)",
+      "P0-17": "EVD-0/1 (SIM-A)",
+      "P0-18": "EVD-0/1 (SIM-A)",
+      "P0-19": "EVD-0/1 (SIM-A)",
+      "P0-20": "EVD-0/1 (SIM-A)",
+      "P0-21": "EVD-0/1 (SIM-A)",
+      "P0-22": "EVD-0/1 (SIM-A)",
+      "P0-23": "EVD-0/1 (SIM-A)",
+      "P0-24": "EVD-0/1 (SIM-A)"
+    },
+    "formal_candidate_eligible": false,
+    "release_ready": false,
+    "seeded_object_ids": {
+      "ProjectContext": "pctx_5ea6492152812bc25b037758",
+      "SourceSnapshot": "src_994993b01e2a63e38960e3ac",
+      "DiscoverySet": "discovery_1b6a65d8545879ea9a8a4982",
+      "CandidateSet": "analysis_819ffd3b4b844b7ff1e8e9ea",
+      "DeliveryRun": "fdr_d84ae380db901ad3de046853",
+      "delivery_run_id": "fdr_d84ae380db901ad3de046853",
+      "FinanceSpec": "fsp_fe5d2d6f3b015c06b9d1ab90",
+      "FinanceSpecConfirmed": "fsp_43d65d5c3c601711497f63c7",
+      "FinanceRun": "run_fb24ebb4c602",
+      "run_id": "run_fb24ebb4c602",
+      "FinanceTablesPackage": "run_fb24ebb4c602",
+      "ReviewPrepare": "rvprep_d33c36c99ec21998b90199ef",
+      "Review": "review_14f08887b1cb8ee19a340718a6ed0e0e",
+      "review_id": "review_14f08887b1cb8ee19a340718a6ed0e0e",
+      "ReviewFindings": "review_14f08887b1cb8ee19a340718a6ed0e0e",
+      "ReportPreparation": "rprep_f2f969be58b165339269ba76",
+      "ReportRevisionDraft": "rrv_61e33d49ac36ec0f3277b856",
+      "ReportRevision": "rrv_2b418eea76d8d4bd54d82a03",
+      "report_revision_id": "rrv_2b418eea76d8d4bd54d82a03",
+      "ReportPropose": "prop_d2b5b39ce88d124f",
+      "ReportDiff": "prop_d2b5b39ce88d124f",
+      "ReportApply": "rrv_07a686926dcf770617582e8d",
+      "ReviewExport": "review_14f08887b1cb8ee19a340718a6ed0e0e",
+      "FeasibilityValidate": "fdr_d84ae380db901ad3de046853"
+    }
+  },
+  "gates": [
+    {
+      "name": "release_preflight",
+      "status": "blocked",
+      "passed": [
+        "calculation_gate: pass"
+      ],
+      "failed": [
+        "artifact_gate: fail",
+        "evidence_gate: fail",
+        "release_gate: fail"
+      ],
+      "blockers": []
+    }
+  ],
+  "formal_export_probes": [
+    {
+      "tool": "review_export",
+      "server": "lvke-deliverable-review",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_79e86a899db4412a876dcc6004088e56",
+      "protocol_error": ""
+    },
+    {
+      "tool": "report_export_docx",
+      "server": "lvke-report-generation",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_aa6c6d9725c44b35ae693c835d8a9e1d",
+      "protocol_error": ""
+    },
+    {
+      "tool": "feasibility_release",
+      "server": "lvke-feasibility-delivery",
+      "classification": "EXPECTED_REJECTION",
+      "status": "blocked",
+      "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+      "trace_id": "mcp_2d2f6f73e31742daaf6e8f25309390ec",
+      "protocol_error": ""
+    }
+  ],
+  "seed_chain_steps": 25
+}

@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import os
+import tempfile
 import unittest
 import uuid
 from importlib import import_module
@@ -132,10 +134,21 @@ def _stable(value: dict) -> dict:
 class McpCompressionRound2Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls._tempdir = tempfile.TemporaryDirectory(prefix="lvke-round2-")
+        cls._previous_data_dir = os.environ.get("LVKE_MCP_DATA_DIR")
+        os.environ["LVKE_MCP_DATA_DIR"] = cls._tempdir.name
         cls.servers = {
             key: import_module(module_name).build_server()
             for key, module_name in MODULES.items()
         }
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls._previous_data_dir is None:
+            os.environ.pop("LVKE_MCP_DATA_DIR", None)
+        else:
+            os.environ["LVKE_MCP_DATA_DIR"] = cls._previous_data_dir
+        cls._tempdir.cleanup()
 
     def test_v2_manifest_has_32_unique_routes_and_eight_contracts(self) -> None:
         manifest = json.loads(
@@ -159,7 +172,7 @@ class McpCompressionRound2Test(unittest.TestCase):
             server = getattr(module, "SERVER", None) or module.build_server()
             total += len(server.tool_specs)
             all_names.update(tool.name for tool in server.tool_specs)
-        self.assertEqual(total, 169)
+        self.assertEqual(total, 171)
         # legacy spec 总数 = 32 条压缩迁移替换掉的旧工具 + 压缩之后新增的分支。
         # 后者不属于 v2 迁移清单（那份 manifest 记录的是「被替换」的路由），所以
         # 这里按「≥32 且新增部分可枚举」判定，而不是把两类计数混成一个魔数。

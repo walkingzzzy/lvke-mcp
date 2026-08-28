@@ -8,6 +8,11 @@ import json
 
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.finance_model_repository import FACT_PACK_STORE, IDEMPOTENCY_STORE, SPEC_STORE
+from lvke_mcp.domains.finance.generation_standard import (
+    coverage_snapshot,
+    generation_baseline,
+    stamp_finance_spec,
+)
 from lvke_mcp.domains.finance.parameter_resolver import (
     canonicalize_finance_inputs,
     finance_input_schema,
@@ -124,6 +129,10 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             force_flat=bool(args.get("force_flat") or False),
         )
         if supplied_spec is not None:
+            supplied_spec = stamp_finance_spec(
+                supplied_spec,
+                invest_type=str(data.get("invest_type") or ""),
+            )
             data["spec"] = supplied_spec
             data["spec_hash"] = run_service.compute_spec_hash(supplied_spec)
             data["force_flat"] = False
@@ -173,6 +182,19 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             invest_type=str(data.get("invest_type") or normalized_inputs.get("invest_type") or ""),
             build_period_months=data.get("build_period_months") or normalized_inputs.get("build_period_months"),
             industry=str(data.get("industry") or normalized_inputs.get("industry") or ""),
+        )
+        effective_invest_type = str(
+            data.get("invest_type") or normalized_inputs.get("invest_type") or ""
+        )
+        data["generation_basis"] = generation_baseline(
+            invest_type=effective_invest_type,
+        )
+        data["generation_standard"] = data["generation_basis"]["standard_id"]
+        data["standard_version"] = data["generation_basis"]["standard_version"]
+        data["standard_source_hash"] = data["generation_basis"]["source_hash"]
+        data["standard_coverage_snapshot"] = coverage_snapshot(
+            finance_inputs=normalized_inputs,
+            invest_type=effective_invest_type,
         )
         missing = [] if normalized_inputs.get("total_investment_wan") else ["total_investment_wan"]
         spec = data.get("spec") if isinstance(data.get("spec"), dict) else None
@@ -285,6 +307,11 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 {
                     "spec": spec,
                     "spec_hash": data.get("spec_hash"),
+                    "generation_basis": data.get("generation_basis"),
+                    "generation_standard": data.get("generation_standard"),
+                    "standard_version": data.get("standard_version"),
+                    "standard_source_hash": data.get("standard_source_hash"),
+                    "standard_coverage_snapshot": data.get("standard_coverage_snapshot"),
                     "input_revision": normalized_inputs,
                     "input_hash": data.get("input_hash"),
                     "input_revision_id": data.get("input_revision_id"),
@@ -335,17 +362,29 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 if can_reuse_confirmed
                 else fact_pack.get("fact_pack_hash") or None
             )
+        # 没能固化出任何 spec 记录时不能报成功：调用方拿到 success=true 却
+        # 拿不到 spec_id，只会在下一步 finance_run_model 才发现无从下手。
+        # 例如 reuse_confirmed 遇到 hash 非法或 lineage 断裂的 confirmed spec，
+        # 拒绝复用是对的，但必须如实说"没给出 spec"。
+        spec_unavailable = spec_record is None
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_prepare_spec",
-            status="partial" if missing else "ok",
+            status="blocked" if spec_unavailable else ("partial" if missing else "ok"),
             warnings=[
                 *_str_list(data.get("warnings")),
                 *(f"质量提示：缺少关键输入 {item}" for item in missing),
             ],
-            blockers=[],
+            blockers=(
+                ["finance_spec_unavailable"] if spec_unavailable else []
+            ),
             next_actions=(
-                ["候选 Spec 已固化；可直接运行模型，补充输入可提高置信度"]
+                [
+                    "无可复用的 confirmed Spec（hash 非法或 lineage 断裂）；"
+                    "改用 strategy=propose_from_project 重新准备候选 Spec",
+                ]
+                if spec_unavailable
+                else ["候选 Spec 已固化；可直接运行模型，补充输入可提高置信度"]
                 if missing
                 else (
                     ["已复用 confirmed Spec，可直接用 spec_id 调用 finance_run_model"]

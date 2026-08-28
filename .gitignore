@@ -39,6 +39,10 @@ lvke产出/
 
 # Client-specific and local assistant configuration
 .claude/
+# .cursor/mcp.json 里全是本机绝对路径（conda 解释器、~/.lvke 数据根）与
+# 指向本机密钥文件的 *_FILE 路径，换一台机器即失效，属本地配置不入库。
+# 仓库内 MCP 配置的唯一来源是 plugins/lvke-mcp/.mcp.json。
+.cursor/
 
 # NSS/PKCS#11 module config accidentally emitted into the repo root by local
 # tooling. It carries local cert/key store paths, never project source.

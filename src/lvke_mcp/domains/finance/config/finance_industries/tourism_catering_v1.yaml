@@ -1,6 +1,9 @@
 version: tourism_catering.v1
 industry: tourism_catering
-aliases: [文旅, 旅游, 景区, 酒店, 餐饮, 文化演艺, 主题乐园]
+aliases: [文旅, 旅游, 景区, 酒店, 餐饮, 文化演艺, 主题乐园, 农旅, 低空旅游, 低空经济]
+industry_conformance: provisional
+reference_structure_status: not_frozen
+formal_reference_allowed: false
 required_inputs: [construction_items, cost_items, wc_turnover]
 required_by_revenue_model:
   tourism: [annual_visitors, spend_per_visitor, visitor_ramp]

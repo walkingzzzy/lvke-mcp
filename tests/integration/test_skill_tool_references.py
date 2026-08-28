@@ -40,6 +40,19 @@ _TOOL_PREFIXES = (
     "delivery_",
     "feasibility_",
     "acquisition_",
+    # lvke-reference 的命名空间此前整段漏掉，于是 mcp_lvke_archive_* 这类
+    # 错前缀写法长期无人发现。
+    "archive_",
+    "reference_",
+    "geo_",
+    "template_",
+    # 已退役的 HTTP 工作台命名空间。它们不在当前工具面里，但历史 Skill 仍
+    # 成篇地教，必须能被查出来——漏掉这四个前缀正是 11 个 doc_* 工具能潜伏
+    # 至今的原因。
+    "doc_",
+    "issue_",
+    "context_",
+    "lock_",
 )
 # 只认真正的调用形状：``name(``。
 #
@@ -49,11 +62,12 @@ _TOOL_PREFIXES = (
 # 真正需要守的是"照抄文档就调不通"，那只发生在带参数括号的调用形状上。
 _CALL = re.compile(r"([a-z][a-z0-9_]{3,})\s*\(")
 
-# 这些不是 MCP 工具，而是早期文档留下的示意用例名（doc_read/context_view 同族）。
-_KNOWN_NON_TOOLS = {
-    # propose-apply-flow 里的 python 伪代码示例，示意旧文档工具，不是 MCP 工具面。
-    "finance_view",
-}
+# 不是 MCP 工具、但允许以调用形状出现的名字。
+#
+# 这份名单要保持为空或极短：每加一项就等于放弃一处检查。此前 finance_view
+# 被豁免，实际它属于一整套已退役的 doc_*/issue_*/context_* 工作台接口，
+# 豁免它掩盖了那批指引全部失效的事实——现在它们已改写成真实工具，豁免撤销。
+_KNOWN_NON_TOOLS: set[str] = set()
 
 
 def _registered_tool_names() -> set[str]:
@@ -147,6 +161,27 @@ class SkillToolReferenceTest(unittest.TestCase):
                 self.assertIn("planning_confirm(object_kind=", text)
                 self.assertIn("payload", text)
                 self.assertIn("planning_get_object", text)
+
+
+class SkillToolMappingValidatorTest(unittest.TestCase):
+    """把 scripts/validate_skill_tool_mapping.py 接进 pytest。
+
+    该校验器此前是孤儿脚本：没有测试引用、仓库也没有 CI 或 Makefile 入口，
+    唯一调用方是 scripts/build_codex_plugin.py。于是只跑 pytest 的人不会执行它，
+    而它守的恰好是"Skill 指引与真实工具面是否一致"——那正是失效指引能长期
+    潜伏的原因。这里直接调它的函数入口，让 `pytest` 就能兜住。
+    """
+
+    def test_validator_reports_no_problems(self) -> None:
+        import sys
+
+        scripts_dir = ROOT / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        from validate_skill_tool_mapping import validate_skill_tool_mapping
+
+        problems = validate_skill_tool_mapping(strict=True, check_plugin_sync=True)
+        self.assertEqual([], problems, "\n".join(problems))
 
 
 if __name__ == "__main__":

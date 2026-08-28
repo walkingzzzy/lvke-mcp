@@ -138,14 +138,46 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         build_period_months=input_revision.get("build_period_months"),
     )
     preflight_quality_issues.extend(f"missing_input:{item}" for item in rail_missing)
+    if rail_missing:
+        # 城轨这几个字段没有可用的通用默认值：建设期、计算期、资本金比例、
+        # 贷款条件、折现率、成本项、财政补贴口径缺一个，模型只能拿通用默认
+        # 值顶上，算出来的 IRR/DSCR 与这条线路无关。所以缺失即 missing_inputs
+        # 且不建 run，而不是"照算并附一条质量提示"。
+        return _ok_env(
+            {
+                "available": False,
+                "error": "missing_inputs",
+                "missing_inputs": list(rail_missing),
+                "spec_id": spec_id,
+                "quality_issues": sorted(set(preflight_quality_issues)),
+            },
+            source=f"{SERVER_NAME}.finance_run_model",
+            status="missing_inputs",
+            blockers=[f"缺少城轨必需输入：{item}" for item in rail_missing],
+            warnings=[f"质量提示：{item}" for item in sorted(set(preflight_quality_issues))],
+            next_actions=[
+                "补齐 input_revision 中的城轨治理输入后重试；这些字段没有通用默认值",
+            ],
+            run_id=None,
+            spec_id=spec_id or None,
+            missing_inputs=list(rail_missing),
+            quality_issues=sorted(set(preflight_quality_issues)),
+        )
     if not _revenue_input_complete(spec, input_revision):
         preflight_quality_issues.append("revenue_driver_missing_using_default")
     scale_check = check_finance_run_scale(spec, input_revision)
+    scale_blockers: list[str] = []
     if not scale_check["ok"]:
-        preflight_quality_issues.extend(
+        scale_codes = [
             str(item.get("code") or "project_scale_inconsistent")
             for item in scale_check["issues"]
-        )
+        ]
+        preflight_quality_issues.extend(scale_codes)
+        # 尺度对账失败是阻断项，不是质量提示。投资额与行业规模量级不符时
+        # 继续建 FinanceRun 等于让后续十三表、报告和审查全部建立在一个
+        # 不可信的规模基准上；那时再提示已经太晚。城轨 Skill 的要求是
+        # 这种情况下不得创建 FinanceRun。
+        scale_blockers = sorted(set(scale_codes))
     if mode == "review_candidate" and bool(input_revision.get("is_operating")):
         breakdown = input_revision.get("invest_breakdown")
         breakdown = breakdown if isinstance(breakdown, dict) else {}
@@ -177,6 +209,35 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             preflight_quality_issues.extend(
                 f"missing_input:wc_turnover.{name}" for name in missing_turnover
             )
+    if scale_blockers:
+        # 在预留幂等键与调用模型之前短路：一旦建了 run，下游十三表与报告
+        # 就会引用一个规模基准不可信的对象，事后提示无法收回。
+        detail = "；".join(
+            str(item.get("detail") or item.get("code") or "")
+            for item in scale_check["issues"]
+        )
+        return _ok_env(
+            {
+                "available": False,
+                "error": scale_blockers[0],
+                "spec_id": spec_id,
+                "scale_check": scale_check,
+                "quality_issues": sorted(set(preflight_quality_issues)),
+            },
+            source=f"{SERVER_NAME}.finance_run_model",
+            status="blocked",
+            blockers=scale_blockers,
+            warnings=[f"质量提示：{item}" for item in sorted(set(preflight_quality_issues))],
+            next_actions=[
+                "核对投资额与行业规模量级（线路长度、车站数、建设期）后重新提交 InputRevision",
+            ],
+            run_id=None,
+            spec_id=spec_id or None,
+            missing_inputs=[],
+            quality_issues=sorted(set(preflight_quality_issues)),
+            scale_check=scale_check,
+            message=detail or "项目规模与投资额对账不一致",
+        )
     expires_at = _expires_at()
     IDEMPOTENCY_STORE.put(
         workspace_id,

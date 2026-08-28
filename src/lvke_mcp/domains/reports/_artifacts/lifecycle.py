@@ -244,6 +244,14 @@ def _create(
                 *copy.deepcopy(readiness.get("blockers") or []),
                 *_draft_basis_blockers(basis, context),
             ]
+            if quality_issues:
+                # Formal export is fail-closed. Do not create an artifact
+                # directory, manifest, or Resource URI while blockers remain.
+                raise DeliverableArtifactError(
+                    "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+                    "正式候选工件仍存在未关闭的资格阻断项",
+                    details={"blockers": quality_issues},
+                )
             report_content = content
             blocker_summary = {
                 "blockers": quality_issues,

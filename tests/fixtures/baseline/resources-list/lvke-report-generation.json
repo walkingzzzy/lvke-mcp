@@ -1,5 +1,96 @@
 [
   {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_prepare.output-schema",
+    "title": "report_prepare complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_prepare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_start.output-schema",
+    "title": "report_start complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_start/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_status.output-schema",
+    "title": "report_status complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_validate.output-schema",
+    "title": "report_validate complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_validate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_list_sections.output-schema",
+    "title": "report_list_sections complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_list_sections/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_get_section.output-schema",
+    "title": "report_get_section complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_get_section/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_propose_section.output-schema",
+    "title": "report_propose_section complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_propose_section/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_validate_section.output-schema",
+    "title": "report_validate_section complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_validate_section/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_export_docx.output-schema",
+    "title": "report_export_docx complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_export_docx/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_propose.output-schema",
+    "title": "report_propose complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_propose/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_diff.output-schema",
+    "title": "report_diff complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_diff/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_apply.output-schema",
+    "title": "report_apply complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_apply/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-report-generation.report_get_readiness.output-schema",
+    "title": "report_get_readiness complete output schema",
+    "uri": "lvke://schemas/lvke-report-generation/report_get_readiness/output"
+  },
+  {
     "description": "报告准备阶段用于绑定 evidence、research、财务 package 与提纲的完整 Schema。",
     "mimeType": "application/schema+json",
     "name": "report-preparation",

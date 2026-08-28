@@ -1,5 +1,5 @@
 {
-  "frozen_at": "2026-08-09T11:46:41+0800",
+  "frozen_at": "2026-08-19T23:18:18+0800",
   "protocol_version": "2025-11-25",
   "python": "installed-environment",
   "servers": [
@@ -21,7 +21,7 @@
         "acquisition_export_tables_xlsx",
         "acquisition_export_tables_csv"
       ],
-      "resources": 3,
+      "resources": 27,
       "protocol_version": "2025-11-25"
     },
     {
@@ -40,7 +40,7 @@
         "data_get_visual_capture",
         "data_provider_status"
       ],
-      "resources": 0,
+      "resources": 20,
       "protocol_version": "2025-11-25"
     },
     {
@@ -60,7 +60,7 @@
         "analysis_list_unit_rules",
         "analysis_build_evidence_pack"
       ],
-      "resources": 1,
+      "resources": 23,
       "protocol_version": "2025-11-25"
     },
     {
@@ -87,7 +87,7 @@
         "dr_get_evidence",
         "dr_get_bundle"
       ],
-      "resources": 1,
+      "resources": 37,
       "protocol_version": "2025-11-25"
     },
     {
@@ -111,7 +111,7 @@
         "review_attach_requirement_evidence",
         "review_validate_standards"
       ],
-      "resources": 5,
+      "resources": 35,
       "protocol_version": "2025-11-25"
     },
     {
@@ -130,13 +130,13 @@
         "lvke_list_resources",
         "lvke_read_resource"
       ],
-      "resources": 0,
+      "resources": 20,
       "protocol_version": "2025-11-25"
     },
     {
       "server": "lvke-finance-model",
       "ok": true,
-      "tools": 16,
+      "tools": 18,
       "tool_names": [
         "finance_calculate",
         "finance_prepare_fact_pack",
@@ -146,6 +146,8 @@
         "finance_validate_spec",
         "finance_run_model",
         "finance_get_run",
+        "finance_validate_post_generation",
+        "finance_promote_to_formal",
         "finance_build_basis_of_estimate",
         "finance_build_balance_sheet",
         "finance_run_monte_carlo",
@@ -155,7 +157,7 @@
         "finance_import_vendor_review",
         "finance_get_analysis"
       ],
-      "resources": 6,
+      "resources": 46,
       "protocol_version": "2025-11-25"
     },
     {
@@ -172,7 +174,7 @@
         "tables_get_table",
         "tables_validate_table"
       ],
-      "resources": 0,
+      "resources": 16,
       "protocol_version": "2025-11-25"
     },
     {
@@ -187,7 +189,7 @@
         "knowledge_review_candidate",
         "knowledge_publish_release"
       ],
-      "resources": 1,
+      "resources": 13,
       "protocol_version": "2025-11-25"
     },
     {
@@ -213,7 +215,7 @@
         "planning_prepare",
         "planning_create"
       ],
-      "resources": 9,
+      "resources": 68,
       "protocol_version": "2025-11-25"
     },
     {
@@ -234,7 +236,7 @@
         "archive_compare_cases",
         "archive_get_template_paragraph"
       ],
-      "resources": 0,
+      "resources": 24,
       "protocol_version": "2025-11-25"
     },
     {
@@ -256,7 +258,7 @@
         "report_apply",
         "report_get_readiness"
       ],
-      "resources": 2,
+      "resources": 28,
       "protocol_version": "2025-11-25"
     },
     {
@@ -278,7 +280,7 @@
         "source_inspect_workbook",
         "source_task_status"
       ],
-      "resources": 0,
+      "resources": 28,
       "protocol_version": "2025-11-25"
     },
     {
@@ -295,7 +297,7 @@
         "delivery_get_artifacts",
         "delivery_transition"
       ],
-      "resources": 0,
+      "resources": 18,
       "protocol_version": "2025-11-25"
     }
   ],

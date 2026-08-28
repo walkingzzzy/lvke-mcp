@@ -30,6 +30,6 @@ expert_review_status: pending_review
 - 环保/节能与政策符合性脱节。
 
 ## 配套工具
-- `mcp_lvke_environmental_data_*`：区域大气/水质本底数据。
-- `mcp_lvke_policy_search_*`：生态环境、节能降碳政策核验。
-- `mcp_lvke_statistics_cn_*` / `industry_research_*`：经济社会影响的数据支撑。
+- `reference_observe*`：区域大气/水质本底数据。
+- `reference_search*`：生态环境、节能降碳政策核验。
+- `reference_observe*` / `industry_research_*`：经济社会影响的数据支撑。

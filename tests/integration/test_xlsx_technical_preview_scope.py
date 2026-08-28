@@ -69,7 +69,7 @@ class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertEqual(exported["release_grade"], "technical_preview")
         self.assertFalse(exported["validation_complete"])
         self.assertTrue(exported["not_for_formal_use"])
-        self.assertIn("xlsx_technical_preview_not_releasable", exported["blockers"])
+        self.assertEqual(exported["blockers"], [])
         self.assertTrue(exported["xlsx_resource"].endswith("/xlsx-technical"))
         self.assertFalse(exported["xlsx_validation"]["validation_complete"])
         resolved = tables_service.resolve_resource(
@@ -95,29 +95,53 @@ class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertEqual(exported["source_run_id"], self.run_id)
         self.assertTrue(exported["manifest_hash"])
 
-    def test_formal_scope_writes_nothing_when_qualification_is_incomplete(self) -> None:
+    def test_formal_scope_produces_formal_candidate_when_qualification_is_incomplete(self) -> None:
         before = sorted(Path(self.tempdir.name).rglob("*.xlsx"))
         exported = self._export("formal")
-        self.assertEqual(exported["status"], "blocked")
-        self.assertEqual(exported["code"], "tables_validation_failed")
-        self.assertFalse(exported["business_success"])
-        self.assertEqual(exported["resource_uris"], [])
-        self.assertNotIn("xlsx_resource", exported)
-        self.assertNotIn("deliverable_path", exported)
-        self.assertEqual(sorted(Path(self.tempdir.name).rglob("*.xlsx")), before)
+        self.assertEqual(exported["validation_scope"], "formal")
+        self.assertEqual(exported["release_grade"], "formal_candidate")
+        self.assertFalse(exported["technical_preview"])
+        self.assertTrue(exported["not_for_formal_use"])
+        self.assertFalse(exported["validation_complete"])
+        self.assertEqual(exported["delivery_mode"], "draft")
+        self.assertEqual(exported["blockers"], [])
+        self.assertIn("xlsx_formal_quality_incomplete", exported["quality_issues"])
+        self.assertIn("xlsx_resource", exported)
+        self.assertIn("deliverable_path", exported)
+        self.assertTrue(Path(exported["deliverable_path"]).is_file())
+        self.assertEqual(
+            len(sorted(Path(self.tempdir.name).rglob("*.xlsx"))),
+            len(before) + 1,
+        )
 
-    def test_blocked_formal_export_does_not_change_technical_artifact(self) -> None:
+    def test_formal_candidate_file_has_the_candidate_banner(self) -> None:
+        exported = self._export("formal")
+        self.assertIn("【正式候选·含限制】", exported["in_file_marking"])
+        workbook = load_workbook(exported["deliverable_path"], read_only=True, data_only=False)
+        try:
+            for sheet in workbook.worksheets:
+                with self.subTest(sheet=sheet.title):
+                    notice = str(sheet["A2"].value or "")
+                    self.assertIn("正式候选", notice)
+                    self.assertIn("不得作为对外正式交付物", notice)
+        finally:
+            workbook.close()
+
+    def test_technical_and_formal_candidate_coexist(self) -> None:
         technical = self._export("technical")
         technical_path = Path(technical["deliverable_path"])
         technical_bytes = technical_path.read_bytes()
         formal = self._export("formal")
-        self.assertEqual(formal["status"], "blocked")
-        self.assertNotIn("xlsx_resource", formal)
+        formal_path = Path(formal["deliverable_path"])
+        # 两个文件路径不同
+        self.assertNotEqual(str(technical_path), str(formal_path))
+        # technical 文件未受影响
         self.assertEqual(technical_path.read_bytes(), technical_bytes)
-        self.assertEqual(
-            sorted(Path(self.tempdir.name).rglob("*.xlsx")),
-            [technical_path],
-        )
+        # formal 文件存在且独立
+        self.assertTrue(formal_path.is_file())
+        xlsx_files = sorted(Path(self.tempdir.name).rglob("*.xlsx"))
+        self.assertIn(technical_path, xlsx_files)
+        self.assertIn(formal_path, xlsx_files)
 
 
 if __name__ == "__main__":

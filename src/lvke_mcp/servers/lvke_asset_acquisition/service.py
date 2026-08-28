@@ -302,9 +302,21 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "warnings": [str(item) for item in dict.fromkeys(blockers)],
         "quality_issues": quality_issues,
         "blockers": [],
+        # 正式资料不齐时要给出可执行的下一步，而不是只说"建议补齐"。
+        # 受控假设预览是这里唯一合法的降级路线，必须显式点名它需要的字段，
+        # 否则调用方只知道不合格、不知道往哪走。
         "next_actions": (
             [
-                "已允许继续保存、确认和计算；正式使用前建议补齐 field_errors 中的资料",
+                *(
+                    [
+                        "补齐 controlled_assumptions（field/value/unit/basis/impact/"
+                        "sensitivity/validation_condition 七项必填）并设 "
+                        "delivery_mode=estimate_preview，可走受控假设估算预览路线",
+                    ]
+                    if not preview_eligible
+                    else []
+                ),
+                "正式交付前补齐 field_errors 中的资料并通过正式校验",
             ]
             if not schema_valid or not formal_valid else []
         ),
@@ -515,6 +527,40 @@ def solve_max_price(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _artifact_release_grade(workspace_id: str, run_id: str) -> tuple[str, list[str]]:
+    """Derive the artifact's release grade from the immutable run record.
+
+    口径只从已固化的 run 读取，不接受调用方传参：否则省略参数就能把预览件
+    当正式件出。读不到 run 时按最保守处理（预览），不默认正式。
+    """
+
+    reasons: list[str] = []
+    try:
+        run = acquisition_service.get_run(workspace_id, run_id) or {}
+    except Exception:  # noqa: BLE001
+        return "technical_preview", ["run_record_unreadable"]
+    if not run:
+        return "technical_preview", ["run_record_unreadable"]
+    policy = str(run.get("evidence_policy") or "")
+    if policy and policy != "formal_evidence":
+        reasons.append(f"evidence_policy={policy}")
+    if str(run.get("delivery_mode") or "") == "estimate_preview":
+        reasons.append("delivery_mode=estimate_preview")
+    if run.get("formal_spec_valid") is False:
+        reasons.append("formal_spec_invalid")
+    if run.get("evidence_formal_ok") is False:
+        reasons.append("evidence_not_formal")
+    if run.get("project_fact_certified") is False:
+        reasons.append("project_fact_not_certified")
+    reasons.extend(
+        f"release_limitation:{item}"
+        for item in (run.get("release_limitations") or [])
+        if str(item)
+    )
+    grade = "technical_preview" if reasons else "formal_candidate"
+    return grade, sorted(set(reasons))
+
+
 def generate_artifact(
     workspace_id: str,
     run_id: str,
@@ -528,14 +574,24 @@ def generate_artifact(
     if not row.get("ok"):
         return _failed(row, "ARTIFACT_GENERATION_FAILED")
     artifact_id = str(row["artifact_id"])
+    # 能走到这里说明正式资格前置已通过（未通过时 generate_artifacts 直接返回
+    # FORMAL_ARTIFACT_QUALIFICATION_REQUIRED）。仍然回传等级与残留限制，
+    # 让调用方不必自己去推断工件能否正式使用。
+    grade, grade_reasons = _artifact_release_grade(workspace_id, str(row.get("run_id") or run_id))
+    preview = grade != "formal_candidate"
     return _ok(
         {"artifact_id": artifact_id, "run_id": row.get("run_id"),
          "artifact_status": row.get("status"),
          "spec_hash": row.get("spec_hash"), "report_data_hash": row.get("report_data_hash"),
          "integrity_status": row.get("integrity_status"),
          "numeric_consistency": row.get("numeric_consistency"), "files": row.get("files") or [],
+         "release_grade": grade,
+         "technical_preview": preview,
+         "formal_usable": not preview,
+         "release_limitations": grade_reasons,
          "idempotent_replay": bool(row.get("idempotent_replay"))},
         object_id=artifact_id, uris=[_uri(workspace_id, "artifacts", artifact_id)],
+        warnings=[f"限制：{item}" for item in grade_reasons],
     )
 
 

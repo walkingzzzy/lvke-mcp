@@ -1,1 +1,107 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_external_corpus_resolve.output-schema",
+    "title": "source_external_corpus_resolve complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_external_corpus_resolve/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_import_content.output-schema",
+    "title": "source_import_content complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_import_content/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_import_local_path.output-schema",
+    "title": "source_import_local_path complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_import_local_path/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_upload_begin.output-schema",
+    "title": "source_upload_begin complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_upload_begin/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_upload_chunk.output-schema",
+    "title": "source_upload_chunk complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_upload_chunk/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_upload_commit.output-schema",
+    "title": "source_upload_commit complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_upload_commit/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_upload_abort.output-schema",
+    "title": "source_upload_abort complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_upload_abort/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_upload_status.output-schema",
+    "title": "source_upload_status complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_upload_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_file_list.output-schema",
+    "title": "source_file_list complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_file_list/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_file_get.output-schema",
+    "title": "source_file_get complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_file_get/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_parse_status.output-schema",
+    "title": "source_parse_status complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_parse_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_parse_retry.output-schema",
+    "title": "source_parse_retry complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_parse_retry/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_parse_cancel.output-schema",
+    "title": "source_parse_cancel complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_parse_cancel/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_inspect_workbook.output-schema",
+    "title": "source_inspect_workbook complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_inspect_workbook/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-source-files.source_task_status.output-schema",
+    "title": "source_task_status complete output schema",
+    "uri": "lvke://schemas/lvke-source-files/source_task_status/output"
+  }
+]

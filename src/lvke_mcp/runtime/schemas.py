@@ -164,3 +164,57 @@ def make_tool_output_schema(
         schema["description"] = description
     Draft202012Validator.check_schema(schema)
     return schema
+
+
+_LIGHTWEIGHT_OUTPUT_FIELDS: tuple[str, ...] = (
+    "success",
+    "business_success",
+    "system_success",
+    "transport_success",
+    "status",
+    "resource_uris",
+    "warnings",
+    "blockers",
+    "next_actions",
+    "trace_id",
+    "input_hash",
+    "basis_hash",
+    "content_hash",
+    "lineage",
+    "build_commit",
+    "build_time",
+    "plugin_version",
+    "build_metadata_complete",
+)
+
+
+def make_lightweight_output_schema(
+    *,
+    schema_uri: str,
+    status_values: Iterable[str] = STATUS_VALUES,
+) -> dict[str, Any]:
+    """Compact outputSchema for ``tools/list``.
+
+    Full per-tool schema remains authoritative for server-side validation and
+    is published at ``schema_uri`` (``lvke://schemas/{server}/{tool}/output``).
+    """
+
+    envelope = envelope_properties(status_values)
+    properties = {name: envelope[name] for name in _LIGHTWEIGHT_OUTPUT_FIELDS if name in envelope}
+    properties["build_commit"] = {"type": "string"}
+    properties["build_time"] = {"type": "string"}
+    properties["plugin_version"] = {"type": "string"}
+    properties["build_metadata_complete"] = {"type": "boolean"}
+    schema: dict[str, Any] = {
+        "type": "object",
+        "description": (
+            "轻量 envelope 投影；完整 outputSchema 通过 "
+            "x-lvke-output-schema-uri Resource 读取。"
+        ),
+        "properties": properties,
+        "required": ["success", "status"],
+        "additionalProperties": True,
+        "x-lvke-output-schema-uri": schema_uri,
+    }
+    Draft202012Validator.check_schema(schema)
+    return schema

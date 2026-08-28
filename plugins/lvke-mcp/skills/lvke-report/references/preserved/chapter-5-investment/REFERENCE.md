@@ -117,13 +117,13 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view + finance_view             # 看是否已有财务模型
-2. doc_read range="4"                       # 拿设备清单 / 建筑面积 / 用地
+1. report_list_sections + finance_get_run             # 看是否已有财务模型
+2. report_get_section section_id=<第4章对应的 section_id>                       # 拿设备清单 / 建筑面积 / 用地
 3. [若有] 用 finance.tools 自动同步
 4. [无] 手工起草 5.1-5.6
-5. doc_propose summary="..." content="..."
-6. doc_diff → 复核
-7. doc_apply
+5. report_propose_section summary="..." content="..."
+6. report_diff → 复核
+7. report_apply
 ```
 
 ## 配套 skill

@@ -21,5 +21,14 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Search only through tavily-hikari; direct HTTP may fetch only a known URL.
 - Formal conclusions require at least three query angles, three independent domains, frozen正文, and locators.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-research` entry).
+
+| Tool | Server | Required inputs | Outcome notes |
+|------|--------|-----------------|---------------|
+| `dr_prepare` → `dr_start` → `dr_submit` | lvke-deep-research | `workspace_id` | ResearchPackage lineage |
+| `data_search` / `data_discover` | lvke-data-acquisition | query/URL | network failure = UPSTREAM_FAILURE |
+
+Search summaries and proxy data stay non-formal; freeze正文 with locators before evidence binding.
 

@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_start.output-schema",
+    "title": "feasibility_start complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_start/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_status.output-schema",
+    "title": "feasibility_status complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_status/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_stage.output-schema",
+    "title": "feasibility_stage complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_stage/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_next_actions.output-schema",
+    "title": "feasibility_next_actions complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_next_actions/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_checkpoint.output-schema",
+    "title": "feasibility_checkpoint complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_checkpoint/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_resume.output-schema",
+    "title": "feasibility_resume complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_resume/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_validate.output-schema",
+    "title": "feasibility_validate complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_validate/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.feasibility_release.output-schema",
+    "title": "feasibility_release complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/feasibility_release/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.lvke_list_resources.output-schema",
+    "title": "lvke_list_resources complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/lvke_list_resources/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-feasibility-delivery.lvke_read_resource.output-schema",
+    "title": "lvke_read_resource complete output schema",
+    "uri": "lvke://schemas/lvke-feasibility-delivery/lvke_read_resource/output"
+  }
+]

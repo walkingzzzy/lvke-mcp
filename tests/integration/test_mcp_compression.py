@@ -87,7 +87,7 @@ class McpCompressionTopologyTest(unittest.TestCase):
                         tool.input_schema,
                         public_schema=tool.public_input_schema,
                     ),
-                    outputSchema=None,
+                    outputSchema=server._public_output_schema(tool),  # noqa: SLF001
                     annotations=tool.annotations,
                     execution=types.ToolExecution(taskSupport=tool.task_support),
                 ).model_dump(by_alias=True, exclude_none=True)
@@ -97,10 +97,17 @@ class McpCompressionTopologyTest(unittest.TestCase):
             total_chars += len(
                 json.dumps({"tools": tools}, ensure_ascii=False, separators=(",", ":"))
             )
-            self.assertTrue(all("outputSchema" not in item for item in tools))
+            self.assertTrue(all("outputSchema" in item for item in tools))
+            self.assertTrue(
+                all(
+                    item["outputSchema"].get("x-lvke-output-schema-uri", "").endswith("/output")
+                    for item in tools
+                )
+            )
         self.assertEqual(len(SERVER_SPECS), 14)
-        self.assertEqual(total_tools, 169)
-        self.assertLess(total_chars, 160_630)
+        self.assertEqual(total_tools, 171)
+        # 轻量 outputSchema 为正式候选契约要求；预算随 envelope 字段上调。
+        self.assertLess(total_chars, 450_000)
 
     def test_compact_schema_keeps_top_level_and_full_internal_validation(self) -> None:
         from lvke_mcp.servers.lvke_finance_model import server as finance_server

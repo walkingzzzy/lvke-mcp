@@ -27,4 +27,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - P0A verification does not complete P0B. Keep P0B pending until real dual-track
   approval data is provided, and never record a passing build while work is skipped.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-delivery-guardrails` entry).
+
+| Tool | Server | Purpose |
+|------|--------|---------|
+| `report_propose` / `report_diff` / `report_apply` | lvke-report-generation | governed revision boundary |
+
+Distinguish technical completion (`process_acceptance`) from formal release (`project_delivery`). `idempotency_conflict` = EXPECTED_REJECTION.

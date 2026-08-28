@@ -104,7 +104,15 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             {item.get("path") for item in result["field_errors"]},
         )
 
-    def test_preview_generates_with_quality_diagnostics(self) -> None:
+    def test_preview_is_refused_before_staging(self) -> None:
+        """预览级运行不得产出收购正式工件。
+
+        收购工件（Word/Excel/report-data）一旦生成就会当交付物流转，而限制
+        说明只留在 MCP 响应里、不进文件，收件人看不到。需要过程验收件时走
+        render_tables + export_tables_csv/xlsx，那条路径文件内首行带
+        "不可正式使用" 标记。
+        """
+
         run = self._run(mode="estimate_preview")
         with patch.object(artifacts, "_bind_spec_evidence", return_value={
             "binding_hash": run["evidence_binding_hash"],
@@ -112,15 +120,19 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             "formal_ok": False,
         }):
             result = artifacts.generate_artifacts("artifact-gate", run["run_id"], idempotency_key="preview")
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["status"], "succeeded")
+        self.assertFalse(result["ok"], result)
+        self.assertEqual("FORMAL_ARTIFACT_QUALIFICATION_REQUIRED", result["error"])
         self.assertIn(
-            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-            {item.get("code") for item in result["quality_issues"]},
+            "delivery_mode_not_formal_candidate",
+            result["details"]["qualification_failures"],
         )
-        self.assertTrue(_artifacts_root("artifact-gate").exists())
+        # 拒绝必须给出可执行替代路线，而不是只说不合格。
+        self.assertTrue(
+            any("export_tables" in item for item in result["next_actions"]),
+            result["next_actions"],
+        )
 
-    def test_process_acceptance_generates_with_quality_diagnostics(self) -> None:
+    def test_process_acceptance_is_refused_before_staging(self) -> None:
         run = self._run(mode="process_acceptance")
         with patch.object(artifacts, "_bind_spec_evidence", return_value={
             "binding_hash": run["evidence_binding_hash"],
@@ -128,9 +140,9 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
             "formal_ok": False,
         }):
             result = service.generate_artifact("artifact-gate", run["run_id"], "process")
-        self.assertTrue(result["success"])
-        self.assertEqual(result["artifact_status"], "succeeded")
-        self.assertTrue(_artifacts_root("artifact-gate").exists())
+        self.assertFalse(result["success"], result)
+        self.assertEqual("FORMAL_ARTIFACT_QUALIFICATION_REQUIRED", result["code"])
+        self.assertTrue(result["system_success"])
 
     def test_stale_evidence_generates_with_diagnostic(self) -> None:
         run = self._run(mode="formal_candidate", formal_ok=True)

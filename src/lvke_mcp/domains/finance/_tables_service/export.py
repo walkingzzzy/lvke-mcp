@@ -11,7 +11,9 @@ from lvke_mcp.adapters.finance_tables_repository import CSV_EXPORT_STORE, PACKAG
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 
 from .base import (
+    _delivery_count_semantics,
     _delivery_keys,
+    _delivery_table_contract_hash,
     _failure,
     _load_run,
     _package_result,
@@ -114,12 +116,26 @@ def _verify_package_tables(record: dict[str, Any]) -> dict[str, Any]:
     manifest = payload.get("table_manifest")
     if not isinstance(manifest, list) or not manifest:
         return {"valid": False, "failures": ["package_table_manifest_missing"], "verified": 0}
+    manifest_codes = [
+        str(item.get("table_code") or item.get("table_id") or "")
+        for item in manifest
+        if isinstance(item, dict)
+    ]
+    failures: list[str] = []
+    if manifest_codes != list(_delivery_keys()):
+        failures.append("package_table_manifest_order_or_membership_mismatch")
+    expected_contract_hash = _delivery_table_contract_hash()
+    if any(
+        str(item.get("contract_hash") or "") != expected_contract_hash
+        for item in manifest
+        if isinstance(item, dict)
+    ):
+        failures.append("package_table_manifest_contract_hash_mismatch")
     recorded = {
         str(item.get("table_id") or ""): str(item.get("content_hash") or "")
         for item in manifest
         if isinstance(item, dict)
     }
-    failures: list[str] = []
     verified = 0
     for key in _delivery_keys():
         table = tables.get(key)
@@ -135,48 +151,6 @@ def _verify_package_tables(record: dict[str, Any]) -> dict[str, Any]:
             continue
         verified += 1
     return {"valid": not failures, "failures": failures, "verified": verified}
-
-
-def _formal_export_preflight(
-    rendered: dict[str, Any],
-    *,
-    artifact_label: str,
-) -> dict[str, Any] | None:
-    """Reject formal exports before an artifact directory or file is created."""
-
-    validation = dict(rendered.get("validation") or {})
-    technical_valid = bool(validation.get("valid"))
-    validation_complete = bool(rendered.get("validation_complete"))
-    if technical_valid and validation_complete:
-        return None
-
-    blockers = [str(item) for item in (rendered.get("blockers") or [])]
-    if not technical_valid:
-        blockers.append("tables_validation_failed")
-    if not validation_complete:
-        blockers.append("finance_tables_formal_gate_incomplete")
-    blockers = list(dict.fromkeys(blockers))
-    blocked = _failure(
-        "tables_validation_failed",
-        f"十三表未通过正式交付资格校验，禁止导出 {artifact_label}；"
-        "仅需过程验收文件可显式指定 validation_scope='technical'"
-        "（产物会标记为不可正式使用）",
-    )
-    blocked.update({
-        "validation_scope": "formal",
-        "details": {
-            "technical_validation_valid": technical_valid,
-            "validation_complete": validation_complete,
-            "finance_tables_package_id": rendered.get("finance_tables_package_id"),
-            "run_id": rendered.get("run_id"),
-        },
-        "blockers": blockers,
-        "next_actions": [
-            "修正十三表结构、工作簿语义或跨工件绑定门禁后重新渲染正式包",
-            "仅做过程验收时显式使用 validation_scope='technical'",
-        ],
-    })
-    return blocked
 
 
 def export_xlsx(
@@ -215,6 +189,16 @@ def export_xlsx(
         )
     from lvke_mcp.adapters.spreadsheets.finance_export import export_finance_workbook
 
+    validation = dict(rendered.get("validation") or {})
+    package_formal_ready = bool(
+        validation.get("valid") and rendered.get("validation_complete")
+    )
+    artifact_notice = (
+        _XLSX_TECHNICAL_PREVIEW_BANNER
+        if technical_preview
+        else "" if package_formal_ready
+        else _XLSX_FORMAL_CANDIDATE_BANNER
+    )
     directory = _export_root(workspace_id, "xlsx")
     directory.mkdir(parents=True, exist_ok=True)
     filename_suffix = ".technical.xlsx" if technical_preview else ".xlsx"
@@ -227,9 +211,7 @@ def export_xlsx(
             path,
             model_version=str(run.get("model_version") or ""),
             run_id=run_id,
-            artifact_notice=(
-                _XLSX_TECHNICAL_PREVIEW_BANNER if technical_preview else ""
-            ),
+            artifact_notice=artifact_notice,
         )
     except Exception:  # noqa: BLE001
         return _failure("xlsx_export_failed", "XLSX 导出失败")
@@ -238,7 +220,6 @@ def export_xlsx(
         workspace_id,
         package_id,
     ) + ("/xlsx-technical" if technical_preview else "/xlsx")
-    validation = rendered.get("validation") or {}
     export_quality = dict(exported.get("delivery_quality") or {})
     if technical_preview:
         export_quality.update({
@@ -247,10 +228,18 @@ def export_xlsx(
             "not_for_formal_use": True,
         })
     quality_issues = [str(item) for item in rendered.get("quality_issues") or []]
+    if not package_formal_ready:
+        quality_issues.append("xlsx_formal_quality_incomplete")
     if not export_quality.get("validation_complete"):
         quality_issues.append("xlsx_delivery_quality_incomplete")
-    formal_ready = not technical_preview
+    formal_ready = bool(
+        not technical_preview
+        and package_formal_ready
+        and export_quality.get("validation_complete")
+    )
+    release_limitations = sorted(set(quality_issues))
     blockers: list[str] = []
+
     # 权威工件已落 lvke 存储；best-effort 追加一份项目文件夹镜像副本（失败不影响权威写盘）。
     # 注：历史 mirror_artifact 已删除，镜像能力由 MCP 自有域
     # （domains/reports.artifact_mirror.mirror_file）承接，此处不再引用。
@@ -260,12 +249,12 @@ def export_xlsx(
         "validation_scope": scope,
         "technical_preview": technical_preview,
         "release_grade": "technical_preview" if technical_preview else (
-            "formal" if formal_ready else "draft"
+            "formal" if formal_ready else "formal_candidate"
         ),
-        "not_for_formal_use": technical_preview,
-        "in_file_marking": (
-            _XLSX_TECHNICAL_PREVIEW_BANNER if technical_preview else ""
-        ),
+        "not_for_formal_use": not formal_ready,
+        "release_eligible": formal_ready,
+        "release_limitations": release_limitations,
+        "in_file_marking": artifact_notice,
         "xlsx_resource": xlsx_uri,
         "xlsx_hash": digest,
         "xlsx_validation": export_quality,
@@ -301,12 +290,24 @@ _XLSX_TECHNICAL_PREVIEW_BANNER = (
     "【估算预览】仅供过程验收使用，不得作为正式投资决策依据。"
 )
 
+_XLSX_FORMAL_CANDIDATE_BANNER = (
+    "【正式候选·含限制】本文件由 validation_scope=formal 导出，"
+    "但十三表尚未通过完整正式交付门禁；"
+    "不得作为对外正式交付物或最终投资决策依据。"
+)
+
 
 # 技术预览 CSV 的文件内标记：必须写在文件第一行，让脱离 MCP 响应单看文件的人
 # 也知道它不可正式使用。不是注释符（CSV 无注释语法），而是一整行显式声明。
-_TECHNICAL_PREVIEW_BANNER = (
+_CSV_TECHNICAL_PREVIEW_BANNER = (
     "【技术预览·不可正式使用】本文件由 validation_scope=technical 导出，"
     "未通过正式财务交付门禁，仅供过程验收与结构核对；不得作为对外交付物或决策依据。"
+)
+
+_CSV_FORMAL_CANDIDATE_BANNER = (
+    "【正式候选·含限制】本文件由 validation_scope=formal 导出，"
+    "但十三表尚未通过完整正式交付门禁；"
+    "不得作为对外正式交付物或最终投资决策依据。"
 )
 
 
@@ -345,6 +346,15 @@ def export_csv(
     if not package_id:
         return rendered
     validation = dict(rendered.get("validation") or {})
+    package_formal_ready = bool(
+        validation.get("valid") and rendered.get("validation_complete")
+    )
+    csv_header_mark = (
+        _CSV_TECHNICAL_PREVIEW_BANNER
+        if technical_preview
+        else "" if package_formal_ready
+        else _CSV_FORMAL_CANDIDATE_BANNER
+    )
     record = PACKAGE_STORE.get(workspace_id, package_id)
     package_integrity = _verify_package_tables(record or {})
     if not package_integrity["valid"]:
@@ -355,6 +365,27 @@ def export_csv(
         )
     payload = dict((record or {}).get("payload") or {})
     tables = dict(payload.get("tables") or {})
+    package_manifest = [
+        item
+        for item in (payload.get("table_manifest") or [])
+        if isinstance(item, dict)
+    ]
+    package_manifest_by_key = {
+        str(item.get("table_code") or item.get("table_id") or ""): item
+        for item in package_manifest
+    }
+    package_contract_hash = str(
+        payload.get("table_contract_hash")
+        or next(
+            (
+                item.get("contract_hash")
+                for item in package_manifest
+                if item.get("contract_hash")
+            ),
+            "",
+        )
+    )
+    count_semantics = _delivery_count_semantics()
     directory = _export_root(
         workspace_id,
         "csv",
@@ -371,8 +402,8 @@ def export_csv(
         target = directory / f"{key}.csv"
         with target.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle, lineterminator="\r\n")
-            if technical_preview:
-                writer.writerow([_TECHNICAL_PREVIEW_BANNER])
+            if technical_preview or csv_header_mark:
+                writer.writerow([csv_header_mark])
             writer.writerow(headers)
             writer.writerows(rows)
         csv_uris.append(
@@ -382,8 +413,14 @@ def export_csv(
             ) + f"/csv/{key}"
         )
         csv_hashes[key] = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
+        source_contract = package_manifest_by_key.get(key, {})
         csv_manifest.append({
+            "table_code": key,
             "table_id": key,
+            "delivery_no": source_contract.get("delivery_no"),
+            "title": source_contract.get("title"),
+            "order": source_contract.get("order"),
+            "table_contract_hash": source_contract.get("contract_hash"),
             "run_id": run_id,
             "package_id": package_id,
             "content_hash": csv_hashes[key],
@@ -399,8 +436,8 @@ def export_csv(
     ]
     with lineage_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.writer(handle, lineterminator="\r\n")
-        if technical_preview:
-            writer.writerow([_TECHNICAL_PREVIEW_BANNER])
+        if technical_preview or csv_header_mark:
+            writer.writerow([csv_header_mark])
         writer.writerow(lineage_headers)
         for item in csv_manifest:
             writer.writerow([
@@ -423,6 +460,8 @@ def export_csv(
             "validation_scope": scope,
             "release_grade": "technical_preview" if technical_preview else "formal_candidate",
             "model_version": str(run.get("model_version") or ""),
+            "table_contract_hash": package_contract_hash,
+            **count_semantics,
             "tables": csv_manifest,
             "lineage": {
                 "resource_uri": lineage_uri,
@@ -446,19 +485,28 @@ def export_csv(
         export_manifest,
     )
     quality_issues = [str(item) for item in rendered.get("quality_issues") or []]
+    if not package_formal_ready:
+        quality_issues.append("csv_formal_quality_incomplete")
     if not csv_integrity.get("valid"):
         quality_issues.extend(str(item) for item in csv_integrity.get("failures") or [])
-    csv_formal_ready = not technical_preview
+    csv_formal_ready = bool(
+        not technical_preview
+        and package_formal_ready
+        and csv_integrity.get("valid", False)
+    )
+    release_limitations = sorted(set(quality_issues))
     csv_blockers: list[str] = []
     return {
         **rendered,
         "validation_scope": scope,
         "technical_preview": technical_preview,
         "release_grade": "technical_preview" if technical_preview else (
-            "formal" if csv_formal_ready else "draft"
+            "formal" if csv_formal_ready else "formal_candidate"
         ),
-        "not_for_formal_use": technical_preview,
-        "in_file_marking": _TECHNICAL_PREVIEW_BANNER if technical_preview else "",
+        "not_for_formal_use": not csv_formal_ready,
+        "release_eligible": csv_formal_ready,
+        "release_limitations": release_limitations,
+        "in_file_marking": csv_header_mark,
         "csv_resource_uris": csv_uris,
         "csv_hashes": csv_hashes,
         "csv_manifest": csv_manifest,
@@ -528,6 +576,37 @@ def _validate_csv_export(
     ) / require_safe_id(package_id, "package_id")
     verified = 0
     tables = manifest.get("tables") if isinstance(manifest.get("tables"), list) else []
+    table_codes = [
+        str(item.get("table_code") or item.get("table_id") or "")
+        for item in tables
+        if isinstance(item, dict)
+    ]
+    if table_codes != list(_delivery_keys()):
+        failures.append("manifest_table_order_or_membership_mismatch")
+    package_manifest = [
+        item
+        for item in (package_payload.get("table_manifest") or [])
+        if isinstance(item, dict)
+    ]
+    package_contract_hash = str(
+        package_payload.get("table_contract_hash")
+        or next(
+            (
+                item.get("contract_hash")
+                for item in package_manifest
+                if item.get("contract_hash")
+            ),
+            "",
+        )
+    )
+    if str(manifest.get("table_contract_hash") or "") != package_contract_hash:
+        failures.append("manifest_table_contract_hash_mismatch")
+    if any(
+        str(item.get("table_contract_hash") or "") != package_contract_hash
+        for item in tables
+        if isinstance(item, dict)
+    ):
+        failures.append("manifest_table_entry_contract_hash_mismatch")
     for item in tables:
         if not isinstance(item, dict):
             failures.append("manifest_table_entry_invalid")
@@ -566,7 +645,7 @@ def _validate_csv_export(
         unmarked = [
             path.name
             for path in sorted(directory.glob("*.csv"))
-            if _TECHNICAL_PREVIEW_BANNER not in path.read_text(encoding="utf-8-sig", errors="replace").splitlines()[:1]
+            if _CSV_TECHNICAL_PREVIEW_BANNER not in path.read_text(encoding="utf-8-sig", errors="replace").splitlines()[:1]
         ]
         if unmarked:
             failures.append("technical_preview_marking_missing:" + ",".join(unmarked[:3]))

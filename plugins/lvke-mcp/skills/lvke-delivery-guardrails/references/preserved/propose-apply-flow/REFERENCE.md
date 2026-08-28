@@ -4,7 +4,7 @@ description: 改稿三步流程（提案 → 复核 diff → 应用版本）的�
 platforms: [linux, windows, macos]
 metadata:
   conditions:
-    tools_any: [doc_propose, doc_apply, doc_diff]
+    tools_any: [report_propose_section, report_apply, report_diff]
 ---
 
 # 提案 → 复核 → 应用 三步流程
@@ -13,11 +13,11 @@ metadata:
 
 ## 三步规范
 
-### 第一步：doc_propose（写一份完整提案）
+### 第一步：report_propose_section（写一份完整提案）
 
 ```
-doc_propose
-  doc_id="<工作区>"
+report_propose_section
+  workspace_id="<工作区>"
   summary="<改动说明，一行内简短>"
   content="<完整的修订后报告 markdown 全文>"
   rationale="<改动依据，可附 issue_id>"
@@ -32,7 +32,7 @@ doc_propose
 
 **典型场景**：
 
-- 修改 1-2 章 → 拿 doc_read 拿全文 → 在本地拼装新版 → 提案
+- 修改 1-2 章 → 拿 report_get_section 拿全文 → 在本地拼装新版 → 提案
 - 全面改稿 → 同上但 content 改动多
 - 仅微调（如改一个数字） → 还是要给完整 content；版本链不接受 patch
 
@@ -40,11 +40,11 @@ doc_propose
 
 `structure_ok` 是结构闸门预检查结果（9 章是否齐全），但不阻断 propose；只在 apply 时 hard block。
 
-### 第二步：doc_diff（复核差异）
+### 第二步：report_diff（复核差异）
 
 ```
-doc_diff
-  doc_id="<工作区>"
+report_diff
+  workspace_id="<工作区>"
   proposal_id="<上一步返回的 id>"
 ```
 
@@ -58,11 +58,11 @@ doc_diff
 
 **不能跳过这一步**直接 apply —— 用户必须看到改了什么。
 
-### 第三步 - A：doc_apply（应用版本）
+### 第三步 - A：report_apply（应用版本）
 
 ```
-doc_apply
-  doc_id="<工作区>"
+report_apply
+  workspace_id="<工作区>"
   proposal_id="<id>"
 ```
 
@@ -78,11 +78,11 @@ doc_apply
 
 成功 → 返回 `applied_revision_id`，版本链增长 1。
 
-### 第三步 - B：doc_reject（拒绝提案）
+### 第三步 - B：report_propose_section（拒绝提案）
 
 ```
-doc_reject
-  doc_id="<工作区>"
+report_propose_section
+  workspace_id="<工作区>"
   proposal_id="<id>"
   reason="<必填，简短说明>"
 ```
@@ -114,14 +114,28 @@ doc_reject
 
 ## 闸门冲突处理
 
-### 锁闸门失败
+### 幂等冲突
+
+MCP 没有"会话写锁"这一层（旧工作台的 `lock_heartbeat` 已不存在），并发保护靠
+幂等键：
 
 ```
-错误：当前会话不持有写锁
+错误：idempotency_conflict
+含义：同一个 idempotency_key 之前提交过，但这次的内容指纹不同
 处理：
-- lock_heartbeat 检查锁状态
-- 如锁被他人持有 → 告诉用户"工作区当前由 XX 编辑，需联系或申请接管"
-- 不要反复重试 apply
+- 想重放上次结果 → 用完全相同的入参重发，会返回原结果（idempotent_replay=true）
+- 想提交新内容 → 换一个新的 idempotency_key（多数写工具要求至少 8 字符）
+- 不要反复重试同键同调用：那只会重复拿到同一个冲突
+```
+
+### basis 过期
+
+```
+错误：basis_hash 不匹配 / expected_basis_hash 冲突
+含义：上游对象已产生新 revision，手上的 basis 不再是最新
+处理：
+- 重新读当前 revision 拿新 basis_hash
+- 基于新 basis 重新提案；不要拿旧 basis 强行 apply
 ```
 
 ### 新鲜度闸门失败
@@ -130,10 +144,10 @@ doc_reject
 错误：base_revision 已过时，当前版本是 rev_XXX
 原因：在 propose 与 apply 之间，有别人 apply 了一个版本
 处理：
-1. doc_read 拉最新版
+1. report_get_section 拉最新版
 2. 把本次改动重新合并到最新版基础上
-3. doc_propose 生成新一份提案（旧 proposal 自动作废）
-4. doc_diff 复核
+3. report_propose_section 生成新一份提案（旧 proposal 自动作废）
+4. report_diff 复核
 5. 重新 apply
 ```
 
@@ -155,7 +169,7 @@ doc_reject
 - 检查正文是否包含 "内部收益率" / "IRR" 这种关键词
 - 注意 required_markers 是 finance.required_markers 配置的
 - 如果用户改稿确实移除了 IRR 段 → 与用户确认
-- 如果是误判 → 用 finance_view 看下当前 markers 列表
+- 如果是误判 → 用 finance_get_run 看下当前 markers 列表
 ```
 
 ## 版本链使用约定
@@ -163,17 +177,17 @@ doc_reject
 - 版本**只增不改不删**
 - 每次 apply 产生 1 个新 revision
 - revision_id 是 `rev_XXXXXXXX` 格式，可用于回滚或对比
-- `doc_diff from_version=A to_version=B` 可对比任意两个版本
-- 旧版本永远可读：`doc_read revision_id=rev_XXXXXXXX`
+- `report_diff from_version=A to_version=B` 可对比任意两个版本
+- 旧版本永远可读：`report_get_section revision_id=rev_XXXXXXXX`
 
 ## 工作示例：用户要求"把第 3 章规模数字调整为 15 万吨"
 
 ```python
 # 1. 侦察
-context_view()
-doc_read(range="3")     # 拿第 3 章原文
-doc_read(range="5")     # 顺便看投资估算是否会受影响
-finance_view()          # 顺便看财务摘要
+report_list_sections()
+report_get_section(section_id=<第3章对应的 section_id>)     # 拿第 3 章原文
+report_get_section(section_id=<第5章对应的 section_id>)     # 顺便看投资估算是否会受影响
+finance_get_run()          # 顺便看财务摘要
 
 # 2. 在思考过程中：
 #    - 把 10 万吨 → 15 万吨
@@ -181,8 +195,8 @@ finance_view()          # 顺便看财务摘要
 #    - 写完整新版（含所有章节）
 
 # 3. 提案
-doc_propose(
-    doc_id="ws-001",
+report_propose_section(
+    workspace_id="ws-001",
     summary="第 3 章规模从 10 万吨上调至 15 万吨；第 5 章投资联动调整",
     content="<完整新版报告>",
     rationale="客户在 2026 投委会后提出扩大规模"
@@ -190,7 +204,7 @@ doc_propose(
 # 返回 proposal_id=prop_abc123
 
 # 4. 复核
-doc_diff(doc_id="ws-001", proposal_id="prop_abc123")
+report_diff(workspace_id="ws-001", proposal_id="prop_abc123")
 # 拿到 html_diff
 
 # 5. 给用户报告（不直接 apply）
@@ -202,7 +216,7 @@ doc_diff(doc_id="ws-001", proposal_id="prop_abc123")
 要 apply 吗？"
 
 # 6. 用户确认 → apply
-doc_apply(doc_id="ws-001", proposal_id="prop_abc123")
+report_apply(workspace_id="ws-001", proposal_id="prop_abc123")
 ```
 
 ## 与其他 skill 协同

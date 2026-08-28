@@ -48,6 +48,10 @@ from lvke_mcp.domains.finance.policy_registry import select_policy_profile  # no
 from ._run_service.base import (  # noqa: F401
     DELIVERY_TABLE_KEYS,
     DELIVERY_TABLE_META,
+    DELIVERY_TABLE_SCHEMA_VERSION,
+    ENGINE_DELIVERY_COUNT,
+    REFERENCE_SOURCE_SHEET_COUNT,
+    REVIEW_WORKBOOK_SHEET_COUNT,
     MODEL_VERSION,
     TEMPLATE_VERSION,
     _ensure_workspace,
@@ -62,6 +66,9 @@ from ._run_service.base import (  # noqa: F401
     compute_input_hash,
     compute_spec_hash,
     compute_table_bundle_hash,
+    delivery_count_semantics,
+    delivery_table_contract,
+    delivery_table_contract_hash,
     resolve_model_manifest,
 )
 from ._run_service.package import generate_workspace_finance_package  # noqa: F401

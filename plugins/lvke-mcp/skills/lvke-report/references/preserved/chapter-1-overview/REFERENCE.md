@@ -100,13 +100,13 @@ platforms: [linux, windows, macos]
 ## 起草工作流
 
 ```
-1. context_view → 了解项目背景
-2. doc_read range="2,3,4,5,6,7"  # 拉所有数字所在章节
+1. report_list_sections → 了解项目背景
+2. report_get_section section_id=<第2,3,4,5,6,7章对应的 section_id>  # 拉所有数字所在章节
 3. 抽取关键数字 → 填表
 4. 写 1.1 / 1.6（这两节最关键）
 5. 反向回填 1.2-1.5（多为模板填空）
-6. doc_propose 全章节版本
-7. doc_diff 复核
+6. report_propose_section 全章节版本
+7. report_diff 复核
 ```
 
 ## 常见缺陷（按出现频率）

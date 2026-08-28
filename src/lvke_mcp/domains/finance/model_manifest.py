@@ -12,6 +12,8 @@ import hashlib
 import json
 from typing import Any
 
+from lvke_mcp.standards.ndrc_feasibility_2023 import source_fingerprint
+
 
 MANIFEST_VERSION = "finance_manifest.v1"
 # Single source of truth for the active finance model/template versions.
@@ -22,6 +24,9 @@ DEFAULT_SPEC_SCHEMA_VERSION = "finance_spec.v2"
 DEFAULT_POLICY_VERSION = "cn_tax_policy.2026-01"
 DEFAULT_TEMPLATE_VERSION = "finance_tables.v3"
 DEFAULT_GATE_VERSION = "finance_gate.v2"
+DEFAULT_GENERATION_STANDARD = "ndrc-feasibility-outline-2023"
+DEFAULT_GENERATION_STANDARD_VERSION = "2023-05-01"
+DEFAULT_GENERATION_STANDARD_SOURCE_HASH = source_fingerprint()
 
 
 def _stable_json(value: Any) -> str:
@@ -39,6 +44,9 @@ class ModelManifest:
     industry_profile_version: str = "general.v1"
     template_version: str = DEFAULT_TEMPLATE_VERSION
     gate_version: str = DEFAULT_GATE_VERSION
+    generation_standard: str = DEFAULT_GENERATION_STANDARD
+    generation_standard_version: str = DEFAULT_GENERATION_STANDARD_VERSION
+    generation_standard_source_hash: str = DEFAULT_GENERATION_STANDARD_SOURCE_HASH
     effective_from: str = "2026-01-01"
     status: str = "active"
 
@@ -73,6 +81,9 @@ def build_manifest(
     spec_schema_version: str = DEFAULT_SPEC_SCHEMA_VERSION,
     template_version: str = DEFAULT_TEMPLATE_VERSION,
     gate_version: str = DEFAULT_GATE_VERSION,
+    generation_standard: str = DEFAULT_GENERATION_STANDARD,
+    generation_standard_version: str = DEFAULT_GENERATION_STANDARD_VERSION,
+    generation_standard_source_hash: str = DEFAULT_GENERATION_STANDARD_SOURCE_HASH,
     effective_from: str = "2026-01-01",
 ) -> ModelManifest:
     return ModelManifest(
@@ -82,6 +93,9 @@ def build_manifest(
         industry_profile_version=industry_profile_version,
         template_version=template_version,
         gate_version=gate_version,
+        generation_standard=generation_standard,
+        generation_standard_version=generation_standard_version,
+        generation_standard_source_hash=generation_standard_source_hash,
         effective_from=effective_from,
     )
 

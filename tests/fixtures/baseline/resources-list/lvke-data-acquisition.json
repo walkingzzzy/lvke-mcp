@@ -1,1 +1,72 @@
-[]
+[
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_discover.output-schema",
+    "title": "data_discover complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_discover/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_search.output-schema",
+    "title": "data_search complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_search/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_fetch.output-schema",
+    "title": "data_fetch complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_fetch/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_import_external_snapshot.output-schema",
+    "title": "data_import_external_snapshot complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_import_external_snapshot/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_collect.output-schema",
+    "title": "data_collect complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_collect/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_audit_urls.output-schema",
+    "title": "data_audit_urls complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_audit_urls/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_get_url_audit.output-schema",
+    "title": "data_get_url_audit complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_get_url_audit/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_capture_source_view.output-schema",
+    "title": "data_capture_source_view complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_capture_source_view/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_get_visual_capture.output-schema",
+    "title": "data_get_visual_capture complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_get_visual_capture/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-data-acquisition.data_provider_status.output-schema",
+    "title": "data_provider_status complete output schema",
+    "uri": "lvke://schemas/lvke-data-acquisition/data_provider_status/output"
+  }
+]

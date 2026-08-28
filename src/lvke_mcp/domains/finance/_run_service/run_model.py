@@ -5,6 +5,10 @@ from __future__ import annotations
 import copy
 from typing import Any, Optional
 
+from lvke_mcp.domains.finance.generation_standard import (
+    coverage_snapshot,
+    generation_baseline,
+)
 from lvke_mcp.domains.finance.rail_validation import (
     rail_transit_missing_inputs,
     revenue_input_complete,
@@ -21,6 +25,8 @@ from .base import (
     compute_input_hash,
     compute_spec_hash,
     compute_table_bundle_hash,
+    delivery_count_semantics,
+    delivery_table_contract_hash,
     resolve_model_manifest,
 )
 
@@ -34,6 +40,28 @@ from .spec_prepare import (
 _DEFAULT_TOTAL_INVESTMENT_WAN = 10_000.0
 _DEFAULT_REVENUE_TO_INVESTMENT = 0.30
 _DEFAULT_CASH_COST_RATE = 0.55
+
+
+def _attach_generation_standard(
+    result: dict[str, Any],
+    *,
+    finance_inputs: dict[str, Any],
+    invest_type: str,
+) -> None:
+    baseline = generation_baseline(invest_type=invest_type)
+    result["generation_basis"] = baseline
+    result["generation_standard"] = baseline["standard_id"]
+    result["standard_version"] = baseline["standard_version"]
+    result["standard_source_hash"] = baseline["source_hash"]
+    result["standard_coverage_snapshot"] = coverage_snapshot(
+        finance_inputs=finance_inputs,
+        table_manifest=(
+            result.get("table_manifest")
+            if isinstance(result.get("table_manifest"), list)
+            else []
+        ),
+        invest_type=invest_type,
+    )
 
 
 def _positive_number(value: Any) -> float | None:
@@ -480,6 +508,13 @@ def run_workspace_finance_model(
                     # from the immutable tables and bind every entry to the
                     # authoritative outer run.
                     fin["table_manifest"] = _table_manifest(fin, existing["run_id"])
+                    fin.update(delivery_count_semantics())
+                    fin["table_contract_hash"] = delivery_table_contract_hash()
+                    _attach_generation_standard(
+                        fin,
+                        finance_inputs=dict(input_revision or {}),
+                        invest_type=invest_type,
+                    )
                     return fin
         except Exception:  # noqa: BLE001
             pass
@@ -697,6 +732,13 @@ def run_workspace_finance_model(
         tables = result.get("tables") or {}
         result["table_bundle_hash"] = compute_table_bundle_hash(tables)
         result["table_manifest"] = _table_manifest(result, run_id="")
+        result.update(delivery_count_semantics())
+        result["table_contract_hash"] = delivery_table_contract_hash()
+        _attach_generation_standard(
+            result,
+            finance_inputs=dict(input_revision or {}),
+            invest_type=invest_type,
+        )
 
     run_id: Optional[str] = None
     if record_audit and result.get("available"):

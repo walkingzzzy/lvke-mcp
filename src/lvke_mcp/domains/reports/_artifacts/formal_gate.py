@@ -163,10 +163,6 @@ def _capture_basis(
     return basis, content, context
 
 
-def _basis_problem(code: str, message: str, **details: Any) -> dict[str, Any]:
-    return {"code": code, "message": message, "details": details}
-
-
 def _readiness_blockers(readiness: dict[str, Any]) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     for raw in readiness.get("blockers") or []:
@@ -195,133 +191,6 @@ def _readiness_blockers(readiness: dict[str, Any]) -> list[dict[str, Any]]:
             "details": {"error": readiness.get("error")},
         })
     return blockers
-
-
-def _assert_formal_basis(basis: dict[str, Any], context: dict[str, Any]) -> None:
-    """Validate immutable inputs and readiness evidence for a formal artifact."""
-    finance = basis.get("finance") or {}
-    if (
-        basis.get("doc_kind") != "feasibility"
-        or basis.get("report_type") == "asset_acquisition"
-        or finance.get("run_kind") == "asset_acquisition"
-    ):
-        raise DeliverableArtifactError(
-            "FORMAL_ARTIFACT_TYPE_UNSUPPORTED",
-            "通用正式工件仅支持非资产收购可行性研究报告",
-            details={
-                "doc_kind": basis.get("doc_kind"),
-                "report_type": basis.get("report_type"),
-                "finance_run_kind": finance.get("run_kind"),
-            },
-        )
-
-    readiness = (basis.get("readiness") or {}).get("snapshot") or {}
-    blockers = _readiness_blockers(readiness)
-    if readiness.get("publishable") is not True or blockers:
-        raise DeliverableArtifactError(
-            "FORMAL_READINESS_BLOCKED",
-            "当前发布就绪度存在阻断项，不能生成正式工件",
-            details={"blockers": blockers, "readiness": copy.deepcopy(readiness)},
-        )
-
-    problems: list[dict[str, Any]] = []
-
-    current_sources = basis.get("sources") or {}
-    if current_sources.get("error"):
-        problems.append(_basis_problem(
-            "SOURCE_BASIS_UNAVAILABLE",
-            "原始资料快照不可用",
-            error=current_sources.get("error"),
-        ))
-
-    for name in _GOVERNED_SNAPSHOTS:
-        current = (basis.get("artifacts") or {}).get(name) or {}
-        if current.get("present") is not True or current.get("error"):
-            problems.append(_basis_problem(
-                "GOVERNED_SNAPSHOT_INCOMPLETE",
-                f"{name} 快照缺失或损坏",
-                artifact=name,
-                error=current.get("error"),
-            ))
-    for appendix_file in basis.get("appendix_files") or []:
-        if appendix_file.get("ok") is not True:
-            problems.append(_basis_problem(
-                "GOVERNED_APPENDIX_FILE_INCONSISTENT",
-                "附表清单声明的已就绪文件不可用或哈希不一致",
-                appendix_id=appendix_file.get("appendix_id"),
-                source=appendix_file.get("source"),
-                error=appendix_file.get("error"),
-            ))
-
-    run = finance.get("run_snapshot")
-    binding = finance.get("binding_snapshot") or {}
-    run_id = str(finance.get("run_id") or "")
-    if str(binding.get("binding_kind") or "") == "asset_acquisition":
-        problems.append(_basis_problem(
-            "FINANCE_BINDING_KIND_UNSUPPORTED",
-            "通用可研正式工件不能使用资产收购财务绑定",
-            binding_kind=binding.get("binding_kind"),
-        ))
-    if finance.get("run_kind") != "feasibility_finance" or not run_id:
-        problems.append(_basis_problem(
-            "FINANCE_BINDING_REQUIRED",
-            "正式工件必须绑定非资产收购财务 run",
-            run_id=run_id,
-            run_kind=finance.get("run_kind"),
-        ))
-    if not isinstance(run, dict) or run.get("_load_error"):
-        problems.append(_basis_problem(
-            "FINANCE_RUN_UNAVAILABLE",
-            "finance_binding 指向的财务 run 不存在或不可读",
-            run_id=run_id,
-            error=(run or {}).get("_load_error") if isinstance(run, dict) else "not_found",
-        ))
-    elif str(run.get("workspace_id") or basis.get("workspace_id") or "") != basis.get("workspace_id"):
-        problems.append(_basis_problem(
-            "FINANCE_RUN_WORKSPACE_MISMATCH",
-            "财务 run 与工作区不匹配",
-            run_id=run_id,
-        ))
-    else:
-        for field in (
-            "input_hash",
-            "spec_hash",
-            "table_bundle_hash",
-            "manifest_hash",
-            "template_version",
-        ):
-            bound = binding.get(field)
-            current = run.get(field)
-            if bound not in (None, "") and bound != current:
-                problems.append(_basis_problem(
-                    "FINANCE_BINDING_HASH_MISMATCH",
-                    "财务绑定字段与 FinanceRun 不一致",
-                    field=field,
-                    expected=bound,
-                    actual=current,
-                ))
-
-    finance_gate = finance.get("publish_gate") or {}
-    if finance_gate.get("ok") is not True or finance_gate.get("blockers"):
-        problems.append(_basis_problem(
-            "FINANCE_PUBLISH_GATE_BLOCKED",
-            "财务正式发布门禁未通过",
-            blockers=copy.deepcopy(finance_gate.get("blockers") or []),
-            error=finance_gate.get("error"),
-        ))
-    if str(finance_gate.get("bound_run_id") or "") != run_id:
-        problems.append(_basis_problem(
-            "FINANCE_GATE_BOUND_RUN_MISMATCH",
-            "财务门禁返回的绑定 run 与工件依据不一致",
-            expected=run_id,
-            actual=finance_gate.get("bound_run_id"),
-        ))
-    if problems:
-        raise DeliverableArtifactError(
-            "FORMAL_BASIS_INCONSISTENT",
-            "正式工件的文档、财务或治理快照不一致",
-            details={"problems": problems},
-        )
 
 
 def _marker_markdown(
@@ -409,6 +278,19 @@ def _draft_basis_blockers(
             "details": {"run_id": finance.get("run_id")},
         })
     finance_gate = finance.get("publish_gate") or {}
+    run_snapshot = finance.get("run_snapshot") or {}
+    if str(run_snapshot.get("evidence_policy") or "") != "formal_evidence":
+        blockers.append({
+            "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            "message": "财务运行仍处于非正式证据轨，禁止正式报告工件",
+            "details": {"evidence_policy": run_snapshot.get("evidence_policy")},
+        })
+    if str(run_snapshot.get("mode") or run_snapshot.get("delivery_mode") or "") in {"estimate_preview", "review_candidate"}:
+        blockers.append({
+            "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+            "message": "预览/候选运行不得生成正式报告工件",
+            "details": {"mode": run_snapshot.get("mode"), "delivery_mode": run_snapshot.get("delivery_mode")},
+        })
     for raw in finance_gate.get("blockers") or []:
         if isinstance(raw, dict):
             blockers.append({

@@ -5,5 +5,6 @@ Read only the entries needed for the current task, then follow the linked `SKILL
 | Topic | Preserved specialist source |
 |---|---|
 | MCP orchestration | [SKILL.md](preserved/lvke-tool-coordination/SKILL.md) |
+| zero-material delivery (one sentence, no project files) | [SKILL.md](preserved/lvke-zero-material-delivery/SKILL.md) |
 | workspace navigation | [SKILL.md](preserved/workspace-navigation/SKILL.md) |
 | precedent-driven drafting | [SKILL.md](preserved/precedent-driven-drafting/SKILL.md) |

@@ -26,4 +26,6 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Preflight formal CSV/XLSX eligibility before creating directories or files;
   blocked formal export must expose no new path or Resource URI.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Backend Skill — all 14 MCP servers under `src/lvke_mcp/servers/`. Envelope fields: `success`, `status`, `trace_id`, `resource_uris`, `blockers`, `next_actions`. Output validation: lightweight schema in `tools/list`, full schema at `lvke://schemas/{server}/{tool}/output`.

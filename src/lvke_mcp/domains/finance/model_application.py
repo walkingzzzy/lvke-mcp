@@ -70,3 +70,5 @@ from ._model_application.spec_cases import (  # noqa: F401
     prepare_spec,
     validate_spec,
 )
+from .post_generation_validation import validate_post_generation  # noqa: F401
+from .formal_upgrade import promote_to_formal  # noqa: F401

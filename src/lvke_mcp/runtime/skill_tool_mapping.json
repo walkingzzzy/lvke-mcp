@@ -1,0 +1,331 @@
+{
+  "schema_version": "skill-tool-mapping.v1",
+  "minimum_runtime_version": "0.1.0+codex",
+  "dev_only_skills": ["lvke-desktop", "lvke-frontend"],
+  "mappings": [
+    {
+      "skill": "lvke-api-contract",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": ["technical_fixture", "controlled_assumption", "source_reconstructed", "formal_evidence"],
+      "formal_blockers": ["build_metadata_incomplete", "EVIDENCE_BINDING_STALE"],
+      "outputs": [],
+      "notes": "Cross-cutting contract gate; validates all live tools, schemas and Resources rather than routing a business tool."
+    },
+    {
+      "skill": "lvke-backend",
+      "tools": [],
+      "servers": ["lvke-asset-acquisition", "lvke-data-acquisition", "lvke-data-analysis", "lvke-deep-research", "lvke-deliverable-review", "lvke-feasibility-delivery", "lvke-finance-model", "lvke-finance-tables", "lvke-knowledge-governance", "lvke-project-planning", "lvke-reference", "lvke-report-generation", "lvke-source-files", "lvke-zero-material-delivery"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": ["technical_fixture", "controlled_assumption", "source_reconstructed", "formal_evidence"],
+      "formal_blockers": ["build_metadata_incomplete", "EVIDENCE_BINDING_STALE", "idempotency_conflict"],
+      "outputs": ["MCPEnvelope", "Resource"],
+      "notes": "Cross-cutting runtime implementation Skill; server-specific routes remain in domain Skills."
+    },
+    {
+      "skill": "lvke-local-verify",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": ["technical_fixture", "controlled_assumption", "formal_evidence"],
+      "formal_blockers": ["build_metadata_incomplete", "formal_evidence_incomplete"],
+      "outputs": ["AcceptanceTrace"],
+      "notes": "Verification gate; delegates live calls to lvke-mcp-acceptance and artifact checks to the repository scripts."
+    },
+    {
+      "skill": "lvke-urban-rail-transit",
+      "tools": ["planning_get_industry_constraints", "planning_solve_build_scale", "planning_calculate_cost_drivers", "finance_prepare_spec", "finance_run_model"],
+      "servers": ["lvke-project-planning", "lvke-finance-model"],
+      "required_inputs": ["workspace_id", "project_context_id"],
+      "allowed_evidence_tracks": ["technical_fixture", "controlled_assumption", "formal_evidence"],
+      "formal_blockers": ["project_scale_inconsistent", "missing_inputs", "EVIDENCE_BINDING_STALE"],
+      "outputs": ["BuildScaleCase", "CostDriverSet", "FinanceRun"],
+      "notes": "Rail-specific route; requires rail scale and revenue/cost fields before FinanceRun."
+    },
+    {
+      "skill": "lvke-feasibility-study",
+      "tools": [
+        "feasibility_start",
+        "feasibility_status",
+        "feasibility_validate",
+        "feasibility_release",
+        "feasibility_checkpoint",
+        "feasibility_resume"
+      ],
+      "servers": ["lvke-feasibility-delivery"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "source_reconstructed",
+        "formal_evidence"
+      ],
+      "formal_blockers": [
+        "missing_inputs",
+        "EVIDENCE_BINDING_STALE",
+        "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED"
+      ],
+      "outputs": ["DeliveryRun", "ReleasePreflightReport"]
+    },
+    {
+      "skill": "lvke-finance",
+      "tools": [
+        "finance_prepare_spec",
+        "finance_confirm_spec",
+        "finance_validate_spec",
+        "finance_run_model",
+        "finance_get_run",
+        "finance_validate_post_generation",
+        "finance_promote_to_formal",
+        "finance_generate_package"
+      ],
+      "servers": ["lvke-finance-model", "lvke-finance-tables"],
+      "required_inputs": ["workspace_id", "spec_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "formal_evidence"
+      ],
+      "formal_blockers": [
+        "missing_inputs",
+        "EVIDENCE_BINDING_STALE",
+        "idempotency_conflict"
+      ],
+      "outputs": ["FinanceRun", "FinanceTablesPackage"]
+    },
+    {
+      "skill": "lvke-source-evidence",
+      "tools": [
+        "source_import_local_path",
+        "source_import_content",
+        "source_file_get",
+        "source_file_list",
+        "source_parse_retry",
+        "source_inspect_workbook",
+        "data_fetch",
+        "analysis_ingest",
+        "analysis_build_evidence_pack"
+      ],
+      "servers": ["lvke-source-files", "lvke-data-acquisition", "lvke-data-analysis"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "source_reconstructed",
+        "controlled_assumption",
+        "formal_evidence"
+      ],
+      "formal_blockers": [
+        "hash_only_source",
+        "EVIDENCE_BINDING_STALE"
+      ],
+      "outputs": ["SourceSnapshot", "EvidencePack"]
+    },
+    {
+      "skill": "lvke-research",
+      "tools": [
+        "dr_prepare",
+        "dr_start",
+        "dr_submit",
+        "dr_get_report",
+        "dr_get_evidence",
+        "data_search",
+        "data_discover"
+      ],
+      "servers": ["lvke-deep-research", "lvke-data-acquisition"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "source_reconstructed",
+        "controlled_assumption"
+      ],
+      "formal_blockers": ["missing_inputs"],
+      "outputs": ["ResearchPackage"]
+    },
+    {
+      "skill": "lvke-project-planning",
+      "tools": [
+        "project_context_create",
+        "project_context_validate",
+        "planning_prepare",
+        "planning_create",
+        "planning_confirm",
+        "planning_solve_build_scale",
+        "planning_calculate_cost_drivers"
+      ],
+      "servers": ["lvke-project-planning"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "formal_evidence"
+      ],
+      "formal_blockers": ["missing_inputs"],
+      "outputs": ["ProjectContext", "BuildScaleCase", "CostDriverSet"]
+    },
+    {
+      "skill": "lvke-report",
+      "tools": [
+        "report_prepare",
+        "report_start",
+        "report_propose",
+        "report_diff",
+        "report_apply",
+        "report_get_readiness",
+        "report_export_docx",
+        "report_validate"
+      ],
+      "servers": ["lvke-report-generation"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "formal_evidence"
+      ],
+      "formal_blockers": [
+        "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+        "EVIDENCE_BINDING_STALE"
+      ],
+      "outputs": ["ReportRevision", "ReportPreparation"]
+    },
+    {
+      "skill": "lvke-review-release",
+      "tools": [
+        "review_prepare",
+        "review_start",
+        "review_list_findings",
+        "review_disposition_finding",
+        "review_retest",
+        "review_export",
+        "review_validate_standards"
+      ],
+      "servers": ["lvke-deliverable-review"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": ["formal_evidence"],
+      "formal_blockers": [
+        "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+        "EVIDENCE_BINDING_STALE"
+      ],
+      "outputs": ["Review", "ReviewExport"]
+    },
+    {
+      "skill": "lvke-mcp-acceptance",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "source_reconstructed",
+        "formal_evidence"
+      ],
+      "formal_blockers": ["build_metadata_incomplete"],
+      "outputs": ["AcceptanceTrace"],
+      "notes": "对话式验收覆盖全部 171 工具；映射由 acceptance manifest 动态展开"
+    },
+    {
+      "skill": "lvke-tool-coordination",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "source_reconstructed",
+        "formal_evidence"
+      ],
+      "formal_blockers": [
+        "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
+        "EVIDENCE_BINDING_STALE"
+      ],
+      "outputs": [],
+      "notes": "编排 Skill；具体工具路由见各域 Skill 映射"
+    },
+    {
+      "skill": "lvke-delivery-guardrails",
+      "tools": [
+        "report_propose",
+        "report_diff",
+        "report_apply"
+      ],
+      "servers": ["lvke-report-generation"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption"
+      ],
+      "formal_blockers": ["idempotency_conflict"],
+      "outputs": ["ReportRevision"]
+    },
+    {
+      "skill": "lvke-error-recovery",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id", "trace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption"
+      ],
+      "formal_blockers": [],
+      "outputs": [],
+      "notes": "恢复 Skill；引用 trace_id 与 next_actions 跨服务定位"
+    },
+    {
+      "skill": "lvke-api-contract",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "source_reconstructed",
+        "formal_evidence"
+      ],
+      "formal_blockers": [],
+      "outputs": [],
+      "notes": "契约 Skill；校验 baseline/contracts 与 lvke://schemas Resource"
+    },
+    {
+      "skill": "lvke-backend",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption",
+        "formal_evidence"
+      ],
+      "formal_blockers": ["build_metadata_incomplete"],
+      "outputs": [],
+      "notes": "14 MCP server 实现；envelope 与 outputSchema 校验"
+    },
+    {
+      "skill": "lvke-local-verify",
+      "tools": [],
+      "servers": [],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption"
+      ],
+      "formal_blockers": [],
+      "outputs": [],
+      "notes": "本地 pytest/golden；不替代 g1/g2/g3 live acceptance"
+    },
+    {
+      "skill": "lvke-urban-rail-transit",
+      "tools": [
+        "planning_solve_build_scale",
+        "finance_run_model",
+        "finance_validate_spec"
+      ],
+      "servers": ["lvke-project-planning", "lvke-finance-model"],
+      "required_inputs": ["workspace_id"],
+      "allowed_evidence_tracks": [
+        "technical_fixture",
+        "controlled_assumption"
+      ],
+      "formal_blockers": ["missing_inputs"],
+      "outputs": ["BuildScaleCase", "FinanceRun"],
+      "notes": "城轨行业专用；不得套用通用公共服务口径"
+    }
+  ]
+}

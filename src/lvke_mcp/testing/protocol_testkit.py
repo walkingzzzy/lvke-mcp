@@ -90,17 +90,26 @@ def run_raw(
     messages: list[str | dict[str, Any]],
     *,
     timeout: float = 30,
+    data_dir: str | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
     """以子进程启动 Server，按行灌入报文，返回 (stdout 响应列表, stderr)。
 
     非 dict 的 message 原样写入（用于 Parse error 等非法行用例）。
     进程须以 returncode 0 正常退出，stdout 每行都必须是合法 JSON——
     这本身就是"stdout 纯 JSON-RPC"的合规断言前提。
+
+    Args:
+        data_dir: 若提供，子进程使用该持久化目录（金标链等多步验收）；
+            否则每调用一次创建隔离临时目录（逐工具探测）。
     """
 
     env = os.environ.copy()
-    temporary_data = tempfile.TemporaryDirectory(prefix="lvke-protocol-")
-    env["LVKE_MCP_DATA_DIR"] = temporary_data.name
+    temporary_data: tempfile.TemporaryDirectory[str] | None = None
+    if data_dir:
+        env["LVKE_MCP_DATA_DIR"] = data_dir
+    else:
+        temporary_data = tempfile.TemporaryDirectory(prefix="lvke-protocol-")
+        env["LVKE_MCP_DATA_DIR"] = temporary_data.name
     process = subprocess.Popen(
         [sys.executable, "-m", module],
         stdin=subprocess.PIPE,
@@ -152,4 +161,5 @@ def run_raw(
     finally:
         if not process.stdin.closed:
             process.stdin.close()
-        temporary_data.cleanup()
+        if temporary_data is not None:
+            temporary_data.cleanup()

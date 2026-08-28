@@ -28,4 +28,15 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Use restarted live `tools/list` as the sole coverage denominator, call every
   listed tool at least once, and keep every tool at `taskSupport=forbidden`.
 
-The linked specialist files are preserved expertise, not optional background. This parent Skill reduces discovery context only; it does not supersede their detailed rules.
+## MCP Tool Mapping
+
+Orchestration Skill — routes via domain Skills. Manifest: `src/lvke_mcp/runtime/skill_tool_mapping.json` (all entries).
+
+| Classification | When |
+|----------------|------|
+| PASS | object created, lineage intact |
+| EXPECTED_REJECTION | formal gate, missing_inputs, stale binding |
+| UPSTREAM_FAILURE | Tavily/provider only |
+| SKIPPED | documented unforgeable prerequisite |
+
+Sequence anchor: ProjectContext → Evidence → Planning → FinanceRun → Tables → Report → Review. Never skip confirm/validate steps.

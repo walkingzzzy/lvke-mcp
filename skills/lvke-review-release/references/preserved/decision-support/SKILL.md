@@ -18,10 +18,10 @@ platforms: [linux, windows, macos]
 ## 工作流
 
 ```
-1. doc_read 第 1 章总论 + 第 9 章结论与建议
+1. report_get_section 第 1 章总论 + 第 9 章结论与建议
 2. 模拟"投委会读者"通读 → 用 5 个核心问题质询
 3. 每答不上来 / 答不清楚 → 写 high/medium issue
-4. doc_review 写入 issue_center
+4. review_start 写入 issue_center
 ```
 
 ## 投委会读者的 5 个核心问题
@@ -149,14 +149,14 @@ platforms: [linux, windows, macos]
 ## 边界
 
 - **不替决策者下判断**：不写"我认为应该批准/不批准"，而是评估"决策依据是否充分"
-- **不重写正文**：发现摘要薄弱 → 写 issue 让用户主导改稿，agent 可用 `doc_propose` 提建议版
+- **不重写正文**：发现摘要薄弱 → 写 issue 让用户主导改稿，agent 可用 `report_propose_section` 提建议版
 
 ## 配套工具
 
-- `doc_read range="1"` / `doc_read range="9"`：分章读关键章节
-- `context_view`：拿章节摘要快速判断
-- `doc_review` + issues：写入
-- `doc_propose`：如发现关键缺失要提议补内容
+- `report_get_section section_id=<第1章对应的 section_id>` / `report_get_section section_id=<第9章对应的 section_id>`：分章读关键章节
+- `report_list_sections`：拿章节摘要快速判断
+- `review_start` + issues：写入
+- `report_propose_section`：如发现关键缺失要提议补内容
 
 ## 与其他 skill 的协同
 

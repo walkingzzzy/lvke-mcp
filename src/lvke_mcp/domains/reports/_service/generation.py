@@ -97,6 +97,7 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     formal_blockers: list[str] = []
     viability_status = "not_assessed"
     viability_issues: list[Any] = []
+    table_contract_snapshot: dict[str, Any] = {}
     evidence = []
     for object_id in evidence_ids:
         record = EVIDENCE_STORE.get(
@@ -201,6 +202,36 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             )
         if not package_formal:
             formal_blockers.append("finance_tables_package_not_formal")
+        if binding_kind != "asset_acquisition":
+            from lvke_mcp.domains.finance.tables_application import validate_render
+
+            package_contract = validate_render(table_payload)
+            contract_issues = [
+                str(item) for item in package_contract.get("blockers") or []
+            ]
+            formal_blockers.extend(
+                f"finance_tables_contract:{item}" for item in contract_issues
+            )
+            table_contract_snapshot = {
+                "table_contract_hash": str(
+                    package_contract.get("table_contract_hash") or ""
+                ),
+                "table_manifest_hash": sha256_json(
+                    table_payload.get("table_manifest") or []
+                ),
+                "engine_delivery_count": package_contract.get(
+                    "engine_delivery_count"
+                ),
+                "reference_source_sheet_count": package_contract.get(
+                    "reference_source_sheet_count"
+                ),
+                "review_workbook_sheet_count": package_contract.get(
+                    "review_workbook_sheet_count"
+                ),
+                "manifest_count": package_contract.get("manifest_count"),
+                "contract_valid": not contract_issues,
+                "quality_issues": contract_issues,
+            }
         if binding_kind == "asset_acquisition":
             integrity = table_payload.get("integrity") or {}
             if integrity.get("status") != "passed":
@@ -237,6 +268,7 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "run_id": run_id,
         "finance_tables_package_id": tables_id,
         "finance_binding": finance_binding,
+        "finance_table_contract": table_contract_snapshot,
         "outline": outline,
         "sections": sections,
         "template_version": str(args.get("template_version") or "default"),
@@ -260,16 +292,20 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     }
     quality_issues = sorted(set([*blockers, *formal_blockers]))
     warnings.extend(f"质量提示：{item}" for item in quality_issues)
-    draft_ready = True
-    formal_ready = True
+    # Draft generation may proceed with disclosed limitations, but formal
+    # readiness is fail-closed: any upstream blocker, qualification issue, or
+    # unverified project facts must prevent a formal candidate from being
+    # advertised as ready.
+    draft_ready = not blockers
+    formal_ready = not quality_issues
     status = "partial" if warnings or quality_issues else "ok"
     record = PREPARATION_STORE.put(
         workspace_id,
         {
             **basis,
-            "blockers": [],
+            "blockers": blockers,
             "warnings": warnings,
-            "formal_blockers": [],
+            "formal_blockers": formal_blockers,
             "quality_issues": quality_issues,
             "draft_ready": draft_ready,
             "formal_ready": formal_ready,
@@ -286,20 +322,24 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "completed": True,
         "outcome": status,
         "status": status,
-        "ready": True,
-        "draft_ready": True,
-        "formal_ready": True,
+        "ready": draft_ready,
+        "draft_ready": draft_ready,
+        "formal_ready": formal_ready,
         "report_preparation_id": record["object_id"],
         "basis_hash": record["basis_hash"],
         "generatable_sections": sections or [{"section_id": "all", "title": "all", "order": 1, "parent_section_id": None, "depth": 1}],
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
-        "blockers": [],
-        "formal_blockers": [],
+        "blockers": blockers,
+        "formal_blockers": formal_blockers,
         "quality_issues": quality_issues,
+        "finance_table_contract": table_contract_snapshot,
         "viability_status": viability_status,
         "viability_issues": viability_issues,
-        "next_actions": ["可直接调用 report_start；质量问题不会阻止生成"],
+        "next_actions": [
+            "可直接调用 report_start；质量问题必须在正文披露"
+            if draft_ready else "先修复阻断项后再调用 report_start",
+        ],
     }
 
 

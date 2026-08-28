@@ -92,7 +92,7 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertTrue(exported["not_for_formal_use"])
         self.assertFalse(exported["validation_complete"])
         self.assertEqual(exported["delivery_mode"], "draft")
-        self.assertIn("csv_technical_preview_not_releasable", exported["blockers"])
+        self.assertEqual(exported["blockers"], [])
 
     def test_technical_manifest_records_its_scope(self) -> None:
         exported = self._export("technical")
@@ -124,15 +124,33 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertFalse(exported.get("validation_complete"))
         self.assertNotEqual(exported.get("release_grade"), "technical_preview")
 
-    def test_formal_default_does_not_mark_files(self) -> None:
-        before = sorted(Path(self.tempdir.name).rglob("*.csv"))
+    def test_formal_scope_produces_formal_candidate_when_gate_fails(self) -> None:
+        # 本 run 尚未通过正式财务门禁（缺 BoE / 分年资金计划），
+        # formal 档不再阻塞，改为生成 formal_candidate 文件并附带限制标记。
+        rendered = tables_service.render(self.workspace, self.run_id)
+        self.assertFalse(rendered.get("validation_complete"))
         exported = self._export("formal")
-        self.assertEqual(exported["status"], "blocked")
-        self.assertEqual(exported["code"], "tables_validation_failed")
-        self.assertEqual(exported["resource_uris"], [])
-        self.assertNotIn("csv_resource_uris", exported)
-        self.assertNotIn("deliverable_path", exported)
-        self.assertEqual(sorted(Path(self.tempdir.name).rglob("*.csv")), before)
+        self.assertEqual(exported["validation_scope"], "formal")
+        self.assertEqual(exported["release_grade"], "formal_candidate")
+        self.assertFalse(exported["technical_preview"])
+        self.assertTrue(exported["not_for_formal_use"])
+        self.assertFalse(exported["validation_complete"])
+        self.assertEqual(exported["delivery_mode"], "draft")
+        self.assertEqual(exported["blockers"], [])
+        self.assertIn("csv_formal_quality_incomplete", exported["quality_issues"])
+        self.assertIn("in_file_marking", exported)
+
+    def test_formal_candidate_files_carry_the_formal_candidate_banner(self) -> None:
+        exported = self._export("formal")
+        self.assertIn("in_file_marking", exported)
+        self.assertIn("【正式候选·含限制】", exported["in_file_marking"])
+        directory = Path(exported["deliverable_path"])
+        csv_files = sorted(directory.glob("*.csv"))
+        self.assertGreater(len(csv_files), 0)
+        for path in csv_files:
+            with self.subTest(file=path.name):
+                first_line = path.read_text(encoding="utf-8-sig").splitlines()[0]
+                self.assertIn("【正式候选·含限制】", first_line)
 
 
 if __name__ == "__main__":
