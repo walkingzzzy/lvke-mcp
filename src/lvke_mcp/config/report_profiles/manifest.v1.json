@@ -1,0 +1,75 @@
+{
+  "schema_version": "lvke-report-profiles.v1",
+  "catalog_version": "2026-08-30",
+  "selection_method": "deterministic_priority_unique_match",
+  "selection_notes": "同优先级多命中一律阻断，不静默套用通用模板；无命中同样阻断。用户可用 report_profile_id 或 template_set_id 直接指定，指定值必须在 profiles 中存在且 status=active。",
+  "profiles": [
+    {
+      "profile_id": "urban-rail-gov10",
+      "template_set_id": "lvke-report.urban-rail-gov10.v1",
+      "document": "urban-rail-gov10.v1.json",
+      "priority": 40,
+      "status": "active",
+      "label": "城市轨道交通政府投资可研（发改委2023十章）",
+      "applicability": {
+        "industry_codes": ["urban_rail_transit"],
+        "project_types": ["generic_feasibility"],
+        "transaction_structures": ["new_build", "ppp"],
+        "asset_types": [],
+        "report_types": []
+      }
+    },
+    {
+      "profile_id": "asset-acquisition-9",
+      "template_set_id": "lvke-report.asset-acquisition-9.v1",
+      "document": "asset-acquisition-9.v1.json",
+      "priority": 30,
+      "status": "active",
+      "label": "资产收购可行性研究报告（九章）",
+      "applicability": {
+        "industry_codes": [],
+        "project_types": ["asset_acquisition"],
+        "transaction_structures": ["asset_acquisition", "equity_acquisition", "operation_lease"],
+        "asset_types": [],
+        "report_types": []
+      }
+    },
+    {
+      "profile_id": "energy-gov10",
+      "template_set_id": "lvke-report.energy-gov10.v1",
+      "document": "energy-gov10.v1.json",
+      "priority": 20,
+      "status": "active",
+      "label": "能源与公用事业政府投资可研（发改委2023十章）",
+      "applicability": {
+        "industry_codes": ["energy_utilities", "environment_utilities"],
+        "project_types": ["generic_feasibility"],
+        "transaction_structures": ["new_build", "ppp"],
+        "asset_types": [],
+        "report_types": []
+      }
+    },
+    {
+      "profile_id": "generic-gov10",
+      "template_set_id": "lvke-report.generic-gov10.v1",
+      "document": "generic-gov10.v1.json",
+      "priority": 10,
+      "status": "active",
+      "label": "通用政府投资可研（发改委2023十章）",
+      "applicability": {
+        "industry_codes": [
+          "tourism_catering",
+          "manufacturing",
+          "park_infrastructure",
+          "commercial_professional_services",
+          "real_estate",
+          "cemetery_funeral"
+        ],
+        "project_types": ["generic_feasibility"],
+        "transaction_structures": ["new_build", "ppp", "other"],
+        "asset_types": [],
+        "report_types": []
+      }
+    }
+  ]
+}

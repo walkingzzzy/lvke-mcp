@@ -195,8 +195,6 @@ class FormulaBackend:
 
     def dependency_tree(self, sheet: str, cell: str, *, max_depth: int = 6) -> dict[str, Any]:
         """对 sheet!cell 递归追公式依赖树（跨表，带环保护）。"""
-        from openpyxl.utils import get_column_letter  # type: ignore
-
         wb_f = self._formula_wb()
         wb_v = self._value_wb()
         names = list(wb_f.sheetnames)
@@ -252,3 +250,21 @@ def _jsonable(v: Any) -> Any:
     if v is None or isinstance(v, (str, int, float, bool)):
         return v
     return str(v)
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "FormulaBackend",
+    "FormulaBackendUnavailable",
+    "_CELL",
+    "_CROSS_SHEET",
+    "_SAME_SHEET",
+    "_jsonable",
+    "_require_openpyxl",
+    "defaultdict",
+    "extract_references",
+    "re",
+]

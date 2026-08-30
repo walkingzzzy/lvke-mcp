@@ -18,6 +18,9 @@ description: 审查财务运行、十三表、研报和联合交付包，执行 
 - 技术 fixture、controlled assumption、搜索摘要和不可回读 URL 不能升级为 formal evidence。
 - partial 或 incomplete 结果必须原样保留并阻断正式发布。
 - 任何目标、上游 hash、规则包或证据变化都会使旧审查失效，必须创建新 review/retest 对象。
+- SIM-A 在 prepare、start、retest、export 四个边界重验同一 promotion；Retest
+  创建不可变 child 并绑定精确 remediation evidence，Export manifest 保留 origin、
+  promotion 和文件 hash。历史无签名审查失败关闭。
 
 ## 验收记录
 

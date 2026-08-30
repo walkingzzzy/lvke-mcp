@@ -39,6 +39,29 @@ def _execute_rules(
 ) -> dict[str, Any]:
     target = preparation_payload.get("target") or {}
     target_type = str(target.get("target_type") or "")
+    if target_type == "review_package":
+        from .suite_review import deterministic_suite_review
+
+        result = deterministic_suite_review(
+            workspace_id,
+            preparation_payload.get("target_snapshot") or {},
+            profile=str(preparation_payload.get("review_profile") or mode or "quick"),
+            standards_snapshot=preparation_payload.get("standards") or {},
+        )
+        findings = list(result["findings"])
+        incomplete = list(result["incomplete_reasons"])
+        return {
+            "findings": findings,
+            "incomplete_reasons": incomplete,
+            "coverage": {
+                "suite_review": True,
+                "review_profile": str(preparation_payload.get("review_profile") or mode),
+                "review_mode": str(preparation_payload.get("review_mode") or "external"),
+                "dimension_metrics": result["dimension_metrics"],
+                "full_suite": result["full_suite"],
+            },
+            "overall_verdict": verdict_for(findings, incomplete),
+        }
     pack = preparation_payload.get("rule_pack") or {}
     standard_basis = _standard_basis(preparation_payload)
     findings: list[dict[str, Any]] = _required_finding_rows(preparation_payload, standard_basis)
@@ -342,6 +365,8 @@ def _preparation_execution_integrity_reasons(
         "legacy_gate_snapshot",
         "engine_version",
         "recalculation_environment_version",
+        "review_profile",
+        "review_mode",
     ):
         if deepcopy(created.get(field)) != deepcopy(
             preparation_payload.get(field)

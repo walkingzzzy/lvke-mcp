@@ -69,6 +69,62 @@ def _acquisition_artifact_snapshot(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _zero_material_artifact_snapshot(
+    workspace_id: str,
+    record: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Project a zero-material TechnicalReport into a read-only review target."""
+
+    payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    artifact_id = str(record.get("object_id") or "")
+    base_uri = str(record.get("resource_uri") or "")
+    files: list[dict[str, Any]] = []
+    try:
+        from lvke_mcp.adapters.zero_material_repository import (
+            REPORT_STORE,
+            resolve_report_file,
+        )
+
+        for name in ("report.md", "report.docx"):
+            resolved = resolve_report_file(f"{base_uri}/files/{name}", report_store=REPORT_STORE)
+            if resolved is None:
+                continue
+            content, mime = resolved
+            files.append({
+                "name": name,
+                "media_type": mime,
+                "size_bytes": len(content),
+                "sha256": "sha256:" + hashlib.sha256(content).hexdigest(),
+                "resource_uri": f"{base_uri}/files/{name}",
+            })
+    except Exception:  # noqa: BLE001 - preview files are optional evidence
+        files = []
+    snapshot = {
+        "artifact_family": "zero_material_preview",
+        "artifact_id": artifact_id,
+        "technical_report_id": artifact_id,
+        "resource_uri": base_uri,
+        "status": str(record.get("status") or "partial"),
+        "assurance_level": str(payload.get("assurance_level") or "estimate_preview"),
+        "content_hash": str(record.get("content_hash") or ""),
+        "basis_hash": str(record.get("basis_hash") or ""),
+        "validation_complete": bool(payload.get("validation_complete")),
+        "input_evidence_complete": bool(payload.get("input_evidence_complete")),
+        "files": files,
+    }
+    bindings = {
+        "finance_run_id": str(payload.get("finance_run_id") or ""),
+        "finance_tables_package_id": str(payload.get("finance_tables_package_id") or ""),
+        "research_task_id": str(payload.get("research_task_id") or ""),
+        "research_package_ids": _string_ids([payload.get("research_package_id")]),
+        "evidence_pack_ids": _string_ids([payload.get("evidence_pack_id")]),
+        "source_snapshot_ids": _string_ids((payload.get("public_research") or {}).get("source_snapshot_ids") or []),
+        "technical_report_id": artifact_id,
+    }
+    snapshot["upstream_bindings"] = deepcopy(bindings)
+    return snapshot, bindings
+
+
 def _string_ids(*values: Any) -> list[str]:
     return sorted({
         str(item).strip()
@@ -268,6 +324,24 @@ def _resolve_report_artifact(
         )
         snapshot["upstream_bindings"] = deepcopy(bindings)
         return snapshot, bindings, []
+    if artifact_domain == "zero_material_preview":
+        try:
+            from lvke_mcp.adapters.zero_material_repository import REPORT_STORE
+
+            record = REPORT_STORE.get(workspace_id, artifact_id)
+        except Exception:  # noqa: BLE001 - unavailable preview store
+            record = None
+        if not record:
+            return None, {}, ["report_artifact_not_found"]
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if (
+            str(payload.get("object_type") or "") != "TechnicalReport"
+            or str(record.get("status") or "") not in {"partial", "preview"}
+            or str(payload.get("assurance_level") or "") != "estimate_preview"
+        ):
+            return None, {}, ["report_artifact_not_current"]
+        snapshot, bindings = _zero_material_artifact_snapshot(workspace_id, record)
+        return snapshot, bindings, []
     return None, {}, ["report_artifact_domain_invalid"]
 
 
@@ -410,6 +484,57 @@ def _resolve_target(
         if not payload.get("available") or str(payload.get("run_id") or "") != target_id:
             blockers.append("finance_run_not_found")
         bindings["finance_run_id"] = target_id
+    elif target_type == "review_package":
+        from .suite_package import get_package, package_integrity_reasons
+
+        record = get_package(workspace_id, target_id)
+        if record is None:
+            blockers.append("review_package_not_found")
+        else:
+            blockers.extend(
+                package_integrity_reasons(
+                    workspace_id,
+                    record,
+                    resolve_target=_resolve_target,
+                )
+            )
+            payload = record
+            bindings["review_package_id"] = target_id
+            resource_uri = str(record.get("resource_uri") or "")
+    elif target_type == "research_package":
+        from lvke_mcp.adapters.research_repository import PACKAGE_STORE
+
+        record = PACKAGE_STORE.get(workspace_id, target_id)
+        payload = record
+        if record is None:
+            blockers.append("research_package_not_found")
+        else:
+            bindings["research_package_ids"] = [target_id]
+            resource_uri = str(record.get("resource_uri") or "")
+    elif target_type == "evidence_pack":
+        from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
+
+        record = EVIDENCE_STORE.get(workspace_id, target_id)
+        payload = record
+        if record is None:
+            blockers.append("evidence_pack_not_found")
+        else:
+            bindings["evidence_pack_ids"] = [target_id]
+            resource_uri = str(record.get("resource_uri") or "")
+    elif target_type in {"finance_spec", "basis_of_estimate"}:
+        from lvke_mcp.adapters.finance_model_repository import (
+            BASIS_OF_ESTIMATE_STORE,
+            SPEC_STORE,
+        )
+
+        store = SPEC_STORE if target_type == "finance_spec" else BASIS_OF_ESTIMATE_STORE
+        record = store.get(workspace_id, target_id)
+        payload = record
+        if record is None:
+            blockers.append(f"{target_type}_not_found")
+        else:
+            bindings[f"{target_type}_id"] = target_id
+            resource_uri = str(record.get("resource_uri") or "")
     elif target_type == "finance_tables_package":
         from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE
         record = PACKAGE_STORE.get(

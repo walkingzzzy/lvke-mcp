@@ -568,6 +568,17 @@ def _report_artifact_text(
                 if resolved.get("ok") is not True:
                     continue
                 content = resolved.get("content") or b""
+            elif artifact_family == "zero_material_preview":
+                from lvke_mcp.adapters.zero_material_repository import (
+                    REPORT_STORE,
+                    resolve_report_file,
+                )
+
+                resolved = resolve_report_file(
+                    f"{artifact.get('resource_uri') or ''}/files/{name}",
+                    report_store=REPORT_STORE,
+                )
+                content = resolved[0] if resolved is not None else b""
             else:
                 from lvke_mcp.domains.reports import artifacts as deliverable_artifacts
 
@@ -694,3 +705,42 @@ def _summarize_track_coverage(
         "external_data_gap_count": external_reason_count + external_finding_count,
         "local_implementation_issue_count": local_reason_count + local_finding_count,
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "Path",
+    "_CLAIM_PATTERN",
+    "_EXTERNAL_GAP_CATEGORIES",
+    "_EXTERNAL_GAP_REASON_MARKERS",
+    "_FINANCE_WORDS",
+    "_LOCAL_IMPLEMENTATION_CATEGORIES",
+    "_LOCAL_IMPLEMENTATION_REASON_MARKERS",
+    "_acquisition_input_findings",
+    "_claim_value",
+    "_document_from_snapshot",
+    "_existing_issue_findings",
+    "_expected_report_sections",
+    "_finance_recalculation_findings",
+    "_hotel_acquisition_run_findings",
+    "_number",
+    "_professional_rule_finding",
+    "_project_metadata_findings",
+    "_report_artifact_text",
+    "_report_content",
+    "_report_evidence_packs",
+    "_report_findings",
+    "_required_finding_rows",
+    "_severity",
+    "_summarize_track_coverage",
+    "deepcopy",
+    "io",
+    "quote",
+    "re",
+    "report_checks",
+    "rules",
+    "sha256_json",
+]

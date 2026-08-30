@@ -48,6 +48,11 @@ dr_prepare
 
 - Agent 提交的研究固定为 `partial`，不能说成 `done`；没有独立质量审计不得自称完成。
 - `dr_confirm_quality` 失败时不得产生 completed package；通过或明确接受资料限制后，只使用返回的新 `research_package_id`。
+- `dr_submit` 与 `dr_confirm_quality` 都重新解析 locator，验证 workspace、整源
+  hash、fragment text/hash，并把审计结果固化。SIM-A promotion 只能从已验证
+  EvidencePack 父级推导，citation 自报策略不能升级资格。
+- completed ResearchPackage 是 partial 包与 QualityReview 的不可变 child；历史
+  缺 promotion 或父级哈希绑定的 SIM-A 包不得复用。
 - `source_reconstructed` 质量确认始终保持 `project_fact_certified=false`。
 - `done` 仍须同时满足质量门和引用审计；Skill 不降低阈值。
 - `dr_continue` 创建有 lineage 的续研会话，不修改原任务状态，也不放宽门槛。

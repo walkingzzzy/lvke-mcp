@@ -16,6 +16,14 @@ from lvke_mcp.runtime.evidence_qualification import (
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_finance_run,
+    validate_finance_tables_package,
+    validate_formal_record,
+    validate_object_formal_lineage,
+    validate_research_package,
+)
 from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
@@ -226,22 +234,35 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
     if mode not in DELIVERY_MODES:
         return _blocked("delivery_mode_invalid", "delivery_mode 必须是 estimate_preview、review_candidate 或 formal_release")
     project_context_id = str(args.get("project_context_id") or "")
-    evidence_policy = str(args.get("evidence_policy") or "formal_evidence")
+    requested_evidence_policy = str(args.get("evidence_policy") or "formal_evidence")
     release_scope = str(args.get("release_scope") or "project_delivery")
-    if evidence_policy not in EVIDENCE_POLICIES:
+    if requested_evidence_policy not in EVIDENCE_POLICIES:
         return _blocked("evidence_policy_invalid", "evidence_policy 不受支持")
     if release_scope not in RELEASE_SCOPES:
         return _blocked("release_scope_invalid", "release_scope 必须是 process_acceptance 或 project_delivery")
     if mode == "estimate_preview" and release_scope == "project_delivery":
         release_scope = "process_acceptance"
     project_object: dict[str, Any] | None = None
+    canonical_lineage: dict[str, Any] = {}
     if project_context_id:
         project_object = _resolve_object(workspace_id, project_context_id)
         if project_object is None or project_object.get("kind") != "ProjectContext":
             return _blocked("project_context_not_found", "project_context_id 必须解析到当前 workspace 的真实 ProjectContext")
-    project_fact_certified = project_fact_may_be_certified(
+        project_payload = dict(project_object.get("payload") or {})
+        if str(project_payload.get("evidence_policy") or project_payload.get("evidence_track") or "") == "sim_a_formal":
+            try:
+                canonical_lineage = validate_object_formal_lineage(workspace_id, project_payload)
+            except FormalLineageError as exc:
+                return _blocked(exc.code, exc.message)
+    if requested_evidence_policy == "sim_a_formal" and not canonical_lineage:
+        return _blocked(
+            "formal_project_context_required",
+            "sim_a_formal feasibility 必须绑定具有可验证 promotion 谱系的 ProjectContext",
+        )
+    evidence_policy = str(canonical_lineage.get("evidence_policy") or requested_evidence_policy)
+    project_fact_certified = bool(canonical_lineage.get("project_fact_certified")) or project_fact_may_be_certified(
         evidence_policy,
-        own_qualification_passed=args.get("project_fact_certified") is True,
+        own_qualification_passed=False,
         parents=[project_object] if project_object is not None else [],
     )
     request = {
@@ -249,8 +270,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         "delivery_mode": mode,
         "project_context_id": project_context_id,
         "evidence_policy": evidence_policy,
+        "evidence_origin": canonical_lineage.get("evidence_origin"),
         "release_scope": release_scope,
         "project_fact_certified": project_fact_certified,
+        "formal_promotion": canonical_lineage.get("formal_promotion"),
         "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
         "reconstruction_records": list(args.get("reconstruction_records") or []),
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
@@ -279,14 +302,16 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             "current_stage": current_stage,
             "project_context_id": project_context_id,
             "evidence_policy": evidence_policy,
+            "evidence_origin": request.get("evidence_origin"),
             "release_scope": release_scope,
             "project_fact_certified": request["project_fact_certified"],
+            "formal_promotion": request.get("formal_promotion"),
             "reconstructed_source_ids": request["reconstructed_source_ids"],
             "reconstruction_records": request["reconstruction_records"],
             "unresolved_inputs": request["unresolved_inputs"],
             "release_limitations": request["release_limitations"],
             "stages": stages,
-            "lineage": {},
+            "lineage": canonical_lineage,
             "next_actions": [],
             "created_at": utc_now(),
         }
@@ -385,6 +410,7 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
     if stage_status == "completed":
         if request["blockers"]:
             return _blocked("stage_blockers_present", "completed 阶段不能保留 blocker")
+        resolved_objects: list[dict[str, Any]] = []
         resolved_outputs: list[dict[str, Any]] = []
         reference_errors: list[str] = []
         for role in ("input", "output"):
@@ -392,13 +418,26 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
                 resolved, error = _validate_reference(workspace_id, str(ref), stage_name, role)
                 if error:
                     reference_errors.append(error)
-                elif role == "output" and resolved is not None:
-                    resolved_outputs.append(resolved)
+                elif resolved is not None:
+                    resolved_objects.append(resolved)
+                    if role == "output":
+                        resolved_outputs.append(resolved)
         if reference_errors:
             return _blocked(
                 "stage_reference_invalid",
                 "阶段引用必须解析到当前 workspace 的真实不可变对象",
                 next_actions=reference_errors,
+            )
+        try:
+            _require_same_stage_lineage(
+                workspace_id,
+                _view(record),
+                resolved_objects,
+            )
+        except FormalLineageError as exc:
+            return _blocked(
+                exc.code,
+                f"阶段正式谱系校验失败：{exc.message}",
             )
         required_kinds = {
             "project": {"ProjectContext"},
@@ -478,12 +517,10 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
             payload["status"] = "completed" if next_stage == "released" else "in_progress"
         if stage_name == "project" and request["output_refs"]:
             payload["project_context_id"] = request["output_refs"][0]
-        lineage = dict(payload.get("lineage") or {})
-        for ref in request["output_refs"]:
-            if ":" in str(ref):
-                key, value = str(ref).split(":", 1)
-                lineage[key] = value
-        payload["lineage"] = lineage
+        # ``lineage`` is reserved for canonical promotion metadata. Stage
+        # object references live in ``stage_bindings`` and must never mutate
+        # the signed root merely because a caller used a Resource URI.
+        payload["lineage"] = dict(payload.get("lineage") or {})
         stage_bindings = dict(payload.get("stage_bindings") or {})
         stage_bindings[stage_name] = {
             "input_refs": list(request["input_refs"]),
@@ -992,6 +1029,114 @@ def _validate_reference(workspace_id: str, reference: str, stage: str, role: str
     return resolved, None
 
 
+def _canonical_delivery_run_lineage(
+    workspace_id: str,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    """Rebuild the formal root from ProjectContext and reject copied labels."""
+
+    if str(run.get("evidence_policy") or "") != "sim_a_formal":
+        return {}
+    project_context_id = str(run.get("project_context_id") or "")
+    project = _resolve_object(workspace_id, project_context_id)
+    if project is None or project.get("kind") != "ProjectContext":
+        raise FormalLineageError(
+            "formal_project_context_not_found",
+            "交付运行绑定的正式 ProjectContext 不存在或不属于当前工作区",
+        )
+    canonical = validate_formal_record(workspace_id, project.get("record") or {})
+    stored = {
+        field: run.get(field)
+        for field in (
+            "evidence_policy",
+            "evidence_origin",
+            "project_fact_certified",
+            "formal_promotion",
+        )
+    }
+    if stored != canonical or run.get("lineage") != canonical:
+        raise FormalLineageError(
+            "formal_delivery_run_lineage_mismatch",
+            "交付运行持久化的正式谱系与 ProjectContext 不一致",
+        )
+    return canonical
+
+
+def _validate_resolved_formal_object(
+    workspace_id: str,
+    resolved: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Validate a formal stage object using its domain's immutable parent rules."""
+
+    kind = str(resolved.get("kind") or "")
+    payload = resolved.get("payload") if isinstance(resolved.get("payload"), dict) else {}
+    if kind == "FinanceRun":
+        return validate_finance_run(workspace_id, str(resolved.get("object_id") or ""))
+    if kind == "FinanceTablesPackage":
+        return validate_finance_tables_package(workspace_id, resolved.get("record") or {})
+    if kind == "ReportRevision":
+        from lvke_mcp.domains.reports.formal_lineage import validate_report_revision_lineage
+
+        return validate_report_revision_lineage(workspace_id, resolved.get("record") or {})
+    if kind == "ReviewRun":
+        metadata = payload.get("evidence_metadata")
+        if not isinstance(metadata, dict):
+            raise FormalLineageError(
+                "formal_lineage_unsigned_history",
+                "正式 ReviewRun 缺少 evidence_metadata",
+            )
+        canonical = validate_object_formal_lineage(workspace_id, metadata)
+        stored = {
+            field: metadata.get(field)
+            for field in (
+                "evidence_policy",
+                "evidence_origin",
+                "project_fact_certified",
+                "formal_promotion",
+            )
+        }
+        if stored != canonical:
+            raise FormalLineageError(
+                "formal_review_lineage_mismatch",
+                "ReviewRun 持久化的正式谱系不是规范值",
+            )
+        return canonical
+
+    if kind == "ResearchPackage":
+        return validate_research_package(workspace_id, resolved.get("record") or {})
+
+    policy = str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
+    always_formal = {
+        "ProjectContext",
+        "evidence_pack",
+        "FinanceSpec",
+        "BasisOfEstimate",
+    }
+    if kind in always_formal or policy == "sim_a_formal":
+        return validate_formal_record(workspace_id, resolved.get("record") or {})
+    return None
+
+
+def _require_same_stage_lineage(
+    workspace_id: str,
+    run: dict[str, Any],
+    objects: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Revalidate all formal objects at one boundary against the run root."""
+
+    canonical = _canonical_delivery_run_lineage(workspace_id, run)
+    if not canonical:
+        return {}
+    for resolved in objects:
+        object_lineage = _validate_resolved_formal_object(workspace_id, resolved)
+        if object_lineage is not None and object_lineage != canonical:
+            raise FormalLineageError(
+                "formal_lineage_mixed_promotions",
+                f"阶段对象来自不同 promotion: {resolved.get('object_id')}",
+            )
+    return canonical
+
+
 def _stage_objects(run: dict[str, Any], workspace_id: str, stage: str) -> tuple[list[dict[str, Any]], list[str]]:
     item = (run.get("stages") or {}).get(stage) or {}
     resolved: list[dict[str, Any]] = []
@@ -1048,6 +1193,16 @@ def _object_chain_validation(
         objects, errors = _stage_objects(run, workspace_id, name)
         objects_by_stage[name] = objects
         blockers.extend(errors)
+
+    if validation_scope == "formal" and str(run.get("evidence_policy") or "") == "sim_a_formal":
+        try:
+            _require_same_stage_lineage(
+                workspace_id,
+                run,
+                [obj for objects in objects_by_stage.values() for obj in objects],
+            )
+        except FormalLineageError as exc:
+            blockers.append(exc.code)
 
     def payloads(name: str) -> list[dict[str, Any]]:
         return [
@@ -1560,13 +1715,34 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
     }
 
     def create() -> dict[str, Any]:
+        canonical_lineage: dict[str, Any] = {}
+        if validation_scope == "formal" and str(run.get("evidence_policy") or "") == "sim_a_formal":
+            stage_objects = [
+                obj
+                for name in STAGES[:-1]
+                for obj in _stage_objects(run, workspace_id, name)[0]
+            ]
+            try:
+                canonical_lineage = _require_same_stage_lineage(
+                    workspace_id,
+                    run,
+                    stage_objects,
+                )
+            except FormalLineageError as exc:
+                return _blocked(
+                    exc.code,
+                    f"Release 写入前正式谱系复验失败：{exc.message}",
+                    delivery_run_id=delivery_run_id,
+                )
         release_payload = {
             "delivery_run_id": delivery_run_id,
             "delivery_mode": run.get("delivery_mode"),
             "release_scope": requested_scope,
             "validation_scope": validation_scope,
-            "evidence_policy": run.get("evidence_policy") or "formal_evidence",
-            "project_fact_certified": bool(run.get("project_fact_certified")),
+            "evidence_policy": canonical_lineage.get("evidence_policy") or run.get("evidence_policy") or "formal_evidence",
+            "evidence_origin": canonical_lineage.get("evidence_origin") or run.get("evidence_origin") or "",
+            "project_fact_certified": bool(canonical_lineage.get("project_fact_certified", run.get("project_fact_certified"))),
+            "formal_promotion": canonical_lineage.get("formal_promotion") or run.get("formal_promotion"),
             "reconstructed_source_ids": list(run.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(run.get("unresolved_inputs") or []),
             "release_limitations": list(dict.fromkeys([
@@ -1578,11 +1754,11 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             "reconstruction_records": list(run.get("reconstruction_records") or []),
             "stage_bindings": dict(run.get("stage_bindings") or {}),
             "lineage_hash": sha256_json({
-                "lineage": run.get("lineage") or {},
+                "lineage": canonical_lineage or run.get("lineage") or {},
                 "stage_bindings": run.get("stage_bindings") or {},
             }),
             "release_note": request["release_note"],
-            "object_refs": run.get("lineage") or {},
+            "object_refs": canonical_lineage or run.get("lineage") or {},
             "released_at": utc_now(),
         }
         release_record = RELEASE_STORE.put(
@@ -1590,6 +1766,14 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             release_payload,
             producer="lvke-feasibility-delivery.feasibility_release",
             source_ids=[delivery_run_id],
+            basis={
+                "delivery_run_id": delivery_run_id,
+                "delivery_run_basis_hash": record.get("basis_hash"),
+                "release_scope": requested_scope,
+                "validation_scope": validation_scope,
+                "lineage": canonical_lineage or run.get("lineage") or {},
+                "stage_bindings": run.get("stage_bindings") or {},
+            },
         )
         payload = json.loads(json.dumps(record.get("payload") or {}))
         payload["parent_run_id"] = delivery_run_id
@@ -1701,3 +1885,91 @@ def resolve_resource(uri: str) -> tuple[str, str] | None:
         if record is not None:
             return json.dumps(record, ensure_ascii=False), "application/json"
     return None
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "ACQUISITION_DATA_STORES",
+    "ANALYSIS_STORES",
+    "Any",
+    "BASIS_OF_ESTIMATE_STORE",
+    "CHECKPOINT_STORE",
+    "Callable",
+    "DELIVERY_MODES",
+    "EVIDENCE_POLICIES",
+    "FileLock",
+    "FormalLineageError",
+    "IDEMPOTENCY_STORE",
+    "PLANNING_STORES",
+    "Path",
+    "RELEASE_SCOPES",
+    "RELEASE_STORE",
+    "REPORT_PREPARATION_STORE",
+    "REPORT_REVISION_STORE",
+    "RESEARCH_PACKAGE_STORE",
+    "RESOURCE_STORES",
+    "RUN_STATUSES",
+    "RUN_STORE",
+    "SPEC_STORE",
+    "STAGES",
+    "STAGE_STATUSES",
+    "TABLE_PACKAGE_STORE",
+    "_INVALID_ID_CODES",
+    "_NEXT_TOOLS",
+    "_blocked",
+    "_canonical_delivery_run_lineage",
+    "_declared_parent_ids",
+    "_discover_stage_output_ids",
+    "_envelope",
+    "_formal_object_validation",
+    "_guard_identifiers",
+    "_idempotent",
+    "_latest_record_id",
+    "_lock",
+    "_object_chain_validation",
+    "_record",
+    "_record_view",
+    "_require_same_stage_lineage",
+    "_resolve_object",
+    "_run_response",
+    "_stage_index",
+    "_stage_objects",
+    "_uri_workspace",
+    "_validate_reference",
+    "_validate_resolved_formal_object",
+    "_validation",
+    "_view",
+    "checkpoint",
+    "declared_evidence_policy",
+    "empty_stages",
+    "functools",
+    "hashlib",
+    "json",
+    "list_asset_resources",
+    "list_resources",
+    "next_actions",
+    "paginate_resource_entries",
+    "project_fact_may_be_certified",
+    "read_asset_resource",
+    "read_resource",
+    "release",
+    "require_safe_id",
+    "resolve_resource",
+    "resource_registry",
+    "resume",
+    "sha256_json",
+    "split_quality_codes",
+    "stage",
+    "start",
+    "status",
+    "utc_now",
+    "validate",
+    "validate_finance_run",
+    "validate_finance_tables_package",
+    "validate_formal_record",
+    "validate_object_formal_lineage",
+    "validate_research_package",
+    "workspace_root",
+]

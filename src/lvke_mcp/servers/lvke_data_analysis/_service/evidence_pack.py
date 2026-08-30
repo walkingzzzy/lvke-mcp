@@ -18,7 +18,6 @@ from lvke_mcp.adapters.data_analysis_repository import CANDIDATE_STORE, EVIDENCE
 from lvke_mcp.runtime.evidence_qualification import (
     FORMAL_EVIDENCE,
     SIM_A_FORMAL,
-    combine_evidence_policies,
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
@@ -28,6 +27,10 @@ from lvke_mcp.runtime.source_reconstruction import (
     validate_reconstruction_records,
 )
 from lvke_mcp.runtime.storage import sha256_json
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_formal_promotion,
+)
 
 from .envelope import _missing
 from .ingest import _documents_from_task
@@ -265,6 +268,90 @@ def build_evidence_pack(
         return _missing("source_reconstruction_invalid", "source_reconstructed 必须提供完整来源重建记录", field_errors=reconstruction_errors)
     if evidence_track != SOURCE_RECONSTRUCTED and reconstruction_records:
         return _missing("reconstruction_records_not_applicable", "reconstruction_records 仅允许用于 source_reconstructed 轨")
+
+    # A zero-material run may have completed its public search attempt without
+    # finding a usable source.  Keep that fallback explicit: an empty source
+    # set is valid only on the controlled-assumption track and remains
+    # estimate-preview evidence, never a project fact or formal basis.
+    if evidence_track == "controlled_assumption" and selected_source_ids == []:
+        expected = [str(item).strip() for item in (expected_fields or []) if str(item).strip()]
+        missing_fields = [
+            {"field": field, "reason": "no_public_source_found", "next_action": "保留受控假设并在后续获得项目资料后替换"}
+            for field in dict.fromkeys(expected)
+        ]
+        limits = [
+            "未找到可固化的公开来源；当前 EvidencePack 仅承载受控假设回退",
+            "controlled_assumption: 只能用于 estimate_preview，不能认证项目事实",
+        ]
+        payload = {
+            "analysis_task_id": task_id,
+            "evidence_track": "controlled_assumption",
+            "technical_fixture_candidate": False,
+            "fixture_manifest": None,
+            "candidate_set_id": None,
+            "server_signed_candidates": False,
+            "formal_evidence_candidate": False,
+            "source_reconstructed_candidate": False,
+            "reconstruction_records": [],
+            "evidence_policy": "controlled_assumption",
+            "evidence_origin": "zero_material_public_search_fallback",
+            "formal_promotion": None,
+            "reconstructed_source_ids": [],
+            "unresolved_inputs": list(missing_fields),
+            "release_limitations": limits,
+            "sources": [],
+            "fact_candidates": [],
+            "auto_accepted_estimate_fields": {},
+            "missing_fields": missing_fields,
+            "conflicts": list(conflicts),
+            "limitations": limits,
+            "controlled_assumption_fallback": True,
+            "finance_boundary": "受控假设只允许 estimate_preview；不得作为正式项目事实或正式发布依据。",
+        }
+        record = EVIDENCE_STORE.put(
+            workspace_id,
+            payload,
+            producer="lvke-data-analysis.analysis_build_evidence_pack",
+            status="partial",
+            source_ids=[],
+            basis={
+                "analysis_task_id": task_id,
+                "evidence_track": "controlled_assumption",
+                "expected_fields": expected,
+            },
+        )
+        return {
+            "success": False,
+            "business_success": False,
+            "system_success": True,
+            "transport_success": True,
+            "status": "partial",
+            "data_completeness": "partial",
+            "partial_reasons": ["no_public_source_found", "controlled_assumption_fallback"],
+            "evidence_pack_id": record["object_id"],
+            "basis_hash": record["basis_hash"],
+            "source_count": 0,
+            "limitations": limits,
+            "missing_fields": missing_fields,
+            "auto_accepted_estimate_fields": {},
+            "formal_evidence_candidate": False,
+            "source_reconstructed_candidate": False,
+            "reconstruction_records": [],
+            "evidence_policy": "controlled_assumption",
+            "project_fact_certified": False,
+            "evidence_origin": "zero_material_public_search_fallback",
+            "formal_promotion": None,
+            "reconstructed_source_ids": [],
+            "unresolved_inputs": list(missing_fields),
+            "release_limitations": limits,
+            "controlled_assumption_fallback": True,
+            "technical_fixture_candidate": False,
+            "fixture_manifest_hash": None,
+            "resource_uris": [record["resource_uri"]],
+            "warnings": limits,
+            "blockers": [],
+            "next_actions": ["取得公开来源或项目资料后创建新 EvidencePack，不覆盖当前回退包"],
+        }
     documents = _documents_from_task(
         workspace_id,
         task_id,
@@ -280,6 +367,26 @@ def build_evidence_pack(
     )
     if not selected:
         return _missing("no_selected_sources", "未选择有效来源")
+    canonical_lineage: dict[str, Any] = {}
+    if evidence_track == SIM_A_FORMAL:
+        promotion_ids = {
+            str((doc.get("formal_promotion") or {}).get("promotion_id") or "")
+            for doc in selected
+            if isinstance(doc, dict)
+        }
+        if "" in promotion_ids or len(promotion_ids) != 1:
+            return _missing(
+                "formal_lineage_mixed_or_missing",
+                "sim_a_formal EvidencePack 的全部来源必须属于同一可验证 FormalPromotion",
+            )
+        try:
+            canonical_lineage = validate_formal_promotion(
+                workspace_id,
+                next(iter(promotion_ids)),
+                expected_file_ids=[str(doc.get("source_id") or "") for doc in selected],
+            )
+        except FormalLineageError as exc:
+            return _missing(exc.code, exc.message)
     # Formal evidence candidates must be selected from an immutable candidate
     # set produced by this service.  Caller-authored candidate objects remain a
     # compatibility surface for estimate_preview only and can never acquire
@@ -414,6 +521,7 @@ def build_evidence_pack(
                 "unresolved_low_confidence_locator_count", "locators",
                 "content_origin", "provider", "provider_tool",
                 "evidence_policy", "evidence_origin", "project_fact_certified",
+                "formal_promotion", "formal_lineage_error",
             )
         }
         reconstruction = reconstruction_by_source.get(str(doc.get("source_id") or ""))
@@ -430,19 +538,18 @@ def build_evidence_pack(
             elif reconstruction is not None and reconstruction.get("locator"):
                 row["locators"] = [str(reconstruction["locator"])]
         source_rows.append(row)
-    combined_policy = combine_evidence_policies(selected)
     evidence_policy = (
         SIM_A_FORMAL
-        if combined_policy == SIM_A_FORMAL
+        if canonical_lineage
         else FORMAL_EVIDENCE
         if formal_evidence_candidate
         else SOURCE_RECONSTRUCTED
         if evidence_track == SOURCE_RECONSTRUCTED
         else evidence_track
     )
-    project_fact_certified = project_fact_may_be_certified(
+    project_fact_certified = bool(canonical_lineage) or project_fact_may_be_certified(
         evidence_policy,
-        own_qualification_passed=formal_evidence_candidate or combined_policy == SIM_A_FORMAL,
+        own_qualification_passed=formal_evidence_candidate,
         # 除 formal_use_allowed 外，再按来源自报的 evidence_policy 复核一遍：
         # 浏览器快照等候选来源即使被误标可用，其 policy 仍是 candidate。
         parents=[
@@ -467,6 +574,8 @@ def build_evidence_pack(
         "reconstruction_records": normalized_reconstructions,
         "evidence_policy": evidence_policy,
         "project_fact_certified": project_fact_certified,
+        "evidence_origin": canonical_lineage.get("evidence_origin", ""),
+        "formal_promotion": canonical_lineage.get("formal_promotion"),
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
         "unresolved_inputs": list(missing_fields),
         "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),
@@ -514,6 +623,8 @@ def build_evidence_pack(
         "reconstruction_records": normalized_reconstructions,
         "evidence_policy": evidence_policy,
         "project_fact_certified": project_fact_certified,
+        "evidence_origin": canonical_lineage.get("evidence_origin", ""),
+        "formal_promotion": canonical_lineage.get("formal_promotion"),
         "reconstructed_source_ids": [str(item.get("reconstruction_id") or "") for item in normalized_reconstructions if item.get("reconstruction_id")],
         "unresolved_inputs": list(missing_fields),
         "release_limitations": sorted(set([*limits, *[str(value) for item in normalized_reconstructions for value in (item.get("limitations") or [])]])),

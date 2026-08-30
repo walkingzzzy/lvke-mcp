@@ -1,4 +1,6 @@
 {
+  "current_runtime_snapshot": {"as_of": "2026-08-30", "servers": 14, "tools": 180, "resources": 242, "output_schema": {"present": 180, "total": 180, "coverage": 1.0}, "source": "live tools/list + resources/list + SERVER_SPECS", "historical_fields_preserved": true},
+  "topology_status": "historical_snapshot_superseded",
   "generated_at": "2026-08-20T11:28:47Z",
   "workspace_id": "g2-final-20260820",
   "build_metadata": {

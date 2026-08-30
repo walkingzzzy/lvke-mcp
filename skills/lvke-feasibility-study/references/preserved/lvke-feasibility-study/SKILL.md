@@ -19,6 +19,12 @@ description: Orchestrate a complete Lvke feasibility-study object chain across e
 8. After each domain step, call `feasibility_stage(status=completed)` with real input/output refs and the output basis hash. If the object already exists in the workspace, `feasibility_stage(..., bind_workspace_lineage=true)` or `feasibility_next_actions` can fill the current stage. Use `feasibility_next_actions` for recovery.
 9. Call `feasibility_validate(scope=formal)` before `feasibility_release`.
 
+SIM-A starts with `TemplatePack -> FormalPromotion -> ProjectContext`. Every
+completed feasibility stage reloads all referenced immutable objects and
+requires one canonical promotion. Missing/mixed/cross-workspace/tampered or
+unsigned historical ancestry stops. Rebuild the complete chain with new IDs;
+never backfill old records.
+
 For `source_reconstructed`, set `release_scope=process_acceptance`, propagate all reconstruction metadata, and keep `project_fact_certified=false`. `project_delivery` must return `project_fact_evidence_missing`. Never use controlled assumptions or technical fixtures in formal release.
 
 For asset acquisition previews, bind the report chain with

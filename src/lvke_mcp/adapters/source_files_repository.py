@@ -193,6 +193,257 @@ def _load_analysis(workspace_id: str, file_id: str) -> dict[str, Any] | None:
     return _load_state(workspace_id).get("analyses", {}).get(file_id)
 
 
+def _sha256_text(value: str) -> str:
+    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _normalized_sha256(value: Any) -> str:
+    text = str(value or "").strip().lower()
+    digest = text.removeprefix("sha256:")
+    if len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        return ""
+    return "sha256:" + digest
+
+
+def _citation_offsets(locator: dict[str, Any], length: int) -> tuple[int, int]:
+    start_raw = locator.get("start_offset", locator.get("start", 0))
+    end_raw = locator.get("end_offset", locator.get("end", length))
+    try:
+        start = int(start_raw)
+        end = int(end_raw)
+    except (TypeError, ValueError):
+        raise _error("citation_locator_invalid", "引用 locator 的文本 offset 必须是整数") from None
+    if start < 0 or end <= start or end > length:
+        raise _error("citation_locator_out_of_bounds", "引用 locator 的文本 offset 越界")
+    return start, end
+
+
+def _structured_locator(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    text = str(value or "").strip()
+    if not text:
+        raise _error("citation_locator_required", "引用 locator 必填")
+    if text.startswith("{"):
+        try:
+            decoded = json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            raise _error("citation_locator_invalid", "引用 locator JSON 格式无效") from None
+        if not isinstance(decoded, dict):
+            raise _error("citation_locator_invalid", "引用 locator JSON 必须是对象")
+        return decoded
+    if re.fullmatch(r"(?:pdf_page|page):[1-9][0-9]*", text):
+        return {"kind": "pdf_page", "page": int(text.rsplit(":", 1)[1])}
+    if re.fullmatch(r"csv:[1-9][0-9]*:[1-9][0-9]*", text):
+        _, row, column = text.split(":")
+        return {"kind": "csv_cell", "row": int(row), "column": int(column)}
+    if re.fullmatch(r"csv:[A-Za-z]+[1-9][0-9]*", text):
+        return {"kind": "csv_cell", "cell": text.split(":", 1)[1].upper()}
+    if re.fullmatch(r"[A-Za-z]+[1-9][0-9]*", text):
+        return {"kind": "csv_cell", "cell": text.upper()}
+    if re.fullmatch(r"paragraph:[1-9][0-9]*", text):
+        return {"kind": "docx_paragraph", "paragraph": int(text.split(":", 1)[1])}
+    if re.fullmatch(r"table:[1-9][0-9]*:row:[1-9][0-9]*", text):
+        parts = text.split(":")
+        return {"kind": "docx_table_row", "table": int(parts[1]), "row": int(parts[3])}
+    if text in {"document_text", "web_snapshot"}:
+        return {"kind": text}
+    return {"kind": "stored_locator", "locator": text}
+
+
+def _a1_position(cell: str) -> tuple[int, int] | None:
+    matched = re.fullmatch(r"([A-Z]+)([1-9][0-9]*)", str(cell or "").upper())
+    if not matched:
+        return None
+    column = 0
+    for char in matched.group(1):
+        column = column * 26 + ord(char) - ord("A") + 1
+    return int(matched.group(2)), column
+
+
+def _resolve_analysis_row(
+    analysis: dict[str, Any], locator: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    rows = _with_canonical_locators(
+        [item for item in analysis.get("locators") or [] if isinstance(item, dict)]
+    )
+    kind = str(locator.get("kind") or "").strip().lower()
+    matches: list[dict[str, Any]] = []
+    normalized: dict[str, Any] = {}
+    if kind == "pdf_page":
+        try:
+            page = int(locator.get("page"))
+        except (TypeError, ValueError):
+            raise _error("citation_locator_invalid", "PDF locator 必须包含有效页码") from None
+        matches = [row for row in rows if row.get("kind") == "pdf_page" and int(row.get("page") or 0) == page]
+        normalized = {"kind": "pdf_page", "page": page, "locator": f"pdf_page:{page}"}
+    elif kind == "csv_cell":
+        position = _a1_position(str(locator.get("cell") or "")) if locator.get("cell") else None
+        if position is None:
+            try:
+                position = (int(locator.get("row")), int(locator.get("column")))
+            except (TypeError, ValueError):
+                raise _error("citation_locator_invalid", "CSV locator 必须包含有效单元格或行列") from None
+        row_index, column_index = position
+        matches = [
+            row for row in rows
+            if row.get("kind") == "cell"
+            and int(row.get("row_index") or 0) == row_index
+            and int(row.get("column_index") or 0) == column_index
+        ]
+        normalized = {
+            "kind": "csv_cell",
+            "row": row_index,
+            "column": column_index,
+            "cell": f"{_spreadsheet_column(column_index)}{row_index}",
+            "locator": f"csv:{row_index}:{column_index}",
+        }
+    elif kind == "docx_paragraph":
+        try:
+            paragraph = int(locator.get("paragraph"))
+        except (TypeError, ValueError):
+            raise _error("citation_locator_invalid", "DOCX locator 必须包含有效段落编号") from None
+        matches = [row for row in rows if row.get("kind") == "docx_paragraph" and int(row.get("paragraph") or 0) == paragraph]
+        normalized = {"kind": "docx_paragraph", "paragraph": paragraph, "locator": f"paragraph:{paragraph}"}
+    elif kind == "docx_table_row":
+        try:
+            table = int(locator.get("table"))
+            row_index = int(locator.get("row"))
+        except (TypeError, ValueError):
+            raise _error("citation_locator_invalid", "DOCX 表格 locator 必须包含有效表号和行号") from None
+        matches = [
+            row for row in rows
+            if row.get("kind") == "docx_table_row"
+            and int(row.get("table") or 0) == table
+            and int(row.get("row") or 0) == row_index
+        ]
+        normalized = {
+            "kind": "docx_table_row", "table": table, "row": row_index,
+            "locator": f"table:{table}:row:{row_index}",
+        }
+    elif kind == "document_text":
+        matches = [row for row in rows if row.get("kind") == "document_text"]
+        normalized = {"kind": "document_text", "locator": "document_text"}
+    elif kind == "stored_locator":
+        address = str(locator.get("locator") or "").strip()
+        matches = [row for row in rows if str(row.get("locator") or "") == address]
+        normalized = {"kind": str(matches[0].get("kind") or "stored_locator"), "locator": address} if matches else {}
+    else:
+        address = str(locator.get("locator") or "").strip()
+        matches = [row for row in rows if address and str(row.get("locator") or "") == address]
+        normalized = {"kind": kind, "locator": address} if matches else {}
+    if not matches:
+        raise _error("citation_locator_not_found", "引用 locator 未能解析到来源中的实际片段")
+    if len(matches) != 1:
+        raise _error("citation_locator_ambiguous", "引用 locator 不能唯一解析")
+    row = matches[0]
+    text = str(row.get("text") if row.get("text") is not None else row.get("original_value") or "")
+    if not text:
+        raise _error("citation_fragment_empty", "引用 locator 对应的片段为空")
+    start, end = _citation_offsets(locator, len(text))
+    normalized.update({"start_offset": start, "end_offset": end})
+    return row, {**normalized, "fragment_text": text[start:end]}
+
+
+def resolve_citation_fragment(
+    workspace_id: str,
+    *,
+    source_id: str,
+    locator: Any,
+    source_hash: Any,
+    supplied_fragment: Any = "",
+    supplied_fragment_hash: Any = "",
+) -> dict[str, Any]:
+    """Resolve and hash one citation fragment against immutable source content.
+
+    The result proves deterministic source/locator/fragment binding only. It
+    deliberately does not decide whether the fragment semantically supports a
+    claim; that remains Agent or manual review evidence.
+    """
+
+    source_id = str(source_id or "").strip()
+    if not source_id:
+        raise _error("citation_source_id_required", "引用 source_id 必填")
+    claimed_hash = _normalized_sha256(source_hash)
+    if not claimed_hash:
+        raise _error("citation_source_hash_invalid", "引用必须提供有效的整源 SHA-256")
+    structured = _structured_locator(locator)
+    state = _load_state(workspace_id)
+    record = (state.get("files") or {}).get(source_id)
+    source_kind = "source_file"
+    resource_uri = f"lvke://source-files/workspaces/{workspace_id}/files/{source_id}"
+    if isinstance(record, dict) and str(record.get("workspace_id") or "") == workspace_id:
+        path = Path(str(record.get("path") or ""))
+        if not path.is_file():
+            raise _error("citation_source_integrity_failed", "引用来源文件不存在")
+        raw = path.read_bytes()
+        actual_hash = "sha256:" + hashlib.sha256(raw).hexdigest()
+        recorded_hash = _normalized_sha256(record.get("sha256"))
+        if actual_hash != recorded_hash or len(raw) != int(record.get("size_bytes") or -1):
+            raise _error("citation_source_integrity_failed", "引用来源文件完整性校验失败")
+        if claimed_hash != actual_hash:
+            raise _error("citation_source_hash_mismatch", "引用整源 hash 与来源文件不一致")
+        analysis = (state.get("analyses") or {}).get(source_id)
+        if not isinstance(analysis, dict):
+            raise _error("citation_source_unparsed", "引用来源尚未解析")
+        if _normalized_sha256(analysis.get("sha256")) not in {"", actual_hash}:
+            raise _error("citation_source_integrity_failed", "引用来源解析结果与原件 hash 不一致")
+        if int(analysis.get("size_bytes") or len(raw)) != len(raw):
+            raise _error("citation_source_integrity_failed", "引用来源解析结果与原件大小不一致")
+        _row, resolved = _resolve_analysis_row(analysis, structured)
+        fragment_text = str(resolved.pop("fragment_text"))
+    else:
+        snapshot = _load_acquisition_snapshot(workspace_id, source_id)
+        if snapshot is None:
+            raise _error("citation_source_not_found", "引用来源不存在或不属于当前工作区")
+        payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
+        content = payload.get("content")
+        if not isinstance(content, str) or not content:
+            raise _error("citation_source_content_missing", "引用来源缺少可解析正文")
+        actual_hash = _sha256_text(content)
+        recorded_external_hash = _normalized_sha256(payload.get("external_content_hash"))
+        if recorded_external_hash and recorded_external_hash != actual_hash:
+            raise _error("citation_source_integrity_failed", "引用来源正文与已存 hash 不一致")
+        if claimed_hash != actual_hash:
+            raise _error("citation_source_hash_mismatch", "引用整源 hash 与来源正文不一致")
+        kind = str(structured.get("kind") or "")
+        if kind not in {"document_text", "web_snapshot", "stored_locator"}:
+            raise _error("citation_locator_invalid", "网页快照只支持正文及文本 offset locator")
+        if kind == "stored_locator" and str(structured.get("locator") or "") not in {"document_text", "web_snapshot"}:
+            raise _error("citation_locator_not_found", "网页快照 locator 未能解析到正文")
+        start, end = _citation_offsets(structured, len(content))
+        fragment_text = content[start:end]
+        resolved = {
+            "kind": "web_snapshot",
+            "locator": "web_snapshot",
+            "start_offset": start,
+            "end_offset": end,
+        }
+        source_kind = "source_snapshot"
+        resource_uri = str(snapshot.get("resource_uri") or "")
+    fragment_hash = _sha256_text(fragment_text)
+    supplied_text = supplied_fragment if isinstance(supplied_fragment, str) else ""
+    if supplied_text and supplied_text != fragment_text:
+        raise _error("citation_fragment_mismatch", "调用方提交的引用片段与服务端解析结果不一致")
+    claimed_fragment_hash = _normalized_sha256(supplied_fragment_hash)
+    if supplied_fragment_hash and not claimed_fragment_hash:
+        raise _error("citation_fragment_hash_invalid", "调用方提交的片段 hash 格式无效")
+    if claimed_fragment_hash and claimed_fragment_hash != fragment_hash:
+        raise _error("citation_fragment_hash_mismatch", "调用方提交的片段 hash 与服务端解析结果不一致")
+    return {
+        "workspace_id": workspace_id,
+        "source_id": source_id,
+        "source_kind": source_kind,
+        "resource_uri": resource_uri,
+        "source_hash": actual_hash,
+        "locator": resolved,
+        "fragment_text": fragment_text,
+        "fragment_hash": fragment_hash,
+        "binding_status": "resolved",
+        "semantic_support_status": "agent_or_manual_review_required",
+    }
+
+
 _SPREADSHEET_MIMES = frozenset({
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel",
@@ -857,7 +1108,6 @@ def _parse_csv_cells(data: bytes, path: Path, mime: str) -> tuple[list[dict[str,
     # Classify columns for field-value-unit association
     col_class = _classify_csv_columns(headers)
     field_indices: list[int] = col_class["field"]
-    value_indices: list[int] = col_class["value"]
     unit_indices: list[int] = col_class["unit"]
     ragged = any(len(row) != width for row in rows[1:])
     locators: list[dict[str, Any]] = []
@@ -885,7 +1135,6 @@ def _parse_csv_cells(data: bytes, path: Path, mime: str) -> tuple[list[dict[str,
             # Per-cell enrichment
             col_idx_0 = column_index - 1
             is_field_col = col_idx_0 in field_indices
-            is_value_col = col_idx_0 in value_indices
             is_unit_col = col_idx_0 in unit_indices
             # field_name: use own value if in a field column, else row-level field
             cell_field: str | None = original if is_field_col else (row_field or None)
@@ -1003,6 +1252,44 @@ def _with_canonical_locators(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
+def _parse_spreadsheet_locators(path: Path) -> tuple[list[dict[str, Any]], str]:
+    """Extract bounded, exact cell fragments from xls/xlsx workbooks."""
+
+    try:
+        from lvke_mcp.adapters.spreadsheets.reader import pick_backend
+
+        backend = pick_backend()
+        sheet_names = backend.list_sheets(path)
+    except Exception:  # noqa: BLE001
+        return [], "spreadsheet_parser_unavailable"
+    locators: list[dict[str, Any]] = []
+    try:
+        for sheet_name in sheet_names[:100]:
+            result = backend.read_sheet(path, sheet_name, max_rows=2000, max_cols=256)
+            for row_index, row in enumerate(result.rows, start=1):
+                for column_index, value in enumerate(row, start=1):
+                    if value is None or (isinstance(value, str) and not value.strip()):
+                        continue
+                    cell = f"{_spreadsheet_column(column_index)}{row_index}"
+                    locators.append({
+                        "kind": "spreadsheet_cell",
+                        "locator": f"workbook:{sheet_name}!{cell}",
+                        "sheet": sheet_name,
+                        "cell": cell,
+                        "row_index": row_index,
+                        "column_index": column_index,
+                        "text": str(value),
+                        "original_value": value,
+                    })
+                    if len(locators) >= 50_000:
+                        return locators, "spreadsheet_locator_limit_reached"
+    except Exception:  # noqa: BLE001
+        return [], "spreadsheet_unreadable"
+    if not locators:
+        return [], "spreadsheet_no_values"
+    return locators, ""
+
+
 def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     data = path.read_bytes()
     digest = hashlib.sha256(data).hexdigest()
@@ -1013,7 +1300,11 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     parser = "mcp-source-parser.v1"
     csv_encoding = ""
     csv_delimiter = ""
-    if _is_csv(mime, path):
+    if str(mime or "").lower() in _SPREADSHEET_MIMES or path.suffix.lower() in {".xls", ".xlsx", ".xlsm"}:
+        locators, degraded_reason = _parse_spreadsheet_locators(path)
+        text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
+        parser = "mcp-spreadsheet-parser.v1"
+    elif _is_csv(mime, path):
         locators, csv_encoding, csv_delimiter, degraded_reason = _parse_csv_cells(data, path, mime)
         text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
         parser = "mcp-csv-parser.v1"
@@ -1097,6 +1388,75 @@ def commit_staged_source_file(
     evidence_origin: str = "",
     project_fact_certified: bool = False,
 ) -> dict[str, Any]:
+    """Commit a public upload as candidate evidence only.
+
+    The legacy qualification keywords remain accepted for Python callers, but
+    are deliberately ignored. Public imports cannot grant formal authority.
+    """
+
+    del evidence_policy, evidence_origin, project_fact_certified
+
+    return _commit_staged_source_file(
+        workspace_id,
+        staged_path,
+        original_filename,
+        declared_mime,
+        idempotency_key=idempotency_key,
+        expected_sha256=expected_sha256,
+        expected_size=expected_size,
+        formal_binding=None,
+    )
+
+
+def commit_promoted_source_file(
+    workspace_id: str,
+    staged_path: Path,
+    original_filename: str,
+    declared_mime: str,
+    *,
+    idempotency_key: str,
+    expected_sha256: str,
+    expected_size: int,
+    expected_file_id: str,
+    promotion_id: str,
+    template_pack_id: str,
+    requirement_id: str,
+    kind: str,
+) -> dict[str, Any]:
+    """Private promotion-authority writer; never register this as an MCP tool."""
+
+    binding = {
+        "expected_file_id": str(expected_file_id),
+        "formal_promotion_id": str(promotion_id),
+        "template_pack_id": str(template_pack_id),
+        "requirement_id": str(requirement_id),
+        "kind": str(kind),
+    }
+    if not all(binding.values()):
+        raise _error("formal_promotion_binding_invalid", "正式 SourceFile promotion 绑定不完整")
+    return _commit_staged_source_file(
+        workspace_id,
+        staged_path,
+        original_filename,
+        declared_mime,
+        idempotency_key=idempotency_key,
+        expected_sha256=expected_sha256,
+        expected_size=expected_size,
+        formal_binding=binding,
+    )
+
+
+def _commit_staged_source_file(
+    workspace_id: str,
+    staged_path: Path,
+    original_filename: str,
+    declared_mime: str,
+    *,
+    idempotency_key: str,
+    expected_sha256: str = "",
+    expected_size: int | None = None,
+    formal_binding: dict[str, str] | None,
+) -> dict[str, Any]:
     data = staged_path.read_bytes()
     if not data or len(data) > _max_upload_bytes():
         raise _error("source_content_too_large", "资料大小超过 MCP 限制")
@@ -1114,9 +1474,7 @@ def commit_staged_source_file(
                 "mime": declared_mime,
                 "sha256": digest,
                 "size": len(data),
-                "evidence_policy": str(evidence_policy or ""),
-                "evidence_origin": str(evidence_origin or ""),
-                "project_fact_certified": bool(project_fact_certified),
+                "formal_binding": formal_binding or None,
             },
             sort_keys=True,
         ).encode()
@@ -1130,6 +1488,16 @@ def commit_staged_source_file(
                 raise _error("idempotency_conflict", "同一幂等键已用于不同资料")
             return {**state["files"][prior["file_id"]], "idempotent_replay": True}
         file_id = f"src_{digest[:24]}"
+        if formal_binding and file_id != formal_binding["expected_file_id"]:
+            raise _error("formal_source_identity_mismatch", "正式 SourceFile ID 与预演结果不一致")
+        existing = (state.get("files") or {}).get(file_id)
+        if isinstance(existing, dict):
+            if str(existing.get("sha256") or "").removeprefix("sha256:") != digest:
+                raise _error("source_identity_conflict", "SourceFile ID 已绑定不同内容")
+            existing_promotion = str(existing.get("formal_promotion_id") or "")
+            requested_promotion = str((formal_binding or {}).get("formal_promotion_id") or "")
+            if existing_promotion and existing_promotion != requested_promotion:
+                raise _error("formal_source_already_promoted", "SourceFile 已属于另一 FormalPromotion")
         job_id = f"job_{uuid.uuid4().hex}"
         target_dir = _root(workspace_id) / "files" / file_id
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -1144,10 +1512,17 @@ def commit_staged_source_file(
             "deterministic_status": "pending",
             "security_scan": {"type_verified": True, "scan_status": "passed"},
             "path": str(target), "parse_job_id": job_id, "created_at": _now(), "updated_at": _now(),
-            "evidence_policy": str(evidence_policy or "candidate"),
-            "evidence_origin": str(evidence_origin or ""),
-            "project_fact_certified": bool(project_fact_certified),
+            "evidence_policy": "sim_a_formal" if formal_binding else "candidate",
+            "evidence_origin": "sim_a_template" if formal_binding else "",
+            "project_fact_certified": bool(formal_binding),
         }
+        if formal_binding:
+            record.update({
+                "formal_promotion_id": formal_binding["formal_promotion_id"],
+                "template_pack_id": formal_binding["template_pack_id"],
+                "requirement_id": formal_binding["requirement_id"],
+                "kind": formal_binding["kind"],
+            })
         state["files"][file_id] = record
         state["jobs"][job_id] = {
             "job_id": job_id, "file_id": file_id, "workspace_id": workspace_id,

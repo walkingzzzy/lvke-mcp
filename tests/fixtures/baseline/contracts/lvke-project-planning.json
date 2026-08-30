@@ -121,19 +121,9 @@
               ],
               "default": "real"
             },
-            "evidence_policy": {
+            "promotion_id": {
               "type": "string",
-              "enum": [
-                "real",
-                "source_reconstructed",
-                "technical_fixture",
-                "controlled_assumption",
-                "sim_a_formal",
-                "formal_evidence"
-              ]
-            },
-            "project_fact_certified": {
-              "type": "boolean"
+              "pattern": "^zmprom_[0-9a-f]{24}$"
             },
             "tags": {
               "type": "array",
@@ -554,19 +544,9 @@
               ],
               "default": "real"
             },
-            "evidence_policy": {
+            "promotion_id": {
               "type": "string",
-              "enum": [
-                "real",
-                "source_reconstructed",
-                "technical_fixture",
-                "controlled_assumption",
-                "sim_a_formal",
-                "formal_evidence"
-              ]
-            },
-            "project_fact_certified": {
-              "type": "boolean"
+              "pattern": "^zmprom_[0-9a-f]{24}$"
             },
             "tags": {
               "type": "array",
@@ -595,8 +575,7 @@
         "idempotency_key"
       ],
       "type": "object",
-      "additionalProperties": false,
-      "x-lvke-schema-uri": "lvke://schemas/lvke-project-planning/project_context_revise/input"
+      "additionalProperties": false
     },
     "outputSchema": {
       "properties": {

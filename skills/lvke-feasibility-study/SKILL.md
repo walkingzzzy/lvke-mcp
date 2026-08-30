@@ -19,6 +19,9 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 ## Gates
 
 - Keep every immutable object boundary and explicit confirmation step.
+- For zero-material requests, do not ask for client materials as a prerequisite: run public
+  discovery and safe snapshot collection first, then fill only unsupported fields with
+  disclosed controlled assumptions.
 - Do not claim formal delivery until review and release gates pass.
 - Asset-acquisition preview reports may be technically ready while
   `formal_release_eligible=false`; formal artifacts require a qualified
@@ -26,6 +29,14 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Build preview reports through `report_prepare` with
   `finance_binding.kind=asset_acquisition`; classify direct preview/process
   formal-artifact calls as `EXPECTED_REJECTION`.
+- SIM-A formal orchestration starts with `TemplatePack -> FormalPromotion ->
+  ProjectContext`; every completed stage reloads its immutable objects and
+  verifies the same promotion. Caller-supplied certification fields never
+  establish qualification.
+- Unsigned historical SIM-A records fail closed. Rebuild in order:
+  `TemplatePack -> FormalPromotion -> SourceFile -> ProjectContext ->
+  EvidencePack -> FinanceFactPack -> FinanceSpec -> BoE -> FinanceRun ->
+  Tables -> Report -> Review -> Retest -> Release`.
 
 ## MCP Tool Mapping
 
@@ -43,4 +54,4 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 
 Knowledge closure (lvke-knowledge-governance): `knowledge_submit_candidate` → `knowledge_create_snapshot` → `knowledge_review_candidate` → `knowledge_publish_release`. `knowledge_list_candidates` / `knowledge_get_candidate` are read-only; only an `accepted` candidate may be published, and a snapshot is content-addressed so it cannot be edited after the fact.
 
-Evidence tracks: `technical_fixture`, `controlled_assumption`, `source_reconstructed`, `formal_evidence`. Orchestrates domain Skills; do not skip immutable object boundaries between stages.
+Evidence tracks: `technical_fixture`, `controlled_assumption`, `source_reconstructed`, `formal_evidence`, `sim_a_formal`. Orchestrates domain Skills; do not skip immutable object boundaries between stages.

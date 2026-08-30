@@ -203,6 +203,11 @@ _DEFAULTS = {
     "report_revision": ["core-deliverable", "report-core", "generic-feasibility"],
     "report_artifact": ["core-deliverable", "report-core"],
     "combined_deliverable": ["core-deliverable", "finance-core", "report-core", "combined-core"],
+    "review_package": ["core-deliverable", "finance-core", "report-core", "generic-feasibility"],
+    "research_package": ["core-deliverable", "report-core"],
+    "evidence_pack": ["core-deliverable", "report-core"],
+    "finance_spec": ["core-deliverable", "finance-core", "generic-feasibility"],
+    "basis_of_estimate": ["core-deliverable", "finance-core", "generic-feasibility"],
 }
 
 _RULE_TARGETS: dict[str, set[str]] = {

@@ -207,6 +207,48 @@
       "outputs": ["Review", "ReviewExport"]
     },
     {
+      "skill": "lvke-research-report-review",
+      "tools": [
+        "review_package_prepare",
+        "review_package_confirm",
+        "review_confirm_extraction",
+        "review_prepare",
+        "review_start",
+        "review_submit_assessment",
+        "review_get_dimension",
+        "review_confirm_dimension",
+        "review_finalize",
+        "review_list_findings",
+        "review_disposition_finding",
+        "review_retest",
+        "review_export",
+        "review_resolve_standards",
+        "review_list_requirements",
+        "review_attach_requirement_evidence",
+        "review_validate_standards"
+      ],
+      "servers": ["lvke-deliverable-review"],
+      "required_inputs": ["workspace_id", "review_mode", "review_profile"],
+      "allowed_evidence_tracks": ["real", "formal_evidence", "sim_a_formal"],
+      "formal_blockers": [
+        "review_package_role_missing",
+        "review_dimension_incomplete",
+        "review_dimension_not_determinable",
+        "review_dimension_unconfirmed",
+        "retest_assessment_required",
+        "formal_lineage_metadata_mismatch"
+      ],
+      "outputs": [
+        "ReviewPackageDraft",
+        "ReviewPackage",
+        "ReviewAssessment",
+        "ReviewDimensionResult",
+        "ReviewDossier",
+        "ReviewExport"
+      ],
+      "notes": "Seven isolated Agent contexts submit semantic assessments; MCP performs deterministic checks and computes the verdict. External dossiers never qualify for Lvke Release."
+    },
+    {
       "skill": "lvke-mcp-acceptance",
       "tools": [],
       "servers": [],
@@ -219,7 +261,7 @@
       ],
       "formal_blockers": ["build_metadata_incomplete"],
       "outputs": ["AcceptanceTrace"],
-      "notes": "对话式验收覆盖全部 173 工具；映射由 acceptance manifest 动态展开"
+      "notes": "对话式验收覆盖全部 180 工具；映射由 acceptance manifest 动态展开"
     },
     {
       "skill": "lvke-tool-coordination",

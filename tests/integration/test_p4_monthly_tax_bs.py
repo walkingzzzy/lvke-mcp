@@ -143,6 +143,85 @@ class P4MonthlyTaxBalanceTest(unittest.TestCase):
         if last.get("vat_wan"):
             self.assertGreater(last["vat_wan"], 0.0)
 
+    def test_monthly_drivers_precedence_calendar_and_reconciliation(self) -> None:
+        spec = {
+            "confirmation_status": "confirmed",
+            "operating_mode": "mixed_owner_operator",
+            "transaction": {
+                "model_start_date": "2026-01-01",
+                "opening_date": "2026-01-01",
+                "operating_mode": "mixed_owner_operator",
+                "purchase_price": 1000.0,
+                "financing_ratio": 0.0,
+                "tenor": 1,
+                "exit_year": 1,
+                "repayment": "equal_principal",
+            },
+            "hotel_operation": {
+                "rooms": 10,
+                "adr": {
+                    "annual_values": [100.0],
+                    "monthly_values": [200.0] * 12,
+                    "seasonal_factors": [1.0] * 12,
+                },
+                "occupancy": {"annual_values": 0.5, "seasonal_factors": [1.0] * 12},
+                "ancillary_revenue": {"annual_values": 120.0, "seasonal_factors": [1.0] * 12},
+                "payroll": {"monthly_values": [2.0] * 12},
+                "utilities": 12.0,
+                "consumables": {"annual_values": 24.0, "seasonal_factors": [1.0] * 12},
+                "maintenance_capex": 12.0,
+                "operating_calendar": {
+                    "basis": "operating_days",
+                    "monthly_days": [20.0] * 12,
+                },
+            },
+            "lease_portfolio": {"projection_years": 1, "units": []},
+            "cost": {"annual_owner_operating_cost_wan": {"monthly_values": [1.0] * 12}},
+            "tax": {},
+        }
+        result = _run_monthly_acquisition_model(spec, discount_rate=0.08, scenario_id="monthly")
+        first = result["monthly_timeline"][0]
+        self.assertEqual(first["adr"], 200.0)
+        self.assertEqual(first["occupancy"], 0.5)
+        self.assertEqual(first["operating_days"], 20.0)
+        self.assertAlmostEqual(first["room_revenue_wan"], 2.0)
+        self.assertAlmostEqual(first["ancillary_revenue_wan"], 10.0)
+        self.assertEqual(result["monthly_driver_manifest"]["adr"]["source"], "explicit_monthly")
+        self.assertEqual(result["monthly_driver_manifest"]["utilities"]["source"], "deterministic_annual_compatibility")
+        self.assertEqual(result["operating_calendar"]["manifest"]["source"], "explicit_monthly_days")
+        self.assertTrue(result["annual_reconciliation"])
+        self.assertTrue(all(row["status"] == "passed" for row in result["annual_reconciliation"]))
+        self.assertEqual(len(result["monthly_income_statement"]), 12)
+        self.assertEqual(len(result["monthly_balance_sheet"]), 12)
+
+    def test_monthly_driver_and_calendar_validation_fail_closed(self) -> None:
+        from lvke_mcp.domains.asset_acquisition._model.base import AcquisitionModelError
+
+        base = {
+            "confirmation_status": "confirmed",
+            "transaction": {
+                "model_start_date": "2026-01-01", "opening_date": "2026-01-01",
+                "operating_mode": "mixed_owner_operator", "purchase_price": 100.0,
+                "tenor": 1, "exit_year": 1, "repayment": "equal_principal",
+            },
+            "hotel_operation": {"rooms": 1, "adr": 100.0, "occupancy": 0.5},
+            "lease_portfolio": {"projection_years": 1, "units": []},
+        }
+        invalid_cases = [
+            {"adr": {"monthly_values": [100.0] * 11}},
+            {"occupancy": {"monthly_values": [0.5] * 11 + [1.1]}},
+            {"payroll": {"monthly_values": [1.0] * 11 + [-1.0]}},
+            {"adr": {"annual_values": 100.0, "seasonal_factors": [1.0] * 11}},
+            {"operating_calendar": {"basis": "operating_days", "monthly_days": [32.0] * 12}},
+            {"operating_calendar": {"basis": "workdays", "periods": [
+                {"period_start": "2026-02-01", "workdays": 20.0}
+            ] * 12}},
+        ]
+        for patch in invalid_cases:
+            spec = {**base, "hotel_operation": {**base["hotel_operation"], **patch}}
+            with self.subTest(patch=patch), self.assertRaises(AcquisitionModelError):
+                _run_monthly_acquisition_model(spec, discount_rate=0.08, scenario_id="invalid")
+
     def test_acquisition_vat_and_loss_carryforward_follow_declared_rates(self) -> None:
         from lvke_mcp.domains.asset_acquisition._tables.build import _build_tables
 

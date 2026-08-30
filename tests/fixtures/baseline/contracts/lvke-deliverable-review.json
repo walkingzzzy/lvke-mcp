@@ -23,7 +23,12 @@
                 "acquisition_tables_package",
                 "report_revision",
                 "report_artifact",
-                "combined_deliverable"
+                "combined_deliverable",
+                "review_package",
+                "research_package",
+                "evidence_pack",
+                "finance_spec",
+                "basis_of_estimate"
               ]
             },
             "industry_code": {
@@ -505,6 +510,1435 @@
     "taskSupport": "forbidden"
   },
   {
+    "name": "review_package_prepare",
+    "description": "自动识别 Lvke 内部对象或已导入 SourceFile 的套件角色，返回待人工确认的不可变 ReviewPackageDraft。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "source_file_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "maxItems": 200,
+          "uniqueItems": true
+        },
+        "internal_targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "target_type": {
+                "type": "string",
+                "enum": [
+                  "finance_run",
+                  "finance_tables_package",
+                  "finance_xlsx",
+                  "finance_xlsx_source",
+                  "acquisition_run",
+                  "acquisition_tables_package",
+                  "report_revision",
+                  "report_artifact",
+                  "review_package",
+                  "research_package",
+                  "evidence_pack",
+                  "finance_spec",
+                  "basis_of_estimate"
+                ]
+              },
+              "target_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "file_path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "source_file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "artifact_domain": {
+                "type": "string",
+                "enum": [
+                  "generic_feasibility",
+                  "asset_acquisition",
+                  "zero_material_preview"
+                ]
+              }
+            },
+            "required": [
+              "target_type",
+              "target_id"
+            ]
+          },
+          "maxItems": 50
+        },
+        "review_mode": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "external"
+          ]
+        },
+        "review_profile": {
+          "type": "string",
+          "enum": [
+            "quick",
+            "standard",
+            "deep"
+          ]
+        },
+        "project_scope": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_mode",
+        "review_profile",
+        "project_scope"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_package_prepare/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_package_confirm",
+    "description": "确认每个套件组件的唯一角色并重验原文件/hash，生成不可变 ReviewPackage；缺五类材料时只能专项审查。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_package_draft_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expected_draft_hash": {
+          "type": "string",
+          "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+        },
+        "component_roles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "component_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "report",
+                  "source_evidence",
+                  "base_data",
+                  "finance_model",
+                  "finance_tables",
+                  "attachment"
+                ]
+              }
+            },
+            "required": [
+              "component_id",
+              "role"
+            ]
+          }
+        },
+        "confirmation_statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_package_draft_id",
+        "expected_draft_hash",
+        "component_roles",
+        "confirmation_statement"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_package_confirm/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_confirm_extraction",
+    "description": "对 OCR 或低置信度关键片段重验来源 hash、locator、fragment 后固化人工确认；不判断其是否支持结论。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_package_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "confirmations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "source_hash": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+              },
+              "locator": {
+                "oneOf": [
+                  {
+                    "type": "object"
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              },
+              "fragment_text": {
+                "type": "string",
+                "maxLength": 200000
+              },
+              "fragment_hash": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+              },
+              "confirmation_kind": {
+                "type": "string",
+                "enum": [
+                  "ocr_fragment",
+                  "critical_number",
+                  "regulatory_citation"
+                ]
+              },
+              "confirmed_value": {},
+              "note": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "source_id",
+              "source_hash",
+              "locator",
+              "confirmation_kind",
+              "note"
+            ]
+          }
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_package_id",
+        "confirmations"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_confirm_extraction/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_submit_assessment",
+    "description": "提交独立 Agent 的单领域结构化语义审查；服务端重验 check_id、套件绑定、来源、locator 与 fragment hash。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "review_package_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "dimension": {
+          "type": "string",
+          "enum": [
+            "compliance",
+            "article_quality",
+            "data_quality",
+            "source_quality",
+            "financial_model",
+            "financial_tables",
+            "feasibility"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "incomplete",
+            "not_determinable",
+            "not_applicable"
+          ]
+        },
+        "coverage": {
+          "type": "object"
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "check_id": {
+                "type": "string",
+                "enum": [
+                  "ARTICLE.LANGUAGE.LOGIC",
+                  "ARTICLE.VISUAL.LAYOUT",
+                  "COMP.SUBSTANTIVE.REVIEW",
+                  "DATA.ANOMALY.RECONCILIATION",
+                  "FEASIBILITY.DECISION.LOGIC",
+                  "FINMODEL.ASSUMPTION.LOGIC",
+                  "FINTABLE.SUBSTANTIVE.REVIEW",
+                  "SOURCE.CLAIM.SUPPORT"
+                ]
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "P0",
+                  "P1",
+                  "P2",
+                  "P3"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "target_location": {
+                "type": "object"
+              },
+              "actual": {},
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "source_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "source_hash": {
+                      "type": "string",
+                      "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                    },
+                    "locator": {
+                      "oneOf": [
+                        {
+                          "type": "object"
+                        },
+                        {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        }
+                      ]
+                    },
+                    "fragment_text": {
+                      "type": "string",
+                      "maxLength": 200000
+                    },
+                    "fragment_hash": {
+                      "type": "string",
+                      "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+                    }
+                  },
+                  "required": [
+                    "source_id",
+                    "source_hash",
+                    "locator"
+                  ]
+                },
+                "maxItems": 100
+              },
+              "missing_evidence_reason": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "remediation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "check_id",
+              "severity",
+              "message",
+              "target_location",
+              "remediation"
+            ]
+          },
+          "maxItems": 500
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 100
+        },
+        "skill": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "skill_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "execution_environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "independent_context": {
+          "type": "boolean",
+          "const": true
+        },
+        "reviewer_context_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_id",
+        "review_package_id",
+        "dimension",
+        "status",
+        "coverage",
+        "findings",
+        "limitations",
+        "skill",
+        "skill_version",
+        "model",
+        "model_version",
+        "execution_environment",
+        "independent_context",
+        "reviewer_context_id"
+      ],
+      "type": "object",
+      "additionalProperties": false,
+      "x-lvke-schema-uri": "lvke://schemas/lvke-deliverable-review/review_submit_assessment/input"
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_submit_assessment/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_get_dimension",
+    "description": "读取一个七域维度的确定性状态、独立 Assessment、findings、覆盖率、限制和角色确认状态。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "dimension": {
+          "type": "string",
+          "enum": [
+            "compliance",
+            "article_quality",
+            "data_quality",
+            "source_quality",
+            "financial_model",
+            "financial_tables",
+            "feasibility"
+          ]
+        }
+      },
+      "required": [
+        "workspace_id",
+        "review_id",
+        "dimension"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_get_dimension/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_confirm_dimension",
+    "description": "记录领域责任声明与审查意见；不验证身份、执业资格、电子签名或外部批准。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "dimension": {
+          "type": "string",
+          "enum": [
+            "compliance",
+            "article_quality",
+            "data_quality",
+            "source_quality",
+            "financial_model",
+            "financial_tables",
+            "feasibility"
+          ]
+        },
+        "role_declaration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "review_statement": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "limitations_accepted": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_id",
+        "dimension",
+        "role_declaration",
+        "review_statement",
+        "limitations_accepted"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_confirm_dimension/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
+    "name": "review_finalize",
+    "description": "从确定性检查、七域 Assessment、领域确认、材料完整性和 P0/P1 门禁计算 ReviewDossier；不接受调用方 verdict。",
+    "inputSchema": {
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_id"
+      ],
+      "type": "object",
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "业务是否成功；仅 ok/accepted 为 true"
+        },
+        "business_success": {
+          "type": "boolean",
+          "description": "与 success 同义的显式业务成功字段"
+        },
+        "system_success": {
+          "type": "boolean",
+          "description": "MCP 处理器和协议执行是否成功"
+        },
+        "transport_success": {
+          "type": "boolean",
+          "description": "与 system_success 同义的传输兼容字段"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "accepted",
+            "partial",
+            "empty",
+            "missing_inputs",
+            "blocked",
+            "incomplete",
+            "failed",
+            "upstream_failure"
+          ],
+          "description": "业务状态；partial/missing_inputs/blocked 不是系统错误"
+        },
+        "resource_uris": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "next_actions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "trace_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "basis_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "build_commit": {
+          "type": "string"
+        },
+        "build_time": {
+          "type": "string"
+        },
+        "plugin_version": {
+          "type": "string"
+        },
+        "build_metadata_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "success",
+        "status"
+      ],
+      "type": "object",
+      "description": "轻量 envelope 投影；完整 outputSchema 通过 x-lvke-output-schema-uri Resource 读取。",
+      "additionalProperties": true,
+      "x-lvke-output-schema-uri": "lvke://schemas/lvke-deliverable-review/review_finalize/output"
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "taskSupport": "forbidden"
+  },
+  {
     "name": "review_prepare",
     "description": "解析并锁定目标、上游依据、规则包和标准来源，返回不可变审查范围。",
     "inputSchema": {
@@ -533,7 +1967,12 @@
                 "acquisition_tables_package",
                 "report_revision",
                 "report_artifact",
-                "combined_deliverable"
+                "combined_deliverable",
+                "review_package",
+                "research_package",
+                "evidence_pack",
+                "finance_spec",
+                "basis_of_estimate"
               ]
             },
             "target_id": {
@@ -555,7 +1994,8 @@
               "type": "string",
               "enum": [
                 "generic_feasibility",
-                "asset_acquisition"
+                "asset_acquisition",
+                "zero_material_preview"
               ],
               "description": "报告工件所属的唯一存储域；用于阻止跨域同 ID 歧义。"
             },
@@ -577,7 +2017,12 @@
                       "acquisition_run",
                       "acquisition_tables_package",
                       "report_revision",
-                      "report_artifact"
+                      "report_artifact",
+                      "review_package",
+                      "research_package",
+                      "evidence_pack",
+                      "finance_spec",
+                      "basis_of_estimate"
                     ]
                   },
                   "target_id": {
@@ -599,7 +2044,8 @@
                     "type": "string",
                     "enum": [
                       "generic_feasibility",
-                      "asset_acquisition"
+                      "asset_acquisition",
+                      "zero_material_preview"
                     ],
                     "description": "报告工件所属的唯一存储域；用于阻止跨域同 ID 歧义。"
                   }
@@ -633,6 +2079,21 @@
         },
         "project_context": {
           "type": "object"
+        },
+        "review_profile": {
+          "type": "string",
+          "enum": [
+            "quick",
+            "standard",
+            "deep"
+          ]
+        },
+        "review_mode": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "external"
+          ]
         }
       },
       "required": [
@@ -784,6 +2245,7 @@
           "type": "string",
           "enum": [
             "quick",
+            "standard",
             "deep"
           ],
           "default": "quick"
@@ -1775,6 +3237,7 @@
           "type": "string",
           "enum": [
             "quick",
+            "standard",
             "deep"
           ]
         }
@@ -1909,7 +3372,7 @@
   },
   {
     "name": "review_export",
-    "description": "导出不可变 JSON、Markdown、DOCX 审查报告及 findings XLSX。",
+    "description": "导出不可变 JSON 审计包、Markdown、DOCX/PDF 审查报告、findings XLSX 及 locator 问题版 DOCX。",
     "inputSchema": {
       "properties": {
         "workspace_id": {
@@ -1934,11 +3397,13 @@
               "json",
               "markdown",
               "docx",
-              "xlsx"
+              "xlsx",
+              "pdf",
+              "annotated_docx"
             ]
           },
           "minItems": 1,
-          "maxItems": 4,
+          "maxItems": 6,
           "uniqueItems": true
         }
       },
@@ -2096,7 +3561,12 @@
                 "acquisition_tables_package",
                 "report_revision",
                 "report_artifact",
-                "combined_deliverable"
+                "combined_deliverable",
+                "review_package",
+                "research_package",
+                "evidence_pack",
+                "finance_spec",
+                "basis_of_estimate"
               ]
             },
             "industry_code": {

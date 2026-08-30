@@ -23,6 +23,55 @@
   {
     "description": "服务端实际执行的完整 output JSON Schema。",
     "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_package_prepare.output-schema",
+    "title": "review_package_prepare complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_package_prepare/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_package_confirm.output-schema",
+    "title": "review_package_confirm complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_package_confirm/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_confirm_extraction.output-schema",
+    "title": "review_confirm_extraction complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_confirm_extraction/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_submit_assessment.output-schema",
+    "title": "review_submit_assessment complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_submit_assessment/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_get_dimension.output-schema",
+    "title": "review_get_dimension complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_get_dimension/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_confirm_dimension.output-schema",
+    "title": "review_confirm_dimension complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_confirm_dimension/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_finalize.output-schema",
+    "title": "review_finalize complete output schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_finalize/output"
+  },
+  {
+    "description": "服务端实际执行的完整 output JSON Schema。",
+    "mimeType": "application/schema+json",
     "name": "lvke-deliverable-review.review_prepare.output-schema",
     "title": "review_prepare complete output schema",
     "uri": "lvke://schemas/lvke-deliverable-review/review_prepare/output"
@@ -117,6 +166,13 @@
     "name": "review-finding-disposition",
     "title": "Review Finding Disposition",
     "uri": "lvke://schemas/review-finding-disposition"
+  },
+  {
+    "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",
+    "mimeType": "application/schema+json",
+    "name": "lvke-deliverable-review.review_submit_assessment.input-schema",
+    "title": "review_submit_assessment complete input schema",
+    "uri": "lvke://schemas/lvke-deliverable-review/review_submit_assessment/input"
   },
   {
     "description": "服务端实际执行的完整 JSON Schema；tools/list 只发布紧凑投影。",

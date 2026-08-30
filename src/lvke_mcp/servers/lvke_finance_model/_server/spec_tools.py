@@ -366,3 +366,37 @@ def _tool_validate_spec(args: dict) -> dict:
     from lvke_mcp.domains.finance.model_application import validate_spec
 
     return validate_spec(args)
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "EVIDENCE_STORE",
+    "IDEMPOTENCY_STORE",
+    "SERVER_NAME",
+    "SPEC_STORE",
+    "_active_idempotency_record",
+    "_canonical_candidate_inputs",
+    "_err_env",
+    "_exception_env",
+    "_idempotency_ttl_seconds",
+    "_legacy_tool_confirm_spec",
+    "_legacy_tool_prepare_spec",
+    "_ok_env",
+    "_revenue_input_complete",
+    "_str_list",
+    "_tool_confirm_fact_pack",
+    "_tool_confirm_spec",
+    "_tool_get_fact_pack",
+    "_tool_prepare_fact_pack",
+    "_tool_prepare_spec",
+    "_tool_validate_spec",
+    "_ws",
+    "datetime",
+    "hashlib",
+    "ok",
+    "sha256_json",
+    "timedelta",
+    "timezone",
+]

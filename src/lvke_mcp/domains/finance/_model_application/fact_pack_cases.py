@@ -5,7 +5,14 @@ from __future__ import annotations
 from typing import Any
 import hashlib
 
+from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.finance_model_repository import FACT_PACK_STORE
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_formal_record,
+    validate_promoted_source_file,
+    validate_same_formal_lineage,
+)
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
 
@@ -15,6 +22,60 @@ from .base import (
     _ok_env,
     _workspace_id,
 )
+
+
+def _candidate_source_ids(candidate: dict[str, Any]) -> list[str]:
+    return sorted({
+        str(row.get("source_id") or row.get("source_snapshot_id") or row.get("file_id") or "")
+        for row in candidate.get("evidence") or []
+        if isinstance(row, dict)
+        and str(row.get("source_id") or row.get("source_snapshot_id") or row.get("file_id") or "")
+    })
+
+
+def _sim_a_fact_pack_lineage(
+    workspace_id: str,
+    candidate: dict[str, Any],
+    evidence_pack_ids: list[str],
+) -> dict[str, Any]:
+    if not evidence_pack_ids:
+        raise FormalLineageError(
+            "formal_evidence_pack_required",
+            "sim_a_formal FinanceFactPack 必须绑定 EvidencePack",
+        )
+    evidence_records: list[dict[str, Any]] = []
+    for evidence_pack_id in evidence_pack_ids:
+        record = EVIDENCE_STORE.get(workspace_id, evidence_pack_id)
+        if record is None:
+            raise FormalLineageError(
+                "formal_evidence_pack_not_found",
+                f"EvidencePack 不存在或跨工作区: {evidence_pack_id}",
+            )
+        evidence_records.append(record)
+    canonical = validate_same_formal_lineage(workspace_id, evidence_records)
+    promoted_ids = {
+        str(row.get("file_id") or "")
+        for row in canonical["formal_promotion"]["promoted_files"]
+    }
+    source_ids = set(_candidate_source_ids(candidate))
+    if not source_ids:
+        raise FormalLineageError(
+            "formal_fact_pack_source_required",
+            "sim_a_formal FinanceFactPack 缺少 SourceFile 事实绑定",
+        )
+    if not source_ids <= promoted_ids:
+        raise FormalLineageError(
+            "formal_fact_pack_source_set_mismatch",
+            "FinanceFactPack 引用了 promotion 之外的 SourceFile",
+        )
+    for source_id in sorted(source_ids):
+        source_lineage = validate_promoted_source_file(workspace_id, source_id)
+        if source_lineage != canonical:
+            raise FormalLineageError(
+                "formal_lineage_mixed_promotions",
+                "FinanceFactPack SourceFile 与 EvidencePack 来自不同 promotion",
+            )
+    return canonical
 
 
 def _build_evidence_resolver(candidate: dict[str, Any]):
@@ -139,6 +200,22 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     from lvke_mcp.runtime.source_reconstruction import validate_reconstruction_records
 
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
+    evidence_pack_ids = sorted({str(item) for item in args.get("evidence_pack_ids") or [] if str(item)})
+    canonical_lineage: dict[str, Any] = {}
+    if policy == "sim_a_formal":
+        try:
+            canonical_lineage = _sim_a_fact_pack_lineage(
+                workspace_id,
+                candidate,
+                evidence_pack_ids,
+            )
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+                blockers=[exc.code],
+            )
     if policy == "source_reconstructed":
         errors = validate_reconstruction_records(candidate.get("reconstruction_records"))
         if errors:
@@ -172,6 +249,7 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     record = FACT_PACK_STORE.put(
         workspace_id,
         {
+            **canonical_lineage,
             "object_type": "FinanceFactPack",
             "confirmation_status": "draft",
             "fact_pack": snapshot,
@@ -179,7 +257,8 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             "candidate_fingerprint": fingerprint,
             "prepare_idempotency_key_hash": key_hash,
             "evidence_policy": policy,
-            "project_fact_certified": bool(snapshot.get("project_fact_certified")),
+            "evidence_pack_ids": evidence_pack_ids,
+            "project_fact_certified": bool(canonical_lineage) if policy == "sim_a_formal" else bool(snapshot.get("project_fact_certified")),
             "reconstruction_records": list(snapshot.get("reconstruction_records") or []),
             "reconstructed_source_ids": list(snapshot.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(snapshot.get("unresolved_inputs") or []),
@@ -187,7 +266,12 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
         },
         producer=f"{SERVER_NAME}.finance_prepare_fact_pack",
         status="draft",
-        basis={"candidate_fingerprint": fingerprint},
+        source_ids=evidence_pack_ids,
+        basis={
+            "candidate_fingerprint": fingerprint,
+            "evidence_pack_ids": evidence_pack_ids,
+            "formal_promotion": canonical_lineage.get("formal_promotion"),
+        },
     )
     return _fact_pack_result(record, replayed=False)
 
@@ -225,6 +309,23 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             )
         return _fact_pack_result(record, replayed=True)
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
+    evidence_pack_ids = [str(item) for item in source_payload.get("evidence_pack_ids") or [] if str(item)]
+    canonical_lineage: dict[str, Any] = {}
+    if policy == "sim_a_formal":
+        try:
+            validate_formal_record(workspace_id, source)
+            canonical_lineage = _sim_a_fact_pack_lineage(
+                workspace_id,
+                candidate,
+                evidence_pack_ids,
+            )
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+                blockers=[exc.code],
+            )
     # 与 prepare 共用同一解析器构造，避免两阶段解析路径分叉。
     resolver = _build_evidence_resolver(candidate)
     from lvke_mcp.domains.finance.fact_pack import build_fact_pack_snapshot
@@ -253,6 +354,7 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     record = FACT_PACK_STORE.put(
         workspace_id,
         {
+            **canonical_lineage,
             "object_type": "FinanceFactPack",
             "confirmation_status": "confirmed",
             "parent_fact_pack_id": fact_pack_id,
@@ -263,7 +365,8 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             "confirmation_fingerprint": fingerprint,
             "confirm_idempotency_key_hash": key_hash,
             "evidence_policy": policy,
-            "project_fact_certified": bool(confirmed.get("project_fact_certified")),
+            "evidence_pack_ids": evidence_pack_ids,
+            "project_fact_certified": bool(canonical_lineage) if policy == "sim_a_formal" else bool(confirmed.get("project_fact_certified")),
             "reconstruction_records": list(confirmed.get("reconstruction_records") or []),
             "reconstructed_source_ids": list(confirmed.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(confirmed.get("unresolved_inputs") or []),
@@ -271,10 +374,12 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
         },
         producer=f"{SERVER_NAME}.finance_confirm_fact_pack",
         status="confirmed",
-        source_ids=[fact_pack_id],
+        source_ids=[fact_pack_id, *evidence_pack_ids],
         basis={
             "parent_basis_hash": source.get("basis_hash"),
             "fact_pack_hash": confirmed.get("fact_pack_hash"),
+            "evidence_pack_ids": evidence_pack_ids,
+            "formal_promotion": canonical_lineage.get("formal_promotion"),
         },
     )
     return _fact_pack_result(record, replayed=False)
@@ -316,3 +421,31 @@ def _fact_pack_result(record: dict[str, Any], *, replayed: bool) -> dict[str, An
         binding_assessment=pack.get("binding_assessment") or {},
         replayed=replayed,
     )
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "EVIDENCE_STORE",
+    "FACT_PACK_STORE",
+    "FormalLineageError",
+    "SERVER_NAME",
+    "_build_evidence_resolver",
+    "_candidate_source_ids",
+    "_err_env",
+    "_fact_pack_result",
+    "_ok_env",
+    "_sim_a_fact_pack_lineage",
+    "_workspace_id",
+    "confirm_fact_pack",
+    "get_fact_pack",
+    "hashlib",
+    "ok",
+    "prepare_fact_pack",
+    "sha256_json",
+    "validate_formal_record",
+    "validate_promoted_source_file",
+    "validate_same_formal_lineage",
+]

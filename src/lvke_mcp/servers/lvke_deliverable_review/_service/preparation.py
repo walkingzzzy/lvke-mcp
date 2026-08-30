@@ -5,6 +5,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_object_formal_lineage,
+)
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 from lvke_mcp.runtime.evidence_qualification import (
     CERTIFYING_POLICIES,
@@ -76,8 +80,22 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             for item in (resolved.get("snapshot") or {}).get("components") or []
             if isinstance(item, dict)
         ]
+        review_profile = str(args.get("review_profile") or "")
+        review_mode = str(args.get("review_mode") or "")
+        if target["target_type"] == "review_package":
+            package_payload = (resolved.get("snapshot") or {}).get("payload") or {}
+            review_profile = review_profile or str(package_payload.get("review_profile") or "standard")
+            review_mode = review_mode or str(package_payload.get("review_mode") or "external")
+            if review_profile != str(package_payload.get("review_profile") or ""):
+                return _blocked("review_profile_package_mismatch", "review_profile 必须与冻结 ReviewPackage 一致")
+            if review_mode != str(package_payload.get("review_mode") or ""):
+                return _blocked("review_mode_package_mismatch", "review_mode 必须与冻结 ReviewPackage 一致")
+        raw_project_context = dict(args.get("project_context") or {})
+        if target["target_type"] == "review_package" and review_mode == "external":
+            raw_project_context.setdefault("review_purpose", "process_acceptance")
+            raw_project_context.setdefault("release_scope", "process_acceptance")
         project_context = normalize_project_context(
-            args.get("project_context"),
+            raw_project_context,
             target_type=target["target_type"],
         )
         pack = rules.compose(
@@ -99,20 +117,48 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             resolved,
         )
         target_snapshot = resolved.get("snapshot") if isinstance(resolved.get("snapshot"), dict) else {}
+        package_payload = (
+            target_snapshot.get("payload")
+            if target["target_type"] == "review_package"
+            and isinstance(target_snapshot.get("payload"), dict)
+            else {}
+        )
         revision_record = target_snapshot.get("revision_record") if isinstance(target_snapshot.get("revision_record"), dict) else {}
         revision_payload = revision_record.get("payload") if isinstance(revision_record.get("payload"), dict) else {}
         upstream = revision_payload.get("upstream") if isinstance(revision_payload.get("upstream"), dict) else {}
         track = str(project_context.get("evidence_track") or "real")
-        evidence_policy = declared_evidence_policy(upstream, default=track)
-        certified = project_fact_may_be_certified(
-            evidence_policy,
-            own_qualification_passed=True,
-            parents=[upstream],
-        )
-        if track == SIM_A_FORMAL and evidence_policy in CERTIFYING_POLICIES:
-            certified = True
+        if target["target_type"] == "review_package":
+            if review_mode == "internal":
+                track = SIM_A_FORMAL
+                project_context["evidence_track"] = SIM_A_FORMAL
+                project_context["review_purpose"] = "project_delivery"
+                project_context["release_scope"] = "project_delivery"
+                upstream = package_payload
+            else:
+                upstream = {}
+        if track == SIM_A_FORMAL:
+            try:
+                canonical_lineage = validate_object_formal_lineage(
+                    workspace_id,
+                    upstream,
+                )
+            except FormalLineageError as exc:
+                return _blocked(
+                    exc.code,
+                    f"审查目标的正式 promotion 谱系无效：{exc.message}",
+                )
             evidence_policy = SIM_A_FORMAL
+            certified = True
+        else:
+            canonical_lineage = {}
+            evidence_policy = declared_evidence_policy(upstream, default=track)
+            certified = project_fact_may_be_certified(
+                evidence_policy,
+                own_qualification_passed=True,
+                parents=[upstream],
+            )
         evidence_metadata = {
+            **canonical_lineage,
             "evidence_policy": evidence_policy,
             "project_fact_certified": certified,
             "reconstruction_records": list(upstream.get("reconstruction_records") or []),
@@ -135,6 +181,8 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "target_spec": resolved["target_spec"],
             "target_snapshot": resolved["snapshot"],
             "mandatory_findings": mandatory_findings,
+            "review_profile": review_profile or "quick",
+            "review_mode": review_mode or "internal",
         }
         record = PREPARATION_STORE.put(
             workspace_id, preparation_payload,
@@ -171,6 +219,8 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             excluded_rules=pack.get("excluded_rules") or [],
             legacy_gate_snapshot=legacy_gate_snapshot,
             mandatory_findings=mandatory_findings,
+            review_profile=preparation_payload["review_profile"],
+            review_mode=preparation_payload["review_mode"],
             resource_uris=[record["resource_uri"]], warnings=warnings, blockers=[],
             next_actions=["调用 review_start 创建不可变审查运行"],
         )
@@ -376,3 +426,39 @@ def _component_preparation(parent: dict[str, Any], component: dict[str, Any]) ->
     child["target_snapshot"] = component.get("snapshot") or {}
     child["bindings"] = component.get("bindings") or {}
     return child
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "CERTIFYING_POLICIES",
+    "FormalLineageError",
+    "PREPARATION_STORE",
+    "REPO_ROOT",
+    "SIM_A_FORMAL",
+    "_PREPARATION_BASIS_FIELDS",
+    "_binding_snapshot",
+    "_blocked",
+    "_component_preparation",
+    "_legacy_gate_snapshot",
+    "_mandatory_findings",
+    "_ok",
+    "_preparation_basis",
+    "_resolve_target",
+    "_run_from_preparation",
+    "_standard_basis",
+    "_verified_preparation_record",
+    "_write",
+    "declared_evidence_policy",
+    "deepcopy",
+    "normalize_project_context",
+    "normalize_target",
+    "prepare",
+    "project_fact_may_be_certified",
+    "require_safe_id",
+    "rules",
+    "sha256_json",
+    "validate_object_formal_lineage",
+]

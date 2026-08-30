@@ -89,11 +89,11 @@ _CONTEXT_PROPERTIES = {
         "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal"],
         "default": "real",
     },
-    "evidence_policy": {
+    "promotion_id": {
         "type": "string",
-        "enum": ["real", "source_reconstructed", "technical_fixture", "controlled_assumption", "sim_a_formal", "formal_evidence"],
+        "pattern": r"^zmprom_[0-9a-f]{24}$",
+        "description": "SIM-A 正式上下文唯一允许的资格入口；其余正式字段由服务端推导。",
     },
-    "project_fact_certified": {"type": "boolean"},
     "description": {"type": "string", "maxLength": 10000},
     "tags": {
         "type": "array",

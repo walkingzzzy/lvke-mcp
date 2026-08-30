@@ -682,7 +682,8 @@ def project_confirmed_fact_pack(
         revenue.update({"model": "product_sales", "products": products})
         resolved_spec["revenue"] = revenue
         resolved_spec.setdefault("version", "finance_spec.v1")
-        resolved_spec["source_hint"] = "confirmed_fact_pack"
+        if resolved_spec.get("confirmation_status") != "confirmed":
+            resolved_spec["source_hint"] = "confirmed_fact_pack"
     return out, (resolved_spec or spec), {
         "applied": True,
         "fact_pack_hash": pack.get("fact_pack_hash"),

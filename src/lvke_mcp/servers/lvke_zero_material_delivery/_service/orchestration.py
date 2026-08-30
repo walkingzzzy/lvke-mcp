@@ -15,10 +15,56 @@ from typing import Any
 
 from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import sha256_json
-from lvke_mcp.domains.reports._doc_service.outline import REPORT_CHAPTERS
 
 from .assumptions import _field_values
 from .finance_align import _scenario_inputs
+from .report_profiles import (
+    ReportProfileError,
+    chapter_titles,
+    load_profile_document,
+    resolve_profile,
+    verified_snapshot,
+)
+from .web_research import run as run_public_research
+
+
+def _outline_for(intent: dict[str, Any], route: dict[str, Any]) -> list[str]:
+    """Return the report outline from the frozen profile, never a hardcoded list.
+
+    报告大纲此前是写在这里的一个五项字面量（通用路线）和 ``REPORT_CHAPTERS``
+    （收购路线）。两者都与"报告内容由配置决定"矛盾：换行业换不了章节。
+    配置解析不出来时返回空列表，让 report_prepare 自己按 outline 缺失处理，
+    绝不回落到某个默认章节表。
+    """
+
+    frozen = dict(intent.get("report_profile") or {})
+    # 优先用随运行冻结的快照，理由同 artifact_delivery._resolve_report_profile：
+    # 配置升级或部署根变化后，磁盘上那份可能已经不是本运行用的那份。
+    # 采信必须走 verified_snapshot（从内容复算 hash），不能只看结构完整。
+    verified = verified_snapshot(frozen)
+    if verified is not None:
+        return chapter_titles(verified)
+    profile_id = str(frozen.get("profile_id") or "")
+    if profile_id:
+        try:
+            return chapter_titles(load_profile_document(f"{profile_id}.v1.json"))
+        except ReportProfileError:
+            return []
+    try:
+        resolved = resolve_profile(
+            industry_code=str(route.get("industry_code") or ""),
+            project_type=(
+                "asset_acquisition"
+                if str(route.get("finance_kind") or "") == "asset_acquisition"
+                else "generic_feasibility"
+            ),
+            transaction_structure=str(route.get("transaction_structure") or "") or "new_build",
+            asset_type=str(route.get("asset_type") or "general"),
+            report_type=str(intent.get("report_type") or ""),
+        )
+    except ReportProfileError:
+        return []
+    return chapter_titles(resolved["profile"])
 
 # 光伏资产收购关键词：用于路由解析器识别项目类型
 _ACQUISITION_KEYWORDS = frozenset({
@@ -54,6 +100,8 @@ def _resolve_project_route(intent: dict[str, Any], sentence: str) -> dict[str, A
         "finance_kind_label": "通用可行性研究",
         "route_source": "default",
         "confidence": 0.5,
+        "industry_code": industry_code or "general",
+        "compatibility_warnings": list(industry.get("compatibility_warnings") or []),
     }
 
     # 检测光伏收购
@@ -69,6 +117,7 @@ def _resolve_project_route(intent: dict[str, Any], sentence: str) -> dict[str, A
             "finance_kind_label": "资产收购（光伏）",
             "route_source": "keyword_match",
             "confidence": 0.95,
+            "industry_code": "energy_utilities",
         })
         return result
 
@@ -89,6 +138,7 @@ def _resolve_project_route(intent: dict[str, Any], sentence: str) -> dict[str, A
     if has_solar:
         result.update({
             "asset_type": "solar_power",
+            "industry_code": "energy_utilities",
             "route_source": "keyword_match",
             "confidence": 0.75,
         })
@@ -113,6 +163,15 @@ def _check_route_consistency(
     expected_route = route.get("finance_kind", "generic_feasibility")
     ctx_project_type = str(project_context.get("project_type") or "")
     ctx_transaction = str(project_context.get("transaction_structure") or "")
+    route_industry = str(route.get("industry_code") or "").strip()
+    ctx_industry = str(project_context.get("industry_code") or "").strip()
+    if route_industry and ctx_industry and route_industry != ctx_industry:
+        # Keep the historical environment_utilities value as an input alias,
+        # but canonicalize solar projects to energy_utilities.
+        if not (route_industry == "energy_utilities" and ctx_industry == "environment_utilities"):
+            blockers.append(
+                f"PROJECT_ROUTE_CONFLICT:industry={route_industry},context.industry_code={ctx_industry}"
+            )
 
     # 路线冲突：下游对象 project_type 与路由推断不一致
     if expected_route == "asset_acquisition" and ctx_project_type != "acquisition":
@@ -140,6 +199,12 @@ def _check_route_consistency(
                 f"PROJECT_ROUTE_CONFLICT:solar_acquisition_expects_asset_transfer,"
                 f"got={ctx_transaction}"
             )
+    route_asset = str(route.get("asset_type") or "general")
+    ctx_asset = str(project_context.get("asset_type") or "general")
+    if route_asset != "general" and ctx_asset not in {route_asset, "general"}:
+        blockers.append(
+            f"PROJECT_ROUTE_CONFLICT:asset_type={route_asset},context.asset_type={ctx_asset}"
+        )
 
     return blockers
 
@@ -321,10 +386,10 @@ def _execute_solar_acquisition_preview(
     lineage_key: str,
 ) -> dict[str, Any]:
     """Run Jiangxia through the dedicated acquisition service, never generic finance."""
-    from lvke_mcp.servers.lvke_asset_acquisition import service as acquisition
+    from lvke_mcp.runtime import service_gateway as acquisition_gateway
 
     spec = _solar_acquisition_spec(intent, assumption_package)
-    checked = acquisition.validate_spec(spec)
+    checked = acquisition_gateway.acquisition_validate_spec(spec)
     acquisition_quality_issues = [
         str(item)
         for item in (
@@ -334,51 +399,82 @@ def _execute_solar_acquisition_preview(
             or []
         )
     ]
-    saved = acquisition.save_spec(workspace_id, spec, f"zmd-acq-save-{lineage_key}")
+    saved = acquisition_gateway.acquisition_save_spec(
+        workspace_id, spec, f"zmd-acq-save-{lineage_key}"
+    )
     if not saved.get("spec_id"):
         return {"status": "model_blocked", "route": route, "finance_kind": "asset_acquisition",
                 "system_success": True, "business_success": False, "formal_ready": False,
                 "research": research, "project_context": project_context, "spec": saved,
                 "blockers": list(saved.get("blockers") or ["acquisition_spec_save_failed"])}
-    confirmed = acquisition.confirm_spec(workspace_id, str(saved["spec_id"]),
-                                         "零材料光伏收购技术预览", f"zmd-acq-confirm-{lineage_key}",
-                                         confirmation_scope="project_candidate")
+    confirmed = acquisition_gateway.acquisition_confirm_spec(
+        workspace_id, str(saved["spec_id"]),
+        "零材料光伏收购技术预览", f"zmd-acq-confirm-{lineage_key}",
+        confirmation_scope="project_candidate",
+    )
     if not confirmed.get("spec_id"):
         return {"status": "model_blocked", "route": route, "finance_kind": "asset_acquisition",
                 "system_success": True, "business_success": False, "formal_ready": False,
                 "research": research, "project_context": project_context, "spec": saved,
                 "confirmation": confirmed, "blockers": list(confirmed.get("blockers") or ["acquisition_spec_confirm_failed"])}
-    run = acquisition.run_model(workspace_id, str(confirmed["spec_id"]), 0.08, "base",
-                                f"zmd-acq-run-{lineage_key}")
+    run = acquisition_gateway.acquisition_run_model(
+        workspace_id, str(confirmed["spec_id"]), 0.08, "base", f"zmd-acq-run-{lineage_key}"
+    )
     run_id = str(run.get("run_id") or "")
     if not run_id:
         return {"status": "model_blocked", "route": route, "finance_kind": "asset_acquisition",
                 "system_success": True, "business_success": False, "formal_ready": False,
                 "research": research, "project_context": project_context, "spec": confirmed,
                 "run": run, "blockers": list(run.get("blockers") or ["acquisition_run_failed"])}
-    package = acquisition.render_tables(workspace_id, run_id, f"zmd-acq-tables-{lineage_key}")
+    package = acquisition_gateway.acquisition_render_tables(
+        workspace_id, run_id, f"zmd-acq-tables-{lineage_key}"
+    )
     package_id = str(package.get("finance_tables_package_id") or package.get("acquisition_tables_package_id") or "")
-    csv_export = acquisition.export_tables_csv(workspace_id, package_id, f"zmd-acq-csv-{lineage_key}") if package_id else {}
-    xlsx_export = acquisition.export_tables(workspace_id, package_id, f"zmd-acq-xlsx-{lineage_key}") if package_id else {}
+    csv_export = (
+        acquisition_gateway.acquisition_export_tables_csv(
+            workspace_id, package_id, f"zmd-acq-csv-{lineage_key}"
+        )
+        if package_id
+        else {}
+    )
+    xlsx_export = (
+        acquisition_gateway.acquisition_export_tables_xlsx(
+            workspace_id, package_id, f"zmd-acq-xlsx-{lineage_key}"
+        )
+        if package_id
+        else {}
+    )
     acquisition_quality_issues.extend([
         "research_evidence_pending",
         "project_fact_evidence_pending",
         *[str(item) for item in run.get("quality_issues") or []],
         *[str(item) for item in package.get("quality_issues") or []],
     ])
-    acquisition_quality_issues = sorted(set(acquisition_quality_issues))
+    # 与通用财务路线走同一个严重性判定入口。此前这里把 blockers 硬编码成 []、
+    # business_success/completed 恒为 True,于是 validate_spec 报出的口径非法问题
+    # (project_scale_inconsistent、controlled_assumption_formal_forbidden、
+    # source_reconstructed_cannot_certify_project_fact 等)被一并降级成质量提示,
+    # 同样的问题在通用路线报 blocked、在收购路线却报 partial+可交付。
+    # 不要在这里自己再判一遍严重性——那正是严重性判定退化成 [] 的成因。
+    blocking_codes, acquisition_quality_issues = split_quality_codes(acquisition_quality_issues)
     return {
-        "status": "partial" if acquisition_quality_issues else "ok", "route": route,
-        "finance_kind": "asset_acquisition", "acceptance_level": "generated_with_warnings",
-        "system_success": True, "business_success": True, "completed": True,
+        "status": "blocked" if blocking_codes else ("partial" if acquisition_quality_issues else "ok"),
+        "route": route,
+        "finance_kind": "asset_acquisition",
+        "acceptance_level": "generated_with_warnings" if acquisition_quality_issues else "complete",
+        "system_success": True,
+        "business_success": not blocking_codes,
+        "completed": not blocking_codes,
+        # 收购预览永远不是正式件:即使没有阻断项,证据轨仍是受控假设。
         "formal_ready": False, "research": research, "project_context": project_context,
         "finance_validation": checked,
         "finance_spec": confirmed, "finance_run": run, "tables": package,
         "csv_export": csv_export, "xlsx_export": xlsx_export,
         "report_preparation": {"finance_binding": {"kind": "asset_acquisition", "run_id": run_id,
                                                        "package_id": package_id},
-                               "research_package_ids": [], "outline": list(REPORT_CHAPTERS)},
-        "blockers": [],
+                               "research_package_ids": [],
+                               "outline": _outline_for(intent, route)},
+        "blockers": blocking_codes,
         "quality_issues": acquisition_quality_issues,
         "warnings": [f"质量提示：{item}" for item in acquisition_quality_issues],
         "object_refs": {"research_task_id": str(research.get("task_id") or ""),
@@ -420,6 +516,25 @@ def execute(
         route,
         idempotency_key=f"zmd-research-{lineage_key}",
     )
+    public_research = run_public_research(
+        workspace_id,
+        intent,
+        route,
+        research,
+        idempotency_key=f"zmd-public-research-{lineage_key}",
+    )
+    research = {
+        **research,
+        "status": public_research.get("status") or research.get("status"),
+        "public_research": public_research,
+        "resource_uris": sorted({
+            *list(research.get("resource_uris") or []),
+            *list(public_research.get("resource_uris") or []),
+        } - {""}),
+        "source_snapshot_ids": list(public_research.get("source_snapshot_ids") or []),
+        "evidence_pack_id": str(public_research.get("evidence_pack_id") or ""),
+        "research_package_id": str(public_research.get("research_package_id") or ""),
+    }
     project_context = _create_project_context(
         workspace_id,
         intent,
@@ -459,7 +574,10 @@ def execute(
             "workspace_id": workspace_id,
             "spec": spec,
             "input_revision": finance_inputs,
-            "evidence_pack_ids": [],
+            "evidence_pack_ids": (
+                [str(public_research["evidence_pack_id"])]
+                if public_research.get("evidence_pack_id") else []
+            ),
         }
     )
     # FinanceRun 之前做尺度对账：算术自洽不代表业务尺度成立。
@@ -600,26 +718,32 @@ def execute(
 
     # P1-027: 根据路由选择 finance_binding kind
     finance_binding_kind = "asset_acquisition" if finance_kind == "asset_acquisition" else "generic_feasibility"
-    # 资产收购使用 acquisition report type
-    report_kind = "asset_acquisition" if finance_kind == "asset_acquisition" else "generic_feasibility"
     report_preparation = report_generation.prepare(
         {
             "workspace_id": workspace_id,
-            "evidence_pack_ids": [],
-            "research_package_ids": [],
+            "evidence_pack_ids": (
+                [str(public_research["evidence_pack_id"])]
+                if public_research.get("evidence_pack_id") else []
+            ),
+            "research_package_ids": (
+                [str(public_research["research_package_id"])]
+                if public_research.get("research_package_id") else []
+            ),
             "finance_binding": {
                 "kind": finance_binding_kind,
                 "run_id": finance_run_id,
                 "package_id": package_id,
             },
-            "outline": [
-                "项目识别与交付边界",
-                "受控假设与关键参数确认",
-                "财务技术预估",
-                "十三表与工件清单",
-                "资料缺口与后续行动",
-            ],
+            # 大纲来自冻结的报告配置，不是写死的五项。
+            "outline": _outline_for(intent, route),
             "template_version": "zero-material-estimate-preview.v1",
+            "evidence_policy": (
+                "controlled_assumption"
+                if public_research.get("fallback_used")
+                else "real"
+            ),
+            "unresolved_inputs": list(public_research.get("unresolved_inputs") or []),
+            "release_limitations": list(public_research.get("limitations") or []),
         }
     )
     export_blockers = [
@@ -627,7 +751,8 @@ def execute(
         *([] if xlsx_export.get("xlsx_resource") else ["finance_tables_xlsx_export_failed"]),
     ]
     quality_issues.extend([
-        "research_evidence_pending",
+        *([] if public_research.get("research_package_id") else ["research_evidence_pending"]),
+        *(["zero_material_public_search_fallback"] if public_research.get("fallback_used") else []),
         "planning_market_evidence_pending",
         *[str(item) for item in report_preparation.get("quality_issues") or []],
         *export_blockers,
@@ -663,6 +788,8 @@ def execute(
         ],
         "object_refs": {
             "research_task_id": str(research.get("task_id") or ""),
+            "research_package_id": str(public_research.get("research_package_id") or ""),
+            "evidence_pack_id": str(public_research.get("evidence_pack_id") or ""),
             "project_context_id": str(project_context.get("project_context_id") or ""),
             "finance_spec_id": confirmed_spec_id,
             "finance_run_id": finance_run_id,

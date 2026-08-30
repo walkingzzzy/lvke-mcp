@@ -52,7 +52,7 @@ def build_server() -> OfficialStdioServer:
     server.register_tool(
         "feasibility_start",
         "创建不可变可研交付运行和阶段清单。",
-        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "project_context_id": _ID, "delivery_mode": {"type": "string", "enum": list(DELIVERY_MODES)}, "evidence_policy": {"type": "string", "enum": list(EVIDENCE_POLICIES)}, "release_scope": {"type": "string", "enum": list(RELEASE_SCOPES)}, "project_fact_certified": {"type": "boolean"}, "reconstructed_source_ids": {"type": "array", "items": _ID}, "reconstruction_records": {"type": "array", "items": {"type": "object", "additionalProperties": True}}, "unresolved_inputs": {"type": "array", "items": {"type": "string"}}, "release_limitations": {"type": "array", "items": {"type": "string"}}, "idempotency_key": _KEY}, "required": ["workspace_id", "delivery_mode", "idempotency_key"]},
+        {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "project_context_id": _ID, "delivery_mode": {"type": "string", "enum": list(DELIVERY_MODES)}, "evidence_policy": {"type": "string", "enum": list(EVIDENCE_POLICIES)}, "release_scope": {"type": "string", "enum": list(RELEASE_SCOPES)}, "reconstructed_source_ids": {"type": "array", "items": _ID}, "reconstruction_records": {"type": "array", "items": {"type": "object", "additionalProperties": True}}, "unresolved_inputs": {"type": "array", "items": {"type": "string"}}, "release_limitations": {"type": "array", "items": {"type": "string"}}, "idempotency_key": _KEY}, "required": ["workspace_id", "delivery_mode", "idempotency_key"]},
         service.start, _OUTPUT, write,
     )
     server.register_tool(
@@ -163,3 +163,34 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "DELIVERY_MODES",
+    "EVIDENCE_POLICIES",
+    "OfficialStdioServer",
+    "RELEASE_SCOPES",
+    "ReadResourceContents",
+    "SERVER",
+    "SERVER_NAME",
+    "SERVER_VERSION",
+    "STAGES",
+    "STAGE_STATUSES",
+    "_ID",
+    "_KEY",
+    "_OUTPUT",
+    "_URI",
+    "_WS",
+    "_read_resource",
+    "build_server",
+    "get_logger",
+    "json",
+    "logger",
+    "main",
+    "resource_registry",
+    "service",
+    "types",
+]

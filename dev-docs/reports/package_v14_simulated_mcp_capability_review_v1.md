@@ -2,6 +2,10 @@
 
 版本：v1　审查日期：2026-08-19　事实源：当前文件系统、重启后实时 MCP、插件 Skills 清单
 
+> 历史快照：本文中的 171 工具、28 Resource 和“未发布 outputSchema”是 2026-08-19 的观测，
+> 不代表当前运行时。当前实时拓扑（2026-08-30）为 14 server / 180 tools / 242 Resource，
+> 工具 `outputSchema` 覆盖率为 180/180（100%）。
+
 ## 管理层摘要
 
 本次审查覆盖 `package_v14_simulated` 全部 63 个文件（37 Markdown、2 XLSX、1 DOCX、7 JSON、15 Python），并对工作树源码、`plugins/lvke-mcp/skills`、重启后的 MCP 运行时分别核对。结论不是单一分数，而是四道独立门禁：
@@ -70,7 +74,7 @@
 |---|---|---|
 | 工作树源码 | `server_manifest.py` 固定 14 个服务；源码包含项目规划、研究、源文件、财务、十三表、报告、审查、治理、交付和恢复域 | 业务覆盖面完整，但当前 tracked worktree dirty |
 | 插件 Skills | `plugins/lvke-mcp/skills` 恰为 15 个，与 `src/lvke_mcp/runtime/skill_inventory.json` 15 个完全一致 | 产品清单与插件清单无数量漂移；根目录另有开发用 `lvke-desktop`/`lvke-frontend`，不应算产品 Skill |
-| 重启后运行时 | 14 服务、171 工具、28 Resource；所有工具 `taskSupport=forbidden`；171 个工具均未发布 `outputSchema` | 覆盖分母已冻结为实时 `tools/list`；输出契约强度和 metadata 仍不足 |
+| 重启后运行时（历史观测） | 14 服务、171 工具、28 Resource；所有工具 `taskSupport=forbidden`；171 个工具均未发布 `outputSchema` | 当前实时分母已更新为 14 server / 180 tools / 242 Resource，`outputSchema` 180/180；本行仅保留历史观测 |
 
 运行时所有代表性 envelope 都含 `trace_id`、input/content/basis hash 字段、stage、quality/evidence 状态、lineage 和 next_actions；但所有服务返回 `build_metadata_incomplete`，missing `build_time`。原因是 `runtime/build_metadata.py` 在 tracked worktree dirty 时主动清空构建时间；源码中的 `build_metadata.json`（2a70… commit、2026-08-16 build_time）与运行时 commit（46a64…）发生漂移。
 

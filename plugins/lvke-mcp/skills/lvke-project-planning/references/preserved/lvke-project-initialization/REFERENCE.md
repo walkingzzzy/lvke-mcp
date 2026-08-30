@@ -20,6 +20,8 @@ description: "Create, validate, revise, and resume immutable Lvke ProjectContext
 - `missing_inputs`：只补指定字段并重新校验。
 - `blocked/conflict`：不得创建下游正式对象；读取 blocker 或最新 basis 后恢复。
 - `controlled_assumption` 只能进入技术估算，不能升级为真实证据。
+- SIM-A 正式上下文只提交 `promotion_id`；服务端重算 policy、origin、认证状态和
+  promoted files。调用方自报资格、缺失 promotion、跨工作区或历史无签名均阻断。
 - 不把 acquisition、operation lease 或 greenfield 隐式互换，不让 Codex 自造业务对象 ID。
 
 完成条件是 ProjectContext 已验证、InputApplicability 已固化且下游使用同一 basis，不是“工具返回了 JSON”。

@@ -1035,7 +1035,7 @@ def run_reconstructed_acquisition_case(
     package_id = str(package["acquisition_tables_package_id"])
     xlsx = tables.export_xlsx(workspace_id, package_id)
     csv = tables.export_csv(workspace_id, package_id)
-    if not xlsx.get("xlsx_resource_uri") or len(csv.get("csv_resource_uris") or []) != 15:
+    if not xlsx.get("xlsx_resource_uri") or len(csv.get("csv_resource_uris") or []) != 18:
         raise ValueError(f"acquisition table export failed: xlsx={xlsx}; csv={csv}")
     return {
         "workspace_id": workspace_id,
@@ -1320,7 +1320,29 @@ def run_reconstructed_research_case(
 
     workspace_id = str(finance["workspace_id"])
     evidence_pack_id = str(finance["evidence_pack_id"])
-    binding = dict(planning["evidence_binding"])
+    from lvke_mcp.servers.lvke_source_files import service as source_files
+
+    citation_source_id = ""
+    citation_source_hash = ""
+    citation_locator = ""
+    for source_id in finance.get("source_file_ids") or [finance["source_file_id"]]:
+        source = source_files.get_source_file(workspace_id, str(source_id))
+        analysis = source.get("analysis") if isinstance(source.get("analysis"), dict) else {}
+        parsed = next(
+            (
+                item for item in analysis.get("locators") or []
+                if isinstance(item, dict) and item.get("locator")
+            ),
+            None,
+        )
+        source_record = source.get("source_file") if isinstance(source.get("source_file"), dict) else {}
+        if parsed is not None and source_record.get("sha256"):
+            citation_source_id = str(source_id)
+            citation_source_hash = str(source_record["sha256"])
+            citation_locator = str(parsed["locator"])
+            break
+    if not citation_source_id:
+        raise ValueError("source reconstruction research requires a parsed source locator")
     started = research.start_agent({
         "workspace_id": workspace_id,
         "topic": topic,
@@ -1337,13 +1359,13 @@ def run_reconstructed_research_case(
         "task_id": started["task_id"],
         "report_md": "现有报告与模板已形成可定位的来源重建研究包。",
         "citations": [{
-            "source_id": binding["source_id"],
-            "resource_uri": f"lvke://source-files/workspaces/{workspace_id}/files/{finance['source_file_id']}",
-            "locator": binding["locator"],
-            "content_hash": binding["content_hash"],
+            "source_id": citation_source_id,
+            "resource_uri": f"lvke://source-files/workspaces/{workspace_id}/files/{citation_source_id}",
+            "locator": citation_locator,
+            "content_hash": citation_source_hash,
         }],
         "evidence_pack_ids": [evidence_pack_id],
-        "source_snapshot_ids": [finance["source_file_id"]],
+        "source_snapshot_ids": [citation_source_id],
         "quality_summary": {
             "query_rounds": 1,
             "usable_source_count": 1,
@@ -1355,8 +1377,8 @@ def run_reconstructed_research_case(
             "field": "market_size",
             "value": 10000,
             "unit": "服务单位/年",
-            "locator": binding["locator"],
-            "source_snapshot_id": finance["source_file_id"],
+            "locator": citation_locator,
+            "source_snapshot_id": citation_source_id,
         }],
         "unresolved_inputs": list(limitations),
         "release_limitations": ["来源重建研究不认证项目事实"],
@@ -1542,7 +1564,7 @@ def _patch_report_section(
     section_number: int,
     body: str,
     summary: str,
-) -> str:
+) -> tuple[str, str]:
     from lvke_mcp.adapters.report_repository import PREPARATION_STORE
     from lvke_mcp.domains.reports import application as reports
 
@@ -1565,7 +1587,7 @@ def _patch_report_section(
             "basis_hash": str(preparation.get("basis_hash") or ""),
             "report_revision_id": revision_id,
             "upstream_refs": list(report["upstream_refs"]),
-            "citation_locators": ["section:9/source-reconstructed"],
+            "citation_locators": [descriptor["section_id"]],
             "upstream_basis_hashes": dict(report["upstream_basis_hashes"]),
         },
     })
@@ -1582,7 +1604,7 @@ def _patch_report_section(
     checked = reports.validate_section(workspace_id, revised, descriptor["section_id"])
     if not checked.get("success"):
         raise ValueError(f"report remediation validation failed: {checked}")
-    return revised
+    return revised, str(descriptor["section_id"])
 
 
 def run_reconstructed_review_closure(
@@ -1597,7 +1619,7 @@ def run_reconstructed_review_closure(
     from lvke_mcp.servers.lvke_deliverable_review import service as review
 
     workspace_id = str(finance["workspace_id"])
-    initial_revision_id = _patch_report_section(
+    initial_revision_id, _initial_section_id = _patch_report_section(
         workspace_id=workspace_id,
         report=report,
         revision_id=str(report["report_revision_id"]),
@@ -1653,7 +1675,7 @@ def run_reconstructed_review_closure(
     if not disposition.get("success"):
         raise ValueError(f"finding disposition failed: {disposition}")
 
-    final_revision_id = _patch_report_section(
+    final_revision_id, final_section_id = _patch_report_section(
         workspace_id=workspace_id,
         report=report,
         revision_id=initial_revision_id,
@@ -1664,7 +1686,7 @@ def run_reconstructed_review_closure(
     revision = REVISION_STORE.get(workspace_id, final_revision_id) or {}
     remediation_evidence = [{
         "source_id": final_revision_id,
-        "locator": "section:9",
+        "locator": {"section_id": final_section_id},
         "content_hash": str(revision.get("content_hash") or ""),
     }]
     retested = review.retest({
@@ -1725,7 +1747,6 @@ def run_reconstructed_delivery_release(
     reconstruction_records = list(
         finance.get("reconstruction_records") or [finance["reconstruction_record"]]
     )
-    reconstruction = dict(reconstruction_records[0])
     started = delivery.start({
         "workspace_id": workspace_id,
         "delivery_mode": "formal_release",

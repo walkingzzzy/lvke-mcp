@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import json
 from typing import Any
 
 from openpyxl import Workbook
@@ -32,6 +33,52 @@ from .rows import (
     _rows,
     _table_contract,
 )
+
+
+_SUPPLEMENTAL_COLUMNS: dict[str, tuple[tuple[str, str], ...]] = {
+    "monthly_income_statement": (
+        ("month", "月序号"), ("period_start", "期间开始日期"), ("period_end", "期间结束日期"),
+        ("revenue_wan", "营业收入（万元）"), ("hotel_revenue_wan", "酒店收入（万元）"),
+        ("lease_revenue_wan", "租赁收入（万元）"), ("operating_cost_wan", "经营成本（万元）"),
+        ("depreciation_wan", "折旧（万元）"), ("interest_wan", "利息（万元）"),
+        ("income_tax_wan", "所得税（万元）"), ("net_profit_wan", "净利润（万元）"),
+    ),
+    "monthly_balance_sheet": (
+        ("month", "月序号"), ("period_start", "期间开始日期"), ("period_end", "期间结束日期"),
+        ("cash_wan", "货币资金（万元）"), ("fixed_asset_net_wan", "固定资产净值（万元）"),
+        ("total_assets_wan", "资产合计（万元）"), ("debt_wan", "有息负债（万元）"),
+        ("equity_wan", "所有者权益（万元）"),
+        ("total_liabilities_equity_wan", "负债和权益合计（万元）"),
+    ),
+}
+
+
+def _export_manifest(
+    payload: dict[str, Any],
+    *,
+    package_id: str,
+    export_format: str,
+    files: dict[str, str],
+) -> dict[str, Any]:
+    return {
+        "manifest_schema": "acquisition_monthly_export_manifest.v1",
+        "export_format": export_format,
+        "package_id": package_id,
+        "run_id": payload.get("run_id"),
+        "spec_id": payload.get("spec_id"),
+        "spec_hash": payload.get("spec_hash"),
+        "input_hash": payload.get("input_hash"),
+        "model_version": payload.get("model_version"),
+        "monthly_driver_manifest": payload.get("monthly_driver_manifest") or {},
+        "operating_calendar": payload.get("operating_calendar") or {},
+        "annual_reconciliation": payload.get("annual_reconciliation") or [],
+        "evidence_policy": payload.get("evidence_policy"),
+        "evidence_origin": payload.get("evidence_origin"),
+        "project_fact_certified": bool(payload.get("project_fact_certified", False)),
+        "formal_promotion": payload.get("formal_promotion"),
+        "lineage": payload.get("lineage"),
+        "files": files,
+    }
 
 
 def _ensure_exportable(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -72,9 +119,12 @@ def export_csv(
     preview = grade == "technical_preview"
     uris: list[str] = []
     hashes: dict[str, str] = {}
-    for key, _name in definitions:
+    export_tables = [*definitions, *[
+        (key, key) for key in _SUPPLEMENTAL_COLUMNS if (payload.get("tables") or {}).get(key)
+    ]]
+    for key, _name in export_tables:
         target = directory / f"{key}.csv"
-        columns = columns_by_key[key]
+        columns = columns_by_key.get(key) or _SUPPLEMENTAL_COLUMNS[key]
         with target.open("w", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle, lineterminator="\r\n")
             if preview:
@@ -87,6 +137,20 @@ def export_csv(
             PACKAGE_STORE.uri(workspace_id, package_id)
             + f"/csv/{key}"
         )
+    manifest = _export_manifest(
+        payload,
+        package_id=package_id,
+        export_format="csv",
+        files=hashes,
+    )
+    manifest_target = directory / "manifest.json"
+    manifest_target.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    manifest_hash = "sha256:" + hashlib.sha256(manifest_target.read_bytes()).hexdigest()
+    manifest_uri = PACKAGE_STORE.uri(workspace_id, package_id) + "/csv/manifest"
+    uris.append(manifest_uri)
     # release_grade / technical_preview / formal_usable / release_limitations
     # 与预览 warning 由 _result 统一给出（render/get/list/export 共用同一口径），
     # 这里只补导出专有字段。
@@ -94,6 +158,9 @@ def export_csv(
     result.update({
         "csv_resource_uris": uris,
         "csv_hashes": hashes,
+        "monthly_export_manifest": manifest,
+        "monthly_export_manifest_hash": manifest_hash,
+        "monthly_export_manifest_uri": manifest_uri,
         # 交付物落盘绝对目录：收购各表 CSV 均在此目录下。
         "deliverable_path": str(directory),
         "resource_uris": [*result["resource_uris"], *uris],
@@ -131,9 +198,13 @@ def export_xlsx(
     header_font = Font(color="FFFFFF", bold=True)
     thin_gray = Side(style="thin", color="D9E2F3")
 
-    for index, (key, name) in enumerate(definitions, 1):
+    export_tables = [*definitions, *[
+        (key, "月度利润表" if key == "monthly_income_statement" else "月度资产负债表")
+        for key in _SUPPLEMENTAL_COLUMNS if (payload.get("tables") or {}).get(key)
+    ]]
+    for index, (key, name) in enumerate(export_tables, 1):
         sheet = workbook.create_sheet(title=f"{index:02d}-{name}"[:31])
-        columns = columns_by_key[key]
+        columns = columns_by_key.get(key) or _SUPPLEMENTAL_COLUMNS[key]
         if preview:
             sheet.append([_XLSX_PREVIEW_BANNER])
         sheet.append([label for _field, label in columns])
@@ -186,16 +257,32 @@ def export_xlsx(
     workbook.calculation.forceFullCalc = True
     workbook.save(target)
     digest = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
+    manifest = _export_manifest(
+        payload,
+        package_id=package_id,
+        export_format="xlsx",
+        files={"workbook": digest},
+    )
+    manifest_target = target.with_suffix(target.suffix + ".manifest.json")
+    manifest_target.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    manifest_hash = "sha256:" + hashlib.sha256(manifest_target.read_bytes()).hexdigest()
     uri = PACKAGE_STORE.uri(workspace_id, package_id) + "/xlsx"
+    manifest_uri = PACKAGE_STORE.uri(workspace_id, package_id) + "/xlsx/manifest"
     # 等级与限制说明同样由 _result 统一给出；XLSX 侧额外把横幅写进 A1
     # 与文件名后缀（见上方 preview 分支），那是文件内标记，不是响应字段。
     result = _result(record)
     result.update({
         "xlsx_resource_uri": uri,
         "xlsx_hash": digest,
+        "monthly_export_manifest": manifest,
+        "monthly_export_manifest_hash": manifest_hash,
+        "monthly_export_manifest_uri": manifest_uri,
         # 交付物落盘绝对路径。
         "deliverable_path": str(target),
-        "resource_uris": [*result["resource_uris"], uri],
+        "resource_uris": [*result["resource_uris"], uri, manifest_uri],
         "warnings": [
             *list(result.get("warnings") or []),
             *([f"技术预览：{_XLSX_PREVIEW_BANNER}"] if preview else []),

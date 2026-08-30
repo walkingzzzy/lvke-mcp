@@ -14,6 +14,10 @@ from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     sha256_json,
 )
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_formal_promotion,
+)
 from lvke_mcp.adapters.project_planning_repository import (
     INPUT_APPLICABILITY_STORE,
     PROJECT_CONTEXT_STORE,
@@ -39,8 +43,7 @@ _CONTEXT_FIELDS = {
     "target_type",
     "asset_type",
     "evidence_track",
-    "evidence_policy",
-    "project_fact_certified",
+    "promotion_id",
     "description",
     "tags",
 }
@@ -323,18 +326,36 @@ def create_project_context(
     idempotency_key: str,
 ) -> dict[str, Any]:
     normalized = _normalized_context(context)
+    requested_track = str(normalized.get("evidence_track") or "real")
+    promotion_id = str(normalized.get("promotion_id") or "")
+    if requested_track == "sim_a_formal" and not promotion_id:
+        return _blocked(
+            "formal_promotion_required",
+            "sim_a_formal ProjectContext 必须提供当前工作区的 promotion_id",
+            next_actions=["先完成 TemplatePack → FormalPromotion，再新建 ProjectContext"],
+        )
+    if promotion_id and requested_track not in {"", "sim_a_formal"}:
+        return _blocked(
+            "formal_promotion_track_mismatch",
+            "提供 promotion_id 时 evidence_track 必须为 sim_a_formal",
+        )
+    canonical_lineage: dict[str, Any] = {}
+    if promotion_id:
+        try:
+            canonical_lineage = validate_formal_promotion(workspace_id, promotion_id)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
+        normalized["evidence_track"] = "sim_a_formal"
 
     def mutate() -> dict[str, Any]:
-        if str(normalized.get("evidence_track") or "") == "sim_a_formal":
-            normalized.setdefault("evidence_policy", "sim_a_formal")
-            normalized.setdefault("project_fact_certified", True)
         payload = {
             "object_type": "ProjectContext",
             **normalized,
+            **canonical_lineage,
             "revision_number": 1,
             "parent_object_ids": [],
             "status": "draft",
-            "lineage": {},
+            "lineage": canonical_lineage,
             "blockers": [],
             "warnings": [],
             "next_actions": ["调用 project_context_validate 生成输入适用性清单"],
@@ -356,7 +377,10 @@ def create_project_context(
             object_type="ProjectContext",
             expected_output_types=["ProjectContext"],
             evidence_track=normalized.get("evidence_track", "real"),
-            lineage={"parent_object_ids": []},
+            evidence_policy=canonical_lineage.get("evidence_policy", normalized.get("evidence_track", "real")),
+            project_fact_certified=bool(canonical_lineage.get("project_fact_certified")),
+            formal_promotion=canonical_lineage.get("formal_promotion"),
+            lineage={"parent_object_ids": [], **canonical_lineage},
             basis_hash=record["basis_hash"],
             idempotent_replay=False,
         )

@@ -62,6 +62,7 @@ from lvke_mcp.servers.lvke_deliverable_review.contracts import (  # noqa: F401
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE  # noqa: F401
 
 from ._service.base import (  # noqa: F401
+    DIMENSION_RESULT_STORE,
     EXPORT_STORE,
     PACKAGE_CONFIG_DIR,
     PREPARATION_STORE,
@@ -202,6 +203,16 @@ from ._service.standards import (  # noqa: F401
     list_standard_requirements,
     resolve_standards,
     validate_standards,
+)
+from ._service.suite_review import (  # noqa: F401
+    CHECK_CATALOG,
+    confirm_dimension,
+    confirm_extraction,
+    confirm_package,
+    finalize,
+    get_dimension,
+    prepare_package,
+    submit_assessment,
 )
 from ._service.target_resolve import (  # noqa: F401
     _acquisition_artifact_snapshot,

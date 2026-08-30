@@ -58,10 +58,42 @@ from ._service.base import (  # noqa: F401
     _idempotent_mutation,
     _view,
 )
+from ._service.acceptance import (  # noqa: F401
+    FORMAL_STATUSES,
+    INTERNAL_STATUSES,
+    REQUIRED_DIMENSIONS,
+    TECHNICAL_DOMAINS,
+    TECHNICAL_STATUSES,
+    build_technical_domain_results,
+    dimension_rows_from_review,
+    empty_acceptance,
+    fold_formal,
+    fold_internal,
+    fold_technical,
+)
 from ._service.assumptions import (  # noqa: F401
     _assumption_field,
     _build_assumption_package,
     _field_values,
+)
+from ._service.questions import (  # noqa: F401
+    compute_missing_inputs,
+    summarize_gaps,
+)
+from ._service.report_profiles import (  # noqa: F401
+    ReportProfileError,
+    chapter_titles,
+    load_manifest,
+    load_profile_document,
+    outline_descriptors,
+    resolve_profile,
+)
+from ._service.report_render import (  # noqa: F401
+    build_slot_values,
+    render_report_markdown,
+)
+from ._service.technical_acceptance import (  # noqa: F401
+    run_technical_acceptance,
 )
 from ._service.finance_align import (  # noqa: F401
     _apply_revenue_target,

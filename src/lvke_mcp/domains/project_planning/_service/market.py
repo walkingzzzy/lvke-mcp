@@ -14,6 +14,7 @@ from lvke_mcp.runtime.evidence_qualification import (
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
 from lvke_mcp.adapters.project_planning_repository import (
     MARKET_CASE_STORE,
     PROJECT_CONTEXT_STORE,
@@ -26,6 +27,7 @@ from .base import (
     _envelope,
     _idempotent_mutation,
     _market_view,
+    _planning_formal_lineage,
 )
 
 
@@ -356,6 +358,10 @@ def prepare_market_case(
                 next_actions=["使用 EvidencePack 中相同 source、hash、locator 和 track 重建候选"],
             )
         context_payload = context.get("payload") or {}
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, evidence)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         evidence_policy = declared_evidence_policy(
             evidence_payload,
             default=resolved_track,
@@ -379,6 +385,8 @@ def prepare_market_case(
             "evidence_track": resolved_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "candidates": normalized_candidates,
             "status": "candidate",
             "revision_number": 1,
@@ -682,3 +690,38 @@ def _confirmed_market_basis(
             "planning_basis_mismatch", "MarketSizingCase 与 ProjectContext 不属于同一 basis"
         )
     return context, market, None
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "Decimal",
+    "FormalLineageError",
+    "InvalidOperation",
+    "MARKET_CASE_STORE",
+    "PROJECT_CONTEXT_STORE",
+    "ROUND_HALF_UP",
+    "_blocked",
+    "_confirmed_market_basis",
+    "_decimal",
+    "_downstream_stale",
+    "_envelope",
+    "_idempotent_mutation",
+    "_market_candidate",
+    "_market_view",
+    "_planning_formal_lineage",
+    "_resolve_market_evidence_track",
+    "_validate_market_payload",
+    "canonical_json",
+    "compare_market_cases",
+    "confirm_market_case",
+    "declared_evidence_policy",
+    "get_market_case",
+    "json",
+    "prepare_market_case",
+    "project_fact_may_be_certified",
+    "sha256_json",
+    "validate_market_case",
+]

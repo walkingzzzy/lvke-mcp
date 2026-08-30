@@ -147,3 +147,27 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Path",
+    "SERVER_NAME",
+    "SERVER_VERSION",
+    "StdioServer",
+    "TEMPLATES",
+    "_tool_fill_template",
+    "_tool_get_template",
+    "_tool_list_templates",
+    "build_server",
+    "err",
+    "fill_template",
+    "filter_by_category",
+    "get_logger",
+    "list_categories",
+    "logger",
+    "main",
+    "ok",
+]

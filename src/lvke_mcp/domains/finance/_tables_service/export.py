@@ -9,6 +9,12 @@ from typing import Any
 
 from lvke_mcp.adapters.finance_tables_repository import CSV_EXPORT_STORE, PACKAGE_STORE, export_root as _export_root
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    SIM_A_FORMAL,
+    validate_finance_run,
+    validate_finance_tables_package,
+)
 
 from .base import (
     _delivery_count_semantics,
@@ -71,6 +77,15 @@ def _resolve_package(
             "package_id": "",
             "reused": False,
         }
+    if str(payload.get("evidence_policy") or "") == SIM_A_FORMAL:
+        try:
+            validate_finance_tables_package(workspace_id, record)
+        except FormalLineageError as exc:
+            return {
+                "rendered": _failure(exc.code, exc.message),
+                "package_id": "",
+                "reused": False,
+            }
     validation = payload.get("validation") or {}
     rendered = {
         **_package_result(record, validation, str(record.get("status") or "ok")),
@@ -173,6 +188,12 @@ def export_xlsx(
     run = _load_run(workspace_id, run_id)
     if not run.get("available"):
         return _failure("run_unavailable", "指定 run 不可用，无法导出 XLSX")
+    canonical_lineage: dict[str, Any] = {}
+    if str(run.get("evidence_policy") or "") == SIM_A_FORMAL:
+        try:
+            canonical_lineage = validate_finance_run(workspace_id, run_id)
+        except FormalLineageError as exc:
+            return _failure(exc.code, exc.message)
     resolved = _resolve_package(
         workspace_id, run_id, template_version, finance_tables_package_id
     )
@@ -268,6 +289,7 @@ def export_xlsx(
         "model_manifest_hash": str(exported.get("manifest_hash") or ""),
         "package_table_integrity": integrity,
         "model_version": str(run.get("model_version") or ""),
+        **canonical_lineage,
         # 交付物落盘绝对路径：调用方据此直接打开文件，不必反解 lvke:// URI。
         "deliverable_path": str(path),
         "resource_uris": [*rendered.get("resource_uris", []), xlsx_uri],
@@ -395,6 +417,13 @@ def export_csv(
     csv_hashes: dict[str, str] = {}
     csv_manifest: list[dict[str, Any]] = []
     run = _load_run(workspace_id, run_id)
+    canonical_lineage: dict[str, Any] = {}
+    if str(run.get("evidence_policy") or "") == SIM_A_FORMAL:
+        try:
+            canonical_lineage = validate_finance_run(workspace_id, run_id)
+            validate_finance_tables_package(workspace_id, record or {})
+        except FormalLineageError as exc:
+            return _failure(exc.code, exc.message)
     for key in _delivery_keys():
         headers, rows = _scalar_csv_rows(tables.get(key))
         if not headers or not rows:
@@ -425,6 +454,7 @@ def export_csv(
             "package_id": package_id,
             "content_hash": csv_hashes[key],
             "model_version": str(run.get("model_version") or ""),
+            **canonical_lineage,
             "row_count": len(rows),
             "column_count": len(headers),
             "resource_uri": csv_uris[-1],
@@ -477,6 +507,7 @@ def export_csv(
             "package_id": package_id,
             "csv_hashes": csv_hashes,
             "lineage_hash": lineage_hash,
+            "formal_promotion": canonical_lineage.get("formal_promotion"),
         },
     )
     csv_integrity = _validate_csv_export(
@@ -519,6 +550,7 @@ def export_csv(
         "source_package_reused": bool(resolved["reused"]),
         "manifest_hash": _package_manifest_hash(record or {}),
         "package_table_integrity": package_integrity,
+        **canonical_lineage,
         "csv_lineage_resource": lineage_uri,
         "csv_lineage_hash": lineage_hash,
         # 交付物落盘绝对目录：14 个 CSV（13 表 + 血缘表）都在此目录下。

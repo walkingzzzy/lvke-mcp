@@ -1,5 +1,7 @@
 # `package_v14_simulated` 整改路线图
 
+> 历史路线图：本文中的 171 工具是 2026-08-19 规划快照。当前实时拓扑为 14 server / 180 tools / 242 Resource，工具 `outputSchema` 覆盖率 180/180；历史目标和验收分母不覆盖原始记录。
+
 目标：在不修改原始 `package_v14_simulated` 文件的前提下，修复交付状态、构建可复现性、文档可读性和 MCP/Skills 验收闭环问题。所有任务以 `findings_v1.json` 的 finding_id 为追踪键。
 
 ## 0. 立即止损与发布冻结（T+0～1 天）
@@ -93,11 +95,11 @@ unzip -t package_v14_simulated/V1.6内部技术整改版_内部发布包_2026081
 对应 F-003、F-011、F-012。
 
 - 运行时继续以重启后 `tools/list` 作为唯一分母；每次构建自动比较 14 服务、工具数、schema hash、annotations 和 `taskSupport`。
-- 为 171 个工具发布统一 `outputSchema` 或 envelope.v2 schema URI，使用 PASS/EXPECTED_REJECTION 两类响应做 schema 校验。
+- 为当时 171 个工具发布统一 `outputSchema` 或 envelope.v2 schema URI，使用 PASS/EXPECTED_REJECTION 两类响应做 schema 校验；当前已扩展为 180/180 工具具备 `outputSchema`。
 - `scripts/write_skill_inventory.py` 在构建时比较插件目录、inventory、打包清单；根目录 `lvke-desktop`/`lvke-frontend` 显式标记 dev-only，不计入产品 Skills。
 - build metadata 只允许 clean build 写入；dirty worktree 必须在启动/发布门禁中阻断，而不是用历史 JSON 状态掩盖。
 
-验收：插件 Skills 15/15 与 inventory 15/15；14 服务实时启动；171 tools 的 schema/annotations/taskSupport 与 baseline 一致或有显式版本变更说明。
+验收（历史）：插件 Skills 15/15 与 inventory 15/15；14 服务实时启动；171 tools 的 schema/annotations/taskSupport 与 baseline 一致或有显式版本变更说明。当前实时验收分母为 180 tools / 242 Resource。
 
 ## 7. 里程碑与退出条件
 

@@ -22,6 +22,10 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - Do not present an unreleased draft or generated DOCX as a formally approved deliverable.
 - Require self-contained licensed CJK fonts in formal DOCX output; audit the
   package. soffice PNG conversion is a probe, not page-by-page visual acceptance.
+- For SIM-A, derive report ancestry from verified EvidencePack,
+  ResearchPackage, FinanceRun and TablesPackage at prepare, revision,
+  validation and export. Any mixed promotion, changed parent hash or unsigned
+  historical object stops formal export.
 
 ## MCP Tool Mapping
 

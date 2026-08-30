@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from acceptance_common import call_tool, classify_outcome, object_id_from_payload
 
@@ -120,7 +120,7 @@ def run_golden_chain(workspace_id: str, data_dir: Path) -> list[ChainStep]:
     )
     source_id = str(imported.get("file_id") or imported.get("source_file_id") or "")
 
-    discover = record(
+    record(
         "DiscoverySet",
         "lvke-data-acquisition",
         "data_discover",
@@ -170,7 +170,7 @@ def run_golden_chain(workspace_id: str, data_dir: Path) -> list[ChainStep]:
         )
     evidence_pack_id = str(evidence.get("evidence_pack_id") or "")
 
-    dr_prep = record(
+    record(
         "ResearchPackage",
         "lvke-deep-research",
         "dr_prepare",

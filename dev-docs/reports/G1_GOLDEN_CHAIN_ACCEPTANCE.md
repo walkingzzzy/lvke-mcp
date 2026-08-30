@@ -2,6 +2,7 @@
 
 - **生成时间（UTC）**：2026-08-28T12:45:00Z
 - **声明**：本轮为**实时 MCP 对话式验收**（脏工作树 / process）。历史 G1（171 工具，2026-08-21）作废。
+- **拓扑口径**：本轮记录的 173 工具是 2026-08-28 验收快照，不代表当前运行时；当前实时拓扑为 14 server / 180 tools / 242 Resource，`outputSchema` 覆盖率 180/180。
 - **工作区**：`live-acc-20260828`
 - **live_listed**：14 个 `user-lvke-*` ready；Cursor 另注入 `mcp_auth`（不计产品分母）
 - **产品分母**：14 服务 / **173** 工具
@@ -106,7 +107,7 @@
 
 ## G1 退出条件核对
 
-- [x] 173 工具实时调用（live_listed vs 产品 173 已分栏）
+- [x] 173 工具实时调用（历史快照；live_listed vs 产品 173 已分栏）
 - [x] 金标链走到表 / 报告 / 审查 / 过程导出
 - [x] 十三表 CSV 13/13 hash + lineage
 - [x] 收购正式工件 EXPECTED_REJECTION + 受限 report_prepare

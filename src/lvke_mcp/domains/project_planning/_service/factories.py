@@ -16,6 +16,7 @@ from lvke_mcp.runtime.evidence_qualification import (
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
 
 from .base import (
     _blocked,
@@ -23,6 +24,7 @@ from .base import (
     _envelope,
     _idempotent_mutation,
     _planning_evidence_qualification,
+    _planning_formal_lineage,
     _planning_view,
 )
 from .market import _confirmed_market_basis
@@ -86,6 +88,10 @@ def create_revenue_driver_set(
             own_qualification_passed=True,
             parents=[market_payload, context_payload],
         )
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, market)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         if mode not in {"estimate_preview", "review_candidate"}:
             return _blocked("revenue_mode_invalid", "mode 必须为 estimate_preview 或 review_candidate")
         if not isinstance(op_years, int) or isinstance(op_years, bool) or not 1 <= op_years <= 100:
@@ -161,6 +167,8 @@ def create_revenue_driver_set(
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "revenue_spec": normalized_spec,
             "op_years": op_years,
             "expanded": expanded,
@@ -265,6 +273,10 @@ def create_build_scale_case(
         evidence_track, evidence_policy, project_fact_certified = (
             _planning_evidence_qualification(context, market)
         )
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, market)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         target = _decimal(target_capacity.get("value"))
         land = _decimal(land_area_m2)
         intensity = _decimal(capacity_intensity_per_m2)
@@ -345,6 +357,8 @@ def create_build_scale_case(
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
             "selection": normalized_selection,
@@ -432,6 +446,10 @@ def create_cost_driver_set(
         evidence_track, evidence_policy, project_fact_certified = (
             _planning_evidence_qualification(context, scale)
         )
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, scale)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         amount_fields = (
             "construction_wan", "civil_wan", "equipment_wan", "installation_wan",
             "other_wan", "reserve_wan", "interest_wan", "working_capital_wan",
@@ -538,6 +556,8 @@ def create_cost_driver_set(
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,
@@ -614,6 +634,10 @@ def create_labor_plan(
         evidence_track, evidence_policy, project_fact_certified = (
             _planning_evidence_qualification(context, scale)
         )
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, scale)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         finance_rows: list[dict[str, Any]] = []
         wage_total = Decimal("0")
         welfare_total = Decimal("0")
@@ -697,6 +721,8 @@ def create_labor_plan(
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "finance_spec_ledger": ledger,
             "status": "confirmed",
             "parent_candidate_id": parent_candidate_id or None,

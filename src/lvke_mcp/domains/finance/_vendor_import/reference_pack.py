@@ -165,8 +165,16 @@ def _extract_reference_data(reference_pack: dict[str, Any]) -> None:
             payback = payback_from_period_rows(project_after, rate=float(benchmark))
             vendor_indicators["static_payback_years"] = payback["static_years"]
             vendor_indicators["dynamic_payback_years"] = payback["dynamic_years"]
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # 静默吞掉会让 NPV/回收期缺失与"甲方本就没填"无法区分。
+            missing = [
+                key for key in ("npv_wan", "static_payback_years", "dynamic_payback_years")
+                if vendor_indicators.get(key) is None
+            ]
+            reference_pack.setdefault("warnings", []).append(
+                f"参考轨指标重算失败（{type(exc).__name__}），未形成："
+                f"{'、'.join(missing) or 'npv_wan、static_payback_years、dynamic_payback_years'}"
+            )
 
     comparable_keys = (
         "total_investment", "construction_investment", "working_capital",

@@ -19,6 +19,8 @@ description: "Import, upload, scan, parse, retry, cancel, and read governed Lvke
 
 ## 禁止行为
 
+- 公开导入不得提交或获得 `sim_a_formal`、`evidence_origin`、认证标记或
+  promotion authority；正式文件只能由服务端的 promotion-only 路径写入。
 - 不绕过 MIME/magic byte、hash、大小、路径、symlink 或设备文件检查。
 - 不把“已解析”写成“已采信”；EvidencePack 仍需独立选择。
 - 不暴露 staging、allowlist 或绝对存储路径。

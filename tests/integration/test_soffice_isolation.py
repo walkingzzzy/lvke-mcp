@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from lvke_mcp.runtime.soffice import HEADLESS_FLAGS, resolve_soffice_binary, run_soffice_convert
 

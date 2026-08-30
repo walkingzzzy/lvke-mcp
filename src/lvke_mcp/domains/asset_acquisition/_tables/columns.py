@@ -231,15 +231,19 @@ REQUIRED_COLUMNS["purchase_price_allocation"] = (
 )
 
 
-REQUIRED_COLUMNS["equity_cashflow_indicators"] = tuple(
-    field for field, _label in TABLE_COLUMNS["equity_cashflow_indicators"]
-    if field != "dynamic_payback_years"
+# IRR and payback values can be mathematically undefined (for example when a
+# cash-flow series has no sign change or does not recover within the model
+# horizon). Their blank value is meaningful; the explicit status remains
+# required so that an undefined metric is never mistaken for omitted output.
+REQUIRED_COLUMNS["equity_cashflow_indicators"] = (
+    "cashflow_index", "period_start", "period_end", "period_label",
+    "project_cashflow_wan", "equity_cashflow_wan", "npv_wan",
+    "dynamic_payback_status",
 )
 
 
 REQUIRED_COLUMNS["scenario_max_price"] = (
-    "scenario_id", "scenario_kind", "purchase_price_wan", "project_irr_pct",
-    "equity_irr_pct", "npv_wan",
+    "scenario_id", "scenario_kind", "purchase_price_wan", "npv_wan",
 )
 
 

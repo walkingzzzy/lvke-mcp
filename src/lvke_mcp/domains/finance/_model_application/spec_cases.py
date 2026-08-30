@@ -22,6 +22,11 @@ from lvke_mcp.domains.finance.rail_validation import (
     revenue_input_complete as _revenue_input_complete,
 )
 from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_formal_record,
+    validate_same_formal_lineage,
+)
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
 
@@ -101,6 +106,33 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 blockers=[f"evidence_pack_not_found:{evidence_id}"],
             )
         evidence_records.append(record)
+    formal_parents = [
+        record
+        for record in [*evidence_records, *([fact_pack_record] if fact_pack_record else [])]
+        if str(((record.get("payload") or {}).get("evidence_policy") or "")) == "sim_a_formal"
+    ]
+    canonical_lineage: dict[str, Any] = {}
+    if formal_parents:
+        all_parents = [*evidence_records, *([fact_pack_record] if fact_pack_record else [])]
+        if len(formal_parents) != len(all_parents):
+            return _err_env(
+                f"{SERVER_NAME}.formal_lineage_mixed_policy",
+                "FinanceSpec 不允许混合 SIM-A promotion 与其他证据父对象",
+                status="blocked",
+                blockers=["formal_lineage_mixed_policy"],
+            )
+        try:
+            canonical_lineage = validate_same_formal_lineage(
+                workspace_id,
+                all_parents,
+            )
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+                blockers=[exc.code],
+            )
     try:
         from lvke_mcp.domains.finance import run_service
 
@@ -175,6 +207,45 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 "status": "resolved_confirmed_object",
                 "source": "finance_fact_pack_store",
             })
+            from lvke_mcp.domains.finance.fact_pack import project_confirmed_fact_pack
+
+            projected_inputs, projected_spec, projection = project_confirmed_fact_pack(
+                normalized_inputs,
+                data.get("spec") if isinstance(data.get("spec"), dict) else None,
+                expected_workspace_id=workspace_id,
+                expected_build_years=max(
+                    1,
+                    -(
+                        -int(
+                            normalized_inputs.get("build_period_months")
+                            or data.get("build_period_months")
+                            or 12
+                        )
+                        // 12
+                    ),
+                ),
+                expected_calc_years=int(
+                    normalized_inputs.get("calc_period_years") or 12
+                ),
+            )
+            if not projection.get("applied"):
+                return _ok_env(
+                    {
+                        "available": False,
+                        "fact_pack_id": fact_pack_id,
+                        "fact_pack_errors": list(projection.get("issues") or []),
+                    },
+                    source=f"{SERVER_NAME}.finance_prepare_spec",
+                    status="blocked",
+                    blockers=["confirmed_fact_pack_projection_failed"],
+                    next_actions=["重建并重新确认同工作区 FinanceFactPack 后重试"],
+                    fact_pack_id=fact_pack_id,
+                    fact_pack_hash=fact_pack.get("fact_pack_hash"),
+                )
+            normalized_inputs = projected_inputs
+            data["spec"] = projected_spec
+            data["spec_hash"] = run_service.compute_spec_hash(projected_spec)
+            data["fact_pack_projection"] = projection
         data["input_revision"] = normalized_inputs
         from lvke_mcp.domains.finance.working_capital import apply_operating_turnover_to_inputs
 
@@ -257,6 +328,13 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             and str((reused_record.get("payload") or {}).get("input_hash") or "")
             == str(data.get("input_hash") or "")
         )
+        if can_reuse_confirmed and str((reused_record.get("payload") or {}).get("evidence_policy") or "") == "sim_a_formal":
+            try:
+                reused_lineage = validate_formal_record(workspace_id, reused_record)
+            except FormalLineageError:
+                can_reuse_confirmed = False
+            else:
+                canonical_lineage = reused_lineage
         if spec is not None:
             reconstruction_records = [
                 item
@@ -274,7 +352,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 evidence_policies.add(fact_pack_policy)
             if "source_reconstructed" in evidence_policies:
                 evidence_policy = "source_reconstructed"
-            elif "sim_a_formal" in evidence_policies and evidence_policies <= {"sim_a_formal", "formal_evidence"}:
+            elif canonical_lineage:
                 evidence_policy = "sim_a_formal"
             else:
                 evidence_policy = sorted(evidence_policies)[0] if evidence_policies else "formal_evidence"
@@ -317,8 +395,9 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 ) or None
             else:
                 spec_record = SPEC_STORE.put(
-                workspace_id,
-                {
+                    workspace_id,
+                    {
+                    **canonical_lineage,
                     "spec": spec,
                     "spec_hash": data.get("spec_hash"),
                     "generation_basis": data.get("generation_basis"),
@@ -345,7 +424,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                     # 时给出 True，且只挡 source_reconstructed 一种非正式资格。
                     "project_fact_certified": project_fact_may_be_certified(
                         evidence_policy,
-                        own_qualification_passed=True,
+                        own_qualification_passed=bool(canonical_lineage) if evidence_policy == "sim_a_formal" else True,
                         parents=[fact_pack_payload, *evidence_records],
                     ),
                     "reconstruction_records": reconstruction_records,
@@ -365,6 +444,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                         fact_pack_record.get("basis_hash") if fact_pack_record else None
                     ),
                     "fact_pack_hash": fact_pack.get("fact_pack_hash") or None,
+                    "formal_promotion": canonical_lineage.get("formal_promotion"),
                 },
                 )
             data["spec_id"] = spec_record["object_id"]
@@ -438,6 +518,43 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
     if source is None:
         return _err_env(f"{SERVER_NAME}.spec_not_found", "未找到候选 FinanceSpec", status="blocked")
     payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
+    canonical_lineage: dict[str, Any] = {}
+    if payload.get("evidence_policy") == "sim_a_formal":
+        parent_records: list[dict[str, Any]] = []
+        for evidence_id in _str_list(payload.get("evidence_pack_ids")):
+            record = EVIDENCE_STORE.get(workspace_id, evidence_id)
+            if record is None:
+                return _err_env(
+                    f"{SERVER_NAME}.evidence_pack_not_found",
+                    "确认 FinanceSpec 时正式 EvidencePack 不存在或跨工作区",
+                    status="blocked",
+                )
+            parent_records.append(record)
+        fact_pack_id = str(payload.get("fact_pack_id") or "")
+        if fact_pack_id:
+            fact_record = FACT_PACK_STORE.get(workspace_id, fact_pack_id)
+            if fact_record is None:
+                return _err_env(
+                    f"{SERVER_NAME}.fact_pack_not_found",
+                    "确认 FinanceSpec 时正式 FactPack 不存在或跨工作区",
+                    status="blocked",
+                )
+            parent_records.append(fact_record)
+        try:
+            source_lineage = validate_formal_record(workspace_id, source)
+            canonical_lineage = validate_same_formal_lineage(workspace_id, parent_records)
+            if canonical_lineage != source_lineage:
+                raise FormalLineageError(
+                    "formal_lineage_metadata_mismatch",
+                    "FinanceSpec 与其正式父对象 promotion 不一致",
+                )
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+                blockers=[exc.code],
+            )
     spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else None
     if spec is None:
         return _err_env(f"{SERVER_NAME}.spec_invalid", "候选 FinanceSpec 快照无效", status="blocked")
@@ -493,6 +610,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
         workspace_id,
         {
             **payload,
+            **canonical_lineage,
             "spec": confirmed,
             "spec_hash": compute_spec_hash(confirmed),
             "confirmation_status": "confirmed",
@@ -520,6 +638,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
             "fact_pack_basis_hash": payload.get("fact_pack_basis_hash"),
             "fact_pack_hash": payload.get("fact_pack_hash"),
             "note": note,
+            "formal_promotion": canonical_lineage.get("formal_promotion"),
         },
     )
     expires_at = _expires_at()
@@ -652,3 +771,42 @@ def _canonical_candidate_inputs(
     rejected.extend({**item, "source": "effective"} for item in errors)
     return normalized, adoption, rejected
 
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "EVIDENCE_STORE",
+    "FACT_PACK_STORE",
+    "FormalLineageError",
+    "IDEMPOTENCY_STORE",
+    "SERVER_NAME",
+    "SPEC_STORE",
+    "_active_idempotency_record",
+    "_canonical_candidate_inputs",
+    "_err_env",
+    "_exception_env",
+    "_expires_at",
+    "_ok_env",
+    "_rail_transit_missing_inputs",
+    "_revenue_input_complete",
+    "_str_list",
+    "_unique_strings",
+    "_workspace_id",
+    "canonicalize_finance_inputs",
+    "confirm_spec",
+    "coverage_snapshot",
+    "finance_input_schema",
+    "generation_baseline",
+    "hashlib",
+    "json",
+    "ok",
+    "prepare_spec",
+    "project_fact_may_be_certified",
+    "sha256_json",
+    "stamp_finance_spec",
+    "validate_formal_record",
+    "validate_same_formal_lineage",
+    "validate_spec",
+]

@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
+
 from lvke_mcp.adapters.project_planning_repository import (
     OPTION_COMPARISON_STORE,
     PROJECT_CONTEXT_STORE,
@@ -17,6 +19,7 @@ from .base import (
     _idempotent_mutation,
     _planning_view,
     _planning_evidence_qualification,
+    _planning_formal_lineage,
 )
 
 
@@ -261,6 +264,10 @@ def prepare_option_comparison(
         evidence_track, evidence_policy, project_fact_certified = (
             _planning_evidence_qualification(context, *basis_records)
         )
+        try:
+            formal_lineage = _planning_formal_lineage(workspace_id, context, *basis_records)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
         payload = {
             "object_type": "OptionComparison",
             "project_context_id": project_context_id,
@@ -276,6 +283,8 @@ def prepare_option_comparison(
             "evidence_track": evidence_track,
             "evidence_policy": evidence_policy,
             "project_fact_certified": project_fact_certified,
+            "evidence_origin": formal_lineage.get("evidence_origin"),
+            "formal_promotion": formal_lineage.get("formal_promotion"),
             "basis_object_ids": request_payload["basis_object_ids"],
             "parent_object_ids": [project_context_id, *request_payload["basis_object_ids"]],
             "next_actions": [

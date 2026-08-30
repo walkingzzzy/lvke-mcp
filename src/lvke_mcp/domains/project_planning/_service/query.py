@@ -159,3 +159,32 @@ def read_resource(
         content=json.dumps(record, ensure_ascii=False, indent=2),
         content_hash=record["content_hash"],
     )
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BUILD_SCALE_STORE",
+    "COST_DRIVER_STORE",
+    "INPUT_APPLICABILITY_STORE",
+    "LABOR_PLAN_STORE",
+    "MARKET_CASE_STORE",
+    "OPTION_COMPARISON_STORE",
+    "POLICY_BASIS_STORE",
+    "REVENUE_DRIVER_STORE",
+    "_RESOURCE_STORES",
+    "_applicability_view",
+    "_blocked",
+    "_envelope",
+    "_planning_view",
+    "get_market_case",
+    "get_planning_object",
+    "get_project_context",
+    "json",
+    "list_resources",
+    "paginate_resource_entries",
+    "read_resource",
+    "resolve_resource",
+]

@@ -7,6 +7,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
+from lvke_mcp.adapters.source_files_repository import (
+    SourceFileError,
+    resolve_citation_fragment,
+)
 
 from lvke_mcp.adapters.research_repository import AGENT_SESSION_STORE, AGENT_TRANSITION_STORE, IDEMPOTENCY_STORE, PACKAGE_STORE, QUALITY_REVIEW_STORE
 from lvke_mcp.domains.research.output_contracts import (
@@ -18,12 +22,17 @@ from lvke_mcp.runtime.evidence_qualification import (
     declared_evidence_policy,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_same_formal_lineage,
+)
 from lvke_mcp.runtime.storage import sha256_json
 
 from .base import _agent_transition_guard, _active_idempotency_record, _append_event, _failure, _idempotency_ttl_seconds
 
 from .planning import (
     _create_plan_revision,
+    _latest_plan,
 )
 
 
@@ -41,58 +50,108 @@ def _bound_citation_metrics(
     citations: list[Any],
     *,
     workspace_id: str = "",
+    allowed_source_ids: set[str] | None = None,
     source_snapshot_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    usable = 0
-    known = {str(item) for item in (source_snapshot_ids or []) if str(item)}
-    for item in citations:
-        if not isinstance(item, dict):
-            continue
-        locator = str(
-            item.get("locator") or item.get("page") or item.get("paragraph") or ""
-        ).strip()
-        content_hash = _canonical_hash(item.get("content_hash") or item.get("sha256"))
-        source_id = str(
-            item.get("source_id")
-            or item.get("source_snapshot_id")
-            or item.get("object_id")
-            or ""
-        ).strip()
-        if not locator or not content_hash:
-            continue
-        if known:
-            if not source_id or source_id not in known:
-                continue
-        if not source_id:
-            continue
-        if workspace_id:
-            from lvke_mcp.adapters.data_acquisition_repository import SOURCE_STORE
-
-            snapshot = SOURCE_STORE.get(workspace_id, source_id)
-            if not isinstance(snapshot, dict):
-                continue
-            payload = snapshot.get("payload") if isinstance(snapshot.get("payload"), dict) else {}
-            stored_hash = _canonical_hash(
-                payload.get("content_hash")
-                or payload.get("external_content_hash")
-                or snapshot.get("content_hash")
-            )
-            if not stored_hash or stored_hash != content_hash:
-                continue
-        elif known:
-            # Declared snapshot list without a workspace lookup still requires
-            # the citation to name a known id; hash cannot be verified here.
-            pass
-        else:
-            continue
-        usable += 1
+    known = {
+        str(item)
+        for item in [*(allowed_source_ids or set()), *(source_snapshot_ids or [])]
+        if str(item)
+    }
     total = len([item for item in citations if isinstance(item, dict)])
+    usable = 0
+    if workspace_id:
+        resolved, _issues = _resolve_citation_audit(
+            workspace_id,
+            citations,
+            allowed_source_ids=known,
+        )
+        usable = len(resolved)
     coverage = round(usable / total, 4) if total else 0.0
     return {
         "usable_source_count": usable,
         "citation_coverage": coverage,
         "source_count": total,
     }
+
+
+def _citation_source_id(citation: dict[str, Any], allowed: set[str]) -> str:
+    resource_uri = str(citation.get("resource_uri") or "").strip()
+    source_id = str(
+        citation.get("source_id")
+        or citation.get("source_snapshot_id")
+        or citation.get("object_id")
+        or (resource_uri.rstrip("/").rsplit("/", 1)[-1] if resource_uri else "")
+        or ""
+    ).strip()
+    if not source_id and len(allowed) == 1:
+        return next(iter(allowed))
+    return source_id
+
+
+def _resolve_citation_audit(
+    workspace_id: str,
+    citations: list[Any],
+    *,
+    allowed_source_ids: set[str],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Resolve citations to deterministic fragments without judging semantics."""
+
+    resolved_rows: list[dict[str, Any]] = []
+    issues: list[str] = []
+    for index, citation in enumerate(citations):
+        if not isinstance(citation, dict):
+            issues.append(f"citation_invalid:{index}")
+            continue
+        source_id = _citation_source_id(citation, allowed_source_ids)
+        if not source_id:
+            issues.append(f"citation_source_id_required:{index}")
+            continue
+        if source_id not in allowed_source_ids:
+            issues.append(f"citation_source_not_in_basis:{index}:{source_id}")
+            continue
+        resource_uri = str(citation.get("resource_uri") or "").strip()
+        if resource_uri and "/workspaces/" in resource_uri:
+            marker = resource_uri.split("/workspaces/", 1)[1].split("/", 1)[0]
+            if marker != workspace_id or not resource_uri.rstrip("/").endswith("/" + source_id):
+                issues.append(f"citation_resource_uri_mismatch:{index}")
+                continue
+        try:
+            binding = resolve_citation_fragment(
+                workspace_id,
+                source_id=source_id,
+                locator=citation.get("locator"),
+                source_hash=(
+                    citation.get("source_hash")
+                    or citation.get("content_hash")
+                    or citation.get("sha256")
+                ),
+                supplied_fragment=(
+                    citation.get("fragment_text")
+                    or citation.get("fragment")
+                    or citation.get("quote")
+                    or ""
+                ),
+                supplied_fragment_hash=citation.get("fragment_hash") or "",
+            )
+        except SourceFileError as exc:
+            code = str((exc.detail or {}).get("code") or "citation_resolution_failed")
+            issues.append(f"{code}:{index}:{source_id}")
+            continue
+        resolved_rows.append({
+            **citation,
+            "source_id": source_id,
+            "resource_uri": binding["resource_uri"],
+            "content_hash": binding["source_hash"],
+            "source_hash": binding["source_hash"],
+            "locator": binding["locator"],
+            "fragment_text": binding["fragment_text"],
+            "fragment_hash": binding["fragment_hash"],
+            "workspace_id": workspace_id,
+            "binding_status": binding["binding_status"],
+            "semantic_support_status": binding["semantic_support_status"],
+        })
+    return resolved_rows, sorted(set(issues))
 
 
 def _query_rounds_from_events(workspace_id: str, task_id: str) -> int:
@@ -236,6 +295,26 @@ def _citation_consistency_issues(
         if supplied_hash and expected_hash and supplied_hash != expected_hash:
             issues.append(f"citation_content_hash_mismatch:{index}:{cited_id}")
     return sorted(set(issues))
+
+
+def _citation_basis_source_ids(
+    evidence_payloads: list[dict[str, Any]],
+    source_snapshot_ids: list[str],
+) -> set[str]:
+    source_ids = {str(item) for item in source_snapshot_ids if str(item)}
+    for evidence in evidence_payloads:
+        for source in evidence.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            source_id = str(
+                source.get("source_id")
+                or source.get("source_snapshot_id")
+                or source.get("file_id")
+                or ""
+            ).strip()
+            if source_id:
+                source_ids.add(source_id)
+    return source_ids
 
 
 def select_task_package(workspace_id: str, task_id: str) -> dict[str, Any] | None:
@@ -508,17 +587,110 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
     session = AGENT_SESSION_STORE.get(workspace_id, task_id)
     if session is None:
         return _failure("task_not_found", "未找到 Agent DR 会话")
+    plan = _latest_plan(workspace_id, task_id)
+    if plan is None:
+        return _failure("plan_not_found", "未找到研究计划，不能提交研究结果")
+    plan_payload = plan.get("payload") if isinstance(plan.get("payload"), dict) else {}
+    plan_sources = [item for item in plan_payload.get("sources") or [] if isinstance(item, dict)]
+    plan_source_ids = {
+        str(item.get("object_id") or item.get("source_id") or item.get("source_snapshot_id") or item.get("file_id") or "").strip()
+        for item in plan_sources
+    }
+    plan_source_ids.discard("")
     report_md = str(args.get("report_md") or "").strip()
     citations = list(args.get("citations") or [])
     evidence_pack_ids = [str(item) for item in (args.get("evidence_pack_ids") or []) if str(item)]
     source_snapshot_ids = [str(item) for item in (args.get("source_snapshot_ids") or []) if str(item)]
+    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
+    missing_evidence_ids = [
+        evidence_id
+        for evidence_id, evidence_record in zip(evidence_pack_ids, evidence_records)
+        if evidence_record is None
+    ]
+    if missing_evidence_ids:
+        failure = _failure(
+            "evidence_pack_not_found",
+            "引用依据中的 EvidencePack 不存在或不属于当前工作区",
+        )
+        failure["blockers"] = [f"evidence_pack_not_found:{item}" for item in missing_evidence_ids]
+        return failure
+    evidence_payloads = [
+        item.get("payload") or {}
+        for item in evidence_records
+        if isinstance(item, dict)
+    ]
+    formal_lineage: dict[str, Any] = {}
+    formal_requested = any(
+        declared_evidence_policy(item) == "sim_a_formal"
+        for item in evidence_payloads
+    )
+    if formal_requested:
+        if not evidence_records or source_snapshot_ids:
+            return _failure(
+                "formal_research_parent_invalid",
+                "sim_a_formal ResearchPackage 必须由同一工作区的 EvidencePack 推导",
+            )
+        try:
+            formal_lineage = validate_same_formal_lineage(
+                workspace_id,
+                [item for item in evidence_records if isinstance(item, dict)],
+            )
+        except FormalLineageError as exc:
+            return _failure(exc.code, exc.message)
+    allowed_source_ids = _citation_basis_source_ids(
+        evidence_payloads,
+        source_snapshot_ids,
+    )
+    allowed_source_ids.update(plan_source_ids)
+    plan_bindings = {
+        str(item.get("object_id") or item.get("source_id") or item.get("source_snapshot_id") or item.get("file_id") or "").strip(): item
+        for item in plan_sources
+    }
+    binding_conflicts: list[str] = []
+    for index, citation in enumerate(citations):
+        if not isinstance(citation, dict):
+            continue
+        source_id = str(
+            citation.get("source_id")
+            or citation.get("source_snapshot_id")
+            or citation.get("file_id")
+            or ""
+        ).strip()
+        bound = plan_bindings.get(source_id)
+        if not bound:
+            continue
+        expected_hash = _canonical_hash(bound.get("content_hash") or bound.get("sha256"))
+        supplied_hash = _canonical_hash(citation.get("content_hash") or citation.get("source_hash"))
+        if expected_hash and supplied_hash and expected_hash != supplied_hash:
+            binding_conflicts.append(f"plan_source_hash_conflict:{index}:{source_id}")
+        expected_locator = str(bound.get("locator") or "").strip()
+        supplied_locator = citation.get("locator")
+        if expected_locator and supplied_locator and str(supplied_locator).strip() != expected_locator:
+            binding_conflicts.append(f"plan_source_locator_conflict:{index}:{source_id}")
+    if binding_conflicts:
+        failure = _failure("source_binding_conflict", "提交引用与最新研究计划中的来源绑定不一致")
+        failure["blockers"] = sorted(set(binding_conflicts))
+        return failure
+    resolved_citations, citation_issues = _resolve_citation_audit(
+        workspace_id,
+        citations,
+        allowed_source_ids=allowed_source_ids,
+    )
+    if citation_issues or len(resolved_citations) != len(citations):
+        failure = _failure(
+            "research_citation_audit_failed",
+            "研究引用未能全部解析到当前工作区的不可变来源片段",
+        )
+        failure["blockers"] = citation_issues or ["citation_resolution_incomplete"]
+        return failure
+    citations = resolved_citations
     quality_summary_supplied = isinstance(args.get("quality_summary"), dict)
     quality_summary = dict(args.get("quality_summary") or {}) if quality_summary_supplied else {}
     quality_issues: list[str] = []
     computed = _bound_citation_metrics(
         citations,
         workspace_id=workspace_id,
-        source_snapshot_ids=source_snapshot_ids,
+        allowed_source_ids=allowed_source_ids,
     )
     computed_rounds = _query_rounds_from_events(workspace_id, task_id)
     if quality_summary_supplied:
@@ -544,17 +716,25 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         )
     if not citations:
         quality_issues.append("citations_missing")
-    if not evidence_pack_ids and not source_snapshot_ids:
+    if not evidence_pack_ids and not source_snapshot_ids and not plan_source_ids:
         quality_issues.append("source_basis_missing")
-    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
-    for evidence_id, evidence_record in zip(evidence_pack_ids, evidence_records):
-        if evidence_record is None:
-            quality_issues.append(f"evidence_pack_not_found:{evidence_id}")
     artifacts = {
         "report": report_md,
         "sources": citations,
-        "evidence": {"evidence_pack_ids": evidence_pack_ids, "source_snapshot_ids": source_snapshot_ids},
-        "citation_audit": {"status": "agent_supplied", "citation_count": len(citations), "passed": False},
+        "evidence": {
+            "evidence_pack_ids": evidence_pack_ids,
+            "source_snapshot_ids": source_snapshot_ids,
+            "plan_source_ids": sorted(plan_source_ids),
+            "plan_revision_id": str(plan.get("object_id") or ""),
+            "plan_basis_hash": str(plan.get("basis_hash") or ""),
+        },
+        "citation_audit": {
+            "status": "deterministic_fragment_binding_passed",
+            "citation_count": len(citations),
+            "resolved_citations": citations,
+            "passed": True,
+            "semantic_support_status": "agent_or_manual_review_required",
+        },
         "quality": {"status": "not_independently_audited", "passed": False},
         "quality_summary": {
             "query_rounds": computed_rounds,
@@ -574,7 +754,6 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
     }
     if not market_field_bindings:
         artifacts.pop("market_field_bindings", None)
-    evidence_payloads = [(item.get("payload") or {}) for item in evidence_records if isinstance(item, dict)]
     policy_inputs: list[Any] = [*evidence_payloads]
     evidence_policies = [declared_evidence_policy(item) for item in evidence_payloads]
     # P0-009 compatibility: citation declarations may downgrade a package but
@@ -611,25 +790,38 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "agent_artifacts": artifacts,
         "limitations": limitations,
         "quality_issues": quality_issues,
-        "evidence_policy": evidence_policy,
+        "evidence_policy": formal_lineage.get("evidence_policy", evidence_policy),
+        "evidence_origin": formal_lineage.get("evidence_origin"),
+        # Agent-authored submission remains partial; the verified promotion is
+        # propagated as ancestry, while project-fact certification waits for
+        # the independent quality-confirmation child.
         "project_fact_certified": False,
-        "upstream_project_fact_certified": upstream_project_fact_certified,
+        "upstream_project_fact_certified": bool(formal_lineage) or upstream_project_fact_certified,
+        "formal_promotion": formal_lineage.get("formal_promotion"),
         "reconstruction_records": reconstruction_records,
         "reconstructed_source_ids": [str(row.get("reconstruction_id") or "") for row in reconstruction_records if row.get("reconstruction_id")],
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
         "release_limitations": list(args.get("release_limitations") or []),
+        "plan_revision_id": str(plan.get("object_id") or ""),
+        "plan_basis_hash": str(plan.get("basis_hash") or ""),
     }
     record = PACKAGE_STORE.put(
         workspace_id,
         payload,
         producer="lvke-deep-research.dr_submit",
         status="partial",
+        # Keep the formal lineage source set stable; plan revision metadata is
+        # carried in payload/basis without changing the promotion validator's
+        # canonical parent set.
         source_ids=[task_id, *evidence_pack_ids, *source_snapshot_ids],
         basis={
             "task_id": task_id,
             "citations": citations,
             "evidence_pack_ids": evidence_pack_ids,
             "source_snapshot_ids": source_snapshot_ids,
+            "plan_revision_id": str(plan.get("object_id") or ""),
+            "plan_basis_hash": str(plan.get("basis_hash") or ""),
+            "plan_source_ids": sorted(plan_source_ids),
             "quality_summary": quality_summary,
             "market_field_bindings": market_field_bindings,
         },
@@ -647,6 +839,8 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
         "task_id": task_id, "basis_hash": record["basis_hash"], "resources": resources,
         "resource_uris": [base, *resources.values()], "warnings": payload["limitations"], "blockers": [],
         "quality_issues": quality_issues,
+        "plan_revision_id": str(plan.get("object_id") or ""),
+        "plan_basis_hash": str(plan.get("basis_hash") or ""),
         "next_actions": ["研究包已生成；可继续补充资料，也可直接用于报告生成"],
     }
 
@@ -686,14 +880,66 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     summary = artifacts.get("quality_summary") if isinstance(artifacts.get("quality_summary"), dict) else {}
     citations = artifacts.get("sources") if isinstance(artifacts.get("sources"), list) else []
     evidence_basis = artifacts.get("evidence") if isinstance(artifacts.get("evidence"), dict) else {}
+    evidence_pack_ids = [
+        str(item) for item in evidence_basis.get("evidence_pack_ids") or [] if str(item)
+    ]
+    source_snapshot_ids = [
+        str(item) for item in evidence_basis.get("source_snapshot_ids") or [] if str(item)
+    ]
+    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
+    if any(record is None for record in evidence_records):
+        return _failure(
+            "research_citation_audit_failed",
+            "研究引用的 EvidencePack 已缺失或不属于当前工作区",
+        )
+    evidence_payloads = [
+        record.get("payload") or {}
+        for record in evidence_records
+        if isinstance(record, dict)
+    ]
+    formal_lineage: dict[str, Any] = {}
+    if str(payload.get("evidence_policy") or "") == "sim_a_formal":
+        try:
+            formal_lineage = validate_same_formal_lineage(
+                workspace_id,
+                [item for item in evidence_records if isinstance(item, dict)],
+            )
+        except FormalLineageError as exc:
+            return _failure(exc.code, exc.message)
+        if (
+            payload.get("evidence_origin") != formal_lineage["evidence_origin"]
+            or payload.get("formal_promotion") != formal_lineage["formal_promotion"]
+            or payload.get("project_fact_certified") is not False
+        ):
+            return _failure(
+                "formal_lineage_metadata_mismatch",
+                "正式 ResearchPackage 提交包的 promotion 元数据不规范",
+            )
+    allowed_source_ids = _citation_basis_source_ids(
+        evidence_payloads,
+        source_snapshot_ids,
+    )
+    resolved_citations, resolution_issues = _resolve_citation_audit(
+        workspace_id,
+        citations,
+        allowed_source_ids=allowed_source_ids,
+    )
+    if resolution_issues or len(resolved_citations) != len(citations):
+        return {
+            "success": False,
+            "status": "blocked",
+            "code": "research_citation_audit_failed",
+            "message": "研究引用在质量确认边界未能重新解析到不可变来源片段",
+            "resource_uris": [source["resource_uri"]],
+            "warnings": [],
+            "blockers": resolution_issues or ["citation_resolution_incomplete"],
+            "next_actions": ["重新固化来源正文并提交可确定解析的 locator、整源 hash 与片段 hash"],
+        }
+    citations = resolved_citations
     computed = _bound_citation_metrics(
         citations,
         workspace_id=workspace_id,
-        source_snapshot_ids=[
-            str(item)
-            for item in (evidence_basis.get("source_snapshot_ids") or [])
-            if str(item)
-        ],
+        allowed_source_ids=allowed_source_ids,
     )
     task_id = str(payload.get("task_id") or "")
     if not task_id:
@@ -822,15 +1068,6 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
             "quality": metrics,
         }
     review_status = "passed" if quality_passed else "accepted_with_limitations"
-    basis = artifacts.get("evidence") if isinstance(artifacts.get("evidence"), dict) else {}
-    evidence_pack_ids = [str(item) for item in basis.get("evidence_pack_ids") or [] if str(item)]
-    source_snapshot_ids = [str(item) for item in basis.get("source_snapshot_ids") or [] if str(item)]
-    evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
-    evidence_payloads = [
-        record.get("payload") or {}
-        for record in evidence_records
-        if isinstance(record, dict)
-    ]
     citation_issues = _citation_consistency_issues(
         workspace_id,
         citations,
@@ -862,7 +1099,9 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "accepted_limitations": accepted_limitations and not quality_passed,
         "limitations": limitations,
         "evidence_policy": evidence_policy,
+        "evidence_origin": formal_lineage.get("evidence_origin"),
         "project_fact_certified": project_fact_certified,
+        "formal_promotion": formal_lineage.get("formal_promotion"),
     }
     # P0-009 修复：先推导 identity（object_id 是 payload 的确定性函数），构建并
     # 校验完整响应，最后再写 QualityReview 和 completed 包。这确保 outputSchema
@@ -875,8 +1114,20 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "quality_review_status": review_status,
         "quality": metrics,
         "project_fact_certified": review_payload["project_fact_certified"],
+        "evidence_origin": review_payload["evidence_origin"],
+        "formal_promotion": review_payload["formal_promotion"],
         "release_limitations": sorted(set([*(payload.get("release_limitations") or []), *limitations])),
     }
+    confirmed_artifacts = dict(artifacts)
+    confirmed_artifacts["sources"] = citations
+    confirmed_artifacts["citation_audit"] = {
+        "status": "deterministic_fragment_binding_revalidated",
+        "citation_count": len(citations),
+        "resolved_citations": citations,
+        "passed": True,
+        "semantic_support_status": "agent_or_manual_review_required",
+    }
+    confirmed_payload["agent_artifacts"] = confirmed_artifacts
     confirmed_identity = PACKAGE_STORE.preview_identity(workspace_id, confirmed_payload)
     response = {
         "success": True, "status": "completed", "research_package_id": confirmed_identity["object_id"],
@@ -912,7 +1163,14 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         workspace_id, confirmed_payload,
         producer="lvke-deep-research.dr_confirm_quality",
         status="completed", source_ids=[package_id, str(payload.get("task_id") or ""), review["object_id"]],
-        basis={"parent_package_id": package_id, "quality_review_id": review["object_id"]},
+        basis={
+            "parent_package_id": package_id,
+            "parent_content_hash": source.get("content_hash"),
+            "parent_basis_hash": source.get("basis_hash"),
+            "quality_review_id": review["object_id"],
+            "quality_review_content_hash": review.get("content_hash"),
+            "quality_review_basis_hash": review.get("basis_hash"),
+        },
     )
     _append_event(workspace_id, str(payload.get("task_id") or ""), "research_quality_confirmed", {
         "research_package_id": confirmed["object_id"], "quality_review_id": review["object_id"], "status": review_status,

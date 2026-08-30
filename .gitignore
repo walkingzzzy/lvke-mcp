@@ -50,3 +50,4 @@ lvke产出/
 
 # Original client materials and generated research corpus
 /docs/*
+.bce-tool/

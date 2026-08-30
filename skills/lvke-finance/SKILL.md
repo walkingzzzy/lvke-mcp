@@ -22,6 +22,15 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 - finance_calculate is a pure calculator and never replaces finance_run_model or formal gates.
 - Require complete current formal validation before any formal CSV/XLSX write;
   technical scope may emit only explicitly marked process artifacts.
+- Revalidate one canonical promotion across EvidencePack, FinanceFactPack,
+  FinanceSpec, BoE, FinanceRun and TablesPackage; copied labels or stored hashes
+  are insufficient, and unsigned historical objects fail closed.
+- Monthly drivers use `explicit monthly values > seasonality x annual value >
+  deterministic legacy annual expansion` for ADR, occupancy, ancillary
+  revenue, payroll, utilities, consumables, maintenance and owner OPEX.
+  Validate calendar continuity/order/non-negativity and require exact annual
+  reconciliation. Monthly P&L, balance sheet, CSV/XLSX and manifests must all
+  bind the same run facts and lineage; the existing annual package remains compatible.
 
 ## MCP Tool Mapping
 

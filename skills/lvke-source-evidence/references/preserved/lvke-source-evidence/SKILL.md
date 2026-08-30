@@ -32,6 +32,10 @@ description: >
 - 原件不可变；解析失败可 partial，但须可查询、可重试。
 - partial（旧 DOC/OFD/扫描）**合法**，不得标成「全量自动通过」。
 - 证据默认 grade 保守；升级必须有可定位来源和显式复核结果。
+- SIM-A 正式升级只认同工作区 `TemplatePack -> FormalPromotion -> SourceFile`
+  的精确文件集合；缺失、额外、混合、跨工作区或历史无签名对象失败关闭。
+- citation locator 必须由服务端解析为实际片段并重算 whole-source hash 与
+  fragment hash；片段身份通过不代表语义上支撑 claim。
 - P0A：`golden_samples_manifest.py --verify` 只证明冻结原件一致。
 - 金标目录 gitignore；用 `LVKE_GOLDEN_DATA_ROOT`（`dev-docs/verification/ci-golden-corpus.md`）。
 

@@ -20,6 +20,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Search only through tavily-hikari; direct HTTP may fetch only a known URL.
 - Formal conclusions require at least three query angles, three independent domains, frozen正文, and locators.
+- `dr_submit` and `dr_confirm_quality` resolve every locator again against a
+  workspace-owned immutable source, whole-source hash, fragment text and
+  fragment hash. Invalid, ambiguous, out-of-bounds or tampered bindings stop.
+- A SIM-A ResearchPackage derives promotion metadata only from verified
+  EvidencePack parents. Confirmation creates a new immutable child bound to
+  the partial package and QualityReview; unsigned historical packages fail closed.
 
 ## MCP Tool Mapping
 
@@ -31,4 +37,3 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | `data_search` / `data_discover` | lvke-data-acquisition | query/URL | network failure = UPSTREAM_FAILURE |
 
 Search summaries and proxy data stay non-formal; freeze正文 with locators before evidence binding.
-

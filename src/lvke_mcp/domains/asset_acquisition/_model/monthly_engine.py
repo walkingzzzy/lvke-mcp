@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import calendar
+import calendar  # compatibility export; calendar arithmetic lives in monthly_drivers
 from typing import Any
 
 from lvke_mcp.domains.finance.calculations import payback_period
@@ -22,6 +22,11 @@ from .period_dates import (
     _month_end,
     _month_overlap_days,
     _month_start,
+)
+
+from .monthly_drivers import (
+    resolve_monthly_driver,
+    resolve_operating_calendar,
 )
 
 from .schedules import (
@@ -82,9 +87,9 @@ def _run_monthly_acquisition_model(
     annual_depreciation = depreciation.get("annual_depreciation_wan") or [0.0] * years
     cost = spec.get("cost") or {}
     cost_items = cost.get("cost_items") if isinstance(cost, dict) else {}
-    annual_owner_opex = _number((cost or {}).get("annual_owner_operating_cost_wan")) or sum(
-        _number(value) for value in (cost_items or {}).values()
-    )
+    owner_opex_raw = (cost or {}).get("annual_owner_operating_cost_wan")
+    if owner_opex_raw is None:
+        owner_opex_raw = sum(_number(value) for value in (cost_items or {}).values())
     tax_cfg = spec.get("tax") or {}
     income_tax_rate = min(max(_number(tax_cfg.get("income_tax_rate")), 0.0), 1.0)
     vat_rate = min(max(_number(tax_cfg.get("vat_rate")), 0.0), 1.0)
@@ -130,16 +135,53 @@ def _run_monthly_acquisition_model(
             "depreciation_wan": 0.0,
             "net_profit_wan": 0.0,
         })
-    room_adr = _series(hotel.get("adr"), years)
-    occupancy = _series(hotel.get("occupancy"), years)
-    food = _series(hotel.get("food_beverage_revenue"), years)
-    meeting = _series(hotel.get("meeting_revenue"), years)
-    other = _series(hotel.get("other_revenue"), years)
-    payroll = _series(hotel.get("payroll"), years)
-    utilities = _series(hotel.get("utilities"), years)
-    consumables = _series(hotel.get("consumables"), years)
-    maintenance = _series(hotel.get("maintenance_capex"), years)
-    ota = _series(hotel.get("ota_commission"), years)
+    operating_calendar, calendar_manifest = resolve_operating_calendar(
+        start,
+        months,
+        hotel.get("operating_calendar"),
+        legacy_operating_days=hotel.get("operating_days"),
+    )
+    driver_specs = {
+        "adr": (hotel.get("adr"), "level", 0.0, None),
+        "occupancy": (hotel.get("occupancy"), "level", 0.0, 1.0),
+        "payroll": (hotel.get("payroll"), "annual_total", 0.0, None),
+        "utilities": (hotel.get("utilities"), "annual_total", 0.0, None),
+        "consumables": (hotel.get("consumables"), "annual_total", 0.0, None),
+        "maintenance": (
+            hotel.get("maintenance")
+            if hotel.get("maintenance") is not None
+            else hotel.get("maintenance_capex"),
+            "annual_total",
+            0.0,
+            None,
+        ),
+        "owner_opex": (owner_opex_raw, "annual_total", 0.0, None),
+        "ota_commission": (hotel.get("ota_commission"), "level", 0.0, None),
+    }
+    if hotel.get("ancillary_revenue") is not None:
+        driver_specs["ancillary_revenue"] = (
+            hotel.get("ancillary_revenue"), "annual_total", 0.0, None,
+        )
+    else:
+        driver_specs.update({
+            "food_beverage_revenue": (hotel.get("food_beverage_revenue"), "annual_total", 0.0, None),
+            "meeting_revenue": (hotel.get("meeting_revenue"), "annual_total", 0.0, None),
+            "other_revenue": (hotel.get("other_revenue"), "annual_total", 0.0, None),
+        })
+    drivers: dict[str, list[float]] = {}
+    driver_manifest: dict[str, dict[str, Any]] = {}
+    for name, (raw, kind, default, maximum) in driver_specs.items():
+        values, manifest = resolve_monthly_driver(
+            f"hotel_operation.{name}" if name != "owner_opex" else "cost.annual_owner_operating_cost_wan",
+            raw,
+            months=months,
+            periods=operating_calendar,
+            kind=kind,
+            default=default,
+            maximum=maximum,
+        )
+        drivers[name] = values
+        driver_manifest[name] = manifest
     rooms = _number(hotel.get("rooms"))
     cursor = _month_start(start)
     loss_carryforward = 0.0
@@ -153,18 +195,39 @@ def _run_monthly_acquisition_model(
         days = (period_end - period_start).days + 1
         owner_days = _month_overlap_days(period_start, period_end, start)
         hotel_days = _month_overlap_days(period_start, period_end, opening) if opening else 0
+        calendar_row = operating_calendar[index]
+        selected_days = float(calendar_row["selected_days"])
+        owner_activity = owner_days / days if days else 0.0
+        hotel_activity = hotel_days / days if days else 0.0
+        hotel_operating_days = selected_days * hotel_activity
         lease_revenue, lease_adjustment = _monthly_lease_income(portfolio, period_start, period_end)
         hotel_revenue = 0.0
         hotel_cost = 0.0
         maintenance_capex = 0.0
+        room_revenue = 0.0
+        ancillary = 0.0
+        ota_cost = 0.0
+        payroll_cost = 0.0
+        utilities_cost = 0.0
+        consumables_cost = 0.0
         if operating_mode == "mixed_owner_operator" and hotel_days:
-            room_revenue = rooms * room_adr[model_year] * occupancy[model_year] * hotel_days / 10000.0
-            ancillary = (food[model_year] + meeting[model_year] + other[model_year]) * hotel_days / (366.0 if calendar.isleap(period_start.year) else 365.0)
+            room_revenue = rooms * drivers["adr"][index] * drivers["occupancy"][index] * hotel_operating_days / 10000.0
+            ancillary = (
+                drivers["ancillary_revenue"][index]
+                if "ancillary_revenue" in drivers
+                else drivers["food_beverage_revenue"][index]
+                + drivers["meeting_revenue"][index]
+                + drivers["other_revenue"][index]
+            ) * hotel_activity
             hotel_revenue = room_revenue + ancillary
-            ota_cost = room_revenue * ota[model_year] if 0 <= ota[model_year] <= 1 else ota[model_year] * hotel_days / days
-            hotel_cost = ota_cost + (payroll[model_year] + utilities[model_year] + consumables[model_year]) * hotel_days / (366.0 if calendar.isleap(period_start.year) else 365.0)
-            maintenance_capex = maintenance[model_year] * hotel_days / (366.0 if calendar.isleap(period_start.year) else 365.0)
-        owner_cost = annual_owner_opex * owner_days / (366.0 if calendar.isleap(period_start.year) else 365.0)
+            ota_value = drivers["ota_commission"][index]
+            ota_cost = room_revenue * ota_value if 0 <= ota_value <= 1 else ota_value * hotel_activity
+            payroll_cost = drivers["payroll"][index] * hotel_activity
+            utilities_cost = drivers["utilities"][index] * hotel_activity
+            consumables_cost = drivers["consumables"][index] * hotel_activity
+            hotel_cost = ota_cost + payroll_cost + utilities_cost + consumables_cost
+            maintenance_capex = drivers["maintenance"][index] * hotel_activity
+        owner_cost = drivers["owner_opex"][index] * owner_activity
         revenue = lease_revenue + (hotel_revenue if operating_mode == "mixed_owner_operator" else 0.0)
         operating_cost = owner_cost + (hotel_cost if operating_mode == "mixed_owner_operator" else 0.0)
         depreciation_month = _number(annual_depreciation[model_year] if model_year < len(annual_depreciation) else 0.0) / 12.0
@@ -221,9 +284,19 @@ def _run_monthly_acquisition_model(
         monthly_rows.append({
             "month": index + 1, "period_start": period_start.isoformat(), "period_end": period_end.isoformat(),
             "active_days": owner_days, "hotel_days": hotel_days,
+            "calendar_days": calendar_row["calendar_days"],
+            "operating_days": round(hotel_operating_days, 8),
+            "workdays": calendar_row["workdays"],
+            "calendar_basis": calendar_row["basis"],
             "operating_mode": operating_mode, "hotel_revenue_wan": hotel_revenue,
+            "adr": drivers["adr"][index], "occupancy": drivers["occupancy"][index],
+            "room_revenue_wan": room_revenue, "ancillary_revenue_wan": ancillary,
             "hotel_cost_wan": hotel_cost, "lease_revenue_wan": lease_revenue,
             "lease_adjustment_wan": lease_adjustment,
+            "revenue_wan": revenue,
+            "payroll_wan": payroll_cost, "utilities_wan": utilities_cost,
+            "consumables_wan": consumables_cost, "ota_commission_wan": ota_cost,
+            "owner_opex_wan": owner_cost,
             "operating_cost_wan": operating_cost,
             "tax_wan": tax, "income_tax_wan": tax,
             "vat_wan": vat, "surtax_wan": surtax,
@@ -242,6 +315,36 @@ def _run_monthly_acquisition_model(
             "total_liabilities_equity_wan": total_le,
         })
         cursor = _add_months(cursor, 1)
+    monthly_income_statement = [{key: row.get(key) for key in (
+        "month", "period_start", "period_end", "hotel_revenue_wan", "lease_revenue_wan",
+        "operating_cost_wan", "depreciation_wan", "interest_wan", "income_tax_wan", "net_profit_wan",
+    )} | {"revenue_wan": row["hotel_revenue_wan"] + row["lease_revenue_wan"]} for row in monthly_rows]
+    monthly_balance_sheet = [{key: row.get(key) for key in (
+        "month", "period_start", "period_end", "cash_wan", "fixed_asset_net_wan",
+        "total_assets_wan", "debt_wan", "equity_wan", "total_liabilities_equity_wan",
+    )} for row in monthly_rows]
+    reconciliation_fields = (
+        "hotel_revenue_wan", "lease_revenue_wan", "revenue_wan", "operating_cost_wan",
+        "income_tax_wan", "maintenance_capex_wan", "project_cf_wan", "equity_cf_wan",
+        "debt_service_wan", "interest_wan", "vat_wan", "surtax_wan", "depreciation_wan", "net_profit_wan",
+    )
+    annual_reconciliation = []
+    for year_index, annual_row in enumerate(annual):
+        month_rows = monthly_rows[year_index * 12:(year_index + 1) * 12]
+        for field in reconciliation_fields:
+            monthly_total = sum(float(row.get(field) or 0.0) for row in month_rows)
+            annual_total = float(annual_row.get(field) or 0.0)
+            difference = annual_total - monthly_total
+            annual_reconciliation.append({
+                "year_index": year_index + 1,
+                "field": field,
+                "monthly_total": monthly_total,
+                "annual_total": annual_total,
+                "difference": difference,
+                "status": "passed" if abs(difference) <= 1e-8 else "failed",
+            })
+    if any(item["status"] != "passed" for item in annual_reconciliation):
+        raise AcquisitionModelError("monthly facts do not reconcile to annual summary")
     project_annual = [-total_cost, *[row["project_cf_wan"] for row in annual]]
     equity_annual = [-equity, *[row["equity_cf_wan"] for row in annual]]
     monthly_irr = _safe_irr(project_monthly)
@@ -261,6 +364,11 @@ def _run_monthly_acquisition_model(
         "calculation_granularity": "monthly", "purchase_price_wan": purchase_price,
         "transaction_tax_wan": transaction_tax, "total_acquisition_cost_wan": total_cost,
         "monthly_timeline": monthly_rows, "annual_summary": annual,
+        "monthly_income_statement": monthly_income_statement,
+        "monthly_balance_sheet": monthly_balance_sheet,
+        "monthly_driver_manifest": driver_manifest,
+        "operating_calendar": {"manifest": calendar_manifest, "periods": operating_calendar},
+        "annual_reconciliation": annual_reconciliation,
         "project_cashflows_monthly_wan": project_monthly, "equity_cashflows_monthly_wan": equity_monthly,
         "project_cashflows_wan": project_annual, "equity_cashflows_wan": equity_annual,
         "debt_schedule_monthly": debt_rows, "debt_schedule": {"monthly": debt_rows},
@@ -295,3 +403,29 @@ def _run_monthly_acquisition_model(
             "mixed_owner_operator 合并酒店自营与配套租赁收入，不将酒店可承受租金计作业主收入",
         ],
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "AcquisitionModelError",
+    "Any",
+    "LATEST_SPEC_VERSION",
+    "_add_months",
+    "_date_value",
+    "_depreciation_schedule",
+    "_month_end",
+    "_month_overlap_days",
+    "_month_start",
+    "_monthly_debt_schedule",
+    "_monthly_lease_income",
+    "_number",
+    "_run_monthly_acquisition_model",
+    "_safe_irr",
+    "_series",
+    "calendar",
+    "payback_period",
+    "resolve_monthly_driver",
+    "resolve_operating_calendar",
+]

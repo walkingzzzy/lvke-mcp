@@ -139,8 +139,6 @@ def build_server() -> OfficialStdioServer:
                     },
                 },
                 "template_version": {"type": "string"},
-                "evidence_policy": {"type": "string"},
-                "project_fact_certified": {"type": "boolean"},
                 "reconstruction_records": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
                 "reconstructed_source_ids": {"type": "array", "items": {"type": "string"}},
                 "unresolved_inputs": {"type": "array", "items": {"type": "string"}},

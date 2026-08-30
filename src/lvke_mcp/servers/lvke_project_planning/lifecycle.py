@@ -47,6 +47,16 @@ from ._lifecycle.revenue import (
 )
 
 __all__ = [
+    "Any",
+    "Decimal",
+    "Path",
+    "ROUND_HALF_UP",
+    "_calculated_cost_items",
+    "_candidate",
+    "_payload",
+    "_put_candidate",
+    "_selection",
+    "calculate_cost_drivers",
     "compare_revenue_candidates",
     "confirm_build_scale",
     "confirm_cost_drivers",
@@ -56,10 +66,13 @@ __all__ = [
     "get_environmental_scheme_templates",
     "get_industry_constraints",
     "infer_labor_plan",
+    "math",
     "prepare_cost_drivers",
     "prepare_policy_basis",
     "prepare_revenue_drivers",
     "score_option_comparison",
+    "service",
+    "sha256_json",
     "solve_build_scale",
     "validate_build_scale",
     "validate_cost_drivers",
@@ -67,5 +80,5 @@ __all__ = [
     "validate_option_comparison",
     "validate_policy_basis",
     "validate_revenue_drivers",
-    "calculate_cost_drivers",
+    "yaml",
 ]

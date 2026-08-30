@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from lvke_mcp.runtime.storage import sha256_json
 from lvke_mcp.runtime.workspace import workspace_root
 
 # 元素映射（与 hermes audit_db 的 _INDICATOR_MAP/_INVESTMENT_MAP/_FUNDING_MAP 一致）
@@ -69,6 +70,19 @@ def _gen_id(prefix: str) -> str:
     return f"{prefix}_{secrets.token_hex(6)}"
 
 
+def finance_run_snapshot_hash(snapshot: dict[str, Any]) -> str:
+    """Hash a finance snapshot using the store's canonical serialization."""
+
+    encoded = json.dumps(
+        snapshot,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+
 def _run_dir(workspace_id: str) -> Path:
     root = workspace_root(workspace_id) / "finance_runs"
     root.mkdir(parents=True, exist_ok=True)
@@ -115,6 +129,14 @@ def load_run(workspace_id: str, run_id: str) -> dict[str, Any]:
     return _view_from_record(record)
 
 
+def load_run_record(workspace_id: str, run_id: str) -> dict[str, Any]:
+    """Read the authoritative stored envelope without projecting audit fields."""
+
+    if not run_id:
+        return {}
+    return _read_record(_run_path(workspace_id, run_id)) or {}
+
+
 def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     """把存储记录投影为 run_service 消费的审计视图（对齐 audit_db.load_run）。
 
@@ -124,7 +146,9 @@ def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     snapshot = record.get("_result_snapshot")
     if isinstance(snapshot, dict):
         view.setdefault("evidence_policy", snapshot.get("evidence_policy"))
+        view.setdefault("evidence_origin", snapshot.get("evidence_origin"))
         view.setdefault("project_fact_certified", snapshot.get("project_fact_certified"))
+        view.setdefault("formal_promotion", snapshot.get("formal_promotion"))
         view.setdefault("mode", snapshot.get("mode") or record.get("assurance_level"))
     view.pop("_result_snapshot", None)
     view.setdefault("consistency_ok", False)
@@ -230,7 +254,6 @@ def record_run(
         if existing and existing.get("run_id"):
             return existing["run_id"]
 
-    run_id = _gen_id("run")
     now = _now()
     inv = fin.get("investment") or {}
     fund = fin.get("funding") or {}
@@ -291,6 +314,13 @@ def record_run(
     ]
     snap = result_snapshot if result_snapshot is not None else fin
 
+    snapshot_hash = finance_run_snapshot_hash(snap)
+    formal_run = str(fin.get("evidence_policy") or "") == "sim_a_formal"
+    run_id = (
+        f"run_{snapshot_hash.removeprefix('sha256:')[:24]}"
+        if formal_run
+        else _gen_id("run")
+    )
     record: dict[str, Any] = {
         "run_id": run_id,
         "workspace_id": str(workspace_id),
@@ -308,6 +338,8 @@ def record_run(
         "spec_json": spec_json,
         "spec_id": fin.get("spec_id") or None,
         "spec_hash": spec_hash,
+        "basis_of_estimate_id": fin.get("basis_of_estimate_id") or None,
+        "basis_of_estimate_hash": fin.get("basis_of_estimate_hash") or None,
         "parent_run_id": parent_run_id or None,
         "input_hash": input_hash or fin.get("input_hash") or "",
         "idempotency_key": idempotency_key or "",
@@ -319,7 +351,9 @@ def record_run(
         "assurance_level": fin.get("assurance_level") or "estimate_preview",
         "mode": fin.get("mode") or fin.get("assurance_level") or "estimate_preview",
         "evidence_policy": fin.get("evidence_policy"),
+        "evidence_origin": fin.get("evidence_origin"),
         "project_fact_certified": bool(fin.get("project_fact_certified")),
+        "formal_promotion": fin.get("formal_promotion"),
         "manifest_json": (
             json.dumps(manifest, ensure_ascii=False, sort_keys=True, default=str)
             if manifest else None
@@ -344,6 +378,26 @@ def record_run(
         "migration_events": [],
         "_result_snapshot": snap,
     }
+    if formal_run:
+        # Formal runs are content addressed by the complete immutable result
+        # snapshot. Audit mappings may be appended later, but cannot alter the
+        # model result, parent bindings, tables, or promotion lineage.
+        record["content_hash"] = snapshot_hash
+        record["basis"] = {
+            "workspace_id": str(workspace_id),
+            "spec_id": record["spec_id"],
+            "spec_hash": record["spec_hash"],
+            "basis_of_estimate_id": record["basis_of_estimate_id"],
+            "basis_of_estimate_hash": record["basis_of_estimate_hash"],
+            "input_hash": record["input_hash"],
+            "table_bundle_hash": record["table_bundle_hash"],
+            "result_snapshot_hash": snapshot_hash,
+            "formal_promotion": record["formal_promotion"],
+        }
+        record["basis_hash"] = sha256_json(record["basis"])
+        existing = _read_record(_run_path(workspace_id, run_id))
+        if existing is not None:
+            return run_id
     _write_record(_run_path(workspace_id, run_id), record)
     return run_id
 

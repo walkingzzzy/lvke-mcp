@@ -1,7 +1,7 @@
-"""遍历全部 169 个公开工具入口的通用守卫。
+"""遍历全部 180 个公开工具入口的通用守卫。
 
 **为什么必须遍历**：既有测试几乎都直调服务函数，绕过了入口层的 schema 校验、参数
-映射与错误信封构造；运行时探针实测 169 个公开入口里只有 9 个被真正执行过（94% 零
+映射与错误信封构造；历史运行时探针实测 169 个公开入口里只有 9 个被真正执行过（94% 零
 触达）。那 94% 正是"传了但被静默丢弃""业务拒绝被改写成系统故障"这类缺陷的滋生地——
 尺度门禁读不到 route_length_km、42 个入口把标识符拒绝降级成 internal_error，都出自
 这里，而当时全套件是绿的。
@@ -135,7 +135,7 @@ class ToolEntryUniversalGuardTest(unittest.TestCase):
     def test_every_public_tool_is_covered(self) -> None:
         """先证明这组测试真的覆盖了全部对外入口，否则下面的断言是空转。"""
 
-        self.assertEqual(173, len(self.tools), "对外工具数变化：先确认是有意增减")
+        self.assertEqual(180, len(self.tools), "对外工具数变化：先确认是有意增减")
         self.assertEqual(14, len(SERVER_SPECS))
 
     def test_input_schema_is_self_consistent(self) -> None:

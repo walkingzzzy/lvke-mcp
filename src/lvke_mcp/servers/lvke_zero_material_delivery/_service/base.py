@@ -1,8 +1,10 @@
 """Artifact stores, stage table and the envelope/idempotency foundation.
 
-Every ``JSONArtifactStore`` in this package is defined here and only here;
-re-defining or re-exporting one elsewhere would create two views of the
-same on-disk state.
+Each ``JSONArtifactStore`` has exactly one definition site, so there is never
+more than one view of the same on-disk state. Most are defined here; the ones
+other servers must read are defined in :mod:`lvke_mcp.adapters` and bound here
+by name, which keeps that single-view guarantee while letting readers depend on
+the shared adapter layer rather than this server's internals.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from lvke_mcp.runtime.storage import (
     require_safe_id,
     sha256_json,
 )
+from lvke_mcp.adapters.zero_material_repository import REPORT_STORE as _REPORT_STORE
 
 SERVICE_NAME = "lvke-zero-material-delivery"
 SERVICE_VERSION = "0.1.0"
@@ -33,9 +36,10 @@ ASSUMPTION_STORE = JSONArtifactStore(
 RUN_STORE = JSONArtifactStore(
     "zero-material-delivery", "runs", "zmr", "runs"
 )
-REPORT_STORE = JSONArtifactStore(
-    "zero-material-delivery", "technical_reports", "zmrep", "reports"
-)
+# Defined in the shared adapter layer, not here: deliverable review must read
+# preview reports without importing this server's internals. Re-exported so the
+# store stays a single on-disk view.
+REPORT_STORE = _REPORT_STORE
 ASSUMPTION_REGISTER_STORE = JSONArtifactStore(
     "zero-material-delivery", "assumption_registers", "zmareg", "assumption-registers"
 )
@@ -102,10 +106,18 @@ _ROUTE_RULES: tuple[dict[str, Any], ...] = (
         "factory_industry": "manufacturing",
     },
     {
+        "code": "energy_utilities",
+        "label": "能源与公用事业",
+        "keywords": ("光伏", "风电", "储能", "太阳能", "新能源", "能源项目", "energy", "solar", "photovoltaic", "pv"),
+        "strong_keywords": ("光伏", "风电", "储能", "太阳能", "新能源", "solar", "photovoltaic", "pv"),
+        "factory_industry": "energy_utilities",
+        "asset_type": "solar_power",
+    },
+    {
         "code": "environment_utilities",
         "label": "环保与公用事业",
-        "keywords": ("环保", "污水", "供水", "垃圾", "固废", "光伏", "风电", "储能", "公用事业"),
-        "strong_keywords": ("环保", "污水", "供水", "垃圾", "固废", "光伏", "风电", "储能", "公用事业"),
+        "keywords": ("环保", "污水", "供水", "垃圾", "固废", "公用事业"),
+        "strong_keywords": ("环保", "污水", "供水", "垃圾", "固废"),
         "factory_industry": "energy_utilities",
     },
     {

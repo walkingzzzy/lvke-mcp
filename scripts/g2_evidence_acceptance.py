@@ -223,7 +223,7 @@ def write_report(workspace_id: str, steps: list[StepRecord], meta: dict[str, Any
         "",
         f"- **生成时间（UTC）**：{payload['generated_at']}",
         f"- **工作区**：`{workspace_id}`",
-        f"- **引用核验数**：22（V1.6 主报告全量 URL）",
+        "- **引用核验数**：22（V1.6 主报告全量 URL）",
         f"- **含 trace_id 步骤**：{with_trace}/{len(steps)}",
         f"- **build_metadata_complete**：{meta.get('build_metadata_complete')}",
         "",

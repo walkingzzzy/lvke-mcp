@@ -10,8 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from lvke_mcp.runtime.evidence_qualification import SIM_A_FORMAL
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    build_promotion_payload,
+    validate_formal_promotion,
+    validate_template_pack,
+)
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 
+from .acceptance import empty_acceptance
 from .assumptions import _field_values
 from .explicit_inputs import SOURCE_SENTENCE
 from .base import (
@@ -224,7 +231,7 @@ def _resolve_applicable_requirements(
     industry_code: str,
     idempotency_key: str,
 ) -> tuple[list[dict[str, Any]], str]:
-    from lvke_mcp.servers.lvke_deliverable_review._service.standards import (
+    from lvke_mcp.runtime.service_gateway import (
         list_standard_requirements,
         resolve_standards,
     )
@@ -279,6 +286,12 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
     request_payload = {
         "delivery_run_id": run_id,
         "project_type": project_type,
+        "report_profile_id": str(args.get("report_profile_id") or "").strip(),
+        "template_set_id": str(args.get("template_set_id") or "").strip(),
+        # 调用方声明"我看到的是哪份已确认答案"。留空表示不断言，沿用运行绑定的那份。
+        "confirmed_assumption_package_id": str(
+            args.get("confirmed_assumption_package_id") or ""
+        ).strip(),
     }
 
     def mutation() -> dict[str, Any]:
@@ -289,6 +302,21 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
         package_id = str(run.get("assumption_package_id") or "")
         if not package_id:
             return _blocked("assumption_package_missing", "DeliveryRun 未绑定 AssumptionPackage")
+        # 显式答案引用是乐观并发断言：确认动作会**新建** AssumptionPackage，
+        # 所以"我基于 zma_A 生成模板包"与运行当前挂着 zma_B 冲突时必须阻断，
+        # 而不是按 B 生成一份调用方没看过的模板包。
+        declared_package = str(request_payload["confirmed_assumption_package_id"])
+        if declared_package and declared_package != package_id:
+            return _blocked(
+                "confirmed_assumption_package_stale",
+                "声明的已确认答案快照与当前 DeliveryRun 绑定的不一致",
+                declared_assumption_package_id=declared_package,
+                current_assumption_package_id=package_id,
+                next_actions=[
+                    "用 delivery_status 读取当前 assumption_package_id 后重试",
+                    "或省略 confirmed_assumption_package_id 以沿用运行绑定的快照",
+                ],
+            )
         package_record = ASSUMPTION_STORE.get(workspace_id, package_id)
         if package_record is None:
             return _blocked("assumption_package_not_found", "未找到指定 AssumptionPackage")
@@ -306,6 +334,63 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
         industry_code = str(
             industry.get("industry_code") or package.get("industry_code") or ""
         )
+        # 报告配置：默认沿用运行冻结的那份。
+        report_profile = dict(run.get("report_profile") or {})
+        requested_profile_id = str(request_payload["report_profile_id"])
+        requested_template_set = str(request_payload["template_set_id"])
+        if requested_profile_id or requested_template_set:
+            # 运行已冻结配置时**拒绝覆盖**。
+            #
+            # 技术验收与内部七域验收都是针对"按配置 A 生成的那份交付"做的。允许在
+            # 生成模板包时换成配置 B，就等于让配置 B 的 pack 继承配置 A 的验收结论
+            # 并据此晋升——验收对象与晋升对象不是同一件东西。
+            #
+            # 在源头拒绝而不是到 Promotion 再比对：越早失败，调用方越容易看懂
+            # "该改的是创建阶段的配置选择，不是这里"。
+            frozen_set = str(report_profile.get("template_set_id") or "")
+            frozen_id = str(report_profile.get("profile_id") or "")
+            if frozen_set or frozen_id:
+                requested_matches = (
+                    not requested_profile_id or requested_profile_id == frozen_id
+                ) and (
+                    not requested_template_set or requested_template_set == frozen_set
+                )
+                if not requested_matches:
+                    return _blocked(
+                        "report_profile_override_conflicts_with_run",
+                        "DeliveryRun 已冻结报告配置，生成模板包时不得改用其它配置",
+                        frozen_profile_id=frozen_id,
+                        frozen_template_set_id=frozen_set,
+                        requested_profile_id=requested_profile_id,
+                        requested_template_set_id=requested_template_set,
+                        next_actions=[
+                            "省略 report_profile_id / template_set_id 以沿用运行冻结的配置",
+                            "或用 delivery_create_from_sentence 以目标配置新建一条交付链",
+                        ],
+                    )
+            from .report_profiles import ReportProfileError, resolve_profile
+
+            try:
+                overridden = resolve_profile(
+                    industry_code=industry_code,
+                    project_type=project_type,
+                    transaction_structure=(
+                        "asset_acquisition"
+                        if project_type == "asset_acquisition"
+                        else "new_build"
+                    ),
+                    asset_type=str(industry.get("asset_type") or "general"),
+                    report_type=str(intent.get("report_type") or ""),
+                    requested_profile_id=requested_profile_id,
+                    requested_template_set_id=requested_template_set,
+                )
+            except ReportProfileError as exc:
+                return _blocked(
+                    exc.code,
+                    f"指定的报告配置不可用：{exc.message}",
+                    report_profile_detail=exc.detail,
+                )
+            report_profile = dict(overridden["selection"])
         requirements, standards_error = _resolve_applicable_requirements(
             workspace_id,
             project_type=project_type,
@@ -400,6 +485,13 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
             "industry_code": industry_code,
             "evidence_policy": SIM_A_FORMAL,
             "evidence_origin": SIM_A_ORIGIN,
+            # 生成模板包本身不授予任何验收资格：两段验收都从 pending 起步，
+            # 由 delivery_confirm_formal_promotion 的门禁读真实状态。
+            "assurance_level": "estimate_preview",
+            "release_grade": "technical_preview",
+            "technical_acceptance": "pending",
+            "internal_acceptance": "pending",
+            "report_profile": report_profile,
             "requirement_ids": [str(item.get("requirement_id") or "") for item in requirements],
             "files": [
                 {
@@ -468,6 +560,80 @@ def _project_name(sentence: str, supplied: str = "") -> str:
     return str(resolve_name(sentence, supplied) or supplied or "")
 
 
+#: 晋升前必须与运行逐项相等的配置身份字段。
+_PROFILE_IDENTITY_FIELDS = (
+    "profile_id",
+    "template_set_id",
+    "profile_version",
+    "profile_content_hash",
+)
+
+
+def _profile_identity_mismatch(
+    workspace_id: str,
+    pack: dict[str, Any],
+) -> list[dict[str, str]]:
+    """Return per-field mismatches between the pack's profile and the run's.
+
+    运行没有冻结配置（历史 run）时返回空列表：那种情况下没有可比对的基准，
+    不能凭空判不一致。运行**有**配置而 pack 没有则算不一致——晋升对象必须能
+    指名它用的配置。
+    """
+
+    run_record = RUN_STORE.get(workspace_id, str(pack.get("delivery_run_id") or ""))
+    if run_record is None:
+        return []
+    run_profile = dict(_view(run_record, "delivery_run_id").get("report_profile") or {})
+    if not any(str(run_profile.get(field) or "") for field in _PROFILE_IDENTITY_FIELDS):
+        return []
+    pack_profile = dict(pack.get("report_profile") or {})
+    return [
+        {
+            "field": field,
+            "run_value": str(run_profile.get(field) or ""),
+            "template_pack_value": str(pack_profile.get(field) or ""),
+        }
+        for field in _PROFILE_IDENTITY_FIELDS
+        if str(run_profile.get(field) or "") != str(pack_profile.get(field) or "")
+    ]
+
+
+def _acceptance_gate(workspace_id: str, delivery_run_id: str) -> dict[str, Any]:
+    """Read the run's graded acceptance and decide whether promotion may proceed.
+
+    刻意在这里重新读一遍 review 域的领域确认，而不是相信 DeliveryRun 上写死的
+    ``internal.status``：责任人通常在 ``delivery_start`` 之后才逐个确认，缓存值
+    会长期停在 pending。
+    """
+
+    from .lifecycle import _refresh_acceptance
+
+    if not delivery_run_id:
+        return {
+            "acceptance": empty_acceptance(),
+            "blockers": ["formal_promotion_delivery_run_missing"],
+        }
+    record = RUN_STORE.get(workspace_id, delivery_run_id)
+    if record is None:
+        return {
+            "acceptance": empty_acceptance(),
+            "blockers": ["formal_promotion_delivery_run_not_found"],
+        }
+    acceptance = _refresh_acceptance(workspace_id, _view(record, "delivery_run_id"))
+    technical = dict(acceptance.get("technical") or {})
+    internal = dict(acceptance.get("internal") or {})
+    blockers: list[str] = []
+    technical_status = str(technical.get("status") or "not_started")
+    internal_status = str(internal.get("status") or "not_started")
+    if technical_status not in {"passed", "passed_with_limitations"}:
+        blockers.append(f"technical_acceptance_not_passed:{technical_status}")
+        blockers.extend(str(item) for item in technical.get("blockers") or [])
+    if internal_status not in {"passed", "passed_with_limitations"}:
+        blockers.append(f"internal_acceptance_not_passed:{internal_status}")
+        blockers.extend(str(item) for item in internal.get("blockers") or [])
+    return {"acceptance": acceptance, "blockers": sorted(set(blockers))}
+
+
 def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     pack_id = require_safe_id(args.get("template_pack_id"), "template_pack_id")
@@ -487,35 +653,91 @@ def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
     }
 
     def mutation() -> dict[str, Any]:
-        pack_record = TEMPLATE_PACK_STORE.get(workspace_id, pack_id)
-        if pack_record is None:
-            return _blocked("template_pack_not_found", "未找到指定 TemplatePack")
-        pack = _view(pack_record, "template_pack_id")
-        from lvke_mcp.servers.lvke_source_files import service as source_files
+        try:
+            validated_pack = validate_template_pack(workspace_id, pack_id)
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
+        pack = dict(validated_pack["payload"])
+        # 分级验收门禁：技术验收与内部分领域验收都必须已通过，才允许晋升。
+        # 这里读的是 DeliveryRun 上固化的 acceptance，并按 review 域最新确认刷新
+        # ——不接受调用方自报状态。
+        # 第二道：pack 的配置身份必须与已验收 DeliveryRun 的完全一致。
+        #
+        # 生成侧已在源头拒绝覆盖，这里独立复核而不依赖它——验收结论与晋升对象
+        # 必须是同一份配置，这个不变量值得两处各守一次。
+        profile_mismatch = _profile_identity_mismatch(workspace_id, pack)
+        if profile_mismatch:
+            return _blocked(
+                "formal_promotion_report_profile_mismatch",
+                "TemplatePack 的报告配置与已验收 DeliveryRun 不一致",
+                profile_mismatch=profile_mismatch,
+                next_actions=[
+                    "以运行冻结的配置重新生成模板包后再晋升",
+                ],
+            )
+        gate = _acceptance_gate(workspace_id, str(pack.get("delivery_run_id") or ""))
+        if gate["blockers"]:
+            return _blocked(
+                "formal_promotion_acceptance_required",
+                "技术验收或内部分领域验收未通过，不得晋升为正式候选",
+                # ``_blocked`` 自己会把 code 放进 blockers，这里只能另起字段名，
+                # 否则 _envelope 收到两个 blockers 直接 TypeError。
+                acceptance_blockers=gate["blockers"],
+                acceptance=gate["acceptance"],
+                next_actions=[
+                    "按 acceptance.technical.blockers 修复交付链后重算",
+                    "七域责任人调用 review_submit_assessment 与 review_confirm_dimension",
+                ],
+            )
+        promoted_files = list(validated_pack["promoted_files"])
+        payload = build_promotion_payload(
+            pack,
+            template_pack_id=pack_id,
+            responsible_party=responsible_party,
+            confirmation_note=confirmation_note,
+            promoted_files=promoted_files,
+        )
+        preview = PROMOTION_STORE.preview_identity(workspace_id, payload)
+        promotion_id = preview["object_id"]
+        from lvke_mcp.runtime import service_gateway
 
         file_ids: list[str] = []
         imported: list[dict[str, Any]] = []
+        descriptor_by_id = {item["file_id"]: item for item in promoted_files}
         for index, item in enumerate(pack.get("files") or []):
             if not isinstance(item, dict):
                 continue
             filename = str(item.get("filename") or f"sim-a-{index}.txt")
             text = str(item.get("text") or "")
             mime = "application/json" if item.get("kind") == "json" else "text/markdown"
-            imported_file = source_files.import_content(
+            digest = "sha256:" + hashlib.sha256(text.encode("utf-8")).hexdigest()
+            expected_file_id = f"src_{digest.removeprefix('sha256:')[:24]}"
+            descriptor = descriptor_by_id.get(expected_file_id)
+            if descriptor is None:
+                return _blocked(
+                    "formal_promotion_preview_mismatch",
+                    "TemplatePack 文件未能映射到预演 promotion payload",
+                )
+            imported_file = service_gateway.import_promoted_content(
                 workspace_id,
                 original_filename=filename,
                 declared_mime=mime,
                 content_base64=base64.b64encode(text.encode("utf-8")).decode("ascii"),
                 idempotency_key=f"{idempotency_key}:{filename}",
-                evidence_policy=SIM_A_FORMAL,
-                evidence_origin=SIM_A_ORIGIN,
-                project_fact_certified=True,
+                expected_sha256=digest,
+                expected_file_id=expected_file_id,
+                promotion_id=promotion_id,
+                template_pack_id=pack_id,
+                requirement_id=descriptor["requirement_id"],
+                kind=descriptor["kind"],
             )
             file_id = str(imported_file.get("file_id") or "")
-            if not file_id:
+            source_record = imported_file.get("source_file") or {}
+            actual_hash = "sha256:" + str(source_record.get("sha256") or "").removeprefix("sha256:")
+            if not file_id or file_id != expected_file_id or actual_hash != digest:
                 return _blocked(
                     str(imported_file.get("code") or "source_import_failed"),
-                    "拟定模板导入失败",
+                    "拟定模板导入结果与 promotion 预演不一致",
                     import_result=imported_file,
                 )
             file_ids.append(file_id)
@@ -523,26 +745,18 @@ def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
                 {
                     "file_id": file_id,
                     "filename": filename,
-                    "sha256": item.get("sha256"),
+                    "sha256": digest,
+                    "requirement_id": descriptor["requirement_id"],
+                    "kind": descriptor["kind"],
                     "evidence_policy": SIM_A_FORMAL,
                     "evidence_origin": SIM_A_ORIGIN,
                 }
             )
-        payload = {
-            "object_type": "FormalPromotion",
-            "template_pack_id": pack_id,
-            "assumption_package_id": pack.get("assumption_package_id"),
-            "delivery_run_id": pack.get("delivery_run_id"),
-            "intent_id": pack.get("intent_id"),
-            "responsible_party": responsible_party,
-            "confirmation_note": confirmation_note,
-            "evidence_policy": SIM_A_FORMAL,
-            "evidence_origin": SIM_A_ORIGIN,
-            "file_ids": file_ids,
-            "imported_files": imported,
-            "requirement_ids": list(pack.get("requirement_ids") or []),
-            "release_not_invoked": True,
-        }
+        if set(file_ids) != {item["file_id"] for item in promoted_files}:
+            return _blocked(
+                "formal_promotion_file_set_mismatch",
+                "实际导入的 SourceFile 集合与 promotion 预演不精确相等",
+            )
         record = PROMOTION_STORE.put(
             workspace_id,
             payload,
@@ -550,16 +764,46 @@ def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
             status="ok",
             source_ids=[pack_id, str(pack.get("assumption_package_id") or "")],
             basis=request_payload,
+            object_id=promotion_id,
         )
+        if record["object_id"] != promotion_id or record.get("content_hash") != sha256_json(payload):
+            return _blocked("formal_promotion_persist_mismatch", "FormalPromotion 持久化结果与预演不一致")
+        try:
+            canonical = validate_formal_promotion(
+                workspace_id,
+                promotion_id,
+                expected_file_ids=file_ids,
+            )
+        except FormalLineageError as exc:
+            return _blocked(exc.code, exc.message)
+        from .acceptance import fold_formal
+
+        promoted_acceptance = {
+            **gate["acceptance"],
+            "formal": fold_formal(
+                technical=dict(gate["acceptance"].get("technical") or {}),
+                internal=dict(gate["acceptance"].get("internal") or {}),
+                promotion_id=promotion_id,
+            ),
+        }
         return _envelope(
             True,
             "ok",
             resource_uris=[record["resource_uri"]],
-            promotion_id=record["object_id"],
-            file_ids=file_ids,
+            promotion_id=promotion_id,
+            file_ids=sorted(file_ids),
             imported_files=imported,
             evidence_policy=SIM_A_FORMAL,
             evidence_origin=SIM_A_ORIGIN,
+            formal_promotion=canonical["formal_promotion"],
+            acceptance=promoted_acceptance,
+            # 晋升后证据政策转为 sim_a_formal，但模拟来源必须在 lineage 与限制里保留。
+            release_limitations=sorted(
+                {
+                    *(str(item) for item in promoted_acceptance["formal"].get("limitations") or []),
+                    "evidence_origin_sim_a_template",
+                }
+            ),
             next_actions=[
                 "project_context_create",
                 "feasibility_start",
@@ -568,8 +812,8 @@ def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
                 {
                     "tool": "project_context_create",
                     "evidence_policy": SIM_A_FORMAL,
-                    "promotion_id": record["object_id"],
-                    "file_ids": file_ids,
+                    "promotion_id": promotion_id,
+                    "file_ids": sorted(file_ids),
                 },
                 {
                     "tool": "feasibility_start",

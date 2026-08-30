@@ -51,16 +51,27 @@ def resolve_resource(
         if len(parts) == 4 and parts[1] == "table-packages" and parts[3] == "xlsx":
             package_id = require_safe_id(parts[2], "package_id")
             target = _export_root(workspace_id) / "xlsx" / f"{package_id}.xlsx"
+            if not target.is_file():
+                target = _export_root(workspace_id) / "xlsx" / f"{package_id}.technical.xlsx"
             return (target.read_bytes(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet") if target.is_file() else None
+        if len(parts) == 5 and parts[1] == "table-packages" and parts[3] == "xlsx" and parts[4] == "manifest":
+            package_id = require_safe_id(parts[2], "package_id")
+            target = _export_root(workspace_id) / "xlsx" / f"{package_id}.xlsx.manifest.json"
+            if not target.is_file():
+                target = _export_root(workspace_id) / "xlsx" / f"{package_id}.technical.xlsx.manifest.json"
+            return (target.read_text(encoding="utf-8"), "application/json") if target.is_file() else None
         if len(parts) == 5 and parts[1] == "table-packages" and parts[3] == "csv":
             package_id = require_safe_id(parts[2], "package_id")
             key = require_safe_id(parts[4], "table_key")
+            if key == "manifest":
+                target = _export_root(workspace_id) / "csv" / package_id / "manifest.json"
+                return (target.read_text(encoding="utf-8"), "application/json") if target.is_file() else None
             package = PACKAGE_STORE.get(workspace_id, package_id)
             payload = dict((package or {}).get("payload") or {})
             definitions, _columns, _required = _table_contract(
                 str(payload.get("asset_type") or "hotel_lease")
             )
-            if key not in dict(definitions):
+            if key not in {*dict(definitions), "monthly_income_statement", "monthly_balance_sheet"}:
                 return None
             target = _export_root(workspace_id) / "csv" / package_id / f"{key}.csv"
             return (target.read_bytes(), "text/csv; charset=utf-8") if target.is_file() else None
@@ -171,3 +182,26 @@ def _blocked(code: str, message: str) -> dict[str, Any]:
         "status": "blocked", "code": code, "message": message,
         "resource_uris": [], "warnings": [], "blockers": [code], "next_actions": [],
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "PACKAGE_STORE",
+    "_CSV_PREVIEW_BANNER",
+    "_XLSX_PREVIEW_BANNER",
+    "_blocked",
+    "_export_root",
+    "_failure",
+    "_release_grade",
+    "_result",
+    "_table_contract",
+    "csv",
+    "get_package",
+    "get_package_record",
+    "json",
+    "require_safe_id",
+    "resolve_resource",
+]

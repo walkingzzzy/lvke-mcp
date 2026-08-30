@@ -555,6 +555,28 @@ def _chapter_bodies(project_name: str, locator: str, figures: dict[str, Any] | N
     ]
 
 
+def _revision_remediation(workspace_id: str, revision_id: str) -> list[dict[str, Any]]:
+    """Bind remediation evidence to a section of the report revision itself.
+
+    Disposition resolves a `rrv_` source against the revision's own
+    `content_hash` and a `sec_*` locator, so a source-file locator or an
+    evidence-pack hash cannot stand in for either.
+    """
+
+    from lvke_mcp.adapters.report_repository import REVISION_STORE
+    from lvke_mcp.domains.reports import application as reports
+
+    revision = REVISION_STORE.get(workspace_id, revision_id) or {}
+    sections = reports.list_sections(workspace_id, revision_id)
+    last_section = (sections.get("sections") or [{}])[-1]
+    return [{
+        "source_id": revision_id,
+        "locator": {"section_id": str(last_section.get("section_id") or "")},
+        "content_hash": str(revision.get("content_hash") or ""),
+        "note": "sim_a_formal 审查处置证据",
+    }]
+
+
 def _first_source(workspace_id: str, evidence_pack_id: str) -> dict[str, Any]:
     from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 
@@ -635,6 +657,9 @@ def _close_review_findings(
                 "disposition": "waived",
                 "note": "P1 按拟定正式轨限期豁免",
                 "waiver_scope": "sim_a_formal G3 完整链过程验收",
+                "waiver_impact": "豁免期内保留该 P1 风险，正式结论须结合审查记录使用",
+                "waiver_compensating_controls": "由项目负责人复核原始依据，并在正式原件替换后立即重新审查",
+                "waiver_responsible_party": "sim_a_formal 验收项目负责人",
                 "waiver_expires_at": waiver_expires,
                 "waiver_invalidation_conditions": ["正式原件替换后失效"],
                 "remediation_evidence": remediation,
@@ -705,6 +730,20 @@ def run_sim_a_formal_finance(
     )
     from lvke_mcp.servers.lvke_source_files import service as source_files
 
+    promotion_ids = set()
+    for file_id in file_ids:
+        stored = source_files.get_source_file(workspace_id, file_id)
+        source_record = stored.get("source_file") or {}
+        promotion_id = str(source_record.get("formal_promotion_id") or "")
+        if promotion_id:
+            promotion_ids.add(promotion_id)
+    if len(promotion_ids) != 1:
+        return _fail("formal_promotion_resolve", {
+            "code": "formal_lineage_mixed_or_missing",
+            "promotion_ids": sorted(promotion_ids),
+        })
+    promotion_id = next(iter(promotion_ids))
+
     context = planning.create_project_context(
         workspace_id,
         {
@@ -715,6 +754,7 @@ def run_sim_a_formal_finance(
             "objective": "sim_a_formal 正式链",
             "report_type": "feasibility_study",
             "evidence_track": "sim_a_formal",
+            "promotion_id": promotion_id,
         },
         idempotency_key=f"{case_key}-ctx",
     )
@@ -776,6 +816,7 @@ def run_sim_a_formal_finance(
     prepared_pack = model_application.prepare_fact_pack({
         "workspace_id": workspace_id,
         "fact_pack": fact_candidate,
+        "evidence_pack_ids": [evidence_pack_id],
         "idempotency_key": f"{case_key}-fact-pack",
     })
     fact_pack_id = str(prepared_pack.get("fact_pack_id") or "")
@@ -1147,12 +1188,6 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
         ),
         "finance_tables_package": str((TABLE_STORE.get(workspace_id, finance["finance_tables_package_id"]) or {}).get("basis_hash") or ""),
     }
-    report = {
-        "report_preparation_id": prepared_report["report_preparation_id"],
-        "outline": outline,
-        "upstream_refs": upstream_refs,
-        "upstream_basis_hashes": basis_hashes,
-    }
     chapter_bodies = _chapter_bodies(
         case_key,
         str(source.get("report_locator") or source["locator"]),
@@ -1209,12 +1244,7 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
 
     waiver_expires = (datetime.now(timezone.utc) + timedelta(days=30)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     revision = REVISION_STORE.get(workspace_id, revision_id) or {}
-    remediation = [{
-        "source_id": revision_id,
-        "locator": source["locator"],
-        "content_hash": str(revision.get("content_hash") or source["content_hash"]),
-        "note": "sim_a_formal 审查处置证据",
-    }]
+    remediation = _revision_remediation(workspace_id, revision_id)
     for item in _review_findings(review, workspace_id, review_id):
         if str(item.get("severity") or "").upper() != "P0":
             continue
@@ -1241,12 +1271,7 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
             if applied.get("success"):
                 revision_id = str(applied["report_revision_id"])
                 revision = REVISION_STORE.get(workspace_id, revision_id) or revision
-                remediation = [{
-                    "source_id": revision_id,
-                    "locator": source["locator"],
-                    "content_hash": str(revision.get("content_hash") or source["content_hash"]),
-                    "note": "sim_a_formal 审查处置证据",
-                }]
+                remediation = _revision_remediation(workspace_id, revision_id)
     if str((REVISION_STORE.get(workspace_id, revision_id) or {}).get("object_id") or revision_id) == revision_id:
         sections = reports.list_sections(workspace_id, revision_id)
         last_section = (sections.get("sections") or [{}])[-1]
@@ -1273,12 +1298,7 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
             if applied.get("success"):
                 revision_id = str(applied["report_revision_id"])
                 revision = REVISION_STORE.get(workspace_id, revision_id) or revision
-                remediation = [{
-                    "source_id": revision_id,
-                    "locator": source["locator"],
-                    "content_hash": str(revision.get("content_hash") or source["content_hash"]),
-                    "note": "sim_a_formal 审查处置证据",
-                }]
+                remediation = _revision_remediation(workspace_id, revision_id)
     retested = review.retest({
         "workspace_id": workspace_id,
         "review_id": review_id,

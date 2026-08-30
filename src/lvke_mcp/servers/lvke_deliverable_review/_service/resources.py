@@ -9,16 +9,23 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote, unquote
 
-from lvke_mcp.runtime.storage import paginate_resource_entries, require_safe_id
+from lvke_mcp.runtime.storage import paginate_resource_entries, require_safe_id, sha256_json
 from lvke_mcp.servers.lvke_deliverable_review import rules
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
 from .base import (
+    DIMENSION_CONFIRMATION_STORE,
+    DIMENSION_RESULT_STORE,
+    DOSSIER_STORE,
     EXPORT_STORE,
+    EXTRACTION_CONFIRMATION_STORE,
+    PACKAGE_DRAFT_STORE,
     PREPARATION_STORE,
     REPO_ROOT,
+    REVIEW_PACKAGE_STORE,
     STANDARD_APPLICABILITY_STORE,
     STANDARD_EVIDENCE_STORE,
+    SUITE_ASSESSMENT_STORE,
     _blocked,
     _finding_uri,
     _message,
@@ -104,6 +111,23 @@ def list_resources(args: dict[str, Any] | str) -> dict[str, Any]:
                 uri, "standard_evidence", str(record.get("object_id") or ""),
                 "标准需求绑定的不可变证据索引",
             )
+        for store, resource_type, description in (
+            (PACKAGE_DRAFT_STORE, "review_package_draft", "待确认角色的不可变研报套件草稿"),
+            (REVIEW_PACKAGE_STORE, "review_package", "已确认角色的不可变研报审查套件"),
+            (EXTRACTION_CONFIRMATION_STORE, "extraction_confirmation", "OCR/低置信度片段确认记录"),
+            (SUITE_ASSESSMENT_STORE, "suite_assessment", "独立 Agent 七域 Assessment"),
+            (DIMENSION_CONFIRMATION_STORE, "dimension_confirmation", "领域责任声明与审查意见"),
+            (DIMENSION_RESULT_STORE, "dimension_result", "不可变七域审查结果"),
+            (DOSSIER_STORE, "review_dossier", "七域硬门禁汇总 Dossier"),
+        ):
+            for record in store.list(workspace_id):
+                uri = str(record.get("resource_uri") or "")
+                entries[uri] = _resource_entry(
+                    uri,
+                    resource_type,
+                    str(record.get("object_id") or ""),
+                    description,
+                )
         from lvke_mcp.servers.lvke_deliverable_review import rubrics
 
         for store, resource_type, description in (
@@ -234,6 +258,22 @@ def resolve_resource(
     if segment == "standard-evidence" and len(parts) == 3:
         record = STANDARD_EVIDENCE_STORE.resolve_uri(uri)
         if record is None or str(record.get("workspace_id") or "") != uri_workspace:
+            return None
+        return json.dumps(record, ensure_ascii=False, indent=2, default=str), "application/json"
+    suite_stores = {
+        "package-drafts": PACKAGE_DRAFT_STORE,
+        "packages": REVIEW_PACKAGE_STORE,
+        "extraction-confirmations": EXTRACTION_CONFIRMATION_STORE,
+        "assessments": SUITE_ASSESSMENT_STORE,
+        "dimension-confirmations": DIMENSION_CONFIRMATION_STORE,
+        "dimension-results": DIMENSION_RESULT_STORE,
+        "dossiers": DOSSIER_STORE,
+    }
+    if segment in suite_stores and len(parts) == 3:
+        record = suite_stores[segment].resolve_uri(uri)
+        if record is None or str(record.get("workspace_id") or "") != uri_workspace:
+            return None
+        if record.get("content_hash") != sha256_json(record.get("payload") or {}):
             return None
         return json.dumps(record, ensure_ascii=False, indent=2, default=str), "application/json"
     if segment in {"rubric-assessments", "rubric-comparisons"} and len(parts) == 3:

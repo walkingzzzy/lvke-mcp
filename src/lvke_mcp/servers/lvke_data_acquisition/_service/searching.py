@@ -307,3 +307,33 @@ def search(
             else ["选择高相关且可信的 URL 后调用 data_fetch 固化原始来源快照"]
         ),
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "SEARCH_STORE",
+    "_SEARCH_PROVIDER",
+    "_SEARCH_RELEVANCE_THRESHOLD",
+    "_SEARCH_SLOTS",
+    "_SEARCH_TOKEN_RE",
+    "_bounded_web_search",
+    "_candidate_domain",
+    "_canonical_discovery_url",
+    "_canonical_search_provider",
+    "_search_relevance",
+    "_search_timeout_seconds",
+    "_search_tokens",
+    "_secret_block_reason",
+    "asyncio",
+    "hashlib",
+    "json",
+    "os",
+    "queue",
+    "re",
+    "search",
+    "threading",
+    "time",
+]

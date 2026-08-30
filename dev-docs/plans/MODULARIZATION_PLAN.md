@@ -61,7 +61,8 @@ conda run -n lvke-mcp python -m lvke_mcp.testing.smoke_test
 smoke: 14/14 passed
 ```
 
-14 个 server 提供 169 个工具、27 个资源条目。冻结基线位于 `tests/fixtures/baseline/`。
+历史 Wave 4 基线为 14 个 server、169 个工具、27 个资源条目；当前实时拓扑已演进为
+14 个 server、180 个工具、242 个 Resource，冻结契约基线仍位于 `tests/fixtures/baseline/`。
 
 ### 2.3 当前分层的真实边界
 
@@ -276,7 +277,7 @@ _table_render/
   （Wave 0 当时落在 `quality/` 下，因该目录在 `.gitignore` 里会让门禁在干净
   clone 上静默跳过，Wave 1 之后已迁到 `tests/fixtures/baseline/refactor/`）
 - `tests/integration/test_refactor_guardrails.py` — MCP 契约 + Python API + 依赖边界门禁；
-- `tests/fixtures/baseline/` — 刷新 14 server 的 tools/resources/contracts（169 工具 / 27 资源）；
+- `tests/fixtures/baseline/` — 保存历史 Wave 4 的 14 server tools/resources/contracts（169 工具 / 27 资源）；当前实时分母为 180 工具 / 242 Resource；
 - `REFACTOR_VERIFICATION_PROTOCOL.md` — 验证命令、失败处理、冻结债清单。
 
 **发现：**
@@ -472,7 +473,8 @@ Wave 0–4 已交付：27 个巨型文件拆为 27 个实现包、198 个子模�
 | 4 | 每个拆分可独立回滚，未把业务修复藏进重构 | ✅ 每波独立 commit；一处既有行为明确记录为「照原样保留」 |
 | 5 | 架构清债、依赖注入和业务重写有独立后续计划 | ✅ Wave 5 观察清单（§3.2），依赖方向治理另立 ADR；本轮不实施 |
 
-未变的契约：14 个 server、169 个工具、27 个资源条目、`mcp-envelope.v2`、
+历史未变契约快照：14 个 server、169 个工具、27 个资源条目、`mcp-envelope.v2`；
+当前实时契约：14 个 server、180 个工具、242 个 Resource，所有工具均有 `outputSchema`。
 财务模型版本 `finance_model.v2.4` / 模板 `finance_tables.v3`、13 张表、
 报告九章、review finding 生命周期。
 

@@ -40,7 +40,44 @@ STANDARD_EVIDENCE_STORE = JSONArtifactStore(
 )
 
 
-_REPORT_ARTIFACT_DOMAINS = {"generic_feasibility", "asset_acquisition"}
+PACKAGE_DRAFT_STORE = JSONArtifactStore(
+    "deliverable-review", "review_package_drafts", "rvpkgd", "package-drafts"
+)
+
+
+REVIEW_PACKAGE_STORE = JSONArtifactStore(
+    "deliverable-review", "review_packages", "rvpkg", "packages"
+)
+
+
+EXTRACTION_CONFIRMATION_STORE = JSONArtifactStore(
+    "deliverable-review", "extraction_confirmations", "rvext", "extraction-confirmations"
+)
+
+
+SUITE_ASSESSMENT_STORE = JSONArtifactStore(
+    "deliverable-review", "suite_assessments", "rvassess", "assessments"
+)
+
+
+DIMENSION_CONFIRMATION_STORE = JSONArtifactStore(
+    "deliverable-review", "dimension_confirmations", "rvdim", "dimension-confirmations"
+)
+
+
+DIMENSION_RESULT_STORE = JSONArtifactStore(
+    "deliverable-review", "dimension_results", "rvdres", "dimension-results"
+)
+
+
+DOSSIER_STORE = JSONArtifactStore(
+    "deliverable-review", "dossiers", "rvdos", "dossiers"
+)
+
+
+_REPORT_ARTIFACT_DOMAINS = {
+    "generic_feasibility", "asset_acquisition", "zero_material_preview",
+}
 
 
 _ASYNC_THREADS: dict[tuple[str, str], threading.Thread] = {}

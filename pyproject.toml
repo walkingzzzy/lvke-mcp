@@ -18,7 +18,10 @@ description = "绿科 MCP 服务发行版 —— 14 个领域与参考 server �
 readme = "README.md"
 # 与根 pyproject 对齐:上界 <3.14 阻止 uv 在 Rust 后端传递依赖(pydantic-core
 # 等)尚无 cp314 wheel 的 3.14 解释器上做源码构建。
-requires-python = ">=3.11,<3.14"
+# 下界 >=3.12 由 deep-research-ocr extra 的 numpy==2.5.1 决定(该版本自身要求
+# >=3.12)。uv 解析的是覆盖全部 extra 的 universal lock,所以即使不安装该
+# extra,声明 >=3.11 也会让整个工程解析不出解(与 --no-extra 无关)。
+requires-python = ">=3.12,<3.14"
 authors = [{ name = "湖北绿科" }]
 license = "MIT"
 dependencies = [
@@ -69,6 +72,40 @@ deep-research-ocr = [
 
 [project.scripts]
 lvke-mcp-scaffold = "lvke_mcp.servers.scaffold.server:main"
+
+[tool.pytest.ini_options]
+# 两条路径都要显式声明,否则默认验证入口按执行方式给出不同结果:
+#
+# - ``src``: editable 安装的 .pth 已经加了它,但 wheel 环境或未安装时没有。
+# - ``.``  : ``scripts/`` 没有 __init__.py,只能作为隐式命名空间包被解析,
+#   而这要求仓库根在 sys.path 上。``python -m pytest`` 会把 CWD 塞进
+#   sys.path 所以碰巧能过;``uv run pytest`` 走 console script 没有这个
+#   副作用,于是 test_asset_staging_audit / test_golden_samples_manifest
+#   在收集阶段就 ModuleNotFoundError: No module named 'scripts'。
+#
+# 结论:这是默认入口缺配置,不是某个执行器的问题。钉死在这里让
+# ``uv run pytest`` 与 ``python -m pytest`` 收集到同一批测试。
+pythonpath = ["src", "."]
+
+[tool.ruff]
+# 固化规则集,让 ruff 可以真正当发布门禁用(此前无配置、244 errors)。
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+# 逐条豁免都写明原因。这里刻意**不**豁免 F401:门面 re-export 已经用
+# ``__all__`` 显式声明公开面解决,不靠关检查掩盖——盲跑 ``ruff --fix`` 会删掉
+# 197 个符号并让财务导出/十三表渲染模块 ImportError。
+#
+# 独立脚本先 ``sys.path.insert`` 再 import lvke_mcp:没有安装包时这是唯一
+# 可行顺序,E402 在此是正确写法而非疏漏。
+"scripts/create_research_package.py" = ["E402"]
+"scripts/run_report_flow.py" = ["E402"]
+# 门面把 re-export 放在实现函数之后,保持读者先看到主流程。
+"src/lvke_mcp/domains/finance/tables_service.py" = ["E402"]
+# ``try: from ... import InvestmentBreakdown / except ImportError`` 是可用性探测,
+# 绑定名本身不使用,_HAS_INVESTMENT_BREAKDOWN 才是结果。
+"src/lvke_mcp/domains/finance/_finance_model/base.py" = ["F401"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

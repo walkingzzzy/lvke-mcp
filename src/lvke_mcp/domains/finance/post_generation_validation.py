@@ -242,7 +242,6 @@ def _validate_viability(
         return _error_result("viability", "run not found")
 
     indicators = dict(run.get("indicators") or {})
-    annual = dict(run.get("annual") or {})
     consistency_checks = model_checks.check_consistency(run)
 
     irr = indicators.get("project_irr_pct")

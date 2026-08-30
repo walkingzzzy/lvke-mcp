@@ -28,9 +28,11 @@ from __future__ import annotations
 
 import argparse
 import ast
+import io
 import json
 import re
 import sys
+import tokenize
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -74,7 +76,9 @@ _SEMANTIC_EXEMPTION_RULES = (
     ("mcp_servers/src/lvke_mcp/domains/reports/_artifacts/storage.py", re.compile(r"随仓库留存、复核与签审")),
     # Wave 2.5 把 confirm_quality 搬到 _service/agent_lifecycle.py，注释随代码保留。
     ("mcp_servers/src/lvke_mcp/domains/research/_service/agent_lifecycle.py", re.compile(r"^\s*#.*认证项目事实")),
-    ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'headers = \{"Authorization": f"Bearer \{token\}"\}')),
+    # HTTP 协议头,不是身份语义。只钉 Bearer header 本身,不绑周边语法——
+    # 旧规则钉 `headers = {...}`,代码改成 `return {...} if token else None` 后豁免就失效了。
+    ("mcp_servers/src/lvke_mcp/domains/research/providers/tavily.py", re.compile(r'"Authorization": f"Bearer \{token\}"')),
     ("mcp_servers/src/lvke_mcp/servers/lvke_asset_acquisition/service.py", re.compile(r"不认证项目事实")),
     # Wave 1.1 把 build_evidence_pack 搬到 _service/evidence_pack.py。豁免按路径登记，
     # 所以搬移后必须跟着改路径；文本与规则完全不变。
@@ -173,24 +177,76 @@ def _legacy_key_removal_lines(path: Path) -> set[int]:
     return lines
 
 
+def _identifier_like(text: str) -> bool:
+    """True when a string literal names a field rather than reading as prose.
+
+    ``"released_at"`` and ``"权限"`` name things; a sentence that merely
+    mentions 认证 does not.
+    """
+
+    stripped = text.strip()
+    if not stripped or len(stripped) > 64:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*", stripped)) or bool(
+        _FORBIDDEN_SEMANTIC_RE.fullmatch(stripped)
+    )
+
+
 def _scan_forbidden_semantics(path: Path, rel: str) -> list[dict]:
+    """Report forbidden identity/RBAC semantics from code positions only.
+
+    Consistent with this scanner's v2 rule that comments and string literals
+    are not dependency points: a keyword is a violation when it names an
+    identifier or a field, not when prose *denies* the semantic. The honesty
+    guardrails ("不把非重建当作已认证") and user-facing disclaimers ("结论不代表
+    法律批准") are the behaviour the architecture wants, so flagging them
+    penalised correct code and buried the real signal.
+    """
+
     entries: list[dict] = []
     legacy_removal_lines = _legacy_key_removal_lines(path)
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    source = path.read_text(encoding="utf-8")
+    lines = source.splitlines()
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, SyntaxError, UnicodeDecodeError, IndentationError):
+        return []
+
+    for token in tokens:
+        line_number = token.start[0]
         if line_number in legacy_removal_lines:
             continue
+        # Comments and f-string text are prose, never dependency points.
+        if token.type == tokenize.COMMENT or tokenize.tok_name[token.type] in {
+            "FSTRING_MIDDLE",
+        }:
+            continue
+        if token.type == tokenize.NAME:
+            candidate = token.string
+        elif token.type == tokenize.STRING:
+            try:
+                value = ast.literal_eval(token.string)
+            except (ValueError, SyntaxError):
+                continue
+            if not isinstance(value, str) or not _identifier_like(value):
+                continue
+            candidate = value
+        else:
+            continue
+
+        raw_line = lines[line_number - 1] if line_number - 1 < len(lines) else ""
         if any(
-            rule_path == rel and pattern.search(line)
+            rule_path == rel and pattern.search(raw_line)
             for rule_path, pattern in _SEMANTIC_EXEMPTION_RULES
         ):
             continue
-        for match in _FORBIDDEN_SEMANTIC_RE.finditer(line):
+        for match in _FORBIDDEN_SEMANTIC_RE.finditer(candidate):
             entries.append({
                 "mcp_file": rel,
                 "line": line_number,
                 "direction": "forbidden_semantics",
                 "forbidden_reference": match.group(0),
-                "raw_line": line.strip(),
+                "raw_line": raw_line.strip(),
                 "status": "non_conforming",
             })
     return entries

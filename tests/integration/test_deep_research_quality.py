@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 import unittest
@@ -57,13 +58,28 @@ class DeepResearchQualityTest(unittest.TestCase):
             ["citation_content_hash_mismatch:0:source-1"],
         )
 
-    def _put_source(self, source_id: str, digest: str) -> None:
+    def _put_source(self, source_id: str, content: str = "引用正文内容") -> str:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return_digest = f"sha256:{digest}"
         SOURCE_STORE.put(
             self.workspace,
-            {"content_hash": f"sha256:{digest}", "title": source_id},
+            {
+                "content": content,
+                "external_content_hash": return_digest,
+                "title": source_id,
+            },
             producer="test.deep-research-quality",
             object_id=source_id,
         )
+        return return_digest
+
+    def _citation(self, source_id: str, content_hash: str, **extra: object) -> dict:
+        return {
+            "source_id": source_id,
+            "locator": "web_snapshot",
+            "content_hash": content_hash,
+            **extra,
+        }
 
     def test_missing_source_snapshot_is_not_usable(self) -> None:
         digest = "b" * 64
@@ -80,14 +96,9 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(metrics["citation_coverage"], 0.0)
 
     def test_bound_snapshot_hash_match_counts_as_usable(self) -> None:
-        digest = "c" * 64
-        self._put_source("source-bound", digest)
+        digest = self._put_source("source-bound")
         metrics = _bound_citation_metrics(
-            [{
-                "source_id": "source-bound",
-                "locator": "page:1",
-                "content_hash": f"sha256:{digest}",
-            }],
+            [self._citation("source-bound", digest)],
             workspace_id=self.workspace,
             source_snapshot_ids=["source-bound"],
         )
@@ -95,8 +106,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(metrics["citation_coverage"], 1.0)
 
     def test_submit_persists_quality_summary_and_market_bindings(self) -> None:
-        digest = "b" * 64
-        self._put_source("source-1", digest)
+        digest = self._put_source("source-1", "区域产业项目市场规模为 1200 万元。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "区域产业项目市场规模",
@@ -111,12 +121,11 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": task_id,
             "report_md": "市场规模见来源定位。",
-            "citations": [{
-                "source_id": "source-1",
-                "resource_uri": "lvke://data-acquisition/workspaces/dr-quality-test/snapshots/source-1",
-                "locator": "page:1",
-                "content_hash": "sha256:" + "b" * 64,
-            }],
+            "citations": [self._citation(
+                "source-1",
+                digest,
+                resource_uri="lvke://data-acquisition/workspaces/dr-quality-test/sources/source-1",
+            )],
             "source_snapshot_ids": ["source-1"],
             "quality_summary": {
                 "query_rounds": 3,
@@ -144,6 +153,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(artifacts["market_field_bindings"][0]["field"], "market_size")
 
     def test_submit_without_quality_fields_keeps_legacy_package_shape(self) -> None:
+        digest = self._put_source("source-1", "政策资料正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "政策资料",
@@ -153,7 +163,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "研究摘要。",
-            "citations": [{"locator": "page:1"}],
+            "citations": [self._citation("source-1", digest)],
             "source_snapshot_ids": ["source-1"],
         })
         self.assertTrue(submitted["success"], submitted)
@@ -164,7 +174,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertNotIn("market_field_bindings", artifacts)
 
     def test_partial_package_requires_independent_quality_confirmation(self) -> None:
-        self._put_source("source-1", "b" * 64)
+        digest = self._put_source("source-1", "市场容量结论的原始正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "市场容量",
@@ -174,7 +184,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "市场容量结论。[1]",
-            "citations": [{"locator": "page:1", "content_hash": "sha256:" + "b" * 64, "source_id": "source-1"}],
+            "citations": [self._citation("source-1", digest)],
             "source_snapshot_ids": ["source-1"],
             "quality_summary": {
                 "query_rounds": 2,
@@ -197,6 +207,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertTrue((record or {}).get("payload", {}).get("quality_review_id"))
 
     def test_quality_confirmation_blocks_unaccepted_gaps(self) -> None:
+        digest = self._put_source("source-1", "供需缺口资料正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "供需缺口",
@@ -206,7 +217,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "资料不完整。[1]",
-            "citations": [{"locator": "page:1"}],
+            "citations": [self._citation("source-1", digest)],
             "source_snapshot_ids": ["source-1"],
             "quality_summary": {
                 "query_rounds": 1,
@@ -224,7 +235,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(blocked["code"], "research_quality_failed")
 
     def test_quality_output_prevalidation_failure_writes_nothing(self) -> None:
-        self._put_source("source-atomic", "b" * 64)
+        digest = self._put_source("source-atomic", "引用原子性正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "引用原子性",
@@ -234,7 +245,7 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "结论。[1]",
-            "citations": [{"source_id": "source-atomic", "locator": "page:1", "content_hash": "sha256:" + "b" * 64}],
+            "citations": [self._citation("source-atomic", digest)],
             "source_snapshot_ids": ["source-atomic"],
             "quality_summary": {
                 "usable_source_count": 1,
@@ -262,7 +273,7 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual((source or {}).get("status"), "partial")
 
     def test_citation_mismatch_blocks_before_quality_writes(self) -> None:
-        self._put_source("source-basis", "b" * 64)
+        digest = self._put_source("source-basis", "引用一致性正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "引用一致性",
@@ -272,12 +283,11 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "结论。[1]",
-            "citations": [{
-                "source_id": "source-basis",
-                "locator": "page:1",
-                "content_hash": "sha256:" + "b" * 64,
-                "resource_uri": "lvke://data-acquisition/workspaces/other-ws/snapshots/source-basis",
-            }],
+            "citations": [self._citation(
+                "source-basis",
+                digest,
+                resource_uri="lvke://data-acquisition/workspaces/other-ws/sources/source-basis",
+            )],
             "source_snapshot_ids": ["source-basis"],
             "quality_summary": {
                 "usable_source_count": 1,
@@ -287,15 +297,12 @@ class DeepResearchQualityTest(unittest.TestCase):
             },
         })
         review_count = len(QUALITY_REVIEW_STORE.list(self.workspace))
-        result = application.confirm_quality({
-            "workspace_id": self.workspace,
-            "research_package_id": submitted["research_package_id"],
-        })
-        self.assertFalse(result["success"], result)
-        self.assertEqual(result["code"], "research_citation_audit_failed")
+        self.assertFalse(submitted["success"], submitted)
+        self.assertEqual(submitted["code"], "research_citation_audit_failed")
         self.assertEqual(len(QUALITY_REVIEW_STORE.list(self.workspace)), review_count)
 
     def test_project_delivery_counts_publishers_or_records_missing_inputs(self) -> None:
+        digest = self._put_source("source-1", "公开研究来源正文。")
         started = application.start_agent({
             "workspace_id": self.workspace,
             "topic": "公开研究门槛",
@@ -305,12 +312,9 @@ class DeepResearchQualityTest(unittest.TestCase):
             "workspace_id": self.workspace,
             "task_id": started["task_id"],
             "report_md": "结论。[1]",
-            "citations": [{
-                "source_id": "source-1",
-                "locator": "page:1",
-                "content_hash": "sha256:" + "b" * 64,
-                "url": "https://example.com/a",
-            }],
+            "citations": [self._citation(
+                "source-1", digest, url="https://example.com/a"
+            )],
             "source_snapshot_ids": ["source-1"],
             "quality_summary": {
                 "query_rounds": 0,

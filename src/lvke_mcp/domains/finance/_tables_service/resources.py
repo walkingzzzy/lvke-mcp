@@ -157,3 +157,23 @@ def resolve_resource(
     if record is None or str(record.get("workspace_id") or "") != workspace_id:
         return None
     return json.dumps(record, ensure_ascii=False, indent=2), "application/json"
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "CSV_EXPORT_STORE",
+    "PACKAGE_STORE",
+    "_failure",
+    "csv",
+    "csv_path_from_uri",
+    "get_table",
+    "json",
+    "list_resources",
+    "paginate_resource_entries",
+    "require_safe_id",
+    "resolve_resource",
+    "xlsx_path_from_uri",
+]

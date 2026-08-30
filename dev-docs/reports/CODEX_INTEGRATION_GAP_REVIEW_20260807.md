@@ -4,11 +4,14 @@
 
 ## 结论
 
+> 历史快照：本文记录 2026-08-08 的运行时观测，文中的 169 工具不代表当前拓扑。
+> 当前实时拓扑（2026-08-30）为 14 server / 180 tools / 242 Resource，工具 `outputSchema` 覆盖率 180/180。
+
 本轮列出的 Codex 发行、Skill 契约和确定性代码缺陷均已修复。`lvke-mcp` 已作为用户级 Codex 插件安装，当前发布面为：
 
 - 14 个 `lvke-*` MCP server，全部完成真实 stdio `initialize`、`tools/list`、`resources/list` 和只读探针。
 - 14 个 Codex 父 Skill；80 个专家文档作为普通 `REFERENCE.md` 按需读取，不再重复注册为 Skill。
-- 169 个 MCP 工具，与 `SERVER_SPECS` 和服务注册表一致。
+- 当时 169 个 MCP 工具，与 `SERVER_SPECS` 和服务注册表一致；当前实时分母为 180 工具 / 242 Resource。
 - Tavily 是唯一联网 provider；新 Codex 任务实测 `tavily-hikari available=true`。
 
 产品没有前端、语音或协同办公功能，也没有登录、身份、tenant、角色、RBAC、权限管理、安全审查或专业签审功能。业务上的文件格式校验、内容质量复核、环保/消防/生产安全分析不表示产品具备安全审查或权限系统。
@@ -65,7 +68,7 @@
 | 14 个插件父 Skill quick validation | 全部通过 |
 | 插件结构验证 | 通过 |
 | `git diff --check` | 通过 |
-| 真实 stdio smoke | `14/14 passed`，合计 169 个工具 |
+| 真实 stdio smoke（历史快照） | `14/14 passed`，合计 169 个工具；当前实时拓扑为 180 工具 / 242 Resource |
 | 新 Codex 任务 Skill 发现 | 恰好 14 个 `lvke-*` Skill |
 | 新 Codex 任务 MCP 调用 | `lvke-data-acquisition.data_provider_status` 调用完成 |
 | Tavily 连通性 | `tavily-hikari available=true`，`streamable_http` |

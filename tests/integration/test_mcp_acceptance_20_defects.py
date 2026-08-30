@@ -87,6 +87,9 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
         """P0-009: dr_submit 同时从 evidence_pack_ids 与 citations 聚合 evidence_policy。"""
         from lvke_mcp.domains.research import application
 
+        # 导入本身就是断言:门面必须可加载。显式用一次,避免被当成死导入删掉。
+        self.assertTrue(hasattr(application, "submit_agent"))
+
         # 验证聚合逻辑存在——检查代码同时遍历 evidence_pack 与 citations
         # Wave 2.5 起 dr_submit 实现位于 _service/agent_lifecycle.py。
         src = Path("src/lvke_mcp/domains/research/_service/agent_lifecycle.py").read_text()
@@ -168,6 +171,9 @@ class McpAcceptance20DefectsTest(unittest.TestCase):
     def test_p1_011_industry_skill_routes_loadable(self) -> None:
         """P1-011: config/industry_skill_routes.json 已被 Git 跟踪并可加载。"""
         from lvke_mcp.domains.project_planning import application
+
+        # 导入本身就是断言:门面必须可加载并暴露读取该 config 的入口。
+        self.assertTrue(hasattr(application, "resolve_industry_skill"))
 
         # resolve_industry_skill 会读 industry_skill_routes.json
         # 这里仅验证文件可被模块发现并打开

@@ -41,6 +41,14 @@
           "type": "string",
           "maxLength": 160
         },
+        "report_profile_id": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "template_set_id": {
+          "type": "string",
+          "maxLength": 200
+        },
         "idempotency_key": {
           "type": "string",
           "minLength": 1,
@@ -759,9 +767,31 @@
           "type": "string",
           "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
         },
+        "skip_fields": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "field": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "field"
+            ]
+          }
+        },
         "confirmations": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "maxItems": 20,
           "items": {
             "type": "object",
@@ -928,7 +958,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。",
+    "description": "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。只产出 estimate_preview / technical_preview，两段验收均从 pending 起步。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -949,6 +979,18 @@
             "asset_acquisition"
           ],
           "default": "generic_feasibility"
+        },
+        "report_profile_id": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "template_set_id": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "confirmed_assumption_package_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
         },
         "idempotency_key": {
           "type": "string",
@@ -1082,7 +1124,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。",
+    "description": "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。技术验收与内部七域验收均通过后才受理；晋升后仍保留 sim_a_template 模拟来源。",
     "execution": {
       "taskSupport": "forbidden"
     },

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lvke Research Report Review"
+  short_description: "Seven-domain internal and external research-suite review"
+  default_prompt: "Review the frozen research package through the seven-domain MCP and independent Assessment workflow."

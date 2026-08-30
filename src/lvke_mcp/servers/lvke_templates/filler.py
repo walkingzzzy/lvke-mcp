@@ -27,7 +27,6 @@ def _format_cell(value, col: dict) -> str:
     if value is None or value == "":
         return ""
     col_type = col.get("type", "string")
-    unit = col.get("unit", "")
     if col_type == "number":
         try:
             num = float(value)

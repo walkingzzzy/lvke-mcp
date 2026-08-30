@@ -5,6 +5,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_object_formal_lineage,
+)
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json, utc_now
 from lvke_mcp.runtime.evidence_qualification import (
     SIM_A_FORMAL,
@@ -93,6 +97,7 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
                 "review_preparation_id", "preparation_basis_hash",
                 "preparation_content_hash", "target", "target_spec",
                 "bindings", "upstream_snapshot", "rule_pack", "standards", "mode", "execution",
+                "review_profile", "review_mode",
                 "project_context",
                 "deployment_mode", "legacy_gate_snapshot",
                 "evidence_metadata",
@@ -143,6 +148,8 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
                     "disposition", "note", "closure_basis", "before_value", "after_value",
                     "remediation_evidence", "false_positive_reason", "waiver_scope",
                     "waiver_expires_at", "waiver_invalidation_conditions",
+                    "waiver_impact", "waiver_compensating_controls",
+                    "waiver_responsible_party",
                 ):
                     if key in payload:
                         row[key] = deepcopy(payload.get(key))
@@ -179,6 +186,27 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
             )
         elif event_type == "review_exported":
             state["exports"].append({**payload, **audit})
+        elif event_type == "suite_assessment_submitted":
+            state.setdefault("suite_assessments", {})[str(payload.get("dimension") or "")] = {
+                **payload,
+                **audit,
+            }
+            for raw in payload.get("findings") or []:
+                row = deepcopy(raw)
+                row["history"] = [{**audit, "status": row.get("status", "open")}]
+                findings[str(row.get("finding_id") or "")] = row
+        elif event_type == "suite_dimension_confirmed":
+            state.setdefault("suite_dimension_confirmations", {})[
+                str(payload.get("dimension") or "")
+            ] = {**payload, **audit}
+        elif event_type == "suite_finalized":
+            state["schema_version"] = "ReviewDossier.v2"
+            state["review_dossier_id"] = str(payload.get("dossier_id") or "")
+            state["review_dossier_hash"] = str(payload.get("dossier_hash") or "")
+            state["dimension_results"] = deepcopy(payload.get("dimension_results") or [])
+            state["suite_overall_verdict"] = str(payload.get("overall_verdict") or "incomplete")
+            state["suite_hard_gate_blockers"] = list(payload.get("hard_gate_blockers") or [])
+            state["formal_suite_review_complete"] = bool(payload.get("formal_suite_review_complete"))
         elif event_type == "review_invalidated":
             state["invalidated"] = True
             state["invalidation"] = {**payload, **audit}
@@ -293,6 +321,14 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         f"retest_in_progress:{operation_id}"
         for operation_id in state["pending_retest_operation_ids"]
     )
+    blockers.extend(str(item) for item in state.get("suite_hard_gate_blockers") or [])
+    if str((state.get("target") or {}).get("target_type") or "") == "review_package":
+        if not state.get("review_dossier_id"):
+            blockers.append("review_suite_not_finalized")
+        elif not state.get("formal_suite_review_complete"):
+            blockers.append("formal_suite_review_incomplete")
+        if str(state.get("review_mode") or "") == "external":
+            blockers.append("external_review_release_forbidden")
     if state.get("deployment_mode") == "shadow":
         blockers.append("shadow_mode_release_forbidden")
     evidence_track = str((state.get("project_context") or {}).get("evidence_track") or "real")
@@ -317,7 +353,20 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
     )
     if evidence_track == SIM_A_FORMAL:
         release_evidence_policy = SIM_A_FORMAL
-        project_fact_certified = True
+        try:
+            canonical_lineage = validate_object_formal_lineage(
+                workspace_id,
+                evidence_metadata,
+            )
+        except FormalLineageError as exc:
+            project_fact_certified = False
+            blockers.append(f"formal_lineage:{exc.code}")
+        else:
+            project_fact_certified = True
+            state["evidence_metadata"] = {
+                **evidence_metadata,
+                **canonical_lineage,
+            }
     if review_purpose == "project_delivery" and release_evidence_policy not in {"formal_evidence", "sim_a_formal"}:
         blockers.append({
             "controlled_assumption": "controlled_assumption_release_forbidden",

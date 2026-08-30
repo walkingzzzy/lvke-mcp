@@ -19,6 +19,9 @@ from lvke_mcp.runtime.evidence_qualification import (
 )
 from lvke_mcp.runtime.workspace import workspace_root
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
+from lvke_mcp.runtime.formal_promotion import (
+    validate_same_formal_lineage,
+)
 from lvke_mcp.adapters.project_planning_repository import IDEMPOTENCY_STORE
 
 
@@ -230,6 +233,26 @@ def _planning_evidence_qualification(
     return evidence_track, evidence_policy, project_fact_certified
 
 
+def _planning_formal_lineage(
+    workspace_id: str,
+    *parents: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive formal ancestry from verified immutable planning parents."""
+
+    payloads = [
+        parent.get("payload") if isinstance(parent.get("payload"), dict) else parent
+        for parent in parents
+        if isinstance(parent, dict)
+    ]
+    if not any(
+        str(payload.get("evidence_policy") or payload.get("evidence_track") or "")
+        == "sim_a_formal"
+        for payload in payloads
+    ):
+        return {}
+    return validate_same_formal_lineage(workspace_id, parents)
+
+
 def _contains_object_id(value: Any, object_id: str) -> bool:
     if isinstance(value, dict):
         return any(
@@ -276,3 +299,39 @@ def _downstream_stale(
             }
         )
     return stale
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "Callable",
+    "Decimal",
+    "FileLock",
+    "IDEMPOTENCY_STORE",
+    "InvalidOperation",
+    "Path",
+    "ROUND_HALF_UP",
+    "_applicability_view",
+    "_blocked",
+    "_contains_object_id",
+    "_context_view",
+    "_decimal",
+    "_downstream_stale",
+    "_envelope",
+    "_idempotency_lock",
+    "_idempotent_mutation",
+    "_market_view",
+    "_planning_evidence_qualification",
+    "_planning_formal_lineage",
+    "_planning_view",
+    "combine_evidence_policies",
+    "hashlib",
+    "json",
+    "project_fact_may_be_certified",
+    "require_safe_id",
+    "sha256_json",
+    "validate_same_formal_lineage",
+    "workspace_root",
+]

@@ -30,6 +30,7 @@ PUBLISHED_SKILLS = {
     "lvke-project-planning",
     "lvke-report",
     "lvke-research",
+    "lvke-research-report-review",
     "lvke-review-release",
     "lvke-source-evidence",
     "lvke-tool-coordination",

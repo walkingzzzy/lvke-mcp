@@ -9,6 +9,8 @@ description: Review Lvke deliverables for evidence, consistency, numerics, forma
 
 Open [references/catalog.md](references/catalog.md), select only the rows relevant to the current task, and read each linked source `SKILL.md` completely before acting. Do not preload unrelated references.
 
+For a five-material research-report suite or seven-domain review, route to the sibling `lvke-research-report-review` Skill. This Skill retains legacy deliverable finding/retest/release orchestration.
+
 ## Workflow
 
 1. Classify the request against the catalog.
@@ -20,6 +22,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Keep review, remediation, retest, scoring, evidence, and export deterministic and traceable.
 - Never infer external approval or legal/professional signoff from a technical quality pass.
+- Formal delivery requires `Review -> remediation evidence -> Retest -> Export
+  -> Release`. Revalidate canonical promotion metadata and immutable parent
+  hashes at prepare, start, retest and export; a track label cannot upgrade a review.
+- Retest creates a new immutable child revision and preserves the original
+  promotion while binding exact remediation evidence. Export manifests retain
+  origin and promotion metadata and must pass record/file integrity checks.
 
 ## MCP Tool Mapping
 

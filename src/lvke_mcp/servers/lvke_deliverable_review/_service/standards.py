@@ -472,3 +472,36 @@ def validate_standards(args: dict[str, Any]) -> dict[str, Any]:
             if technical_complete else ["补充真实不可变证据并完成质量核验"]
         ),
     )
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "FORMAL_EVIDENCE",
+    "PACKAGE_CONFIG_DIR",
+    "STANDARD_APPLICABILITY_STORE",
+    "STANDARD_EVIDENCE_STORE",
+    "_blocked",
+    "_message",
+    "_ok",
+    "_requirement_evidence_status",
+    "_resolve_standard_evidence_resource",
+    "_standard_applicability_record",
+    "_standard_catalog",
+    "_standard_evidence_rows",
+    "_standard_requirement_applicability",
+    "_write",
+    "attach_requirement_evidence",
+    "deepcopy",
+    "json",
+    "list_standard_requirements",
+    "normalize_project_context",
+    "project_fact_may_be_certified",
+    "require_safe_id",
+    "resolve_resource",
+    "resolve_standards",
+    "sha256_json",
+    "validate_standards",
+]

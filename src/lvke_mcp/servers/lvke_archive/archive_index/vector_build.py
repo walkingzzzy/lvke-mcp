@@ -161,7 +161,7 @@ def main() -> int:
     res = build_vectors(
         args.db, args.out, model_name=args.model, batch=args.batch, limit=args.limit,
     )
-    print(f"\n=== vector build summary ===")
+    print("\n=== vector build summary ===")
     print(f"  indexed: {res.indexed}")
     print(f"  skipped: {res.skipped}")
     print(f"  seconds: {res.seconds:.1f}")

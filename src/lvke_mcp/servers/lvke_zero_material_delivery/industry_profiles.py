@@ -9,6 +9,16 @@ PROFILE_VERSION = "zero-material-industry-profiles.2026-08.v1"
 # These profiles describe how a controlled assumption is interpreted. Numeric
 # seeds remain owned by the deterministic finance scenario factory.
 PROFILES: dict[str, dict[str, Any]] = {
+    "energy_utilities": {
+        "applicability": ["光伏电站", "风电项目", "储能项目", "新能源发电", "能源基础设施"],
+        "revenue_model": "product_sales_or_gov_payment",
+        "revenue_drivers": ["design_capacity", "utilization", "tariff_or_service_fee", "payment_ramp"],
+        "investment_structure": ["equipment", "civil", "grid_connection", "installation", "other", "contingency"],
+        "cost_structure": ["energy", "land_or_lease", "labor", "maintenance", "grid_fee", "insurance"],
+        "labor_rule": "按装机规模、站点数量、运维班次和法定值守岗位估算定员",
+        "regional_adjustment": ["太阳能或风能资源条件", "并网条件", "上网电价或服务费", "建设成本指数"],
+        "sensitivity_variables": ["utilization", "tariff", "grid_connection_cost", "construction_investment"],
+    },
     "tourism_catering": {
         "applicability": ["景区提升", "主题乐园", "度假酒店", "文旅演艺", "营地", "餐饮配套"],
         "revenue_model": "tourism",

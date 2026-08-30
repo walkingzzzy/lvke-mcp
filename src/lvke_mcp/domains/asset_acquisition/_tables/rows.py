@@ -47,6 +47,21 @@ def _join_scalar(value: Any) -> str:
     return ";".join(label for label in labels if label)
 
 
+def _driver_scalar(value: Any) -> Any:
+    """Project a driver input to one deterministic display value."""
+    if isinstance(value, dict):
+        for field in ("monthly_values", "annual_values"):
+            candidate = value.get(field)
+            if isinstance(candidate, list):
+                return candidate[0] if candidate else None
+            if candidate is not None:
+                return candidate
+        return None
+    if isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
 def _ppa_rows(transaction: dict[str, Any], purchase_price: float) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for source in _rows(transaction.get("asset_scope")):
@@ -130,15 +145,14 @@ def _scenario_row(
     changes = changes or {}
     indicators = dict(result.get("indicators") or {})
     dynamic_payback = indicators.get("dynamic_payback_years")
-    occupancy = result.get("occupancy")
-    if isinstance(occupancy, list):
-        occupancy = occupancy[0] if occupancy else None
+    occupancy = _driver_scalar(result.get("occupancy"))
+    adr = _driver_scalar(result.get("adr"))
     return {
         "scenario_id": scenario_id,
         "scenario_kind": scenario_kind,
         "changed_fields": ";".join(sorted(changes)),
-        "adr": changes.get("hotel_operation.adr"),
-        "occupancy": changes.get("hotel_operation.occupancy", occupancy),
+        "adr": _driver_scalar(changes.get("hotel_operation.adr", adr)),
+        "occupancy": _driver_scalar(changes.get("hotel_operation.occupancy", occupancy)),
         "tariff_yuan_per_kwh": changes.get(
             "solar_operation.tariff_yuan_per_kwh", result.get("tariff_yuan_per_kwh")
         ),
@@ -176,12 +190,17 @@ def _scenario_rows(
     run_id = str(run.get("run_id") or "")
     transaction = dict(spec.get("transaction") or {})
     solar = dict(spec.get("solar_operation") or {})
+    monthly = _rows(result.get("monthly_timeline"))
+    first_month = monthly[0] if monthly else {}
     base = _scenario_row(
         f"{run_id}:{result.get('scenario_id') or 'base'}", "base",
         {
             "purchase_price_wan": result.get("purchase_price_wan"),
             "financing_ratio": transaction.get("financing_ratio"),
-            "occupancy": (spec.get("hotel_operation") or {}).get("occupancy"),
+            "adr": first_month.get("adr"),
+            "occupancy": first_month.get(
+                "occupancy", (spec.get("hotel_operation") or {}).get("occupancy")
+            ),
             "tariff_yuan_per_kwh": solar.get("tariff_yuan_per_kwh"),
             "annual_generation_mwh": solar.get("annual_generation_mwh"),
             "annual_opex_wan": solar.get("annual_opex_wan"),

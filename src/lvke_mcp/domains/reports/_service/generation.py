@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from lvke_mcp.runtime.storage import sha256_json
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
+from lvke_mcp.domains.reports.formal_lineage import (
+    formal_report_lineage as _formal_report_lineage,
+    validate_report_preparation_lineage,
+    validate_report_revision_lineage,
+)
 
 from lvke_mcp.adapters.report_repository import (
     BINDING_STORE,
@@ -271,26 +277,35 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         upstream_evidence_payloads.append(run)
     if isinstance(table_record, dict):
         upstream_evidence_payloads.append(table_record.get("payload") or {})
-    supplied_policy = str(args.get("evidence_policy") or "").strip()
-    policy_inputs: list[Any] = [*upstream_evidence_payloads]
-    if supplied_policy:
-        policy_inputs.append({"evidence_policy": supplied_policy})
-    evidence_policy = combine_evidence_policies(policy_inputs)
-    certification_parents = list(upstream_evidence_payloads)
-    if supplied_policy == SIM_A_FORMAL:
-        certified_lineage = [
-            item for item in upstream_evidence_payloads
-            if declared_evidence_policy(item) in CERTIFYING_POLICIES
-            and item.get("project_fact_certified") is True
-        ]
-        if certified_lineage:
-            certification_parents = certified_lineage
-            evidence_policy = SIM_A_FORMAL
-    project_fact_certified = project_fact_may_be_certified(
-        evidence_policy,
-        own_qualification_passed=True,
-        parents=certification_parents,
+    evidence_policy = combine_evidence_policies(upstream_evidence_payloads)
+    canonical_lineage: dict[str, Any] = {}
+    formal_requested = evidence_policy == SIM_A_FORMAL or any(
+        declared_evidence_policy(item) == SIM_A_FORMAL
+        for item in upstream_evidence_payloads
     )
+    if binding_kind != "asset_acquisition" and formal_requested:
+        try:
+            canonical_lineage = _formal_report_lineage(
+                workspace_id,
+                evidence_records=evidence,
+                research_records=research,
+                run_id=run_id,
+                table_record=table_record,
+            )
+        except FormalLineageError as exc:
+            formal_blockers.append(f"formal_lineage:{exc.code}")
+            warnings.append(f"正式 promotion 谱系无效：{exc.message}")
+            evidence_policy = SIM_A_FORMAL
+            project_fact_certified = False
+        else:
+            evidence_policy = SIM_A_FORMAL
+            project_fact_certified = True
+    else:
+        project_fact_certified = project_fact_may_be_certified(
+            evidence_policy,
+            own_qualification_passed=True,
+            parents=upstream_evidence_payloads,
+        )
     if not project_fact_certified:
         formal_blockers.append("project_fact_not_certified")
     basis = {
@@ -310,7 +325,9 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "finance_tables": table_record.get("basis_hash") if table_record else None,
         },
         "evidence_policy": evidence_policy,
+        "evidence_origin": canonical_lineage.get("evidence_origin"),
         "project_fact_certified": project_fact_certified,
+        "formal_promotion": canonical_lineage.get("formal_promotion"),
         "reconstruction_records": list(args.get("reconstruction_records") or [item for record in evidence for item in ((record.get("payload") or {}).get("reconstruction_records") or []) if isinstance(item, dict)]),
         "reconstructed_source_ids": list(args.get("reconstructed_source_ids") or []),
         "unresolved_inputs": list(args.get("unresolved_inputs") or []),
@@ -391,6 +408,15 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
     )
     if prep is None:
         return _failure("preparation_not_found", "未找到研报准备记录")
+    prep_payload = prep.get("payload") or {}
+    if str(prep_payload.get("evidence_policy") or "") == SIM_A_FORMAL:
+        try:
+            validate_report_preparation_lineage(workspace_id, prep)
+        except FormalLineageError as exc:
+            return _failure(
+                exc.code,
+                f"报告启动前正式 promotion 谱系校验失败：{exc.message}",
+            )
     supplied_document = _supplied_document_snapshot(
         workspace_id,
         args.get("document_snapshot"),
@@ -407,7 +433,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         "native_revision_id": native_revision,
         "report_preparation_id": preparation_id,
         "basis_hash": prep.get("basis_hash"),
-        "upstream": (prep.get("payload") or {}),
+        "upstream": prep_payload,
         "task_status": "agent_drafting",
         "requested_chapters": list(args.get("chapters") or []),
         "document_snapshot": document,
@@ -648,3 +674,43 @@ def readiness(
         "release_limitations": quality_issues,
         "next_actions": list(checked.get("next_actions") or []),
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BINDING_STORE",
+    "CERTIFYING_POLICIES",
+    "EVIDENCE_STORE",
+    "FormalLineageError",
+    "PREPARATION_STORE",
+    "RESEARCH_STORE",
+    "REVISION_STORE",
+    "SIM_A_FORMAL",
+    "TABLE_STORE",
+    "_TASK_TERMINAL",
+    "_build_report_prepare_next_actions",
+    "_capture_document_snapshot",
+    "_existing_status_revision",
+    "_failure",
+    "_formal_report_lineage",
+    "_materialize_local_document_snapshot",
+    "_normalize_finance_binding",
+    "_normalize_outline",
+    "_resolve_revision_record",
+    "_supplied_document_snapshot",
+    "combine_evidence_policies",
+    "declared_evidence_policy",
+    "get_package_record",
+    "prepare",
+    "project_fact_may_be_certified",
+    "readiness",
+    "sha256_json",
+    "start",
+    "status",
+    "validate",
+    "validate_report_preparation_lineage",
+    "validate_report_revision_lineage",
+]

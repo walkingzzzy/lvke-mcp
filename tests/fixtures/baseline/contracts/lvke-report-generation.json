@@ -92,12 +92,6 @@
         "template_version": {
           "type": "string"
         },
-        "evidence_policy": {
-          "type": "string"
-        },
-        "project_fact_certified": {
-          "type": "boolean"
-        },
         "reconstruction_records": {
           "type": "array",
           "items": {

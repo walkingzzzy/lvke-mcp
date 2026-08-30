@@ -476,6 +476,25 @@ def capture_research_package(runner: Runner, context: CoreContext) -> CoreContex
         note="可回读 partial ResearchPackage；不冒充独立质量审计完成",
     )
     runner.samples.append(sample)
+    source_text = "baseline research source v1"
+    source_hash = "sha256:" + hashlib.sha256(source_text.encode("utf-8")).hexdigest()
+    imported = runner.inner_payload(runner.call_tool(
+        "lvke_source_files",
+        "source_import_content",
+        {
+            "workspace_id": context.workspace_id,
+            "original_filename": "baseline-research-source.txt",
+            "declared_mime": "text/plain",
+            "content_base64": base64.b64encode(source_text.encode("utf-8")).decode("ascii"),
+            "idempotency_key": "baseline-research-source-v1",
+            "expected_sha256": source_hash,
+            "parse_immediately": True,
+        },
+    ))
+    source_id = str((imported or {}).get("file_id") or "")
+    if _status(imported) != "ok" or not source_id:
+        runner.record_defect(sample, f"source import failed: {imported}")
+        return context
     proc, init = runner.open_server("lvke_deep_research")
     if proc is None:
         runner.record_defect(sample, f"initialize failed: {init}")
@@ -504,11 +523,13 @@ def capture_research_package(runner: Runner, context: CoreContext) -> CoreContex
                 "report_md": "# MCP 独立化技术基线\n\n本样本仅验证 ResearchPackage 的持久化与资源回读。[1]",
                 "citations": [{
                     "title": "Technical baseline fixture",
-                    "locator": "fixture://baseline/research/source-1#content",
-                    "content_hash": "sha256:" + hashlib.sha256(b"baseline-research-source-v1").hexdigest(),
+                    "source_id": source_id,
+                    "resource_uri": f"lvke://source-files/workspaces/{context.workspace_id}/files/{source_id}",
+                    "locator": "document_text",
+                    "content_hash": source_hash,
                     "evidence_track": "technical_fixture",
                 }],
-                "source_snapshot_ids": ["technical-fixture-source-1"],
+                "source_snapshot_ids": [source_id],
             },
             request_id=3,
         ))

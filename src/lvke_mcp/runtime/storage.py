@@ -136,7 +136,8 @@ class JSONArtifactStore:
     ) -> dict[str, Any]:
         workspace_id = require_safe_id(workspace_id, "workspace_id")
         content_hash = sha256_json(payload)
-        basis_hash = sha256_json(payload if basis is None else basis)
+        stored_basis = payload if basis is None else basis
+        basis_hash = sha256_json(stored_basis)
         object_id = require_safe_id(object_id, "object_id") if object_id else (
             f"{self.id_prefix}_{content_hash.removeprefix('sha256:')[:24]}"
         )
@@ -148,6 +149,10 @@ class JSONArtifactStore:
             "created_at": utc_now(),
             "content_hash": content_hash,
             "basis_hash": basis_hash,
+            # Retain the canonical basis so formal lineage can be independently
+            # recomputed. Historical records without it intentionally fail the
+            # signed-lineage validator instead of being silently backfilled.
+            "basis": stored_basis,
             "status": status,
             "source_ids": sorted({str(item) for item in source_ids if str(item)}),
             "resource_uri": self.uri(workspace_id, object_id),

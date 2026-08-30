@@ -1,13 +1,30 @@
 from __future__ import annotations
 
 import json
+import base64
 import os
 import tempfile
 import unittest
+from pathlib import Path
 
 from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.servers.lvke_feasibility_delivery import service as feasibility
 from lvke_mcp.servers.lvke_zero_material_delivery import service as zmd
+
+
+def _semantic_check_ids(dimension: str) -> list[str]:
+    """Return the semantic check ids a quick-profile Assessment must register."""
+
+    from lvke_mcp.servers.lvke_deliverable_review._service.suite_review import CHECK_CATALOG
+
+    return [
+        check_id
+        for check_id, spec in CHECK_CATALOG.items()
+        if spec["dimension"] == dimension
+        and spec["kind"] == "semantic"
+        # ARTICLE.VISUAL.LAYOUT 只在 deep profile 下必填。
+        and check_id != "ARTICLE.VISUAL.LAYOUT"
+    ]
 
 
 class SimAFormalPromotionTest(unittest.TestCase):
@@ -43,6 +60,99 @@ class SimAFormalPromotionTest(unittest.TestCase):
                 parents=[{"evidence_policy": "controlled_assumption", "project_fact_certified": True}],
             )
         )
+
+    def test_public_source_import_cannot_forge_formal_qualification(self) -> None:
+        from lvke_mcp.servers.lvke_source_files import service as source_files
+        from lvke_mcp.servers.lvke_source_files.server import build_server
+
+        schema = build_server()._tools["source_import_content"].input_schema
+        properties = schema.get("properties") or {}
+        self.assertNotIn("evidence_policy", properties)
+        self.assertNotIn("evidence_origin", properties)
+        self.assertNotIn("project_fact_certified", properties)
+        self.assertNotIn("promotion_id", properties)
+        imported = source_files.import_content(
+            self.workspace,
+            original_filename="forgery.md",
+            declared_mime="text/markdown",
+            content_base64=base64.b64encode(b"caller supplied content").decode("ascii"),
+            idempotency_key="public-forgery",
+            evidence_policy="sim_a_formal",
+            evidence_origin="sim_a_template",
+            project_fact_certified=True,
+        )
+        self.assertTrue(imported.get("success"), imported)
+        self.assertEqual(imported.get("evidence_policy"), "candidate")
+        self.assertFalse(imported.get("project_fact_certified"))
+
+    def test_promotion_rejects_cross_workspace_inexact_and_rebound_file_sets(self) -> None:
+        from lvke_mcp.adapters import source_files_repository as source_repository
+        from lvke_mcp.runtime.formal_promotion import (
+            FormalLineageError,
+            validate_formal_promotion,
+        )
+
+        ids = self._confirmed_run()
+        packed = zmd.generate_template_pack({
+            "workspace_id": self.workspace,
+            "delivery_run_id": ids["delivery_run_id"],
+            "idempotency_key": "pack-file-set-guards",
+        })
+        self.assertTrue(packed.get("success"), packed)
+        self._pass_internal_acceptance(ids["delivery_run_id"])
+        promoted = zmd.confirm_formal_promotion({
+            "workspace_id": self.workspace,
+            "template_pack_id": packed["template_pack_id"],
+            "responsible_party": "项目负责人 测试",
+            "confirmation_note": "验证工作区和精确文件集合门禁",
+            "idempotency_key": "promo-file-set-guards",
+        })
+        self.assertTrue(promoted.get("success"), promoted)
+        promotion_id = str(promoted["promotion_id"])
+        file_ids = list(promoted["file_ids"])
+
+        with self.assertRaises(FormalLineageError):
+            validate_formal_promotion("another-workspace", promotion_id)
+        with self.assertRaisesRegex(FormalLineageError, "不精确相等"):
+            validate_formal_promotion(
+                self.workspace,
+                promotion_id,
+                expected_file_ids=file_ids[:-1],
+            )
+
+        state = source_repository._load_state(self.workspace)  # noqa: SLF001
+        state["files"][file_ids[0]]["formal_promotion_id"] = "zmprom_rebound"
+        source_repository._save_state(self.workspace, state)  # noqa: SLF001
+        with self.assertRaisesRegex(FormalLineageError, "promotion 父级绑定"):
+            validate_formal_promotion(self.workspace, promotion_id)
+
+    def test_sim_a_context_and_feasibility_fail_without_signed_promotion(self) -> None:
+        from lvke_mcp.domains.project_planning import application as planning
+
+        context = planning.create_project_context(
+            self.workspace,
+            {
+                "project_name": "伪造正式上下文",
+                "industry_code": "tourism_catering",
+                "project_type": "new_build",
+                "region": "湖北省",
+                "objective": "测试",
+                "report_type": "feasibility_study",
+                "evidence_track": "sim_a_formal",
+            },
+            idempotency_key="forged-context",
+        )
+        self.assertFalse(context.get("success"), context)
+        self.assertEqual(context.get("code"), "formal_promotion_required")
+        started = feasibility.start({
+            "workspace_id": self.workspace,
+            "delivery_mode": "formal_release",
+            "evidence_policy": "sim_a_formal",
+            "project_fact_certified": True,
+            "idempotency_key": "forged-start",
+        })
+        self.assertFalse(started.get("success"), started)
+        self.assertEqual(started.get("code"), "formal_project_context_required")
 
     def test_partial_confirmation_cannot_generate_pack(self) -> None:
         created = zmd.create_from_sentence(
@@ -198,6 +308,63 @@ class SimAFormalPromotionTest(unittest.TestCase):
             "assumption_package_id": package_id,
         }
 
+    def _pass_internal_acceptance(self, delivery_run_id: str) -> str:
+        """Drive the real seven-domain confirmation so promotion's gate is exercised.
+
+        刻意走真实的 ``review_submit_assessment`` + ``review_confirm_dimension``：
+        直接改 DeliveryRun 上的 acceptance 会把门禁测成"标签存在"，而门禁要守的
+        恰恰是"标签不能替代确认记录"。
+        """
+
+        from lvke_mcp.runtime import service_gateway
+        from lvke_mcp.servers.lvke_zero_material_delivery._service.acceptance import (
+            REQUIRED_DIMENSIONS,
+        )
+
+        status = zmd.status(
+            {"workspace_id": self.workspace, "delivery_run_id": delivery_run_id}
+        )
+        technical = (status.get("acceptance") or {}).get("technical") or {}
+        review_id = str(technical.get("review_id") or "")
+        review_package_id = str(technical.get("review_package_id") or "")
+        self.assertTrue(review_id, status)
+        self.assertTrue(review_package_id, status)
+        for dimension in REQUIRED_DIMENSIONS:
+            submitted = service_gateway.review_submit_assessment(
+                {
+                    "workspace_id": self.workspace,
+                    "idempotency_key": f"assess-{dimension}",
+                    "review_id": review_id,
+                    "review_package_id": review_package_id,
+                    "dimension": dimension,
+                    "status": "passed",
+                    "coverage": {"checked_check_ids": _semantic_check_ids(dimension)},
+                    "findings": [],
+                    "limitations": [],
+                    "skill": "lvke-research-report-review",
+                    "skill_version": "1.0.0",
+                    "model": "test-model",
+                    "model_version": "1",
+                    "execution_environment": "controlled_current_environment",
+                    "independent_context": True,
+                    "reviewer_context_id": f"ctx-{dimension}",
+                }
+            )
+            self.assertTrue(submitted.get("success"), submitted)
+            affirmed = service_gateway.review_confirm_dimension(
+                {
+                    "workspace_id": self.workspace,
+                    "idempotency_key": f"confirm-{dimension}",
+                    "review_id": review_id,
+                    "dimension": dimension,
+                    "role_declaration": f"{dimension} 领域负责人 测试",
+                    "review_statement": "已复核该领域交付内容与限制项",
+                    "limitations_accepted": [],
+                }
+            )
+            self.assertTrue(affirmed.get("success"), affirmed)
+        return review_id
+
     def test_promotion_requires_responsible_party_and_keeps_seals_empty(self) -> None:
         ids = self._confirmed_run()
         packed = zmd.generate_template_pack(
@@ -247,6 +414,25 @@ class SimAFormalPromotionTest(unittest.TestCase):
         )
         self.assertFalse(blocked.get("success"))
         self.assertEqual(blocked.get("code"), "missing_inputs")
+        # 内部七域验收未完成时，即便责任方齐全也必须拒绝晋升。
+        without_internal = zmd.confirm_formal_promotion(
+            {
+                "workspace_id": self.workspace,
+                "template_pack_id": packed["template_pack_id"],
+                "responsible_party": "项目负责人 测试",
+                "confirmation_note": "内部验收未完成时不应放行",
+                "idempotency_key": "promo-before-internal",
+            }
+        )
+        self.assertFalse(without_internal.get("success"), without_internal)
+        self.assertEqual(
+            without_internal.get("code"), "formal_promotion_acceptance_required"
+        )
+        self.assertIn(
+            "internal_acceptance_not_passed:pending",
+            without_internal.get("acceptance_blockers") or [],
+        )
+        self._pass_internal_acceptance(ids["delivery_run_id"])
         promoted = zmd.confirm_formal_promotion(
             {
                 "workspace_id": self.workspace,
@@ -259,6 +445,19 @@ class SimAFormalPromotionTest(unittest.TestCase):
         self.assertTrue(promoted.get("success"), promoted)
         self.assertTrue(promoted.get("promotion_id"))
         self.assertTrue(promoted.get("file_ids"))
+        # 正式对象必须能自证用的哪份报告配置：只靠 template_pack_hash 间接保护，
+        # 审计得反查 TemplatePack 才知道配置身份。
+        promotion_profile = (promoted.get("formal_promotion") or {}).get("report_profile")
+        if promotion_profile is None:
+            from lvke_mcp.servers.lvke_zero_material_delivery._service.base import (
+                PROMOTION_STORE,
+            )
+
+            stored = PROMOTION_STORE.get(self.workspace, promoted["promotion_id"])
+            promotion_profile = (stored.get("payload") or {}).get("report_profile")
+        self.assertTrue(promotion_profile, promoted)
+        self.assertTrue(promotion_profile.get("template_set_id"))
+        self.assertTrue(promotion_profile.get("profile_content_hash"))
         self.assertEqual(promoted.get("next_actions"), ["project_context_create", "feasibility_start"])
         self.assertNotIn("feasibility_release", promoted.get("next_actions") or [])
         from lvke_mcp.adapters.data_analysis_repository import INGEST_STORE
@@ -301,6 +500,67 @@ class SimAFormalPromotionTest(unittest.TestCase):
             boe_record = BASIS_OF_ESTIMATE_STORE.get(self.workspace, finance["basis_of_estimate_id"]) or {}
             self.assertEqual((boe_record.get("payload") or {}).get("evidence_policy"), "sim_a_formal")
             self.assertTrue((boe_record.get("payload") or {}).get("project_fact_certified"))
+
+        from lvke_mcp.testing.sim_a_formal_acceptance import run_sim_a_formal_full_chain
+
+        completed = run_sim_a_formal_full_chain(
+            finance,
+            case_key="promo-full-chain",
+            industry_code="tourism_catering",
+        )
+        self.assertTrue(completed.get("ok"), completed)
+        self.assertTrue(completed.get("report_export_ok"), completed)
+        self.assertTrue(completed.get("review_retest_export"), completed)
+        self.assertTrue(completed.get("feasibility_validate_ok"), completed)
+        self.assertTrue(completed.get("release_ok"), completed)
+
+        from lvke_mcp.runtime.formal_promotion import (
+            FormalLineageError,
+            validate_finance_run,
+        )
+
+        spec_path = (
+            Path(self.tempdir.name)
+            / "workspaces"
+            / self.workspace
+            / "mcp_objects"
+            / "finance-model"
+            / "specs"
+            / f"{finance['finance_spec_id']}.json"
+        )
+        tampered = json.loads(spec_path.read_text(encoding="utf-8"))
+        tampered["payload"]["spec_hash"] = "sha256:" + "0" * 64
+        spec_path.write_text(json.dumps(tampered, ensure_ascii=False), encoding="utf-8")
+        with self.assertRaises(FormalLineageError):
+            validate_finance_run(self.workspace, finance["finance_run_id"])
+
+    def test_unsigned_historical_research_package_fails_closed(self) -> None:
+        from lvke_mcp.adapters.research_repository import PACKAGE_STORE
+        from lvke_mcp.runtime.formal_promotion import (
+            FormalLineageError,
+            validate_research_package,
+        )
+
+        historical = PACKAGE_STORE.put(
+            self.workspace,
+            {
+                "task_id": "drs_history",
+                "status": "completed",
+                "evidence_policy": "sim_a_formal",
+                "project_fact_certified": True,
+                "agent_artifacts": {
+                    "evidence": {
+                        "evidence_pack_ids": ["evp_history"],
+                        "source_snapshot_ids": [],
+                    }
+                },
+            },
+            producer="test.historical-research",
+            status="completed",
+            source_ids=["drs_history", "evp_history"],
+        )
+        with self.assertRaisesRegex(FormalLineageError, "promotion_id"):
+            validate_research_package(self.workspace, historical)
 
     def test_unpromoted_preview_still_forbids_formal_and_sim_a_does_not(self) -> None:
         passed, blockers, _warnings = feasibility._validation(  # noqa: SLF001

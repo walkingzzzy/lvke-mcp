@@ -1,0 +1,311 @@
+{
+  "schema_version": "lvke-report-profile.v1",
+  "profile_id": "asset-acquisition-9",
+  "template_set_id": "lvke-report.asset-acquisition-9.v1",
+  "version": "1.0.0",
+  "status": "active",
+  "label": "资产收购可行性研究报告（九章）",
+  "report_type": "asset_acquisition",
+  "required_components": [
+    "report_markdown",
+    "report_docx",
+    "finance_thirteen_tables",
+    "finance_xlsx",
+    "finance_csv",
+    "evidence_register",
+    "assumption_register"
+  ],
+  "required_fields": [
+    "project_name",
+    "region",
+    "industry_label",
+    "purchase_price_wan"
+  ],
+  "disclosure": {
+    "preview_banner": "技术预估版。收购标的在甲方零材料条件下评估，权属、并网协议、历史经营与财务报表均未取得，收购价与全部收益指标为受控假设。",
+    "promoted_banner": "本报告依据拟定模板包晋升的 sim_a_formal 资料生成；模拟来源已在 lineage 与 manifest 中保留。",
+    "assumption_notice": "标的权属、交易结构、历史经营数据与财务报表未取得前，收购价、退出价与偿债指标均为 controlled_assumption，不构成估值结论。",
+    "skipped_notice": "以下字段用户选择跳过，已按受控假设取值并计入交付限制："
+  },
+  "prose": {
+    "validation_condition": "甲方原始材料缺失，结果按受控假设范围校验；补充材料后必须重算并校验 input hash、lineage 与数值一致性",
+    "no_public_sources": "- 未形成可固化的公开来源快照；标的历史经营数据已回退为受控假设",
+    "finance_tables_manifest": "已从同一收购 run 确定性生成十三张主表、CSV 与 XLSX；表格完整性由 manifest、文件 hash 与跨表一致性校验共同确定。",
+    "no_blockers": "- 无技术链阻断项",
+    "no_limitations": "- 无非阻断质量限制",
+    "no_skipped_fields": "- 无用户跳过字段",
+    "empty_section": "（本节数据槽位在当前输入快照下均未形成）",
+    "missing_value": "未形成",
+    "assumption_boundary_title": "附：受控假设边界"
+  },
+  "tables": {
+    "assumption_table": {
+      "columns": [
+        {
+          "header": "参数",
+          "field": "name",
+          "align": "left"
+        },
+        {
+          "header": "当前值",
+          "field": "value",
+          "align": "right"
+        },
+        {
+          "header": "单位",
+          "field": "unit",
+          "align": "left"
+        },
+        {
+          "header": "来源类型",
+          "field": "source_type",
+          "align": "left"
+        },
+        {
+          "header": "置信度",
+          "field": "confidence",
+          "align": "right"
+        },
+        {
+          "header": "已确认",
+          "field": "confirmed",
+          "align": "left",
+          "boolean_labels": [
+            "是",
+            "否"
+          ]
+        },
+        {
+          "header": "正式使用条件",
+          "field": "validation_condition",
+          "align": "left"
+        }
+      ]
+    }
+  },
+  "fragments": {
+    "finance_lineage": [
+      {
+        "label": "FinanceRun",
+        "field": "run_id"
+      },
+      {
+        "label": "模型版本",
+        "field": "model_version"
+      },
+      {
+        "label": "模板版本",
+        "field": "template_version"
+      },
+      {
+        "label": "spec hash",
+        "field": "spec_hash"
+      },
+      {
+        "label": "input hash",
+        "field": "input_hash"
+      },
+      {
+        "label": "财务勾稽状态",
+        "field": "consistency_ok"
+      }
+    ]
+  },
+  "chapters": [
+    {
+      "title": "概述",
+      "subs": [
+        {
+          "title": "交易概况",
+          "slots": [
+            "project_name",
+            "region",
+            "industry_label",
+            "purchase_price_wan"
+          ]
+        },
+        {
+          "title": "编制依据和研究范围",
+          "slots": [
+            "material_state",
+            "evidence_policy",
+            "assurance_level"
+          ]
+        },
+        {
+          "title": "主要结论和建议",
+          "slots": [
+            "project_irr",
+            "project_npv",
+            "blockers"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "标的资产与权属状况",
+      "subs": [
+        {
+          "title": "标的范围",
+          "slots": [
+            "asset_scope"
+          ]
+        },
+        {
+          "title": "权属与合规状况",
+          "slots": [
+            "assumption_replacement_conditions"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "收购背景与必要性",
+      "subs": [
+        {
+          "title": "市场与政策环境",
+          "slots": [
+            "public_research_sources"
+          ]
+        },
+        {
+          "title": "收购必要性",
+          "slots": [
+            "industry_applicability",
+            "public_research_status"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "历史经营与资产质量",
+      "subs": [
+        {
+          "title": "历史经营数据",
+          "slots": [
+            "public_research_sources",
+            "assumption_table"
+          ]
+        },
+        {
+          "title": "资产质量与剩余寿命",
+          "slots": [
+            "remaining_operating_years"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "交易结构与融资方案",
+      "subs": [
+        {
+          "title": "交易结构",
+          "slots": [
+            "acquisition_type",
+            "transaction_structure"
+          ]
+        },
+        {
+          "title": "融资方案",
+          "slots": [
+            "financing_ratio",
+            "interest_rate",
+            "tenor"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "运营与整合方案",
+      "subs": [
+        {
+          "title": "运营模式与整合技术方案",
+          "slots": [
+            "labor_rule",
+            "revenue_model"
+          ]
+        },
+        {
+          "title": "运营成本构成",
+          "slots": [
+            "cost_structure"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "估值与财务分析",
+      "subs": [
+        {
+          "title": "估值方法与收购价",
+          "slots": [
+            "purchase_price_wan",
+            "valuation_value"
+          ]
+        },
+        {
+          "title": "财务指标",
+          "slots": [
+            "project_irr",
+            "project_npv",
+            "capital_irr",
+            "payback_years"
+          ]
+        },
+        {
+          "title": "偿债能力与勾稽",
+          "slots": [
+            "minimum_dscr",
+            "finance_lineage",
+            "finance_tables_manifest"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "风险分析与对策",
+      "subs": [
+        {
+          "title": "交易与权属风险",
+          "slots": [
+            "assumption_replacement_conditions"
+          ]
+        },
+        {
+          "title": "经营与财务风险",
+          "slots": [
+            "sensitivity_variables",
+            "assumption_table"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "结论与建议",
+      "subs": [
+        {
+          "title": "研究结论",
+          "slots": [
+            "project_irr",
+            "consistency_ok"
+          ]
+        },
+        {
+          "title": "资料缺口与后续行动",
+          "slots": [
+            "blockers",
+            "skipped_fields",
+            "release_limitations"
+          ]
+        },
+        {
+          "title": "验证边界",
+          "slots": [
+            "material_state",
+            "validation_condition"
+          ]
+        }
+      ]
+    }
+  ]
+}

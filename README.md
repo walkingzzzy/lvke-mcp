@@ -51,7 +51,7 @@ MCP 运行所需的配置（数据目录、临时目录、profile、Tavily key�
 `lvke-source-files.source_inspect_workbook` 路由。旧实现模块继续作为内部库存在，
 种子数据、档案索引、公式和返回业务字段不迁移。
 
-公开面固定为 **14 个 Lvke MCP 进程、173 个工具**。完整输入/输出 schema 仍由服务端
+公开面固定为 **14 个 Lvke MCP 进程、180 个工具**。完整输入/输出 schema 仍由服务端
 执行；`tools/list` 只发布紧凑输入投影，大型完整 schema 通过
 `lvke://schemas/<server>/<tool>/input` Resource 按需读取。紧凑投影始终保留顶层参数、
 必填项、容器类型及数组元素类型，只省略可按 Resource 读取的深层结构。以下稳定别名不依赖工具名：
@@ -90,8 +90,8 @@ mcp_servers/
 │   └── servers/
 │       ├── scaffold/         # 参考 server（无 sys.path hack，零 Hermes 依赖）
 │       └── <domain>/         # 14 个公开领域与参考 server
-├── skills/                   # Skill 源码；Codex 插件发布 15 个非前端父 Skill
-├── plugins/lvke-mcp/         # Codex 插件：14 个 MCP + 15 个 Skill
+├── skills/                   # Skill 源码；Codex 插件发布 16 个非前端父 Skill
+├── plugins/lvke-mcp/         # Codex 插件：14 个 MCP + 16 个 Skill
 ├── scripts/                  # 独立性扫描与基线工具
 └── tests/
 ```
@@ -146,7 +146,7 @@ conda run -n lvke-mcp python -c "import sys;print([p for p in sys.path if '/.loc
 
 ## 在 Codex 中启用
 
-使用 `plugins/lvke-mcp/` 中的 Codex 插件发布 14 个 stdio MCP 和 15 个非前端 Skill。
+使用 `plugins/lvke-mcp/` 中的 Codex 插件发布 14 个 stdio MCP 和 16 个非前端 Skill。
 完整安装、更新、范围和验证说明见
 [`dev-docs/config/CODEX_USER_CONFIG.md`](dev-docs/config/CODEX_USER_CONFIG.md)。
 

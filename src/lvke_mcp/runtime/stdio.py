@@ -208,7 +208,7 @@ class StdioServer:
                 }
         try:
             result = self._tools[name].handler(arguments)
-        except Exception as exc:  # noqa: BLE001 - 包成 CallToolResult
+        except Exception:  # noqa: BLE001 - 包成 CallToolResult
             trace_id = f"mcp_{uuid.uuid4().hex}"
             if self.logger is not None:
                 self.logger.exception("tool %s 抛出未捕获异常 trace_id=%s", name, trace_id)
@@ -229,7 +229,7 @@ class StdioServer:
                 from jsonschema import validate
 
                 validate(instance=result, schema=spec.output_schema)
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 trace_id = f"mcp_{uuid.uuid4().hex}"
                 if self.logger is not None:
                     self.logger.exception(

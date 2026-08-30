@@ -30,6 +30,11 @@ _TARGET_TYPES = [
     "report_revision",
     "report_artifact",
     "combined_deliverable",
+    "review_package",
+    "research_package",
+    "evidence_pack",
+    "finance_spec",
+    "basis_of_estimate",
 ]
 _COMPONENT_TARGET_TYPES = [item for item in _TARGET_TYPES if item != "combined_deliverable"]
 _RULE_PACK_IDS = [
@@ -65,7 +70,7 @@ _ID = {"type": "string", "minLength": 1, "maxLength": 256}
 _IDEMPOTENCY_KEY = {"type": "string", "minLength": 1, "maxLength": 160}
 _ARTIFACT_DOMAIN = {
     "type": "string",
-    "enum": ["generic_feasibility", "asset_acquisition"],
+    "enum": ["generic_feasibility", "asset_acquisition", "zero_material_preview"],
     "description": "报告工件所属的唯一存储域；用于阻止跨域同 ID 歧义。",
 }
 _SHA256 = {
@@ -100,7 +105,8 @@ def _target_variants(*, include_combined: bool) -> list[dict[str, Any]]:
         _target_variant(target_type, description=f"审查 {target_type} 不可变对象")
         for target_type in (
             "finance_run", "finance_tables_package", "acquisition_run",
-            "acquisition_tables_package", "report_revision",
+            "acquisition_tables_package", "report_revision", "review_package",
+            "research_package", "evidence_pack", "finance_spec", "basis_of_estimate",
         )
     ]
     variants.extend([
@@ -126,6 +132,12 @@ def _target_variants(*, include_combined: bool) -> list[dict[str, Any]]:
             extra_properties={"artifact_domain": {"const": "asset_acquisition"}},
             extra_required=("artifact_domain",),
             description="审查资产收购报告工件",
+        ),
+        _target_variant(
+            "report_artifact",
+            extra_properties={"artifact_domain": {"const": "zero_material_preview"}},
+            extra_required=("artifact_domain",),
+            description="审查零材料技术预估报告（仅预览，不具备正式资格）",
         ),
     ])
     if include_combined:
@@ -393,6 +405,184 @@ def build_server() -> OfficialStdioServer:
         read,
     )
 
+    component_role = {
+        "type": "string",
+        "enum": [
+            "report", "source_evidence", "base_data", "finance_model",
+            "finance_tables", "attachment",
+        ],
+    }
+    review_dimension = {
+        "type": "string",
+        "enum": [
+            "compliance", "article_quality", "data_quality", "source_quality",
+            "financial_model", "financial_tables", "feasibility",
+        ],
+    }
+    fragment_evidence = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "source_id": _ID,
+            "source_hash": _SHA256,
+            "locator": {"oneOf": [{"type": "object"}, _STRING]},
+            "fragment_text": {"type": "string", "maxLength": 200000},
+            "fragment_hash": _SHA256,
+        },
+        "required": ["source_id", "source_hash", "locator"],
+    }
+    server.register_tool(
+        "review_package_prepare",
+        "自动识别 Lvke 内部对象或已导入 SourceFile 的套件角色，返回待人工确认的不可变 ReviewPackageDraft。",
+        _write_schema(
+            {
+                "source_file_ids": {"type": "array", "items": _ID, "maxItems": 200, "uniqueItems": True},
+                "internal_targets": {"type": "array", "items": _COMPONENT_TARGET, "maxItems": 50},
+                "review_mode": {"type": "string", "enum": ["internal", "external"]},
+                "review_profile": {"type": "string", "enum": ["quick", "standard", "deep"]},
+                "project_scope": {"type": "object"},
+            },
+            ["review_mode", "review_profile", "project_scope"],
+        ),
+        service.prepare_package,
+        _output_schema(),
+        write,
+    )
+    server.register_tool(
+        "review_package_confirm",
+        "确认每个套件组件的唯一角色并重验原文件/hash，生成不可变 ReviewPackage；缺五类材料时只能专项审查。",
+        _write_schema(
+            {
+                "review_package_draft_id": _ID,
+                "expected_draft_hash": _SHA256,
+                "component_roles": {
+                    "type": "array", "minItems": 1, "maxItems": 200,
+                    "items": {
+                        "type": "object", "additionalProperties": False,
+                        "properties": {"component_id": _ID, "role": component_role},
+                        "required": ["component_id", "role"],
+                    },
+                },
+                "confirmation_statement": _STRING,
+            },
+            ["review_package_draft_id", "expected_draft_hash", "component_roles", "confirmation_statement"],
+        ),
+        service.confirm_package,
+        _output_schema(),
+        write,
+    )
+    server.register_tool(
+        "review_confirm_extraction",
+        "对 OCR 或低置信度关键片段重验来源 hash、locator、fragment 后固化人工确认；不判断其是否支持结论。",
+        _write_schema(
+            {
+                "review_package_id": _ID,
+                "confirmations": {
+                    "type": "array", "minItems": 1, "maxItems": 500,
+                    "items": {
+                        "type": "object", "additionalProperties": False,
+                        "properties": {
+                            **fragment_evidence["properties"],
+                            "confirmation_kind": {"type": "string", "enum": ["ocr_fragment", "critical_number", "regulatory_citation"]},
+                            "confirmed_value": {},
+                            "note": {"type": "string", "maxLength": 4000},
+                        },
+                        "required": ["source_id", "source_hash", "locator", "confirmation_kind", "note"],
+                    },
+                },
+            },
+            ["review_package_id", "confirmations"],
+        ),
+        service.confirm_extraction,
+        _output_schema(),
+        write,
+    )
+    semantic_finding = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "check_id": {"type": "string", "enum": sorted(
+                check_id for check_id, spec in service.CHECK_CATALOG.items()
+                if spec["kind"] == "semantic"
+            )},
+            "severity": {"type": "string", "enum": ["P0", "P1", "P2", "P3"]},
+            "message": _STRING,
+            "target_location": {"type": "object"},
+            "actual": {},
+            "evidence": {"type": "array", "items": fragment_evidence, "maxItems": 100},
+            "missing_evidence_reason": {"type": "string", "maxLength": 4000},
+            "remediation": _STRING,
+        },
+        "required": ["check_id", "severity", "message", "target_location", "remediation"],
+    }
+    server.register_tool(
+        "review_submit_assessment",
+        "提交独立 Agent 的单领域结构化语义审查；服务端重验 check_id、套件绑定、来源、locator 与 fragment hash。",
+        _write_schema(
+            {
+                "review_id": _ID,
+                "review_package_id": _ID,
+                "dimension": review_dimension,
+                "status": {"type": "string", "enum": ["passed", "failed", "incomplete", "not_determinable", "not_applicable"]},
+                "coverage": {"type": "object"},
+                "findings": {"type": "array", "items": semantic_finding, "maxItems": 500},
+                "limitations": {"type": "array", "items": _STRING, "maxItems": 100},
+                "skill": _STRING,
+                "skill_version": _STRING,
+                "model": _STRING,
+                "model_version": _STRING,
+                "execution_environment": _STRING,
+                "independent_context": {"type": "boolean", "const": True},
+                "reviewer_context_id": _ID,
+            },
+            [
+                "review_id", "review_package_id", "dimension", "status", "coverage",
+                "findings", "limitations", "skill", "skill_version", "model",
+                "model_version", "execution_environment", "independent_context",
+                "reviewer_context_id",
+            ],
+        ),
+        service.submit_assessment,
+        _output_schema(),
+        write,
+    )
+    server.register_tool(
+        "review_get_dimension",
+        "读取一个七域维度的确定性状态、独立 Assessment、findings、覆盖率、限制和角色确认状态。",
+        _schema(
+            {"workspace_id": _SAFE_ID, "review_id": _ID, "dimension": review_dimension},
+            ["workspace_id", "review_id", "dimension"],
+        ),
+        service.get_dimension,
+        _output_schema(),
+        read,
+    )
+    server.register_tool(
+        "review_confirm_dimension",
+        "记录领域责任声明与审查意见；不验证身份、执业资格、电子签名或外部批准。",
+        _write_schema(
+            {
+                "review_id": _ID,
+                "dimension": review_dimension,
+                "role_declaration": _STRING,
+                "review_statement": _STRING,
+                "limitations_accepted": {"type": "array", "items": _STRING, "maxItems": 100},
+            },
+            ["review_id", "dimension", "role_declaration", "review_statement", "limitations_accepted"],
+        ),
+        service.confirm_dimension,
+        _output_schema(),
+        write,
+    )
+    server.register_tool(
+        "review_finalize",
+        "从确定性检查、七域 Assessment、领域确认、材料完整性和 P0/P1 门禁计算 ReviewDossier；不接受调用方 verdict。",
+        _write_schema({"review_id": _ID}, ["review_id"]),
+        service.finalize,
+        _output_schema(),
+        write,
+    )
+
     server.register_tool(
         "review_prepare",
         "解析并锁定目标、上游依据、规则包和标准来源，返回不可变审查范围。",
@@ -402,6 +592,8 @@ def build_server() -> OfficialStdioServer:
                 "rule_pack_ids": _RULE_PACK_LIST,
                 "industry_overlays": _RULE_PACK_LIST,
                 "project_context": _PROJECT_CONTEXT,
+                "review_profile": {"type": "string", "enum": ["quick", "standard", "deep"]},
+                "review_mode": {"type": "string", "enum": ["internal", "external"]},
             },
             ["target"],
         ),
@@ -417,6 +609,8 @@ def build_server() -> OfficialStdioServer:
                 "rule_pack_ids": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
                 "industry_overlays": {"type": "array", "items": {"type": "string"}, "maxItems": 10},
                 "project_context": {"type": "object"},
+                "review_profile": {"type": "string", "enum": ["quick", "standard", "deep"]},
+                "review_mode": {"type": "string", "enum": ["internal", "external"]},
             },
             ["target"],
         ),
@@ -428,7 +622,7 @@ def build_server() -> OfficialStdioServer:
             {
                 "review_preparation_id": _ID,
                 "mode": {
-                    "type": "string", "enum": ["quick", "deep"], "default": "quick",
+                    "type": "string", "enum": ["quick", "standard", "deep"], "default": "quick",
                     "description": "async execution 仅允许 deep；不满足时运行时返回可操作参数错误。",
                 },
                 "execution": {"type": "string", "enum": ["sync", "async"]},
@@ -529,6 +723,9 @@ def build_server() -> OfficialStdioServer:
                         "approve_waiver", "waived",
                     ]},
                     "waiver_scope": {"type": "string", "minLength": 1, "maxLength": 4000},
+                    "waiver_impact": {"type": "string", "minLength": 1, "maxLength": 4000},
+                    "waiver_compensating_controls": {"type": "string", "minLength": 1, "maxLength": 4000},
+                    "waiver_responsible_party": {"type": "string", "minLength": 1, "maxLength": 500},
                     "waiver_expires_at": {"type": "string", "format": "date-time"},
                     "waiver_invalidation_conditions": {
                         "type": "array", "items": _STRING, "minItems": 1,
@@ -538,7 +735,8 @@ def build_server() -> OfficialStdioServer:
                 },
                 [
                     "review_id", "finding_id", "disposition", "note",
-                    "waiver_scope", "waiver_expires_at",
+                    "waiver_scope", "waiver_impact", "waiver_compensating_controls",
+                    "waiver_responsible_party", "waiver_expires_at",
                     "waiver_invalidation_conditions", "remediation_evidence",
                 ],
             ),
@@ -578,7 +776,7 @@ def build_server() -> OfficialStdioServer:
                 "remediation_evidence": _EVIDENCE_LIST,
                 "rule_pack_ids": _RULE_PACK_LIST,
                 "industry_overlays": _RULE_PACK_LIST,
-                "mode": {"type": "string", "enum": ["quick", "deep"]},
+                "mode": {"type": "string", "enum": ["quick", "standard", "deep"]},
             },
             ["review_id", "target", "remediation_evidence"],
         ),
@@ -588,15 +786,15 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "review_export",
-        "导出不可变 JSON、Markdown、DOCX 审查报告及 findings XLSX。",
+        "导出不可变 JSON 审计包、Markdown、DOCX/PDF 审查报告、findings XLSX 及 locator 问题版 DOCX。",
         _write_schema(
             {
                 "review_id": _ID,
                 "formats": {
                     "type": "array",
-                    "items": {"type": "string", "enum": ["json", "markdown", "docx", "xlsx"]},
+                    "items": {"type": "string", "enum": ["json", "markdown", "docx", "xlsx", "pdf", "annotated_docx"]},
                     "minItems": 1,
-                    "maxItems": 4,
+                    "maxItems": 6,
                     "uniqueItems": True,
                 },
             },

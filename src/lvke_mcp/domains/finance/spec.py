@@ -1285,6 +1285,10 @@ def _validate_v3(spec: dict[str, Any], errs: list[str]) -> None:
             errs.append("hotel_operation.operating_days 应在1~366")
         for key in ("occupancy",):
             values = hotel.get(key)
+            if isinstance(values, dict):
+                monthly_values = values.get("monthly_values")
+                annual_values = values.get("annual_values")
+                values = monthly_values if monthly_values is not None else annual_values
             sequence = values if isinstance(values, list) else [values]
             if any(_f(value) is None or not 0 <= float(_f(value) or 0) <= 1 for value in sequence):
                 errs.append(f"hotel_operation.{key} 应在0~1")

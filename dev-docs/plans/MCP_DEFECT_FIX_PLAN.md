@@ -2,7 +2,8 @@
 
 生成时间：2026-08-05　适用仓库：`/Users/mac/Desktop/mcp_servers`（独立发行版 `lvke-mcp`）
 
-**状态**: 历史文档 — 本轮验收针对 Wave 2 后的 24 服务拓扑执行。Wave 4 压缩后当前为 14 个 server、169 个工具。
+**状态**: 历史文档 — 本轮验收针对 Wave 2 后的 24 服务拓扑执行；当时 Wave 4 压缩快照为 14 个 server、169 个工具。
+当前实时拓扑为 14 个 server、180 个工具、242 个 Resource，所有工具均有 `outputSchema`。
 
 ## 一、背景
 

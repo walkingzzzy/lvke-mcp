@@ -75,6 +75,22 @@ def _capture_basis(
     document_snapshot: dict[str, Any] | None = None,
     expected_run_id: str = "",
 ) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    formal_lineage: dict[str, Any] = {}
+    if report_revision_id:
+        from lvke_mcp.adapters.report_repository import REVISION_STORE
+        from lvke_mcp.domains.reports.formal_lineage import (
+            validate_report_revision_lineage,
+        )
+        from lvke_mcp.runtime.formal_promotion import SIM_A_FORMAL
+
+        revision = REVISION_STORE.get(workspace_id, report_revision_id)
+        revision_payload = (revision or {}).get("payload") or {}
+        upstream = revision_payload.get("upstream") or {}
+        if str(upstream.get("evidence_policy") or "") == SIM_A_FORMAL:
+            formal_lineage = validate_report_revision_lineage(
+                workspace_id,
+                revision or {},
+            )
     document, content, meta = _document_snapshot(
         workspace_id,
         supplied_snapshot=document_snapshot,
@@ -145,6 +161,10 @@ def _capture_basis(
         "doc_kind": meta_doc_kind or doc_service.DEFAULT_DOC_KIND,
         "template_version": template_version,
         "report_revision_id": str(report_revision_id or ""),
+        "evidence_policy": formal_lineage.get("evidence_policy"),
+        "evidence_origin": formal_lineage.get("evidence_origin"),
+        "project_fact_certified": formal_lineage.get("project_fact_certified"),
+        "formal_promotion": copy.deepcopy(formal_lineage.get("formal_promotion")),
         "document": document,
         "sources": sources,
         "readiness": {
@@ -312,3 +332,31 @@ def _draft_basis_blockers(
                 "details": copy.deepcopy(appendix_file),
             })
     return blockers
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BASIS_SCHEMA_VERSION",
+    "DRAFT_MARKER",
+    "DeliverableArtifactError",
+    "Sequence",
+    "_GOVERNED_SNAPSHOTS",
+    "_appendix_files_snapshot",
+    "_canonical_hash",
+    "_capture_basis",
+    "_document_snapshot",
+    "_draft_basis_blockers",
+    "_fresh_readiness",
+    "_json_snapshot",
+    "_load_finance_run",
+    "_marker_markdown",
+    "_readiness_blockers",
+    "_source_basis_snapshot",
+    "_strict_finance_gate",
+    "_without_volatile_timestamps",
+    "copy",
+    "doc_service",
+]

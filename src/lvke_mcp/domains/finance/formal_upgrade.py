@@ -219,7 +219,6 @@ def _stamp_formal_grade(
 ) -> None:
     """Stamp formal_grade fields onto a persisted run record."""
     import json
-    from pathlib import Path
 
     from lvke_mcp.runtime.workspace import workspace_root
 
@@ -254,3 +253,17 @@ def _failure(
         "diff": {},
         "validation_report": {},
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "_compute_diff",
+    "_failure",
+    "_stamp_formal_grade",
+    "load_run",
+    "promote_to_formal",
+    "record_run",
+]

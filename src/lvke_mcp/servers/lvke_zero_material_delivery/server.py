@@ -17,17 +17,144 @@ logger = get_logger(SERVER_NAME)
 _SAFE_ID = {"type": "string", "pattern": r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"}
 _KEY = {"type": "string", "minLength": 1, "maxLength": 200}
 _TEXT = {"type": "string", "maxLength": 4000}
+_MISSING_INPUT = {
+    "type": "object",
+    "properties": {
+        "field": {"type": "string"},
+        "section": {"type": "string", "description": "所属配置章节 / 小节"},
+        "critical": {"type": "boolean", "description": "关键字段未答不得取得正式候选资格"},
+        "unit": {"type": "string"},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "controlled_assumption_source": {"type": "string"},
+        "current_seed_value": {},
+        "impact": {"type": "string", "description": "对技术验收与正式候选的影响"},
+        "status": {"type": "string", "enum": ["pending", "skipped", "answered"]},
+        "priority": {"type": "integer", "minimum": 1},
+    },
+    "required": ["field", "critical", "status", "impact"],
+}
+
+_REPORT_PROFILE = {
+    "type": "object",
+    "description": "本次运行冻结的报告配置；历史运行保持可重放",
+    "properties": {
+        "profile_id": {"type": "string"},
+        "template_set_id": {"type": "string"},
+        "profile_version": {"type": "string"},
+        "profile_content_hash": {"type": "string"},
+        "profile_manifest_hash": {"type": "string"},
+        "report_type": {"type": "string"},
+        "selection_method": {"type": "string"},
+        "selection_reasons": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+_DOMAIN_RESULT = {
+    "type": "object",
+    "properties": {
+        "domain": {"type": "string"},
+        "status": {
+            "type": "string",
+            "enum": ["passed", "passed_with_limitations", "failed", "not_determinable"],
+        },
+        "blockers": {"type": "array", "items": {"type": "string"}},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "checked": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["domain", "status"],
+}
+
+# 三段验收严格分离：technical 由系统自动判定，internal 只聚合人工按领域确认，
+# formal 是资格而不是动作。任何一段都不得由调用方自报。
+_ACCEPTANCE = {
+    "type": "object",
+    "properties": {
+        "technical": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "enum": list(service.TECHNICAL_STATUSES)},
+                "review_preparation_id": {"type": "string"},
+                "review_id": {"type": "string"},
+                "review_package_id": {"type": "string"},
+                "feasibility_validation_id": {
+                    "type": "string",
+                    "description": "已绑定的 fdr_* 可研交付运行；预览阶段恒为空"
+                    "（fdr_* 由晋升后的 feasibility_start 创建），空值表示"
+                    "当前处于预览阶段，不表示校验被跳过",
+                },
+                "domain_results": {"type": "array", "items": _DOMAIN_RESULT},
+                "blockers": {"type": "array", "items": {"type": "string"}},
+                "limitations": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["status"],
+        },
+        "internal": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "enum": list(service.INTERNAL_STATUSES)},
+                "review_id": {"type": "string"},
+                "domain_confirmations": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "dimension": {"type": "string"},
+                            "status": {"type": "string"},
+                            "role_declaration": {"type": "string"},
+                            "review_statement": {"type": "string"},
+                            "limitations_accepted": {"type": "array", "items": {"type": "string"}},
+                            "dimension_confirmation_id": {"type": "string"},
+                            "confirmed_at": {"type": "string"},
+                            "identity_or_credential_verified": {
+                                "type": "boolean",
+                                "description": "恒为 false：责任声明不是身份、资质或电子签名认证",
+                            },
+                        },
+                        "required": ["dimension", "status"],
+                    },
+                },
+                "role_declarations": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "各领域提交的责任声明文本；不是已验证身份或签名",
+                },
+                "latest_confirmation_at": {"type": "string"},
+                "missing_dimensions": {"type": "array", "items": {"type": "string"}},
+                "blockers": {"type": "array", "items": {"type": "string"}},
+                "limitations": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["status"],
+        },
+        "formal": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string", "enum": list(service.FORMAL_STATUSES)},
+                "promotion_id": {"type": "string"},
+                "blockers": {"type": "array", "items": {"type": "string"}},
+                "limitations": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["status"],
+        },
+    },
+    "required": ["technical", "internal", "formal"],
+}
+
 _OUTPUT = make_tool_output_schema(
     {
         "delivery_intent": {"type": "object"},
         "delivery_run": {"type": "object"},
         "assumption_package": {"type": "object"},
+        "report_profile": _REPORT_PROFILE,
+        "missing_inputs": {"type": "array", "items": _MISSING_INPUT},
+        "gap_summary": {"type": "object"},
+        "acceptance": _ACCEPTANCE,
+        "release_limitations": {"type": "array", "items": {"type": "string"}},
         "validation_complete": {"type": "boolean"},
         "input_evidence_complete": {"type": "boolean"},
     },
     required=("resource_uris", "warnings", "blockers", "next_actions"),
 )
-
 
 _ARTIFACT_STATE = {
     "type": "object",
@@ -51,7 +178,16 @@ _ARTIFACT_STATE = {
 # 查询成功 ≠ 交付可用：两者必须是不同字段，否则 status=ok 会被读成"工件可交付"。
 _DELIVERY_STATE_OUTPUT = make_tool_output_schema(
     {
-        "delivery_run": {"type": "object"},
+        "delivery_run": {
+            "type": "object",
+            "description": "落库原样的不可变记录，内容与其 content_hash 相符可复算；"
+            "其中 acceptance 是落库时的快照，实时验收状态读顶层 acceptance",
+        },
+        "acceptance_source": {
+            "type": "string",
+            "enum": ["top_level_acceptance_is_current"],
+            "description": "指明实时验收状态的读取位置",
+        },
         "query_success": {
             "type": "boolean",
             "description": "本次查询是否成功；与交付状态无关",
@@ -69,6 +205,11 @@ _DELIVERY_STATE_OUTPUT = make_tool_output_schema(
         "usable_artifact_count": {"type": "integer", "minimum": 0},
         "unusable_artifact_uris": {"type": "array", "items": {"type": "string"}},
         "technical_preview_ready": {"type": "boolean"},
+        "acceptance": _ACCEPTANCE,
+        "report_profile": _REPORT_PROFILE,
+        "missing_inputs": {"type": "array", "items": _MISSING_INPUT},
+        "skipped_fields": {"type": "array", "items": {"type": "object"}},
+        "release_limitations": {"type": "array", "items": {"type": "string"}},
         "validation_complete": {"type": "boolean"},
         "input_evidence_complete": {"type": "boolean"},
     },
@@ -88,6 +229,8 @@ _DELIVERY_STATE_OUTPUT = make_tool_output_schema(
         "delivery_state",
         "artifacts",
         "technical_preview_ready",
+        # 分级验收状态属于成功路径硬契约：读得到运行就必然算得出三段状态。
+        "acceptance",
     ),
 )
 
@@ -186,6 +329,16 @@ def build_server() -> OfficialStdioServer:
                 "industry": {"type": "string", "maxLength": 160},
                 "project_nature": {"type": "string", "maxLength": 160},
                 "report_type": {"type": "string", "maxLength": 160},
+                "report_profile_id": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "description": "覆盖系统推荐的报告配置；缺省按行业/项目类型确定性推荐",
+                },
+                "template_set_id": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "按 template_set_id 覆盖报告配置；与 report_profile_id 指向不同配置时阻断",
+                },
                 "idempotency_key": _KEY,
             },
             ["sentence", "idempotency_key"],
@@ -243,9 +396,26 @@ def build_server() -> OfficialStdioServer:
         _schema(
             {
                 "assumption_package_id": _SAFE_ID,
+                "skip_fields": {
+                    "type": "array",
+                    "maxItems": 40,
+                    "description": "显式跳过的字段；按受控假设取值并计入交付限制，"
+                    "关键字段跳过不得因此取得正式候选资格",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "field": {"type": "string", "minLength": 1, "maxLength": 128},
+                            "reason": {"type": "string", "maxLength": 1000},
+                        },
+                        "required": ["field"],
+                    },
+                },
                 "confirmations": {
                     "type": "array",
-                    "minItems": 1,
+                    # 允许"只跳过不确认"：追问阶段用户可以跳过全部非关键项。
+                    # minItems=1 会让纯跳过调用在 schema 层就被拒。
+                    "minItems": 0,
                     "maxItems": 20,
                     "items": {
                         "type": "object",
@@ -269,7 +439,8 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "delivery_generate_template_pack",
-        "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。",
+        "根据已确认假设与适用标准需求生成拟定模板包；确定性模板填空，不调用 LLM。"
+        "只产出 estimate_preview / technical_preview，两段验收均从 pending 起步。",
         _schema(
             {
                 "delivery_run_id": _SAFE_ID,
@@ -277,6 +448,13 @@ def build_server() -> OfficialStdioServer:
                     "type": "string",
                     "enum": ["generic_feasibility", "asset_acquisition"],
                     "default": "generic_feasibility",
+                },
+                "report_profile_id": {"type": "string", "maxLength": 160},
+                "template_set_id": {"type": "string", "maxLength": 200},
+                "confirmed_assumption_package_id": {
+                    **_SAFE_ID,
+                    "description": "调用方已确认答案快照的乐观并发断言；"
+                    "与运行当前绑定不一致时阻断，缺省则沿用运行绑定的那份",
                 },
                 "idempotency_key": _KEY,
             },
@@ -288,7 +466,8 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "delivery_confirm_formal_promotion",
-        "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。",
+        "确认拟定模板包晋升为 sim_a_formal 证据并导入新可研链资料；不调用 feasibility_release。"
+        "技术验收与内部七域验收均通过后才受理；晋升后仍保留 sim_a_template 模拟来源。",
         _schema(
             {
                 "template_pack_id": _SAFE_ID,

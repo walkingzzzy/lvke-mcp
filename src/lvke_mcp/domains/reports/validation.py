@@ -14,6 +14,7 @@ from lvke_mcp.domains.reports.read_model import (
     resolve_revision_record,
     supplied_document_snapshot,
 )
+from lvke_mcp.runtime.formal_promotion import FormalLineageError, SIM_A_FORMAL
 
 # ── 九章实质内容契约 ──────────────────────────────────────────────────
 # 各章有效中文字符下限（标题/目录/引用列表/表格单元格不计入）
@@ -156,6 +157,19 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
     if record is None:
         return _failure("revision_not_found", "未找到研报修订")
     payload = record.get("payload") or {}
+    upstream = payload.get("upstream") or {}
+    if str(upstream.get("evidence_policy") or "") == SIM_A_FORMAL:
+        from lvke_mcp.domains.reports.formal_lineage import (
+            validate_report_revision_lineage,
+        )
+
+        try:
+            validate_report_revision_lineage(workspace_id, record)
+        except FormalLineageError as exc:
+            return _failure(
+                exc.code,
+                f"报告校验前正式 promotion 谱系无效：{exc.message}",
+            )
     native = str(payload.get("native_revision_id") or "")
     document = supplied_document_snapshot(workspace_id, payload.get("document_snapshot"))
     if document is None:
@@ -164,7 +178,6 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         return _failure("document_snapshot_missing", "修订缺少不可变 document_snapshot")
 
     content = str(document.get("content") or "")
-    upstream = payload.get("upstream") or {}
     report_type = str(document.get("report_type") or "generic_feasibility")
     expected_chapters = list(upstream.get("outline") or [])
     structure = doc.validate_report_structure(

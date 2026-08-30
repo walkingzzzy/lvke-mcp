@@ -4,23 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import io
-import json
-from pathlib import Path
 from typing import Any
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from lvke_mcp.runtime.storage import require_safe_id
-from lvke_mcp.runtime.workspace import deliverable_dir
-
-
-def _artifact_root(workspace_id: str) -> Path:
-    """零材料交付研报（MD/DOCX）落盘根，统一到仓库 ``lvke产出/``。"""
-    return deliverable_dir(
-        require_safe_id(workspace_id, "workspace_id"),
-        "zero-material-delivery",
-        "artifacts",
-    )
+from lvke_mcp.adapters.zero_material_repository import (
+    artifact_root as _artifact_root,
+    resolve_report_file,
+)
 
 
 def _format_number(value: Any, suffix: str = "") -> str:
@@ -78,72 +69,65 @@ def _finance_summary(
     }
 
 
-def _report_markdown(
+def _resolve_report_profile(
     intent: dict[str, Any],
-    assumption_package: dict[str, Any],
-    finance: dict[str, Any],
-    blockers: list[str],
-) -> str:
-    industry = dict(intent.get("industry") or {})
-    assumptions = [dict(item) for item in assumption_package.get("fields") or []]
-    rows = "\n".join(
-        f"| {item.get('name')} | {item.get('value')} {item.get('unit')} | "
-        f"{item.get('source_type')} | {item.get('confidence')} | {item.get('validation_condition')} |"
-        for item in assumptions
+    domain: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    """Reuse the profile frozen at intake, else re-resolve from the same selector.
+
+    读取优先级刻意是「冻结快照 → 按 hash 校验的磁盘文件 → 按路由重解析」：
+
+    1. 冻结快照（``selection.profile_snapshot``）随运行不可变留存，因此配置文件
+       被升级、删除，或部署根目录变化后，旧运行仍能按**原**配置重放。这是"历史
+       运行冻结、可重放"的落点。
+    2. 快照缺失时（升级前建的运行）回落到磁盘，并强制 hash 相等——配置中途被改过
+       就阻断，不用新配置续算同一个 run。
+    3. 两者都没有时才按路由重解析（v1 老记录）。
+    """
+
+    from lvke_mcp.servers.lvke_zero_material_delivery._service.report_profiles import (
+        ReportProfileError,
+        load_profile_document,
+        resolve_profile,
+        verified_snapshot,
     )
-    gaps = "\n".join(f"- `{item}`" for item in blockers) or "- 无技术链 blocker"
-    return f"""# {intent.get('project_name')}技术预估报告
 
-> **技术预估版。** 本报告在甲方零材料条件下生成，所有结论均受当前输入快照和受控假设约束。
-
-## 一、项目识别
-
-- 地区：{intent.get('region') or '待确认'}
-- 行业：{industry.get('industry_label') or '待确认'}
-- 项目性质：{intent.get('project_nature') or '待确认'}
-- 报告类型：{intent.get('report_type') or '可行性研究报告'}
-- 交付等级：`estimate_preview`
-
-## 二、依据与边界
-
-本次没有甲方合同、测绘、报价、权属、设计或批复材料。公开研究会话只支持行业、地区、政策与可比项目；项目面积、设备、客流或产量、造价、价格、融资和工期仍属于 `controlled_assumption`。
-
-## 三、受控假设登记
-
-| 参数 | 当前值 | 来源类型 | 置信度 | 正式使用条件 |
-|---|---:|---|---:|---|
-{rows}
-
-## 四、财务技术预估
-
-- FinanceRun：`{finance.get('run_id')}`
-- 模型版本：`{finance.get('model_version')}`
-- 模板版本：`{finance.get('template_version')}`
-- 总投资：{_format_number(finance.get('total_investment_wan'), ' 万元')}
-- 达产年营业收入：{_format_number(finance.get('annual_revenue_wan'), ' 万元')}
-- 项目投资财务内部收益率：{_format_number(finance.get('project_irr'), '')}
-- 项目财务净现值：{_format_number(finance.get('project_npv'), ' 万元')}
-- 资本金内部收益率：{_format_number(finance.get('capital_irr'), '')}
-- 静态/动态回收期指标：{_format_number(finance.get('payback_years'), ' 年')}
-- 财务勾稽状态：`{finance.get('consistency_ok')}`
-
-以上数字只从同一不可变 FinanceRun 读取；正文不单独重算 IRR、NPV、税费或十三表。
-
-## 五、十三表交付
-
-已从同一 FinanceRun 确定性生成十三张主表、13 个 CSV 与 XLSX。表格的完整性状态由 manifest、文件 hash 和跨表一致性校验共同确定。
-
-## 六、缺口与下一步
-
-{gaps}
-
-用户确认参数后，系统创建新的 AssumptionPackage、FinanceSpec、FinanceRun、十三表和报告版本，不覆盖本版本。
-
-## 七、验证边界
-
-- 输入范围：甲方原始材料缺失，当前结果使用受控假设。
-- 后续替换材料时必须重新计算并校验 input hash、lineage 与数值一致性。
-"""
+    frozen = dict(intent.get("report_profile") or {})
+    route = dict(domain.get("route") or {})
+    if frozen.get("template_set_id") and frozen.get("profile_id"):
+        # 快照采信统一走 verified_snapshot：它从内容复算 hash，而不是比对两个
+        # 字面量（把章节改成 TAMPERED 同时保留原 hash，字面量仍然相等）。
+        if isinstance(frozen.get("profile_snapshot"), dict):
+            verified = verified_snapshot(frozen)
+            if verified is None:
+                return {}, {}, "report_profile_snapshot_hash_mismatch"
+            return verified, frozen, ""
+        try:
+            document = load_profile_document(f"{frozen['profile_id']}.v1.json")
+        except ReportProfileError as exc:
+            return {}, {}, exc.code
+        if str(document.get("content_hash") or "") != str(frozen.get("profile_content_hash") or ""):
+            return {}, {}, "report_profile_hash_drifted"
+        return document, frozen, ""
+    try:
+        resolved = resolve_profile(
+            industry_code=str(
+                route.get("industry_code")
+                or dict(intent.get("industry") or {}).get("industry_code")
+                or ""
+            ),
+            project_type=(
+                "asset_acquisition"
+                if str(route.get("finance_kind") or "") == "asset_acquisition"
+                else "generic_feasibility"
+            ),
+            transaction_structure=str(route.get("transaction_structure") or "") or "new_build",
+            asset_type=str(route.get("asset_type") or "general"),
+            report_type=str(intent.get("report_type") or ""),
+        )
+    except ReportProfileError as exc:
+        return {}, {}, exc.code
+    return dict(resolved["profile"]), dict(resolved["selection"]), ""
 
 
 def _docx_bytes(markdown: str, title: str) -> bytes:
@@ -160,7 +144,11 @@ def _docx_bytes(markdown: str, title: str) -> bytes:
         if not text or text.startswith("# "):
             index += 1
             continue
-        if text.startswith("## "):
+        # 配置化章节树是两级的，必须先判更长的前缀：先判 "## " 会把 "### x"
+        # 当成标题文本 "# x"，子节标题于是全部带一个多余的井号。
+        if text.startswith("### "):
+            document.add_heading(text[4:], level=2)
+        elif text.startswith("## "):
             document.add_heading(text[3:], level=1)
         elif text.startswith("> "):
             paragraph = document.add_paragraph(text[2:])
@@ -209,24 +197,62 @@ def build_delivery_artifacts(
             "object_refs": {},
             "blockers": ["technical_report_finance_run_required"],
         }
+    profile, profile_selection, profile_error = _resolve_report_profile(intent, domain)
+    if profile_error:
+        return {
+            "resource_uris": [],
+            "object_refs": {},
+            "blockers": [profile_error],
+        }
     finance = _finance_summary(
         workspace_id,
         finance_run_id,
     )
     blockers = list(domain.get("blockers") or [])
-    markdown = _report_markdown(intent, assumption_package, finance, blockers)
+    quality_issues = list(domain.get("quality_issues") or [])
+    public_research = dict((domain.get("research") or {}).get("public_research") or {})
+    skipped_fields = [
+        dict(item)
+        for item in source_run.get("skipped_fields") or []
+        if isinstance(item, dict)
+    ]
+    from lvke_mcp.servers.lvke_zero_material_delivery._service.report_render import (
+        build_slot_values,
+        render_report_markdown,
+    )
+
+    slots = build_slot_values(
+        intent=intent,
+        assumption_package=assumption_package,
+        finance=finance,
+        blockers=blockers,
+        quality_issues=quality_issues,
+        public_research=public_research,
+        skipped_fields=skipped_fields,
+        report_profile=profile,
+    )
+    markdown, unresolved_slots = render_report_markdown(
+        profile=profile,
+        selection=profile_selection,
+        slots=slots,
+    )
     report_payload = {
         "object_type": "TechnicalReport",
-        "title": f"{intent.get('project_name')}技术预估报告",
-        "format_version": "zero-material-technical-report.v1",
+        "title": f"{intent.get('project_name')}{str(profile.get('label') or '')}",
+        "format_version": "zero-material-technical-report.v2",
         "assurance_level": "estimate_preview",
         "content_markdown": markdown,
+        "report_profile": profile_selection,
+        "unresolved_slots": unresolved_slots,
         "finance_summary": finance,
         "intent_id": intent.get("delivery_intent_id"),
         "assumption_package_id": assumption_package.get("assumption_package_id"),
         "finance_run_id": finance_run_id,
         "finance_tables_package_id": refs.get("finance_tables_package_id", ""),
         "research_task_id": refs.get("research_task_id", ""),
+        "research_package_id": refs.get("research_package_id", ""),
+        "evidence_pack_id": refs.get("evidence_pack_id", ""),
+        "public_research": public_research,
         "validation_complete": False,
         "input_evidence_complete": False,
     }
@@ -235,11 +261,17 @@ def build_delivery_artifacts(
         report_payload,
         producer="lvke-zero-material-delivery.technical_report",
         status="partial",
-        source_ids=[value for value in refs.values() if value],
+        source_ids=[
+            *[value for value in refs.values() if value],
+            *[str(item) for item in public_research.get("source_snapshot_ids") or [] if str(item)],
+        ],
         basis={
             "intent_id": intent.get("delivery_intent_id"),
             "assumption_package_id": assumption_package.get("assumption_package_id"),
             "finance_run_id": finance_run_id,
+            "evidence_pack_id": refs.get("evidence_pack_id", ""),
+            "research_package_id": refs.get("research_package_id", ""),
+            "source_snapshot_ids": list(public_research.get("source_snapshot_ids") or []),
         },
     )
     report_base_uri = report_record["resource_uri"]
@@ -296,20 +328,33 @@ def build_delivery_artifacts(
         {
             "object_type": "EvidenceManifest",
             "research_task_id": refs.get("research_task_id", ""),
-            "evidence_pack_ids": [],
-            "research_package_ids": [],
+            "evidence_pack_ids": [refs["evidence_pack_id"]] if refs.get("evidence_pack_id") else [],
+            "research_package_ids": [refs["research_package_id"]] if refs.get("research_package_id") else [],
             "source_policy": "public_sources_only",
-            "evidence_status": "pending",
+            "evidence_status": str(public_research.get("status") or "pending"),
+            "source_snapshot_ids": list(public_research.get("source_snapshot_ids") or []),
+            "discovery_set_id": str(public_research.get("discovery_set_id") or ""),
+            "fallback_used": bool(public_research.get("fallback_used")),
             "controlled_assumptions_are_evidence": False,
             "formal_evidence_ready": False,
         },
         producer="lvke-zero-material-delivery.evidence_manifest",
         status="partial",
-        source_ids=[refs.get("research_task_id", "")],
+        source_ids=[
+            value for value in [
+                refs.get("research_task_id", ""),
+                refs.get("evidence_pack_id", ""),
+                refs.get("research_package_id", ""),
+                *[str(item) for item in public_research.get("source_snapshot_ids") or []],
+            ] if value
+        ],
     )
     manifest_payload = {
         "object_type": "RunManifest",
-        "schema_version": "zero-material-run-manifest.v1",
+        "schema_version": "zero-material-run-manifest.v2",
+        "report_profile": profile_selection,
+        "unresolved_slots": unresolved_slots,
+        "skipped_fields": skipped_fields,
         "workspace_id": workspace_id,
         "delivery_run_id": delivery_run_id or source_run.get("delivery_run_id"),
         "intent_id": intent.get("delivery_intent_id"),
@@ -327,6 +372,7 @@ def build_delivery_artifacts(
         "service_version": service_version,
         "status": "estimate_preview",
         "blockers": blockers,
+        "public_research": public_research,
         "validation_complete": False,
         "input_evidence_complete": False,
     }
@@ -346,6 +392,17 @@ def build_delivery_artifacts(
         evidence_record["resource_uri"],
         manifest_record["resource_uri"],
     ]
+    produced_components = {
+        "report_markdown": any(item["name"] == "report.md" for item in file_manifest),
+        "report_docx": any(item["name"] == "report.docx" for item in file_manifest),
+        "finance_thirteen_tables": bool(refs.get("finance_tables_package_id")),
+        "finance_xlsx": bool((domain.get("xlsx_export") or {}).get("xlsx_resource")),
+        "finance_csv": bool((domain.get("csv_export") or {}).get("csv_resource_uris")),
+        "evidence_register": bool(evidence_record["object_id"]),
+        "assumption_register": bool(assumption_record["object_id"]),
+    }
+    required = [str(item) for item in profile.get("required_components") or []]
+    component_status = {name: bool(produced_components.get(name)) for name in required}
     return {
         "resource_uris": resource_uris,
         "object_refs": {
@@ -357,37 +414,16 @@ def build_delivery_artifacts(
         },
         "manifest_uri": manifest_record["resource_uri"],
         "file_manifest": file_manifest,
+        # 技术验收的确定性输入。在这里算而不是在 acceptance 里算：只有本函数
+        # 真正知道哪些组件落盘成功、哪些配置槽位没解析到。
+        "report_profile": profile_selection,
+        "component_status": component_status,
+        "unresolved_slots": unresolved_slots,
+        # 技术验收要读 consistency_ok。它只在这份从不可变 FinanceRun 读出的摘要里，
+        # run_model 的响应信封没有该字段。
+        "finance_summary": finance,
         "blockers": [],
     }
-
-
-def resolve_report_file(
-    uri: str,
-    *,
-    report_store: Any,
-) -> tuple[bytes, str] | None:
-    marker = "/files/"
-    if marker not in uri:
-        return None
-    base, name = uri.rsplit(marker, 1)
-    if name not in {"report.md", "report.docx"}:
-        return None
-    record = report_store.resolve_uri(base)
-    if record is None:
-        return None
-    path = (
-        _artifact_root(str(record["workspace_id"]))
-        / str(record["object_id"])
-        / name
-    )
-    if not path.is_file():
-        return None
-    mime = (
-        "text/markdown; charset=utf-8"
-        if name.endswith(".md")
-        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
-    return path.read_bytes(), mime
 
 
 __all__ = ["build_delivery_artifacts", "resolve_report_file"]

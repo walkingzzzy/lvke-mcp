@@ -462,3 +462,34 @@ def default_artifact_dir(
 
     root = deliverable_dir(str(workspace_id), "finance-tables", "finance_artifacts")
     return root / str(run_id or "unknown")
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "DELIVERY_TABLE_KEYS",
+    "DELIVERY_TABLE_META",
+    "ENGINE_DELIVERY_COUNT",
+    "MODEL_VERSION",
+    "Optional",
+    "Path",
+    "TEMPLATE_VERSION",
+    "_DELIVERY_META",
+    "_fmt",
+    "build_evidence",
+    "build_tables_structured",
+    "build_tables_structured_with_meta",
+    "compute_table_bundle_hash",
+    "datetime",
+    "default_artifact_dir",
+    "delivery_count_semantics",
+    "delivery_table_contract_hash",
+    "hashlib",
+    "json",
+    "structured_to_readable_md",
+    "table_render",
+    "timezone",
+    "write_readable_artifacts",
+]

@@ -35,6 +35,58 @@ def register_all(server: OfficialStdioServer) -> None:
         "pattern": r"^sha256:[0-9a-f]{64}$",
         "description": "dr_get_plan 返回的当前不可变 basis_hash",
     }
+    _citation_schema = {
+        "type": "object",
+        "additionalProperties": True,
+        "properties": {
+            "source_id": {"type": "string", "minLength": 1},
+            "source_snapshot_id": {"type": "string", "minLength": 1},
+            "object_id": {"type": "string", "minLength": 1},
+            "resource_uri": {"type": "string", "pattern": r"^lvke://.+"},
+            "content_hash": {
+                "type": "string", "pattern": r"^sha256:[0-9a-f]{64}$",
+                "description": "原始文件字节或快照正文的整源 SHA-256，不是对象封装 hash",
+            },
+            "source_hash": {"type": "string", "pattern": r"^sha256:[0-9a-f]{64}$"},
+            "locator": {
+                "oneOf": [
+                    {"type": "string", "minLength": 1, "maxLength": 2000},
+                    {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "kind": {
+                                "type": "string",
+                                "enum": [
+                                    "pdf_page", "csv_cell", "docx_paragraph",
+                                    "docx_table_row", "document_text", "web_snapshot",
+                                    "stored_locator",
+                                ],
+                            },
+                            "locator": {"type": "string", "minLength": 1},
+                            "page": {"type": "integer", "minimum": 1},
+                            "cell": {"type": "string", "pattern": r"^[A-Za-z]+[1-9][0-9]*$"},
+                            "row": {"type": "integer", "minimum": 1},
+                            "column": {"type": "integer", "minimum": 1},
+                            "paragraph": {"type": "integer", "minimum": 1},
+                            "table": {"type": "integer", "minimum": 1},
+                            "start_offset": {"type": "integer", "minimum": 0},
+                            "end_offset": {"type": "integer", "minimum": 1},
+                        },
+                        "required": ["kind"],
+                    },
+                ]
+            },
+            "fragment_text": {"type": "string"},
+            "fragment_hash": {"type": "string", "pattern": r"^sha256:[0-9a-f]{64}$"},
+        },
+        "required": ["locator", "content_hash"],
+        "anyOf": [
+            {"required": ["source_id"]},
+            {"required": ["source_snapshot_id"]},
+            {"required": ["object_id"]},
+        ],
+    }
 
     server.register_tool(
         name="dr_prepare",
@@ -277,7 +329,7 @@ def register_all(server: OfficialStdioServer) -> None:
             "properties": {
                 "workspace_id": _ws_schema, "task_id": _task_schema,
                 "report_md": {"type": "string", "minLength": 1},
-                "citations": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": True}},
+                "citations": {"type": "array", "minItems": 1, "items": _citation_schema},
                 "evidence_pack_ids": {"type": "array", "items": {"type": "string"}},
                 "source_snapshot_ids": {"type": "array", "items": {"type": "string"}},
                 "quality_summary": {

@@ -821,7 +821,7 @@ def write_report(
         f"- [{'x' if summary.get('formal_evidence_ready') else ' '}] 晋升链证据关口承认 `sim_a_formal`（与 preview 共用同一预检函数）",
         f"- [{'x' if not summary['release_ready'] else ' '}] 正式 `release_ready` 仍为 false（构建元数据/工件关口，不只是证据）",
         f"- [{'x' if (summary.get('promotion') or {}).get('docx_visual_acceptance') else ' '}] DOCX 字体/glyph + soffice 转换探测（不是逐页视觉验收）",
-        f"- [ ] 逐页视觉验收（中文可见性/裁切/空白页/表格/分页：本轮未做）",
+        "- [ ] 逐页视觉验收（中文可见性/裁切/空白页/表格/分页：本轮未做）",
         f"- [{'x' if (summary.get('promotion') or {}).get('review_retest_export') else ' '}] Review → Retest → Export 完整闭环（仅游乐园/房地产两档，拟定 `sim_a_formal`）",
         "",
         "## 七档晋升链",

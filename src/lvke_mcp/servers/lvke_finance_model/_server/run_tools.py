@@ -7,6 +7,7 @@ import json
 import time
 import zipfile
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 
 from lvke_mcp.runtime.storage import sha256_json
@@ -615,3 +616,43 @@ def _tool_import_vendor_review(args: dict) -> dict:
             f"{SERVER_NAME}.vendor_review_failed",
             "导入并复核甲方计算表失败",
         )
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BASIS_OF_ESTIMATE_STORE",
+    "IDEMPOTENCY_STORE",
+    "SERVER_NAME",
+    "SPEC_STORE",
+    "_DEPRECATED_PACKAGE_HINT",
+    "_DEPRECATED_RENDER_HINT",
+    "_active_idempotency_record",
+    "_blocking_rules",
+    "_err_env",
+    "_exception_env",
+    "_idempotency_ttl_seconds",
+    "_latest_formal_boe",
+    "_legacy_tool_run_model",
+    "_ok_env",
+    "_revenue_input_complete",
+    "_run_uri",
+    "_str_list",
+    "_tool_generate_package",
+    "_tool_get_run",
+    "_tool_import_vendor_review",
+    "_tool_render_tables",
+    "_tool_run_model",
+    "_ws",
+    "datetime",
+    "hashlib",
+    "json",
+    "ok",
+    "sha256_json",
+    "time",
+    "timedelta",
+    "timezone",
+    "zipfile",
+]

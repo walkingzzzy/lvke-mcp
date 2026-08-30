@@ -808,3 +808,35 @@ async def fetch(
         "retry_after": 5 if failures and not succeeded else None,
         "trace_id": hashlib.sha256(f"fetch:{time.time_ns()}".encode()).hexdigest()[:24],
     }
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "COLLECTION_STORE",
+    "DISCOVERY_STORE",
+    "SOURCE_STORE",
+    "_ALLOWED_EXTERNAL_EXTRACT_TOOLS",
+    "_SEARCH_PROVIDER",
+    "_blocked_next_actions",
+    "_collection_failure",
+    "_external_receipt_message",
+    "_external_snapshot_url_block_reason",
+    "_network_safety_decision",
+    "_secret_block_reason",
+    "_trusted_tavily_extract",
+    "collect",
+    "external_receipt_secret",
+    "fetch",
+    "hashlib",
+    "hmac",
+    "import_external_snapshot",
+    "ipaddress",
+    "json",
+    "os",
+    "time",
+    "urlsplit",
+    "utc_now",
+]

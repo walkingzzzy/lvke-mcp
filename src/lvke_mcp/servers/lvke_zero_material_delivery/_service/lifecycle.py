@@ -14,8 +14,21 @@ from lvke_mcp.runtime.storage import (
     require_safe_id,
 )
 
+from .acceptance import (
+    dimension_rows_from_review,
+    empty_acceptance,
+    fold_formal,
+    fold_internal,
+)
 from .assumptions import _build_assumption_package
 from .explicit_inputs import SOURCE_SENTENCE
+from .questions import compute_missing_inputs, summarize_gaps
+from .report_profiles import (
+    ReportProfileError,
+    load_profile_document,
+    verified_snapshot,
+)
+from .technical_acceptance import run_technical_acceptance
 from .base import (
     ASSUMPTION_PROFILE_VERSION,
     ASSUMPTION_REGISTER_STORE,
@@ -136,18 +149,86 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 *list(delivery_artifacts.get("resource_uris") or []),
             }
         )
+        # 配置必填字段的缺口按所选配置重算：确认过的字段会从 pending 消失，
+        # 用户显式跳过的保留为 skipped 并进入限制项。
+        profile_selection = dict(delivery_artifacts.get("report_profile") or {})
+        field_gaps: list[dict[str, Any]] = []
+        gap_summary = {"release_limitations": [], "critical_unanswered_fields": []}
+        # 先解析出配置文档，**再**统一算缺口。
+        #
+        # 缺口计算曾放在 elif 分支内部：而新运行都带 profile_snapshot，于是那段
+        # 代码永远不执行，未回答的关键字段被清空、不产生
+        # required_field_unanswered:*，正式资格门禁整体失效。
+        # 两个分支只负责"拿到哪份配置"，判据必须在分支**之后**执行一次。
+        profile_document: dict[str, Any] = {}
+        # 用随运行冻结的快照算缺口：配置升级后磁盘那份可能已换了 required_fields，
+        # 据此追问会问出本运行用不到的字段。采信走 verified_snapshot 复算 hash。
+        verified = verified_snapshot(profile_selection)
+        if verified is not None:
+            profile_document = verified
+        elif profile_selection.get("profile_id"):
+            try:
+                profile_document = load_profile_document(
+                    f"{profile_selection['profile_id']}.v1.json"
+                )
+            except ReportProfileError:
+                profile_document = {}
+        if profile_document:
+            field_gaps = compute_missing_inputs(
+                profile=profile_document,
+                intent=intent,
+                assumption_package=assumption_view,
+                skipped=list(run.get("skipped_fields") or []),
+            )
+            gap_summary = summarize_gaps(field_gaps)
         blocking_codes, quality_issues = split_quality_codes([
             *(domain.get("blockers") or []),
             *(domain.get("quality_issues") or []),
             *(delivery_artifacts.get("blockers") or []),
             *(delivery_artifacts.get("quality_issues") or []),
+            *gap_summary["release_limitations"],
         ])
-        # 基准不可信时不得声称过程验收件已就绪：那正是"顶层报 ok、内部有
-        # 阻断项"的来源。
+        technical = run_technical_acceptance(
+            workspace_id,
+            intent=intent,
+            domain=domain,
+            delivery_artifacts=delivery_artifacts,
+            finance_summary=dict(delivery_artifacts.get("finance_summary") or {}),
+            extra_blockers=blocking_codes,
+            extra_limitations=quality_issues,
+        )
+        acceptance = {
+            "technical": technical,
+            "internal": fold_internal(
+                technical_status=str(technical.get("status") or "not_started"),
+                dimension_results=[],
+                inherited_limitations=list(technical.get("limitations") or []),
+            ),
+            "formal": fold_formal(
+                technical=technical,
+                internal={"status": "not_started"},
+            ),
+        }
+        # 技术验收自己发现的阻断项必须并回信封判据。
+        #
+        # 此前 blocking_codes 只含验收**前**算出的码，于是 review_start 失败、
+        # 组件缺失、hash/谱系断裂这些只写进 acceptance——顶层照样报
+        # success=True / completed=True / technical_preview_ready=True，
+        # 而 acceptance.technical.status=failed。同一个响应给出两个矛盾的答案，
+        # 且调用方最可能读的是顶层那个。
+        blocking_codes, quality_issues = split_quality_codes([
+            *blocking_codes,
+            *quality_issues,
+            *(str(item) for item in technical.get("blockers") or []),
+            *(str(item) for item in technical.get("limitations") or []),
+        ])
+        # 就绪判据放在验收之后：验收有阻断项就不是可交付的技术预览。
         technical_preview_ready = (
             str(domain.get("stage") or "") == "tables_ready"
             and not delivery_artifacts.get("blockers")
             and not blocking_codes
+            and str(technical.get("status") or "")
+            in {"passed", "passed_with_limitations"}
         )
         next_run = _new_run(
             workspace_id,
@@ -170,6 +251,11 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 "technical_preview_ready": technical_preview_ready,
             },
             object_id=planned_delivery_run_id,
+            report_profile=profile_selection,
+            missing_inputs=field_gaps,
+            skipped_fields=list(run.get("skipped_fields") or []),
+            acceptance=acceptance,
+            release_limitations=quality_issues,
         )
         return _envelope(
             not blocking_codes,
@@ -204,6 +290,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             assumption_package=assumption_view,
             delivery_run=_view(next_run, "delivery_run_id"),
             domain_status=str(domain.get("status") or ""),
+            report_profile=profile_selection,
+            missing_inputs=field_gaps,
+            gap_summary=gap_summary,
+            acceptance=acceptance,
             validation_complete=False,
             input_evidence_complete=False,
         )
@@ -344,11 +434,31 @@ def _domain_status(delivery_state: str) -> str:
     return _DOMAIN_STATUS_BY_DELIVERY_STATE.get(delivery_state, "partial")
 
 
+def _acceptance_blockers(run: dict[str, Any]) -> list[str]:
+    """Collect technical-acceptance blockers, which run['blockers'] does not carry.
+
+    ``run["blockers"]`` 只含**验收之前**算出的 blocking_codes：技术验收自己发现的
+    组件缺失、manifest/hash 缺失、谱系断裂、审查未跑起来都只写进 ``acceptance``。
+    状态折叠若只看 run blockers，就会出现"工件可读 + acceptance.blocked"仍报
+    ``delivery_state=ready`` —— 正是本服务反复要避免的那类不诚实。
+    """
+
+    technical = dict(dict(run.get("acceptance") or {}).get("technical") or {})
+    codes = [str(item) for item in technical.get("blockers") or [] if str(item)]
+    if str(technical.get("status") or "") in {"failed", "blocked"}:
+        codes.append(f"technical_acceptance_{technical['status']}")
+    return sorted(set(codes))
+
+
 def _delivery_state(run: dict[str, Any], artifact_states: list[dict[str, Any]]) -> str:
-    """Fold stage / blockers / artifact usability into one honest state."""
+    """Fold stage / blockers / acceptance / artifact usability into one state."""
 
     stage = str(run.get("stage") or "")
-    blockers = [str(item) for item in (run.get("blockers") or [])]
+    # 技术验收的阻断项与 run blockers 同权：两者都表示"这份交付不可按可交付物引用"。
+    blockers = [
+        *(str(item) for item in (run.get("blockers") or [])),
+        *_acceptance_blockers(run),
+    ]
     if stage == "cancelled":
         return "cancelled"
     if stage == "failed":
@@ -370,15 +480,33 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
     record = RUN_STORE.get(workspace_id, run_id)
     if record is None:
         return _blocked("delivery_run_not_found", "未找到指定 DeliveryRun")
-    run = _view(record, "delivery_run_id")
+    stored = _view(record, "delivery_run_id")
+    # 刷新出的实时验收状态只用于**折叠状态**与顶层字段，绝不写回 delivery_run。
+    #
+    # ``_view`` 返回的是不可变记录视图，自带 content_hash / basis_hash。把刷新后的
+    # acceptance 覆盖进去，视图内容就与它宣称的 hash 不再一致——调用方按那个 hash
+    # 复算会失败，而不可变对象最基本的承诺就是"内容与 hash 相符"。
+    #
+    # 因此：``delivery_run`` 保持落库原样（含原 hash，可复算），实时验收只在顶层
+    # ``acceptance`` 暴露；``run`` 仅作为本函数内部的折叠输入，不进响应。
+    acceptance = _refresh_acceptance(workspace_id, stored)
+    run = {**stored, "acceptance": acceptance}
     artifact_states = _artifact_states(run)
     delivery_state = _delivery_state(run, artifact_states)
     domain_results = dict(run.get("domain_results") or {})
-    run_blockers = [str(item) for item in (run.get("blockers") or [])]
+    run_blockers = sorted(
+        {
+            *(str(item) for item in (run.get("blockers") or [])),
+            *_acceptance_blockers(run),
+        }
+    )
     # status 走信封通用枚举（表达"这次查询本身"的结果），delivery_state /
     # domain_status 表达交付真实状态。绝不用 status=ok 暗示交付可用。
     envelope_status = _ENVELOPE_STATUS_BY_DELIVERY_STATE.get(delivery_state, "partial")
-    technical_preview_ready = bool(domain_results.get("technical_preview_ready", False))
+    # 技术验收阻断时不得声称预览就绪：那是"顶层报就绪、内部有阻断项"的老毛病。
+    technical_preview_ready = bool(
+        domain_results.get("technical_preview_ready", False)
+    ) and not _acceptance_blockers(run)
     deliverables = [item for item in artifact_states if item.get("is_deliverable")]
     unusable = [item["uri"] for item in deliverables if not item["usable"]]
     warnings: list[str] = []
@@ -393,8 +521,17 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
         )
     if not technical_preview_ready and artifact_states:
         warnings.append(
-            "technical_preview_ready=false：工件仅为中间产物，不构成可交付的技术预览"
+            "technical_preview_ready=false：工件仅为中间产物或技术验收存在阻断项，"
+            "不构成可交付的技术预览"
         )
+    internal_status = str(dict(acceptance.get("internal") or {}).get("status") or "")
+    formal_status = str(dict(acceptance.get("formal") or {}).get("status") or "")
+    if internal_status in {"not_started", "pending"}:
+        warnings.append(
+            "内部分领域验收未完成：七域责任确认齐全前不得取得正式候选资格"
+        )
+    if formal_status != "eligible" and formal_status != "promoted":
+        warnings.append(f"正式资格 {formal_status}：不得按正式件对外交付")
     return _envelope(
         # query_success 表达「本次查询成功」，与交付状态严格分离：
         # 查得到 run 就是 True，绝不因此暗示交付可用。
@@ -404,26 +541,136 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
         query_success=True,
         delivery_state=delivery_state,
         domain_status=_domain_status(delivery_state),
-        delivery_run=run,
+        # 返回落库原样：内容与它自带的 content_hash 相符，可被复算校验。
+        # 实时验收状态看顶层 acceptance（见上方注释）。
+        delivery_run=stored,
         stage=run["stage"],
         progress=_stage_progress(str(run["stage"])),
         resume_token=record["content_hash"],
+        # 明确指出该读哪一个：delivery_run.acceptance 是落库时的快照（与其
+        # content_hash 相符、可复算），顶层 acceptance 才是实时状态。
+        # 两者不同不是矛盾，是"不可变记录"与"当前状态"的正常分工。
+        acceptance_source="top_level_acceptance_is_current",
         artifacts=artifact_states,
         deliverable_artifact_count=len(deliverables),
         usable_artifact_count=len(deliverables) - len(unusable),
         unusable_artifact_uris=unusable,
         technical_preview_ready=technical_preview_ready,
         domain_results=domain_results,
+        acceptance=acceptance,
+        report_profile=dict(run.get("report_profile") or {}),
+        missing_inputs=[dict(item) for item in run.get("missing_inputs") or []],
+        skipped_fields=[dict(item) for item in run.get("skipped_fields") or []],
+        release_limitations=[str(item) for item in run.get("release_limitations") or []],
         warnings=warnings,
         blockers=run_blockers,
         next_actions=(
             ["按 blockers 与逐工件 blocking_reasons 修复后重算；不要把不可用工件当交付物"]
             if delivery_state != "ready"
-            else ["读取工件 Resource；正式发布资格仍保持阻断"]
+            else [
+                "读取工件 Resource；正式发布资格仍保持阻断",
+                *(
+                    ["七域责任人调用 review_submit_assessment 与 review_confirm_dimension"]
+                    if internal_status in {"not_started", "pending"}
+                    else []
+                ),
+            ]
         ),
         validation_complete=False,
         input_evidence_complete=False,
     )
+
+
+def _configured_required_fields(
+    workspace_id: str,
+    package_id: str,
+) -> set[str]:
+    """Return required_fields of the profile frozen on this package's run.
+
+    跳过项的合法集合 = 假设包字段 ∪ 所选配置的必填字段。后者不可省：配置声明的
+    必填字段（如轨道的 route_length_km）在假设包里未必有对应条目，但它确实是
+    追问集合的一部分，用户理当能跳过它。
+
+    找不到运行或配置时返回空集合——由调用方与假设包字段求并，因此退化为
+    "只允许跳过假设包里的字段"，是安全侧。
+    """
+
+    for record in reversed(RUN_STORE.list(workspace_id)):
+        payload = dict(record.get("payload") or {})
+        selection = dict(payload.get("report_profile") or {})
+        if not selection:
+            continue
+        if package_id and str(payload.get("assumption_package_id") or "") != package_id:
+            continue
+        document = verified_snapshot(selection)
+        if document is None and selection.get("profile_id"):
+            try:
+                document = load_profile_document(
+                    f"{selection['profile_id']}.v1.json"
+                )
+            except ReportProfileError:
+                document = None
+        if document:
+            return {str(item) for item in document.get("required_fields") or []}
+    return set()
+
+
+def _refresh_acceptance(workspace_id: str, run: dict[str, Any]) -> dict[str, Any]:
+    """Re-read internal per-domain confirmations from the review domain.
+
+    内部验收状态**不缓存**：责任人可能在 delivery_start 之后才逐个确认领域。
+    每次读状态都回 review 域取最新 dimension 结果，否则 status 会一直显示
+    "pending" 而实际七域已确认齐全。
+
+    本函数只 *读* review 的确认记录，从不代为提交——那是"把系统自动检查伪装成
+    人工签章"，也是这条链最不能越的线。
+    """
+
+    acceptance = dict(run.get("acceptance") or empty_acceptance())
+    technical = dict(acceptance.get("technical") or {})
+    review_id = str(technical.get("review_id") or "")
+    if not review_id:
+        return acceptance
+    from lvke_mcp.runtime import service_gateway
+    from .acceptance import REQUIRED_DIMENSIONS
+
+    # 逐维度读，**不**调用 review_finalize：finalize 是写操作（落 7 条
+    # ReviewDimensionResult + 1 个 ReviewDossier），而这里是 delivery_status /
+    # delivery_get_artifacts 的只读路径。让读状态顺手写对象会在每次查询时产生新
+    # 的不可变记录，并把"谁触发了 finalize"变得不可追溯。
+    # review_get_dimension 是纯读接口，正是这里需要的。
+    dimension_results: list[dict[str, Any]] = []
+    confirmations: dict[str, dict[str, Any]] = {}
+    for dimension in REQUIRED_DIMENSIONS:
+        try:
+            detail = service_gateway.review_get_dimension(
+                {
+                    "workspace_id": workspace_id,
+                    "review_id": review_id,
+                    "dimension": dimension,
+                }
+            )
+        except (ValueError, RuntimeError, OSError):
+            continue
+        result = dict(detail.get("dimension_result") or {})
+        if not result:
+            continue
+        dimension_results.append(result)
+        confirmations[dimension] = result
+    if not dimension_results:
+        return acceptance
+    internal = fold_internal(
+        technical_status=str(technical.get("status") or "not_started"),
+        dimension_results=dimension_rows_from_review(dimension_results, confirmations),
+        review_id=review_id,
+        inherited_limitations=list(technical.get("limitations") or []),
+    )
+    formal = fold_formal(
+        technical=technical,
+        internal=internal,
+        promotion_id=str(dict(acceptance.get("formal") or {}).get("promotion_id") or ""),
+    )
+    return {"technical": technical, "internal": internal, "formal": formal}
 
 
 def _stage_progress(stage: str) -> int:
@@ -484,9 +731,20 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
     package_id = require_safe_id(args.get("assumption_package_id"), "assumption_package_id")
     idempotency_key = str(args.get("idempotency_key") or "")
     confirmations = [dict(item) for item in args.get("confirmations") or []]
+    # 显式跳过：用户可以只回答关键项。跳过登记进 DeliveryRun 并进入报告披露、
+    # manifest 与验收限制，但不因此获得正式资格。
+    skipped = [
+        {
+            "field": str(item.get("field") or ""),
+            "reason": str(item.get("reason") or "user_skipped"),
+        }
+        for item in args.get("skip_fields") or []
+        if isinstance(item, dict) and str(item.get("field") or "")
+    ]
     request_payload = {
         "assumption_package_id": package_id,
         "confirmations": confirmations,
+        "skip_fields": skipped,
     }
 
     def mutation() -> dict[str, Any]:
@@ -501,6 +759,22 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
                 "unknown_assumption_field",
                 "确认请求包含未知假设字段",
                 unknown_fields=unknown,
+            )
+        # 跳过项也必须是真实存在的字段：假设包里的字段，或所选配置的必填字段。
+        #
+        # 此前只校验 confirmations，skip_fields 原样写进 lineage —— 于是
+        # "totally_unknown" 这类拼错或凭空的名字会进入披露与审计记录，
+        # 制造不属于追问集合的跳过项。审计记录不能包含无从核对的条目。
+        skippable = set(known) | _configured_required_fields(workspace_id, package_id)
+        unknown_skips = sorted({item["field"] for item in skipped} - skippable)
+        if unknown_skips:
+            return _blocked(
+                "unknown_skip_field",
+                "跳过请求包含未知字段：既不在假设包中，也不是所选配置的必填字段",
+                unknown_fields=unknown_skips,
+                next_actions=[
+                    "用 delivery_status 读取 missing_inputs 后按其中的 field 名跳过",
+                ],
             )
         for confirmation in confirmations:
             name = str(confirmation["name"])
@@ -547,6 +821,18 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
         intent_id = str((source_run.get("payload") or {}).get("intent_id") or "") if source_run else ""
         if not intent_id:
             return _blocked("delivery_run_lineage_missing", "假设包缺少 DeliveryRun lineage")
+        prior_run_payload = dict(source_run.get("payload") or {})
+        merged_skips = {
+            str(item.get("field")): dict(item)
+            for item in prior_run_payload.get("skipped_fields") or []
+            if isinstance(item, dict) and str(item.get("field") or "")
+        }
+        # 已回答的字段从跳过清单移除：回答优先于此前的跳过登记。
+        answered = {str(item.get("name") or "") for item in confirmations}
+        for item in skipped:
+            merged_skips[item["field"]] = item
+        for name in answered:
+            merged_skips.pop(name, None)
         next_run = _new_run(
             workspace_id,
             intent_id=intent_id,
@@ -556,6 +842,8 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             blockers=["recalculation_required"],
             status_reason="confirmed_inputs_require_new_domain_objects",
             object_refs={"assumption_package_id": revised["object_id"]},
+            report_profile=dict(prior_run_payload.get("report_profile") or {}),
+            skipped_fields=sorted(merged_skips.values(), key=lambda item: item["field"]),
         )
         return _envelope(
             True,
@@ -669,7 +957,10 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
     record = RUN_STORE.get(workspace_id, run_id)
     if record is None:
         return _blocked("delivery_run_not_found", "未找到指定 DeliveryRun")
-    run = _view(record, "delivery_run_id")
+    stored = _view(record, "delivery_run_id")
+    # 与 status 同一处理：先刷新验收，状态折叠与返回的 run 视图都用刷新后的值。
+    acceptance = _refresh_acceptance(workspace_id, stored)
+    run = {**stored, "acceptance": acceptance}
     refs = dict(run.get("object_refs") or {})
     uris = [record["resource_uri"]]
     for ref in refs.values():
@@ -710,10 +1001,20 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
         deliverable_artifact_count=len(deliverables),
         usable_artifact_count=len(deliverables) - len(unusable),
         unusable_artifact_uris=unusable,
+        # 与 status 同一判据：技术验收有阻断项就不是可交付的技术预览。
         technical_preview_ready=bool(
             dict(run.get("domain_results") or {}).get("technical_preview_ready", False)
+        )
+        and not _acceptance_blockers(run),
+        acceptance=acceptance,
+        report_profile=dict(run.get("report_profile") or {}),
+        release_limitations=[str(item) for item in run.get("release_limitations") or []],
+        blockers=sorted(
+            {
+                *(str(item) for item in (run.get("blockers") or [])),
+                *_acceptance_blockers(run),
+            }
         ),
-        blockers=[str(item) for item in (run.get("blockers") or [])],
         manifest_uri=str(run.get("manifest_uri") or ""),
         validation_complete=False,
         input_evidence_complete=False,

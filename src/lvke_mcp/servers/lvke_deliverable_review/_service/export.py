@@ -14,6 +14,12 @@ from typing import Any
 from urllib.parse import quote
 
 from lvke_mcp.runtime.storage import canonical_json, require_safe_id, sha256_json, utc_now
+from lvke_mcp.runtime.soffice import resolve_soffice_binary, run_soffice_convert
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    SIM_A_FORMAL,
+    validate_object_formal_lineage,
+)
 from lvke_mcp.runtime.workspace import deliverable_dir
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_target
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
@@ -135,12 +141,96 @@ def _findings_xlsx(state: dict[str, Any]) -> bytes:
         ])
     sheet.freeze_panes = "A2"
     sheet.auto_filter.ref = sheet.dimensions
+    dimensions = workbook.create_sheet("dimension_results")
+    dimension_headers = [
+        "dimension", "status", "deterministic_status", "semantic_status",
+        "role_confirmed", "compliance_status", "finding_count", "limitations",
+        "assessment_id", "confirmation_id",
+    ]
+    dimensions.append(dimension_headers)
+    for row in state.get("dimension_results") or []:
+        dimensions.append([
+            row.get(key) if isinstance(row.get(key), (str, int, float, bool, type(None)))
+            else canonical_json(row.get(key))
+            for key in dimension_headers
+        ])
+    dimensions.freeze_panes = "A2"
+
+    standards = workbook.create_sheet("standards_snapshot")
+    standards.append([
+        "package_id", "title", "gate_status", "source_manifest_sha256",
+        "artifact_id", "publisher", "document_number", "publication_date",
+        "official_page_url", "source_url", "sha256",
+    ])
+    for package in (state.get("standards") or {}).get("packages") or []:
+        artifacts = list(package.get("artifacts") or []) or [{}]
+        for artifact in artifacts:
+            standards.append([
+                package.get("package_id"), package.get("title"), package.get("gate_status"),
+                package.get("source_manifest_sha256"), artifact.get("artifact_id"),
+                artifact.get("publisher"), artifact.get("document_number"),
+                artifact.get("publication_date"), artifact.get("official_page_url"),
+                artifact.get("source_url"), artifact.get("sha256"),
+            ])
+
+    audit = workbook.create_sheet("audit_manifest")
+    audit.append(["field", "value"])
+    for key in (
+        "review_id", "schema_version", "review_package_id", "review_dossier_id",
+        "review_profile", "review_mode", "event_chain_hash", "suite_overall_verdict",
+        "formal_suite_review_complete", "incomplete_reasons", "suite_hard_gate_blockers",
+    ):
+        value = state.get(key)
+        audit.append([key, value if isinstance(value, (str, int, float, bool, type(None))) else canonical_json(value)])
     for column in sheet.columns:
         letter = column[0].column_letter
         sheet.column_dimensions[letter].width = min(60, max(12, max(len(str(cell.value or "")) for cell in column) + 2))
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
+
+
+def _annotated_review_docx(state: dict[str, Any]) -> bytes:
+    """Produce a locator-oriented issue copy without mutating the source report."""
+
+    from docx import Document
+
+    document = Document()
+    document.add_heading("问题定位版研报审查", level=1)
+    document.add_paragraph(
+        "本文件按原始 locator 汇总批注，不修改外部原件，也不代表法律或执业签署。"
+    )
+    for row in state.get("findings") or []:
+        document.add_heading(
+            f"{row.get('severity')} {row.get('rule_id')}", level=2,
+        )
+        document.add_paragraph(f"定位：{canonical_json(row.get('target_location') or {})}")
+        document.add_paragraph(str(row.get("message") or ""))
+        document.add_paragraph(f"整改建议：{row.get('remediation') or '-'}")
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+def _docx_to_pdf(content: bytes) -> bytes:
+    binary = resolve_soffice_binary("LVKE_REVIEW_SOFFICE", "SOFFICE", "LIBREOFFICE")
+    if not binary:
+        raise FileNotFoundError("review_pdf_worker_unavailable")
+    with tempfile.TemporaryDirectory(prefix="lvke-review-pdf-") as directory:
+        root = Path(directory)
+        source = root / "review.docx"
+        source.write_bytes(content)
+        run_soffice_convert(
+            source=source,
+            convert_to="pdf",
+            outdir=root,
+            binary=binary,
+            timeout=180,
+        )
+        output = root / "review.pdf"
+        if not output.is_file():
+            raise OSError("review_pdf_not_generated")
+        return output.read_bytes()
 
 
 def _export_file_uri(workspace_id: str, export_id: str, filename: str) -> str:
@@ -163,6 +253,38 @@ def _export_review_locked(
     except ValueError:
         return _blocked("review_not_found", _message("review_not_found"))
     quality_issues: list[str] = []
+    evidence_metadata = (
+        state.get("evidence_metadata")
+        if isinstance(state.get("evidence_metadata"), dict)
+        else {}
+    )
+    formal_lineage: dict[str, Any] = {}
+    formal_review = (
+        str((state.get("project_context") or {}).get("evidence_track") or "")
+        == SIM_A_FORMAL
+        or str(evidence_metadata.get("evidence_policy") or "") == SIM_A_FORMAL
+    )
+    if formal_review:
+        try:
+            formal_lineage = validate_object_formal_lineage(
+                workspace_id,
+                evidence_metadata,
+            )
+        except FormalLineageError as exc:
+            return _blocked(
+                exc.code,
+                f"审查导出前正式 promotion 谱系无效：{exc.message}",
+                review_id=review_id,
+            )
+        if any(
+            evidence_metadata.get(key) != value
+            for key, value in formal_lineage.items()
+        ):
+            return _blocked(
+                "formal_lineage_metadata_mismatch",
+                "审查导出前 promotion 元数据不是规范值",
+                review_id=review_id,
+            )
     if not state.get("validation_complete"):
         quality_issues.append("review_validation_incomplete")
     for previous in state.get("exports") or []:
@@ -184,13 +306,53 @@ def _export_review_locked(
                 review_id=review_id,
                 integrity_reasons=integrity_reasons,
             )
+    suite_review = str((state.get("target") or {}).get("target_type") or "") == "review_package"
+    if suite_review:
+        from .suite_review import (
+            DIMENSION_CONFIRMATION_STORE,
+            DOSSIER_STORE,
+            REVIEW_PACKAGE_STORE,
+            SUITE_ASSESSMENT_STORE,
+            _verified_record,
+            package_integrity_reasons,
+        )
+
+        package_id = str((state.get("target") or {}).get("target_id") or "")
+        package_record = _verified_record(REVIEW_PACKAGE_STORE, workspace_id, package_id)
+        if package_record is None:
+            return _blocked("review_package_not_found", "导出前 ReviewPackage 不存在或完整性无效")
+        package_reasons = package_integrity_reasons(workspace_id, package_record)
+        if package_reasons:
+            return _blocked(
+                package_reasons[0],
+                "导出前 ReviewPackage 完整性或正式谱系校验失败",
+                integrity_reasons=package_reasons,
+            )
+        state = deepcopy(state)
+        state["review_package"] = deepcopy(package_record)
+        state["review_assessments"] = [
+            deepcopy(row)
+            for row in SUITE_ASSESSMENT_STORE.list(workspace_id)
+            if str((row.get("payload") or {}).get("review_id") or "") == review_id
+        ]
+        state["review_dimension_confirmations"] = [
+            deepcopy(row)
+            for row in DIMENSION_CONFIRMATION_STORE.list(workspace_id)
+            if str((row.get("payload") or {}).get("review_id") or "") == review_id
+        ]
+        state["review_dossiers"] = [
+            deepcopy(row)
+            for row in DOSSIER_STORE.list(workspace_id)
+            if str((row.get("payload") or {}).get("review_id") or "") == review_id
+        ]
     requested = list(
-        requested_formats or ["json", "markdown", "docx", "xlsx"]
+        requested_formats or (["json", "markdown", "docx", "xlsx", "annotated_docx"] if suite_review else ["json", "markdown", "docx", "xlsx"])
     )
-    allowed = {"json", "markdown", "docx", "xlsx"}
+    allowed = {"json", "markdown", "docx", "xlsx", "pdf", "annotated_docx"}
     if not requested or any(item not in allowed for item in requested):
-        return _blocked("export_format_invalid", "导出格式仅支持 json、markdown、docx、xlsx")
-    if any(item in {"docx", "xlsx"} for item in requested) and not state.get("validation_complete"):
+        return _blocked("export_format_invalid", "导出格式仅支持 json、markdown、docx、xlsx、pdf、annotated_docx")
+    formal_formats = {"docx", "xlsx", "pdf", "annotated_docx"}
+    if any(item in formal_formats for item in requested) and not state.get("validation_complete"):
         return _blocked(
             "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
             "DOCX/XLSX 正式导出要求审查验证完成；当前仅允许 JSON/Markdown 过程记录",
@@ -201,13 +363,19 @@ def _export_review_locked(
     # not let a successful technical run, controlled-assumption input, or
     # unresolved finding masquerade as a formal review export.
     formal_issues: list[str] = []
-    formal_issues.extend(str(item) for item in state.get("quality_issues") or [])
-    formal_issues.extend(str(item) for item in state.get("release_limitations") or [])
-    for verdict_key in ("overall_verdict", "technical_verdict", "release_verdict"):
-        verdict = str(state.get(verdict_key) or "").lower()
-        if verdict and verdict not in {"pass", "passed", "ok", "complete", "completed"}:
-            formal_issues.append(f"{verdict_key}:{verdict}")
-    if formal_issues and any(item in {"docx", "xlsx"} for item in requested):
+    if suite_review:
+        if str(state.get("suite_overall_verdict") or "") != "pass":
+            formal_issues.append(f"suite_overall_verdict:{state.get('suite_overall_verdict') or 'incomplete'}")
+        if not state.get("formal_suite_review_complete"):
+            formal_issues.append("formal_suite_review_incomplete")
+    else:
+        formal_issues.extend(str(item) for item in state.get("quality_issues") or [])
+        formal_issues.extend(str(item) for item in state.get("release_limitations") or [])
+        for verdict_key in ("overall_verdict", "technical_verdict", "release_verdict"):
+            verdict = str(state.get(verdict_key) or "").lower()
+            if verdict and verdict not in {"pass", "passed", "ok", "complete", "completed"}:
+                formal_issues.append(f"{verdict_key}:{verdict}")
+    if formal_issues and any(item in formal_formats for item in requested):
         return _blocked(
             "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
             "审查仍存在未关闭的质量或发布资格问题，禁止正式 DOCX/XLSX 导出",
@@ -215,7 +383,7 @@ def _export_review_locked(
             quality_issues=sorted(set(formal_issues)),
         )
     review_purpose = str((state.get("project_context") or {}).get("review_purpose") or "")
-    if any(item in {"docx", "xlsx"} for item in requested) and review_purpose != "project_delivery":
+    if any(item in formal_formats for item in requested) and review_purpose != "project_delivery" and not suite_review:
         return _blocked(
             "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
             "正式 DOCX/XLSX 审查导出要求 project_delivery 审查目的",
@@ -228,11 +396,13 @@ def _export_review_locked(
         "formats": sorted(set(requested)),
         "review_status": state.get("review_status"),
         "overall_verdict": state.get("overall_verdict"),
+        **deepcopy(formal_lineage),
     }
     export_id = (
         "rvexp_" + sha256_json(export_basis).removeprefix("sha256:")[:24]
     )
     output = _export_root(workspace_id, export_id)
+    review_docx = _review_docx(state)
     payloads: dict[str, tuple[str, bytes, str]] = {
         "json": (
             "review.json",
@@ -248,7 +418,7 @@ def _export_review_locked(
         ),
         "docx": (
             "review.docx",
-            _review_docx(state),
+            review_docx,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ),
         "xlsx": (
@@ -256,7 +426,25 @@ def _export_review_locked(
             _findings_xlsx(state),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         ),
+        "annotated_docx": (
+            "annotated-review.docx",
+            _annotated_review_docx(state),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),
     }
+    if "pdf" in requested:
+        try:
+            payloads["pdf"] = (
+                "review.pdf",
+                _docx_to_pdf(review_docx),
+                "application/pdf",
+            )
+        except (FileNotFoundError, OSError, TimeoutError):
+            return _blocked(
+                "review_pdf_export_unavailable",
+                "PDF 审查报告要求可用的隔离 LibreOffice worker",
+                review_id=review_id,
+            )
     files = []
     for format_name in sorted(set(requested)):
         filename, content, media_type = payloads[format_name]
@@ -288,6 +476,7 @@ def _export_review_locked(
         "export_record_hash": record.get("content_hash"),
         "export_basis_hash": record.get("basis_hash"),
         "export_files": files,
+        **deepcopy(formal_lineage),
     }
     integrity_reasons = _export_integrity_reasons(
         workspace_id,
@@ -310,6 +499,7 @@ def _export_review_locked(
             "export_record_hash": record["content_hash"],
             "export_basis_hash": record["basis_hash"],
             "files": files,
+            **deepcopy(formal_lineage),
             "exported_at": utc_now(),
         },
     )
@@ -415,7 +605,12 @@ def _export_record_integrity_reasons(
             "formats",
             "review_status",
             "overall_verdict",
+            "evidence_policy",
+            "evidence_origin",
+            "project_fact_certified",
+            "formal_promotion",
         )
+        if key in payload
     }
     content_hash = sha256_json(payload)
     expected_record_id = (

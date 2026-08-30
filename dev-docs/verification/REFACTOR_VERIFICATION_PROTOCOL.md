@@ -12,7 +12,7 @@
 | Python | 3.13.14（conda 环境 `lvke-mcp`） | 同 |
 | 集成测试 | 75 passed, 0 skipped, 87 subtests | 同 |
 | MCP smoke | 14/14 | 同 |
-| 公开 server / 工具 / 资源 | 14 / 169 / 27 | 同 |
+| 公开 server / 工具 / 资源 | 14 / 180 / 242 | 当前实时拓扑；历史 Wave 4 基线曾为 14 / 169 / 27 |
 | `src/lvke_mcp` 文件 / 行数 | 208 / 95,084 | 433 / 101,282 |
 | ≥800 行文件 | 37（合计 65,928 行） | 15（合计 18,190 行） |
 | 历史循环 import | 3（见 §4） | 3，无新增 |
@@ -20,6 +20,10 @@
 
 文件数与总行数上升是门面模式的预期代价：每个实现包多一个 `__init__.py`，
 每个门面多一段 re-export。判定指标是**超长文件数与其合计行数**，不是总行数。
+
+当前能力快照（2026-08-30）：14 个 server、180 个工具、242 个 Resource，
+180/180 个工具发布 `outputSchema`。本文中的历史基线数字仅用于重构对照，
+不代表当前运行时分母。
 
 Wave 0 之前存在的 2 个 skip 已修复（`lvke-market-sizing` / `lvke-cost-drivers`
 的 SKILL.md 已迁到 `skills/lvke-project-planning/references/preserved/`），

@@ -1,7 +1,7 @@
 # Lvke MCP Services 技术参考文档
 
 > 基于深度代码审查的完整技术文档 | 最后更新: 2026-08-28
-> 覆盖 **14 个对外服务 / 173 个工具**（运行时自省实测）
+> 覆盖 **14 个对外服务 / 180 个工具**（2026-08-29 运行时自省实测）
 
 ## 文档说明
 
@@ -42,9 +42,9 @@ Lvke MCP Services 是一套**端到端可行性研究 + 资产收购业务引擎
 - **证据溯源**：每个数值绑定 `locator` + `content_hash`，明确来源可审计
 - **确定性计算**：财务模型由 Python 函数保证可复现，不依赖 LLM
 
-### 服务总览（14 个对外服务 / 173 个工具）
+### 服务总览（14 个对外服务 / 180 个工具）
 
-对外注册面固定为 **14 个 MCP 进程、173 个工具**。`src/lvke_mcp/testing/server_manifest.py` 硬断言 14 个进程，工具数由逐个 `build_server()` 运行时自省得到。第二轮将 32 个旧公开名收敛为 8 个聚合入口，迁移表见 `dev-docs/config/mcp-compression-migration-v2.json`。零材料服务在聚合后为 10 个工具（含拟定模板包与正式晋升）。
+对外注册面固定为 **14 个 MCP 进程、180 个工具**。`src/lvke_mcp/testing/server_manifest.py` 硬断言 14 个进程，工具数由逐个 `build_server()` 运行时自省得到。第二轮将 32 个旧公开名收敛为 8 个聚合入口，迁移表见 `dev-docs/config/mcp-compression-migration-v2.json`。零材料服务为 10 个工具，交付审查服务因七域套件审查扩展为 22 个工具。
 
 ```
 数据层（3）              研究层（1）           规划层（1）
@@ -53,12 +53,12 @@ Lvke MCP Services 是一套**端到端可行性研究 + 资产收购业务引擎
 └─ data-analysis     11
 
 财务层（3）              交付层（4）           专项（3）
-├─ finance-model     16  ├─ report-generation      13  ├─ asset-acquisition      12
-├─ finance-tables     8  ├─ deliverable-review     15  ├─ knowledge-governance    6
+├─ finance-model     18  ├─ report-generation      13  ├─ asset-acquisition      12
+├─ finance-tables     8  ├─ deliverable-review     22  ├─ knowledge-governance    6
 └─ (asset-acquisition   ├─ feasibility-delivery   10  └─ reference              12
-    见专项)              └─ zero-material-delivery  8
+    见专项)              └─ zero-material-delivery 10
 
-14 个服务 / 173 个工具
+14 个服务 / 180 个工具
 ```
 
 > **`finance-calc` 不计入对外服务**。它的源码头注释明写 "The public process is no longer registered in user configuration"，未出现在 `~/.claude.json`，7 个 `calc_*` 工具已全部由 `lvke-finance-model.finance_calculate` 路由。本文档保留它的小节是为了说明迁移关系，不代表它是对外服务。
@@ -171,7 +171,7 @@ TTL 由 `LVKE_MCP_IDEMPOTENCY_TTL_SECONDS` 控制（默认 86400，clamp 到 60~
 
 **并非所有写工具都要求 `idempotency_key`**：`lvke-report-generation` 的 13 个工具全部没有该参数，写幂等完全依赖内容寻址；`lvke-reference` 的 12 个只读工具既不接受 `workspace_id` 也不接受 `idempotency_key`。
 
-> **`JobRepository` 已删除**：`runtime/jobs.py` 不再存在。公开工具面为 14 服务 / 173 工具，`task_support` 仍全部为 `forbidden`。
+> **`JobRepository` 已删除**：`runtime/jobs.py` 不再存在。公开工具面为 14 服务 / 180 工具，`task_support` 仍全部为 `forbidden`。
 
 ---
 
@@ -221,7 +221,7 @@ class OfficialStdioServer:
 
 `register_tool` 在注册时就用 `Draft202012Validator.check_schema` 校验输入与输出 schema（schema 本身写错会在启动期炸，不会拖到调用期），重复注册同名工具 → `raise ValueError`。`annotations` 传 `None` 时注入的默认值是 `readOnlyHint=False, destructiveHint=False, openWorldHint=False`——即**默认按写操作对待**。
 
-全系统 173 个工具的 `task_support` 均为默认 `"forbidden"`，即没有任何异步/轮询入口；`finance_run_model`、`acquisition_generate_artifact`、`delivery_start` 等重活都在单次调用里同步阻塞完成。
+全系统 180 个工具的 `task_support` 均为默认 `"forbidden"`，即没有任何异步/轮询入口；`finance_run_model`、`acquisition_generate_artifact`、`delivery_start` 等重活都在单次调用里同步阻塞完成。
 
 **输出信封**：各服务的 `_OUTPUT` schema 只强制 6 项（`success` / `status` / `resource_uris` / `warnings` / `blockers` / `next_actions`），但传输层实际会补齐到约 25 个字段：
 
@@ -1389,7 +1389,7 @@ _start_research → _create_project_context
 9. **幂等记录无 TTL 与清理**：`asset-acquisition` 与 `zero-material-delivery` 的领域层幂等 store 每次写操作都全量读盘线性扫描，且存整份 response，长期使用会同步膨胀磁盘与延迟。`LVKE_MCP_IDEMPOTENCY_TTL_SECONDS` 只对部分域生效。
 10. **测试不可用 `unittest discover`**：`tests/` 无法 import，必须直接跑文件。
 11. **审查规则源已入库，标准锁文件仍缺**：`src/lvke_mcp/config/review_rule_sources/` 现有 finance/accounting/hotel 三份 JSON，`professional` finding 可产生。`review_standards.lock.json` 仍不存在，标准快照继续走 `docs/研报资料库/` 物料回退。
-12. **`JobRepository` 已删除**：公开面为 14/173，异步 job 预留实现不再存在。
+12. **`JobRepository` 已删除**：公开面为 14/180，异步 job 预留实现不再存在。
 13. **豁免终态已补**：`approve_waiver` 可把 finding 推到 `waived`；P0 仍不可豁免。`rejected` / `superseded` 写入路径仍可能不完整。
 
 ### 文档化程度 vs 实现程度的不一致告警
@@ -1410,6 +1410,6 @@ _start_research → _create_project_context
    （反例：`dr_prepare`、`planning_score_option_comparison`、`review_validate_standards` 等名字像写操作的工具经核实确为纯读，注解正确。）
 2. **收购 `consistency_ok` 已按资产负债表投影计算**，不再恒为 True。
 3. **验收证据强度不足**：`test_mcp_acceptance_20_defects.py` 的 19 个测试里有 8 个是 `read_text()` + `assertIn` 的**源码字符串断言**（断言某文件里出现 "P0-009"、"P1-017" 等字样）。这类断言只能证明有人写了那行注释，不能证明行为已修。最关键的 P0-009（证据等级误升级 + 非原子写入）正属于此类。另有 2 个测试 `skipTest` 兜的 SKILL.md 路径实测不存在，即零覆盖但计入"通过"。
-4. **旧拓扑遗留的口径冲突**：验收报告基线写 24 服务 / 262 工具，当前是 14/173；第一轮 manifest 记录 85 条，第二轮 v2 manifest 记录 32 条。报告里的缺陷 ID 与当前工具名之间需经两轮 migration manifest 映射才成立。
+4. **旧拓扑遗留的口径冲突**：验收报告基线写 24 服务 / 262 工具，当前是 14/180；第一轮 manifest 记录 85 条，第二轮 v2 manifest 记录 32 条。报告里的缺陷 ID 与当前工具名之间需经两轮 migration manifest 映射才成立。
 5. **两个薄层在文档里与其他服务平级**：`lvke-finance-tables`（server 133 行）与 `lvke-reference`（174 行，自述 thin facade）的能力完全取决于被代理的下层。本文档已在各自小节标注"薄包装/薄路由门面"，但读者需知其数据只有几十条 seed。
 6. **`lvke-zero-material-delivery` 的 `resources/list` 跨 workspace 泄露**是本文档记录的唯一跨租户可见性缺陷，与概览章"所有数据按 workspace_id 物理隔离，无跨租户泄漏"的表述直接冲突——该表述对其余 13 个服务成立，对本服务的协议层 Resource 通道不成立。

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-28T14:43:05Z",
+  "generated_at": "2026-08-30T09:33:31Z",
   "schema_version": "skill-inventory.v1",
   "skills": [
     "lvke-api-contract",
@@ -13,6 +13,7 @@
     "lvke-project-planning",
     "lvke-report",
     "lvke-research",
+    "lvke-research-report-review",
     "lvke-review-release",
     "lvke-source-evidence",
     "lvke-tool-coordination",

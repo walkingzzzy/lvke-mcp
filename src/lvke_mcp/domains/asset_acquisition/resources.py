@@ -100,7 +100,7 @@ def list_resources(
     workspace_id = require_safe_id(workspace_id, "workspace_id")
     allowed_types = {
         "", "spec", "run", "scenario_matrix", "artifact", "table_package",
-        "xlsx", "csv",
+        "xlsx", "csv", "manifest",
     }
     if resource_type not in allowed_types:
         return _blocked("RESOURCE_TYPE_INVALID", "未知资产收购 Resource 类型")
@@ -151,14 +151,35 @@ def list_resources(
         xlsx_uri = package_uri + "/xlsx"
         if tables.resolve_resource(xlsx_uri) is not None:
             add(xlsx_uri, "xlsx", f"{package_id}.xlsx", package.get("created_at"))
+        xlsx_manifest_uri = package_uri + "/xlsx/manifest"
+        if tables.resolve_resource(xlsx_manifest_uri) is not None:
+            add(
+                xlsx_manifest_uri,
+                "manifest",
+                f"{package_id}.xlsx.manifest.json",
+                package.get("created_at"),
+            )
         payload = package.get("payload") or {}
         definitions, _columns, _required = tables._table_contract(  # noqa: SLF001
             str(payload.get("asset_type") or "hotel_lease")
         )
-        for key, _label in definitions:
+        supplemental = [
+            key
+            for key in ("monthly_income_statement", "monthly_balance_sheet")
+            if (payload.get("tables") or {}).get(key)
+        ]
+        for key in [*(key for key, _label in definitions), *supplemental]:
             csv_uri = package_uri + f"/csv/{key}"
             if tables.resolve_resource(csv_uri) is not None:
                 add(csv_uri, "csv", f"{key}.csv", package.get("created_at"))
+        csv_manifest_uri = package_uri + "/csv/manifest"
+        if tables.resolve_resource(csv_manifest_uri) is not None:
+            add(
+                csv_manifest_uri,
+                "manifest",
+                f"{package_id}.csv.manifest.json",
+                package.get("created_at"),
+            )
     try:
         page = paginate_resource_entries(entries, cursor=cursor, limit=limit)
     except ValueError as exc:

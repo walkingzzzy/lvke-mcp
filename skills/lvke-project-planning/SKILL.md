@@ -20,6 +20,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 - Do not auto-select candidates or bypass prepare/validate/confirm governance.
 - Use planning_get_object for consolidated reads; creation capabilities remain explicit.
+- A SIM-A ProjectContext accepts only `promotion_id`; policy, origin,
+  certification and promoted files are rederived by the service. Market,
+  option, scale, cost, labor and revenue objects must retain that same verified
+  promotion at every immutable boundary.
+- Historical `sim_a_formal` objects without signed promotion ancestry are not
+  reusable. Rebuild from TemplatePack and create new object IDs/hashes.
 
 ## MCP Tool Mapping
 
@@ -34,4 +40,3 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | `planning_get_env_templates` | lvke-project-planning | `project_type`, `pollutant_types` | field templates for environmental cost plans; a template is neither a compliance verdict nor formal evidence |
 
 Evidence tracks: `technical_fixture`, `controlled_assumption`, `formal_evidence`. Planning outputs feed finance via `propose_from_project`.
-

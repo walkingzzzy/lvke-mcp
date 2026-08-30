@@ -6,6 +6,11 @@ from typing import Any
 
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE
 from lvke_mcp.domains.finance import tables_application
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    SIM_A_FORMAL,
+    validate_finance_run,
+)
 
 from .base import (
     _check_template_version,
@@ -49,6 +54,13 @@ def render(
     rejected = _require_run_id(run_id)
     if rejected is not None:
         return rejected
+    source_run = _load(workspace_id, run_id)
+    canonical_lineage: dict[str, Any] = {}
+    if str(source_run.get("evidence_policy") or "") == SIM_A_FORMAL:
+        try:
+            canonical_lineage = validate_finance_run(workspace_id, run_id)
+        except FormalLineageError as exc:
+            return _failure(exc.code, exc.message)
     data = render_workspace_finance_tables(
         workspace_id,
         run_id=run_id,
@@ -75,7 +87,6 @@ def render(
         "tables": structured_tables,
         "table_manifest": table_manifest,
     }
-    source_run = _load(workspace_id, run_id)
     validation = _assess(
         workspace_id,
         run_id,
@@ -105,8 +116,10 @@ def render(
         "viability_issues": list(source_run.get("viability_issues") or []),
         "integrity_status": str(source_run.get("integrity_status") or ("passed" if source_run.get("consistency_ok") else "failed")),
         "xlsx_available": False,
-        "evidence_policy": str(source_run.get("evidence_policy") or "formal_evidence"),
-        "project_fact_certified": bool(source_run.get("project_fact_certified", False)),
+        "evidence_policy": str(canonical_lineage.get("evidence_policy") or source_run.get("evidence_policy") or "formal_evidence"),
+        "evidence_origin": str(canonical_lineage.get("evidence_origin") or source_run.get("evidence_origin") or ""),
+        "project_fact_certified": bool(canonical_lineage.get("project_fact_certified", source_run.get("project_fact_certified", False))),
+        "formal_promotion": canonical_lineage.get("formal_promotion") or source_run.get("formal_promotion"),
         "reconstruction_records": list(source_run.get("reconstruction_records") or []),
         "reconstructed_source_ids": list(source_run.get("reconstructed_source_ids") or []),
         "unresolved_inputs": list(source_run.get("unresolved_inputs") or []),
@@ -124,6 +137,7 @@ def render(
             "spec_id": payload["spec_id"],
             "spec_hash": payload["spec_hash"],
             "table_bundle_hash": data.get("table_bundle_hash"),
+            "formal_promotion": payload.get("formal_promotion"),
         },
     )
     result = _package_result(record, validation, status)

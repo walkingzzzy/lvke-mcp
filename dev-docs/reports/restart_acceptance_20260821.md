@@ -1,6 +1,8 @@
 # Restarted MCP Acceptance 2026-08-21
 
-Workspace `restart-acceptance-20260821-a` was created after the MCP restart. The live denominator was 171 tools. The synthetic chain reached ProjectContext, source import, analysis, EvidencePack, research, FinanceSpec, FinanceRun, 13-table rendering, report propose/diff/apply, and Review.
+> Historical snapshot: this acceptance recorded the 2026-08-21 runtime; its 171-tool denominator is not the current topology. The current runtime snapshot (2026-08-30) is 14 servers / 180 tools / 242 resources, with `outputSchema` on 180/180 tools.
+
+Workspace `restart-acceptance-20260821-a` was created after the MCP restart. The **historical** live denominator was 171 tools. The synthetic chain reached ProjectContext, source import, analysis, EvidencePack, research, FinanceSpec, FinanceRun, 13-table rendering, report propose/diff/apply, and Review.
 
 The runtime correctly kept the fixture on the `controlled_assumption` track. Finance tables were generated as a draft package with semantic blockers, the research package was `partial`, and formal DOCX/XLSX/report release remained ineligible. A retest against the same report revision was rejected with `retest_target_not_newer`, proving stale-target protection.
 

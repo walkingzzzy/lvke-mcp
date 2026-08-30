@@ -284,16 +284,78 @@ _COMMON_SPEC_PROPERTIES = {
         "required": ["classes"],
     },
 }
+_MONTHLY_DRIVER_SCHEMA = {
+    "oneOf": [
+        {"type": "number", "minimum": 0},
+        {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1},
+        {
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "annual_values": {
+                    "oneOf": [
+                        {"type": "number", "minimum": 0},
+                        {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1},
+                    ],
+                },
+                "monthly_values": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1},
+                "seasonal_factors": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 12},
+            },
+        },
+    ],
+    "description": "优先级：显式 monthly_values > seasonal_factors × annual_values > 旧版年度输入确定性展开",
+}
+_OCCUPANCY_DRIVER_SCHEMA = {
+    "oneOf": [
+        _RATE,
+        {"type": "array", "items": _RATE, "minItems": 1},
+        {
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "annual_values": {"oneOf": [_RATE, {"type": "array", "items": _RATE, "minItems": 1}]},
+                "monthly_values": {"type": "array", "items": _RATE, "minItems": 1},
+                "seasonal_factors": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 12},
+            },
+        },
+    ],
+}
+_OPERATING_CALENDAR_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "properties": {
+        "basis": {"type": "string", "enum": ["calendar_days", "operating_days", "workdays"]},
+        "monthly_days": {"type": "array", "items": {"type": "number", "minimum": 0}, "minItems": 1},
+        "periods": {
+            "type": "array", "minItems": 1,
+            "items": {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "period_start": {"type": "string", "format": "date"},
+                    "period_end": {"type": "string", "format": "date"},
+                    "operating_days": {"type": "number", "minimum": 0, "maximum": 31},
+                    "workdays": {"type": "number", "minimum": 0, "maximum": 31},
+                },
+                "required": ["period_start"],
+            },
+        },
+    },
+}
 _HOTEL_OPERATION_SCHEMA = {
     "type": "object", "additionalProperties": True,
     "properties": {
         "rooms": {"type": "integer", "minimum": 1},
-        "adr": {"oneOf": [{"type": "number", "minimum": 0}, {"type": "array", "items": {"type": "number", "minimum": 0}}]},
-        "occupancy": {"oneOf": [_RATE, {"type": "array", "items": _RATE}]},
+        "adr": _MONTHLY_DRIVER_SCHEMA,
+        "occupancy": _OCCUPANCY_DRIVER_SCHEMA,
         "operating_days": {"type": "integer", "minimum": 1, "maximum": 366},
-        "payroll": {"oneOf": [_MONEY, {"type": "array", "items": _MONEY}]},
-        "utilities": {"oneOf": [_MONEY, {"type": "array", "items": _MONEY}]},
-        "maintenance_capex": {"oneOf": [_MONEY, {"type": "array", "items": _MONEY}]},
+        "operating_calendar": _OPERATING_CALENDAR_SCHEMA,
+        "ancillary_revenue": _MONTHLY_DRIVER_SCHEMA,
+        "food_beverage_revenue": _MONTHLY_DRIVER_SCHEMA,
+        "meeting_revenue": _MONTHLY_DRIVER_SCHEMA,
+        "other_revenue": _MONTHLY_DRIVER_SCHEMA,
+        "payroll": _MONTHLY_DRIVER_SCHEMA,
+        "utilities": _MONTHLY_DRIVER_SCHEMA,
+        "consumables": _MONTHLY_DRIVER_SCHEMA,
+        "maintenance": _MONTHLY_DRIVER_SCHEMA,
+        "maintenance_capex": _MONTHLY_DRIVER_SCHEMA,
+        "ota_commission": _MONTHLY_DRIVER_SCHEMA,
         "evidence_ids": _EVIDENCE_IDS,
     },
 }
@@ -320,6 +382,13 @@ _HOTEL_SPEC_SCHEMA = {
         "transaction": _HOTEL_TRANSACTION_SCHEMA,
         "hotel_operation": _HOTEL_OPERATION_SCHEMA,
         "lease_portfolio": {"type": "object"},
+        "cost": {
+            "type": "object",
+            "additionalProperties": True,
+            "properties": {
+                "annual_owner_operating_cost_wan": _MONTHLY_DRIVER_SCHEMA,
+            },
+        },
     },
     "required": ["version", "transaction"],
 }

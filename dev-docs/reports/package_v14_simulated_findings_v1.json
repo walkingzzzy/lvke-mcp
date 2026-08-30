@@ -1,4 +1,14 @@
 {
+  "current_runtime_snapshot": {
+    "as_of": "2026-08-30",
+    "servers": 14,
+    "tools": 180,
+    "resources": 242,
+    "output_schema": {"present": 180, "total": 180, "coverage": 1.0},
+    "source": "live tools/list + resources/list + SERVER_SPECS",
+    "historical_fields_preserved": true
+  },
+  "topology_status": "historical_snapshot_superseded",
   "review_id": "package_v14_simulated_mcp_capability_review_v1",
   "review_date": "2026-08-19",
   "fact_source": "current_filesystem_and_restarted_runtime",

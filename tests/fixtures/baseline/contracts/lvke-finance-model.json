@@ -263,6 +263,14 @@
             "evidence"
           ]
         },
+        "evidence_pack_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
         "idempotency_key": {
           "type": "string",
           "minLength": 1

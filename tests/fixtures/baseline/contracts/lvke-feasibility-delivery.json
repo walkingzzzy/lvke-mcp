@@ -37,9 +37,6 @@
             "project_delivery"
           ]
         },
-        "project_fact_certified": {
-          "type": "boolean"
-        },
         "reconstructed_source_ids": {
           "type": "array",
           "items": {

@@ -18,6 +18,9 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
 
 ## Gates
 
+- Public source import never accepts or grants promotion authority. Ignore no
+  caller claim: `evidence_policy`, `evidence_origin`, certification and
+  promotion metadata are server-derived; ordinary imports remain non-formal.
 - Never promote search summaries or uncontrolled files to formal evidence.
   Promoted `sim_a_formal` template packs may count as EVD-2 after
   `delivery_confirm_formal_promotion`; unpromoted SIM-A may not.
@@ -26,6 +29,12 @@ Open [references/catalog.md](references/catalog.md), select only the rows releva
   new Spec revision and rerun before formal artifact generation.
 - Preserve current evidence hash/version against the immutable run snapshot;
   technical validation alone never repairs a stale formal binding.
+- SIM-A formal evidence must follow `TemplatePack -> FormalPromotion ->
+  SourceFile -> EvidencePack`; missing, mixed, extra, cross-workspace or
+  unsigned ancestry is a stop condition and requires a new immutable chain.
+- DR citations must bind a workspace-owned source, whole-source hash,
+  deterministic locator, resolved fragment text and fragment hash. This proves
+  fragment identity, not whether the fragment semantically supports a claim.
 
 ## MCP Tool Mapping
 

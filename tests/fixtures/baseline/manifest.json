@@ -1,5 +1,5 @@
 {
-  "frozen_at": "2026-08-28T22:41:06+0800",
+  "frozen_at": "2026-08-30T18:18:17+0800",
   "protocol_version": "2025-11-25",
   "python": "installed-environment",
   "servers": [
@@ -87,17 +87,24 @@
         "dr_get_evidence",
         "dr_get_bundle"
       ],
-      "resources": 19,
+      "resources": 20,
       "protocol_version": "2025-11-25"
     },
     {
       "server": "lvke-deliverable-review",
       "ok": true,
-      "tools": 15,
+      "tools": 22,
       "tool_names": [
         "review_list_rubrics",
         "review_score_section",
         "review_compare_assessments",
+        "review_package_prepare",
+        "review_package_confirm",
+        "review_confirm_extraction",
+        "review_submit_assessment",
+        "review_get_dimension",
+        "review_confirm_dimension",
+        "review_finalize",
         "review_prepare",
         "review_start",
         "review_get",
@@ -111,7 +118,7 @@
         "review_attach_requirement_evidence",
         "review_validate_standards"
       ],
-      "resources": 20,
+      "resources": 28,
       "protocol_version": "2025-11-25"
     },
     {
@@ -215,7 +222,7 @@
         "planning_prepare",
         "planning_create"
       ],
-      "resources": 52,
+      "resources": 51,
       "protocol_version": "2025-11-25"
     },
     {
@@ -258,7 +265,7 @@
         "report_apply",
         "report_get_readiness"
       ],
-      "resources": 15,
+      "resources": 14,
       "protocol_version": "2025-11-25"
     },
     {

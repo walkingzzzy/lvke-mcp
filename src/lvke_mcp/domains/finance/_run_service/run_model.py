@@ -13,6 +13,7 @@ from lvke_mcp.domains.finance.rail_validation import (
     rail_transit_missing_inputs,
     revenue_input_complete,
 )
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
 
 from .base import (
     MODEL_VERSION,
@@ -315,6 +316,8 @@ def run_workspace_finance_model(
                 if _peak > 0:
                     input_revision = dict(input_revision or {})
                     input_revision["annual_revenue_wan"] = _peak
+        except FormalLineageError:
+            raise
         except Exception:  # noqa: BLE001
             pass
 
@@ -804,8 +807,17 @@ def run_workspace_finance_model(
                         workspace_id, run_id, result,
                         report_file=report_file, section=section,
                     )
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    # 二次同步失败不像 record_run 那样让整个 run 失效，但正文
+                    # 映射缺失必须留痕，否则关键指标对不上时无从归因。
+                    result["warnings"] = [
+                        *list(result.get("warnings") or []),
+                        f"关键正文映射同步失败（{type(exc).__name__}），报告正文指标可能与 run 不同源",
+                    ]
+                    if mode in {"review_candidate", "formal_release", "formal"}:
+                        result["blockers"] = list(result.get("blockers") or []) + [
+                            "finance_key_report_values_unmapped"
+                        ]
         except Exception:  # noqa: BLE001
             run_id = None
             if mode in {"review_candidate", "formal_release", "formal"}:
@@ -825,8 +837,18 @@ def run_workspace_finance_model(
 
             view = run_store.load_run(workspace_id, run_id) or {}
             result["consistency_ok"] = bool(view.get("consistency_ok"))
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001
+            # 回读失败时沿用内存值只是次优保底，绝不能等同于"回读确认一致"。
             result["consistency_ok"] = bool(result.get("consistency_ok"))
+            result["warnings"] = [
+                *list(result.get("warnings") or []),
+                f"勾稽状态未能从已固化 run 回读（{type(exc).__name__}），"
+                "consistency_ok 取自内存计算值而非持久化确认",
+            ]
+            if mode in {"review_candidate", "formal_release", "formal"}:
+                result["blockers"] = list(result.get("blockers") or []) + [
+                    "finance_consistency_not_reread"
+                ]
         result.pop("review_status", None)
         result.pop("approved_run_id", None)
         result.pop("approved_run_stale", None)

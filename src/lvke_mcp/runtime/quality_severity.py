@@ -38,6 +38,20 @@ BLOCKING_CODES: frozenset[str] = frozenset({
     "project_fact_evidence_missing",
     "preview_cannot_formal_release",
     "object_chain_not_verifiable_without_workspace",
+    # 零材料交付：配置声明的必需组件没产出、manifest 缺失、配置 hash 算不出来。
+    # 这三类都不是"置信度不足"——交付包本身不完整，而 manifest/hash 缺失还会让
+    # 后续无法校验"这份正文出自哪份配置"。
+    #
+    # 财务勾稽不通同理：十三表与正文都建立在那份快照上，继续用只会把错误基准
+    # 扩散到全部工件。
+    "delivery_manifest_missing",
+    "report_profile_hash_missing",
+    "finance_run_consistency_failed",
+    # 审查根本没跑起来 / 没给出可采信结论。缺席的结论不是通过的结论：
+    # 判为质量项就等于"审查服务坏了"被读成"交付合格"（fail-open）。
+    "review_process_acceptance_target_missing",
+    "review_process_acceptance_review_id_missing",
+    "review_technical_verdict_missing",
 })
 
 #: 刻意不列为阻断项的码，连同原因——避免以后有人"顺手补全"又把闸门弄回去。
@@ -97,6 +111,41 @@ BLOCKING_PREFIXES: tuple[str, ...] = (
     "controlled_assumption_release_forbidden",
     "source_reconstructed_release_forbidden",
     "technical_fixture_release_forbidden",
+    "formal_lineage",
+    "formal_project_context",
+    "formal_source",
+    "formal_finance",
+    "formal_tables",
+    "formal_report",
+    "formal_review",
+    # 带字段/对象后缀的零材料交付完整性码：
+    # ``required_component_missing:report_docx``、
+    # ``delivery_lineage_missing:research_package_id``。
+    #
+    # 刻意判为阻断而不是限制项：方案要求"存在口径、hash、谱系或组件缺失"时
+    # 进 failed/blocked。此前它们落到"未知码默认不阻断"，于是 DOCX 与 XLSX
+    # 都没产出的运行照样报 passed_with_limitations 并走到 formal=eligible。
+    "required_component_missing",
+    "delivery_lineage_missing",
+    # 带原因后缀的审查启动失败码：
+    # ``review_process_acceptance_unavailable:OSError``、
+    # ``review_process_acceptance_start_failed:<code>``、
+    # ``review_suite_draft_failed:<code>``、``review_suite_confirm_failed:<code>``、
+    # ``review_process_acceptance_prepare_failed:<code>``、
+    # ``review_technical_verdict_not_pass:<verdict>``。
+    #
+    # 全部 fail-closed。刻意**不**含 ``review_quality_issue:``——那是审查真的跑完
+    # 之后报出的质量提示，按质量项处理才对；也不含
+    # ``review_suite_role_missing:`` —— 零材料必然缺 base_data，属结构性披露。
+    "review_process_acceptance_unavailable",
+    "review_process_acceptance_start_failed",
+    "review_process_acceptance_prepare_failed",
+    "review_suite_draft_failed",
+    "review_suite_confirm_failed",
+    "review_technical_verdict_not_pass",
+    # 使 verdict 非 pass 的**残余**原因（已排除零材料结构性那三条）。
+    # 与上面 ``review_technical_verdict_not_pass`` 成对出现，指名根因。
+    "review_incomplete_reason",
 )
 
 

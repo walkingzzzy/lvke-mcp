@@ -1,0 +1,350 @@
+{
+  "schema_version": "lvke-report-profile.v1",
+  "profile_id": "energy-gov10",
+  "template_set_id": "lvke-report.energy-gov10.v1",
+  "version": "1.0.0",
+  "status": "active",
+  "label": "能源与公用事业政府投资可研（发改委2023十章）",
+  "report_type": "gov10",
+  "required_components": [
+    "report_markdown",
+    "report_docx",
+    "finance_thirteen_tables",
+    "finance_xlsx",
+    "finance_csv",
+    "evidence_register",
+    "assumption_register"
+  ],
+  "required_fields": [
+    "project_name",
+    "region",
+    "industry_label",
+    "total_investment_wan",
+    "annual_revenue_wan",
+    "build_period_months"
+  ],
+  "disclosure": {
+    "preview_banner": "技术预估版。能源项目在甲方零材料条件下生成，装机规模、利用小时、上网电价与并网条件全部为受控假设。",
+    "promoted_banner": "本报告依据拟定模板包晋升的 sim_a_formal 资料生成；模拟来源已在 lineage 与 manifest 中保留。",
+    "assumption_notice": "装机容量、发电量、上网电价与并网条件未经资源评估、并网协议与购售电合同核定前，均为 controlled_assumption。",
+    "skipped_notice": "以下字段用户选择跳过，已按受控假设取值并计入交付限制："
+  },
+  "prose": {
+    "validation_condition": "甲方原始材料缺失，结果按受控假设范围校验；补充材料后必须重算并校验 input hash、lineage 与数值一致性",
+    "no_public_sources": "- 未形成可固化的公开来源快照；资源条件与上网电价已回退为受控假设",
+    "finance_tables_manifest": "已从同一 FinanceRun 确定性生成十三张主表、13 个 CSV 与 XLSX；表格完整性由 manifest、文件 hash 与跨表一致性校验共同确定。",
+    "no_blockers": "- 无技术链阻断项",
+    "no_limitations": "- 无非阻断质量限制",
+    "no_skipped_fields": "- 无用户跳过字段",
+    "empty_section": "（本节数据槽位在当前输入快照下均未形成）",
+    "missing_value": "未形成",
+    "assumption_boundary_title": "附：受控假设边界"
+  },
+  "tables": {
+    "assumption_table": {
+      "columns": [
+        {
+          "header": "参数",
+          "field": "name",
+          "align": "left"
+        },
+        {
+          "header": "当前值",
+          "field": "value",
+          "align": "right"
+        },
+        {
+          "header": "单位",
+          "field": "unit",
+          "align": "left"
+        },
+        {
+          "header": "来源类型",
+          "field": "source_type",
+          "align": "left"
+        },
+        {
+          "header": "置信度",
+          "field": "confidence",
+          "align": "right"
+        },
+        {
+          "header": "已确认",
+          "field": "confirmed",
+          "align": "left",
+          "boolean_labels": [
+            "是",
+            "否"
+          ]
+        },
+        {
+          "header": "正式使用条件",
+          "field": "validation_condition",
+          "align": "left"
+        }
+      ]
+    }
+  },
+  "fragments": {
+    "finance_lineage": [
+      {
+        "label": "FinanceRun",
+        "field": "run_id"
+      },
+      {
+        "label": "模型版本",
+        "field": "model_version"
+      },
+      {
+        "label": "模板版本",
+        "field": "template_version"
+      },
+      {
+        "label": "spec hash",
+        "field": "spec_hash"
+      },
+      {
+        "label": "input hash",
+        "field": "input_hash"
+      },
+      {
+        "label": "财务勾稽状态",
+        "field": "consistency_ok"
+      }
+    ]
+  },
+  "chapters": [
+    {
+      "title": "概述",
+      "subs": [
+        {
+          "title": "项目概况",
+          "slots": [
+            "project_name",
+            "region",
+            "industry_label",
+            "project_nature"
+          ]
+        },
+        {
+          "title": "编制依据和研究范围",
+          "slots": [
+            "material_state",
+            "evidence_policy",
+            "assurance_level"
+          ]
+        },
+        {
+          "title": "主要结论和建议",
+          "slots": [
+            "project_irr",
+            "project_npv",
+            "payback_years",
+            "blockers"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "项目建设背景和必要性",
+      "subs": [
+        {
+          "title": "能源规划与政策符合性",
+          "slots": [
+            "public_research_sources"
+          ]
+        },
+        {
+          "title": "项目建设背景",
+          "slots": [
+            "public_research_status",
+            "region"
+          ]
+        },
+        {
+          "title": "项目建设的必要性",
+          "slots": [
+            "industry_applicability"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "资源条件、市场需求与建设规模",
+      "subs": [
+        {
+          "title": "资源条件与电力市场需求评估",
+          "slots": [
+            "regional_adjustment",
+            "public_research_sources"
+          ]
+        },
+        {
+          "title": "装机规模与发电量",
+          "slots": [
+            "installed_capacity_mw",
+            "annual_generation_mwh",
+            "utilization_hours"
+          ]
+        },
+        {
+          "title": "上网电价与消纳",
+          "slots": [
+            "tariff_yuan_per_kwh",
+            "annual_revenue_wan",
+            "revenue_model"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "站址选择与并网条件",
+      "subs": [
+        {
+          "title": "站址与用地",
+          "slots": [
+            "region",
+            "regional_adjustment"
+          ]
+        },
+        {
+          "title": "并网接入方案",
+          "slots": [
+            "investment_structure"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "工程与设备方案",
+      "subs": [
+        {
+          "title": "主要设备与技术方案",
+          "slots": [
+            "investment_structure"
+          ]
+        },
+        {
+          "title": "建设工期与实施进度",
+          "slots": [
+            "build_period_months",
+            "operating_period_years"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "运营方案",
+      "subs": [
+        {
+          "title": "运维模式与定员",
+          "slots": [
+            "labor_rule"
+          ]
+        },
+        {
+          "title": "运营成本构成",
+          "slots": [
+            "cost_structure"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "投资估算与资金筹措",
+      "subs": [
+        {
+          "title": "投资估算与单位造价",
+          "slots": [
+            "total_investment_wan",
+            "investment_structure"
+          ]
+        },
+        {
+          "title": "资金筹措方案",
+          "slots": [
+            "loan_ratio",
+            "loan_rate"
+          ]
+        },
+        {
+          "title": "十三表交付",
+          "slots": [
+            "finance_tables_manifest"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "财务分析与评价",
+      "subs": [
+        {
+          "title": "财务指标",
+          "slots": [
+            "project_irr",
+            "project_npv",
+            "capital_irr",
+            "payback_years"
+          ]
+        },
+        {
+          "title": "财务勾稽与模型血缘",
+          "slots": [
+            "finance_lineage"
+          ]
+        },
+        {
+          "title": "电价与利用小时敏感性",
+          "slots": [
+            "sensitivity_variables"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "风险分析与对策",
+      "subs": [
+        {
+          "title": "资源与消纳风险",
+          "slots": [
+            "sensitivity_variables",
+            "assumption_table"
+          ]
+        },
+        {
+          "title": "风险对策",
+          "slots": [
+            "assumption_replacement_conditions"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "结论与建议",
+      "subs": [
+        {
+          "title": "研究结论",
+          "slots": [
+            "project_irr",
+            "consistency_ok"
+          ]
+        },
+        {
+          "title": "资料缺口与后续行动",
+          "slots": [
+            "blockers",
+            "skipped_fields",
+            "release_limitations"
+          ]
+        },
+        {
+          "title": "验证边界",
+          "slots": [
+            "material_state",
+            "validation_condition"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -7,8 +7,14 @@ import hashlib
 import json
 import time
 
-from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.adapters.finance_model_repository import BASIS_OF_ESTIMATE_STORE, IDEMPOTENCY_STORE, SPEC_STORE
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    SIM_A_FORMAL,
+    validate_finance_run,
+    validate_same_formal_lineage,
+)
+from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certified
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
 
@@ -79,6 +85,17 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 latest_payload = (latest or {}).get("payload") or {}
                 if latest is not None and latest_payload.get("in_progress") is not True:
                     replay = json.loads(json.dumps(latest_payload.get("result") or {}))
+                    if replay.get("evidence_policy") == SIM_A_FORMAL:
+                        try:
+                            validate_finance_run(workspace_id, str(replay.get("run_id") or ""))
+                        except FormalLineageError as exc:
+                            return _err_env(
+                                f"{SERVER_NAME}.{exc.code}",
+                                exc.message,
+                                status="blocked",
+                                blockers=[exc.code],
+                                run_id=replay.get("run_id"),
+                            )
                     replay.update({"replayed": True, "reused": True})
                     return replay
             return _err_env(
@@ -93,6 +110,17 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 replayed=False,
             )
         replay = json.loads(json.dumps(saved.get("result") or {}))
+        if replay.get("evidence_policy") == SIM_A_FORMAL:
+            try:
+                validate_finance_run(workspace_id, str(replay.get("run_id") or ""))
+            except FormalLineageError as exc:
+                return _err_env(
+                    f"{SERVER_NAME}.{exc.code}",
+                    exc.message,
+                    status="blocked",
+                    blockers=[exc.code],
+                    run_id=replay.get("run_id"),
+                )
         replay.update({"replayed": True, "reused": True})
         return replay
     spec_id = str(args.get("spec_id") or "").strip()
@@ -112,6 +140,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
     boe_id = str(args.get("basis_of_estimate_id") or "").strip()
     boe_hash = ""
     boe_payload: dict[str, Any] = {}
+    boe: dict[str, Any] | None = None
     if mode == "review_candidate":
         boe = BASIS_OF_ESTIMATE_STORE.get(workspace_id, boe_id) if boe_id else _latest_formal_boe(workspace_id, spec_id)
         boe_payload = boe.get("payload") if isinstance((boe or {}).get("payload"), dict) else {}
@@ -126,6 +155,31 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             preflight_quality_issues.append("basis_of_estimate_incomplete")
         elif boe is not None:
             boe_hash = boe["basis_hash"]
+    canonical_lineage: dict[str, Any] = {}
+    parent_policies = {
+        str(item.get("evidence_policy") or "")
+        for item in (payload, boe_payload)
+        if isinstance(item, dict) and item
+    }
+    if SIM_A_FORMAL in parent_policies:
+        if boe is None or stored is None or parent_policies != {SIM_A_FORMAL}:
+            return _err_env(
+                f"{SERVER_NAME}.formal_lineage_parent_mismatch",
+                "sim_a_formal FinanceRun 必须绑定同一工作区的正式 FinanceSpec 与 BoE",
+                status="blocked",
+                blockers=["formal_lineage_parent_mismatch"],
+                run_id=None,
+            )
+        try:
+            canonical_lineage = validate_same_formal_lineage(workspace_id, [stored, boe])
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+                blockers=[exc.code],
+                run_id=None,
+            )
     if spec is None and not force_flat:
         preflight_quality_issues.append("finance_spec_missing_using_flat_baseline")
     input_revision = args.get("input_revision") if isinstance(args.get("input_revision"), dict) else payload.get("input_revision")
@@ -301,20 +355,10 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             ),
             selected_scenario_id=str(args.get("selected_scenario_id") or "base"),
             evidence_metadata={
-                "evidence_policy": str(boe_payload.get("evidence_policy") or payload.get("evidence_policy") or "formal_evidence"),
-                # Run 不能凭 BoE/spec 的自报字段认证项目事实：两者都必须是
-                # formal_evidence 且自身已认证，Run 才可继承认证。
-                "project_fact_certified": project_fact_may_be_certified(
-                    str(
-                        boe_payload.get("evidence_policy")
-                        or payload.get("evidence_policy")
-                        or "formal_evidence"
-                    ),
-                    own_qualification_passed=True,
-                    parents=[
-                        item for item in (boe_payload, payload) if isinstance(item, dict)
-                    ],
-                ),
+                **canonical_lineage,
+                "evidence_policy": str(canonical_lineage.get("evidence_policy") or boe_payload.get("evidence_policy") or payload.get("evidence_policy") or "formal_evidence"),
+                "evidence_origin": str(canonical_lineage.get("evidence_origin") or boe_payload.get("evidence_origin") or payload.get("evidence_origin") or ""),
+                "project_fact_certified": bool(canonical_lineage.get("project_fact_certified", False)),
                 "reconstruction_records": list(boe_payload.get("reconstruction_records") or payload.get("reconstruction_records") or []),
                 "reconstructed_source_ids": list(boe_payload.get("reconstructed_source_ids") or payload.get("reconstructed_source_ids") or []),
                 "unresolved_inputs": list(boe_payload.get("unresolved_inputs") or payload.get("unresolved_inputs") or []),
@@ -407,6 +451,15 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             reused=False,
             idempotency_expires_at=expires_at,
         )
+    except FormalLineageError as exc:
+        result = _err_env(
+            f"{SERVER_NAME}.{exc.code}",
+            exc.message,
+            status="blocked",
+            blockers=[exc.code],
+            run_id=None,
+        )
+        run_id = None
     except Exception:  # noqa: BLE001
         result = _exception_env(
             "finance_run_model failed",
@@ -486,3 +539,42 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
             f"{SERVER_NAME}.get_failed",
             "读取财务 run 失败",
         )
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BASIS_OF_ESTIMATE_STORE",
+    "FormalLineageError",
+    "IDEMPOTENCY_STORE",
+    "SERVER_NAME",
+    "SIM_A_FORMAL",
+    "SPEC_STORE",
+    "_active_idempotency_record",
+    "_blocked_run",
+    "_blocking_rules",
+    "_err_env",
+    "_exception_env",
+    "_expires_at",
+    "_latest_formal_boe",
+    "_missing_run",
+    "_ok_env",
+    "_rail_transit_missing_inputs",
+    "_revenue_input_complete",
+    "_run_uri",
+    "_str_list",
+    "_workspace_id",
+    "check_finance_run_scale",
+    "get_run",
+    "hashlib",
+    "json",
+    "ok",
+    "project_fact_may_be_certified",
+    "run_model",
+    "sha256_json",
+    "time",
+    "validate_finance_run",
+    "validate_same_formal_lineage",
+]

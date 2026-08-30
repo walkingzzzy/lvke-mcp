@@ -12,6 +12,11 @@ from lvke_mcp.runtime.evidence_qualification import (
     SIM_A_FORMAL,
     project_fact_may_be_certified,
 )
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_formal_record,
+    validate_same_formal_lineage,
+)
 from lvke_mcp.runtime.storage import (
     JSONArtifactStore,
     paginate_resource_entries,
@@ -111,8 +116,12 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             "Basis of Estimate 只能绑定同作用域已确认 FinanceSpec",
             status="blocked",
         )
+    sim_a_formal = spec_payload.get("evidence_policy") == SIM_A_FORMAL
     bound_evidence_ids = set(_str_list(spec_payload.get("evidence_pack_ids")))
-    if not set(evidence_ids) <= bound_evidence_ids:
+    if (
+        (sim_a_formal and set(evidence_ids) != bound_evidence_ids)
+        or (not sim_a_formal and not set(evidence_ids) <= bound_evidence_ids)
+    ):
         return _err_env(
             f"{SERVER_NAME}.evidence_basis_mismatch",
             "BoE EvidencePack 必须已绑定到 FinanceSpec",
@@ -128,6 +137,27 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
                 status="blocked",
             )
         evidence_records.append(record)
+    formal_lineage: dict[str, Any] = {}
+    if sim_a_formal:
+        formal_parents: list[dict[str, Any]] = [spec_record, *evidence_records]
+        fact_pack_id = str(spec_payload.get("fact_pack_id") or "")
+        if fact_pack_id:
+            fact_pack_record = FACT_PACK_STORE.get(wsid, fact_pack_id)
+            if fact_pack_record is None:
+                return _err_env(
+                    f"{SERVER_NAME}.fact_pack_not_found",
+                    "BoE 绑定的正式 FactPack 不存在或跨工作区",
+                    status="blocked",
+                )
+            formal_parents.append(fact_pack_record)
+        try:
+            formal_lineage = validate_same_formal_lineage(wsid, formal_parents)
+        except FormalLineageError as exc:
+            return _err_env(
+                f"{SERVER_NAME}.{exc.code}",
+                exc.message,
+                status="blocked",
+            )
     planning_records = []
     for object_id in planning_ids:
         record = _planning_record(wsid, object_id)
@@ -164,6 +194,33 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             source_payload = source_records[source_object_id].get("payload") or {}
             source_track = str(source_payload.get("evidence_track") or "")
             declared_eligibility = str(entry.get("evidence_eligibility") or "")
+            if sim_a_formal:
+                try:
+                    source_lineage = validate_formal_record(
+                        wsid,
+                        source_records[source_object_id],
+                    )
+                except FormalLineageError as exc:
+                    field_errors.append({
+                        "path": f"/entries/{index}/source_object_id",
+                        "code": exc.code,
+                    })
+                else:
+                    if source_lineage != formal_lineage:
+                        field_errors.append({
+                            "path": f"/entries/{index}/source_object_id",
+                            "code": "formal_lineage_mixed_promotions",
+                        })
+                if declared_eligibility != SIM_A_FORMAL:
+                    field_errors.append({
+                        "path": f"/entries/{index}/evidence_eligibility",
+                        "code": "formal_eligibility_must_be_server_derived",
+                    })
+                if str(entry.get("content_hash") or "") != str(source_records[source_object_id].get("content_hash") or ""):
+                    field_errors.append({
+                        "path": f"/entries/{index}/content_hash",
+                        "code": "source_content_hash_mismatch",
+                    })
             eligible_tracks = {
                 "formal_evidence": {"real", "formal_evidence"},
                 "source_reconstructed": {"source_reconstructed"},
@@ -265,6 +322,7 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         else FORMAL_EVIDENCE
     )
     payload = {
+        **formal_lineage,
         "object_type": "BasisOfEstimate",
         "spec_id": spec_id,
         "spec_hash": spec_payload.get("spec_hash"),
@@ -274,11 +332,11 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
         "evidence_pack_ids": evidence_ids,
         "technical_ready": technical_ready,
         "formal_ready": formal_ready,
-        "evidence_policy": boe_policy,
-        "evidence_origin": "sim_a_template" if boe_policy == SIM_A_FORMAL else spec_payload.get("evidence_origin"),
+        "evidence_policy": SIM_A_FORMAL if formal_lineage else boe_policy,
+        "evidence_origin": formal_lineage.get("evidence_origin") if formal_lineage else spec_payload.get("evidence_origin"),
         "project_fact_certified": project_fact_may_be_certified(
-            boe_policy,
-            own_qualification_passed=bool(formal_ready and all_certifying),
+            SIM_A_FORMAL if formal_lineage else boe_policy,
+            own_qualification_passed=bool(formal_lineage) if sim_a_formal else bool(formal_ready and all_certifying),
             parents=[
                 {
                     "evidence_policy": str(entry.get("evidence_eligibility") or ""),
@@ -328,6 +386,7 @@ def _tool_build_basis_of_estimate(args: dict) -> dict:
             "fact_pack_basis_hash": spec_payload.get("fact_pack_basis_hash"),
             "fact_pack_hash": spec_payload.get("fact_pack_hash"),
             "content_fingerprint": content_fingerprint,
+            "formal_promotion": formal_lineage.get("formal_promotion"),
         },
     )
     return _ok_env(
@@ -741,3 +800,55 @@ def _install_get_analysis_aggregate(
     )
     for name in legacy:
         server._tools.pop(name)  # noqa: SLF001
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "Any",
+    "BALANCE_SHEET_STORE",
+    "BASIS_OF_ESTIMATE_STORE",
+    "EVIDENCE_STORE",
+    "FACT_PACK_STORE",
+    "FORMAL_EVIDENCE",
+    "FormalLineageError",
+    "JSONArtifactStore",
+    "MONTE_CARLO_STORE",
+    "OfficialStdioServer",
+    "SERVER_NAME",
+    "SIM_A_FORMAL",
+    "SPEC_STORE",
+    "_GET_ANALYSIS_BRANCHES",
+    "_err_env",
+    "_exception_env",
+    "_install_get_analysis_aggregate",
+    "_latest_formal_boe",
+    "_load_consistent_run",
+    "_ok_env",
+    "_output_schema",
+    "_planning_record",
+    "_required_boe_pointers",
+    "_resolve_analysis_resource",
+    "_str_list",
+    "_tool_build_balance_sheet",
+    "_tool_build_basis_of_estimate",
+    "_tool_get_analysis",
+    "_tool_get_balance_sheet",
+    "_tool_get_basis_of_estimate",
+    "_tool_get_monte_carlo",
+    "_tool_list_analyses",
+    "_tool_read_analysis_resource",
+    "_tool_run_monte_carlo",
+    "_unique_strings",
+    "_ws",
+    "hashlib",
+    "ok",
+    "paginate_resource_entries",
+    "project_fact_may_be_certified",
+    "reconstruction_errors",
+    "sha256_json",
+    "types",
+    "validate_formal_record",
+    "validate_same_formal_lineage",
+]

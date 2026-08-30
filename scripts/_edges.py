@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from module_split import outline, read_rev, referenced, bound_names, node_name  # noqa: E402
+from module_split import outline, read_rev, referenced, bound_names  # noqa: E402
 
 cfg = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
 text = read_rev(cfg.get("rev", "HEAD"), cfg["source"])

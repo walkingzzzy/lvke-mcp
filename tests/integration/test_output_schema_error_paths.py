@@ -131,7 +131,11 @@ class SuccessPathContractStillEnforcedTest(unittest.TestCase):
               "indexed_document_count": 1}),
             ("lvke_mcp.servers.lvke_zero_material_delivery.server", "delivery_status",
              {"query_success": True, "domain_status": "ready", "delivery_state": "ready",
-              "artifacts": [], "technical_preview_ready": False}),
+              "artifacts": [], "technical_preview_ready": False,
+              # 分级验收三段状态同属成功路径硬契约。
+              "acceptance": {"technical": {"status": "passed"},
+                             "internal": {"status": "pending"},
+                             "formal": {"status": "blocked"}}}),
         )
         for module, tool, business_fields in expectations:
             schema = self._schema(module, tool)

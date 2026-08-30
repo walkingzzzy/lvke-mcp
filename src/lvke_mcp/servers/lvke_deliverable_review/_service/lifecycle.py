@@ -5,6 +5,10 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    validate_object_formal_lineage,
+)
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json, utc_now
 from lvke_mcp.servers.lvke_deliverable_review.contracts import DEPLOYMENT_MODES
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
@@ -119,10 +123,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         mode = str(args.get("mode") or "quick")
         execution = str(args.get("execution") or ("async" if mode == "deep" else "sync"))
         deployment_mode = str(args.get("deployment_mode") or "enforced")
-        if mode not in {"quick", "deep"}:
-            return _blocked("review_mode_invalid", "mode 必须为 quick 或 deep")
+        if mode not in {"quick", "standard", "deep"}:
+            return _blocked("review_mode_invalid", "mode 必须为 quick、standard 或 deep")
         if execution not in {"sync", "async"} or (mode == "quick" and execution == "async"):
-            return _blocked("review_execution_invalid", "快速审查必须同步；深度审查支持同步或异步")
+            return _blocked("review_execution_invalid", "快速审查必须同步；标准和深度审查支持同步或异步")
         if deployment_mode not in DEPLOYMENT_MODES:
             return _blocked(
                 "review_deployment_mode_invalid",
@@ -183,6 +187,15 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 candidate_payload
                 if isinstance(candidate_payload, dict) else None
             )
+            if (
+                payload is not None
+                and str((payload.get("target") or {}).get("target_type") or "") == "review_package"
+                and mode != str(payload.get("review_profile") or "")
+            ):
+                return _blocked(
+                    "review_profile_package_mismatch",
+                    "review_start.mode 必须与冻结 ReviewPackage 的 review_profile 一致",
+                )
         if not existing_events:
             if preparation is None or payload is None:
                 if preparation_integrity_reasons and not set(
@@ -197,6 +210,29 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                         integrity_reasons=preparation_integrity_reasons,
                     )
                 return _blocked("preparation_not_found", _message("preparation_not_found"))
+            evidence_metadata = payload.get("evidence_metadata")
+            if (
+                isinstance(evidence_metadata, dict)
+                and evidence_metadata.get("evidence_policy") == "sim_a_formal"
+            ):
+                try:
+                    canonical_lineage = validate_object_formal_lineage(
+                        workspace_id,
+                        evidence_metadata,
+                    )
+                except FormalLineageError as exc:
+                    return _blocked(
+                        exc.code,
+                        f"审查启动前正式 promotion 谱系校验失败：{exc.message}",
+                    )
+                if canonical_lineage != {
+                    key: evidence_metadata.get(key)
+                    for key in canonical_lineage
+                }:
+                    return _blocked(
+                        "formal_lineage_metadata_mismatch",
+                        "审查准备对象中的正式 promotion 元数据不是规范值",
+                    )
             created = {
                 "review_preparation_id": preparation_id,
                 "preparation_basis_hash": preparation.get("basis_hash"),
@@ -213,6 +249,8 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 "legacy_gate_snapshot": payload.get("legacy_gate_snapshot"),
                 "evidence_metadata": payload.get("evidence_metadata"),
                 "mode": mode,
+                "review_profile": payload.get("review_profile") or mode,
+                "review_mode": payload.get("review_mode") or "internal",
                 "execution": execution,
                 "deployment_mode": deployment_mode,
                 "engine_version": payload.get("engine_version"),

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any
 
@@ -28,13 +29,17 @@ def _snapshot_document(
         or record.get("created_at")
         or ""
     )
+    content = str(payload.get("content") or "")
+    content_hash = str(payload.get("external_content_hash") or "")
+    if content and not content_hash:
+        content_hash = "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
     return {
         "source_id": source_id,
         "source_type": "web_snapshot",
         "title": str(payload.get("title") or payload.get("url") or source_id),
         "url": str(payload.get("url") or ""),
-        "content": str(payload.get("content") or ""),
-        "content_hash": record.get("content_hash"),
+        "content": content,
+        "content_hash": content_hash,
         "fetched_at": fetched_at,
         "status": record.get("status") or "ok",
         "formal_use_allowed": bool(payload.get("formal_use_allowed", False)),
@@ -48,7 +53,7 @@ def _snapshot_document(
                 "kind": "web_snapshot",
                 "source_id": source_id,
                 "url": str(payload.get("url") or ""),
-                "content_hash": record.get("content_hash"),
+                "content_hash": content_hash,
                 "fetched_at": fetched_at,
             }
         ],
@@ -96,6 +101,21 @@ def _file_document(
             if isinstance(value, str) and value.strip():
                 text_parts.append(value.strip())
                 break
+    formal_metadata: dict[str, Any] = {}
+    lineage_error = ""
+    if str(record.get("evidence_policy") or "") == "sim_a_formal":
+        from lvke_mcp.runtime.formal_promotion import (
+            FormalLineageError,
+            validate_formal_promotion,
+        )
+
+        try:
+            formal_metadata = validate_formal_promotion(
+                workspace_id,
+                str(record.get("formal_promotion_id") or ""),
+            )
+        except (FormalLineageError, ValueError) as exc:
+            lineage_error = getattr(exc, "code", "formal_lineage_invalid")
     return {
         "source_id": file_id,
         "source_type": "controlled_file",
@@ -107,9 +127,11 @@ def _file_document(
         "validation_status": deterministic_status,
         "formal_use_allowed": formal_use_allowed,
         "formal_use_decision": formal_use_decision,
-        "evidence_policy": str(record.get("evidence_policy") or "candidate"),
-        "evidence_origin": str(record.get("evidence_origin") or ""),
-        "project_fact_certified": bool(record.get("project_fact_certified")),
+        "evidence_policy": str(formal_metadata.get("evidence_policy") or record.get("evidence_policy") or "candidate"),
+        "evidence_origin": str(formal_metadata.get("evidence_origin") or record.get("evidence_origin") or ""),
+        "project_fact_certified": bool(formal_metadata.get("project_fact_certified")),
+        "formal_promotion": formal_metadata.get("formal_promotion"),
+        "formal_lineage_error": lineage_error,
         "ocr_formal_use_decision": str(
             analysis.get("ocr_formal_use_decision")
             or formal_use_decision

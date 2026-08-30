@@ -151,6 +151,8 @@ def _build_tables(
             "net_profit_wan": _coalesce_num(row, "net_profit_wan", "profit_wan"),
         } for row in annual],
         "balance_sheet": [_balance_sheet_row(row, year_end_monthly) for row in annual],
+        "monthly_income_statement": _rows(result.get("monthly_income_statement")),
+        "monthly_balance_sheet": _rows(result.get("monthly_balance_sheet")),
         "project_cashflow": [{key: row.get(key) for key in (
             "year", "year_index", "period_start", "period_end", "period_label", "period_basis",
             "revenue_wan", "operating_cost_wan", "income_tax_wan", "maintenance_capex_wan",

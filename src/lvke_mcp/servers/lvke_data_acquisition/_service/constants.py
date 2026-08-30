@@ -36,3 +36,27 @@ _SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]{2,}")
 _SEARCH_RELEVANCE_THRESHOLD = 0.25
 _SEARCH_SLOTS = threading.BoundedSemaphore(4)
 _SEARCH_PROVIDER = "tavily-hikari"
+
+# 门面模块的公开面。显式声明而不是靠"碰巧 import 了"——API 快照门禁
+# (tests/integration/test_refactor_guardrails.py) 要求这些 re-export 保持
+# 可达,而 ruff F401 会把它们判成未使用。写成 __all__ 让两个门禁同时成立,
+# 也让"哪些名字是刻意对外的"可读。
+__all__ = [
+    "COLLECTION_STORE",
+    "DISCOVERY_STORE",
+    "EXTERNAL_RECEIPT_SECRET_ENV",
+    "RESOURCE_STORES",
+    "SEARCH_STORE",
+    "SOURCE_STORE",
+    "URL_AUDIT_STORE",
+    "VISUAL_CAPTURE_STORE",
+    "_ALLOWED_EXTERNAL_EXTRACT_TOOLS",
+    "_EXTERNAL_RECEIPT_SECRET_ENV",
+    "_SEARCH_PROVIDER",
+    "_SEARCH_RELEVANCE_THRESHOLD",
+    "_SEARCH_SLOTS",
+    "_SEARCH_TOKEN_RE",
+    "external_receipt_secret",
+    "re",
+    "threading",
+]

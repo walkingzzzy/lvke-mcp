@@ -83,22 +83,27 @@ def _commit_and_parse(
     expected_sha256: str = "",
     expected_size: int | None = None,
     parse_immediately: bool = True,
-    evidence_policy: str = "",
-    evidence_origin: str = "",
-    project_fact_certified: bool = False,
+    formal_binding: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     try:
-        record = source_api.commit_staged_source_file(
+        commit = (
+            source_api.commit_promoted_source_file
+            if formal_binding
+            else source_api.commit_staged_source_file
+        )
+        keyword_args: dict[str, Any] = {
+            "idempotency_key": idempotency_key,
+            "expected_sha256": expected_sha256,
+            "expected_size": expected_size,
+        }
+        if formal_binding:
+            keyword_args.update(formal_binding)
+        record = commit(
             workspace_id,
             staged_path,
             original_filename,
             declared_mime,
-            idempotency_key=idempotency_key,
-            expected_sha256=expected_sha256,
-            expected_size=expected_size,
-            evidence_policy=evidence_policy,
-            evidence_origin=evidence_origin,
-            project_fact_certified=project_fact_certified,
+            **keyword_args,
         )
     except source_api.SourceFileError as exc:
         return _from_source_exception(exc)
@@ -168,6 +173,9 @@ def import_content(
     evidence_origin: str = "",
     project_fact_certified: bool = False,
 ) -> dict[str, Any]:
+    # Python API compatibility only. These fields are absent from the public
+    # MCP schema and cannot influence the candidate-only import path.
+    del evidence_policy, evidence_origin, project_fact_certified
     raw, error = _decode_content(content_base64, limit=DIRECT_CONTENT_LIMIT)
     if error:
         return error
@@ -182,9 +190,46 @@ def import_content(
         expected_sha256=expected_sha256,
         expected_size=len(raw),
         parse_immediately=parse_immediately,
-        evidence_policy=evidence_policy,
-        evidence_origin=evidence_origin,
-        project_fact_certified=project_fact_certified,
+    )
+
+
+def import_promoted_content(
+    workspace_id: str,
+    *,
+    original_filename: str,
+    declared_mime: str,
+    content_base64: str,
+    idempotency_key: str,
+    expected_sha256: str,
+    expected_file_id: str,
+    promotion_id: str,
+    template_pack_id: str,
+    requirement_id: str,
+    kind: str,
+) -> dict[str, Any]:
+    """Private zero-material promotion path, deliberately absent from MCP tools."""
+
+    raw, error = _decode_content(content_base64, limit=DIRECT_CONTENT_LIMIT)
+    if error:
+        return error
+    assert raw is not None
+    staged = _stage_bytes(workspace_id, raw)
+    return _commit_and_parse(
+        workspace_id,
+        staged,
+        original_filename=original_filename,
+        declared_mime=declared_mime,
+        idempotency_key=idempotency_key,
+        expected_sha256=expected_sha256,
+        expected_size=len(raw),
+        parse_immediately=True,
+        formal_binding={
+            "expected_file_id": expected_file_id,
+            "promotion_id": promotion_id,
+            "template_pack_id": template_pack_id,
+            "requirement_id": requirement_id,
+            "kind": kind,
+        },
     )
 
 

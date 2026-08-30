@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from lvke_mcp.adapters.report_repository import PREPARATION_STORE, REVISION_STORE
+from lvke_mcp.runtime.formal_promotion import FormalLineageError, SIM_A_FORMAL
 
 
 from .base import (
@@ -60,6 +61,17 @@ def propose(args: dict[str, Any]) -> dict[str, Any]:
         if isinstance(preparation.get("payload"), dict)
         else {}
     )
+    if str(preparation_payload.get("evidence_policy") or "") == SIM_A_FORMAL:
+        from lvke_mcp.domains.reports.formal_lineage import (
+            validate_report_preparation_lineage,
+            validate_report_revision_lineage,
+        )
+
+        try:
+            validate_report_preparation_lineage(workspace_id, preparation)
+            validate_report_revision_lineage(workspace_id, revision)
+        except FormalLineageError as exc:
+            return _failure(exc.code, f"报告提案前正式 promotion 谱系无效：{exc.message}")
     verified_basis = {
         "report_preparation_id": preparation_id,
         "basis_hash": basis_hash,
@@ -182,6 +194,17 @@ def apply(
             "proposal_basis_stale_or_mismatch",
             "提案的 preparation、basis_hash、revision 或 outline 绑定已失效",
         )
+    if str((preparation_payload or {}).get("evidence_policy") or "") == SIM_A_FORMAL:
+        from lvke_mcp.domains.reports.formal_lineage import (
+            validate_report_preparation_lineage,
+            validate_report_revision_lineage,
+        )
+
+        try:
+            validate_report_preparation_lineage(workspace_id, preparation)
+            validate_report_revision_lineage(workspace_id, revision)
+        except FormalLineageError as exc:
+            return _failure(exc.code, f"报告应用前正式 promotion 谱系无效：{exc.message}")
 
     if basis.get("patch_scope") == "section":
         section_id = str(basis.get("section_id") or "")

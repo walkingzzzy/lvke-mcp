@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse, urlunparse
 

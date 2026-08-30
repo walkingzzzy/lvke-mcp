@@ -8,6 +8,7 @@ from typing import Any
 
 from lvke_mcp.runtime.storage import sha256_json
 
+from .acceptance import empty_acceptance as _empty_acceptance
 from .base import (
     RUN_STORE,
     SERVICE_NAME,
@@ -49,6 +50,14 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
             scored.append((len(set(matched)), route, sorted(set(matched))))
 
     if explicit_route is not None:
+        compatibility_warnings: list[str] = []
+        if explicit_route["code"] == "environment_utilities" and any(
+            keyword.lower() in haystack for keyword in ("光伏", "风电", "储能", "solar", "photovoltaic", "pv")
+        ):
+            energy_route = next((item for item in _ROUTE_RULES if item["code"] == "energy_utilities"), None)
+            if energy_route is not None:
+                explicit_route = energy_route
+                compatibility_warnings.append("environment_utilities_deprecated_for_energy_project")
         matched = sorted(
             {
                 keyword
@@ -63,6 +72,7 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
             "industry_label": explicit_route["label"],
             "factory_industry": explicit_route["factory_industry"],
             "factory_archetype": explicit_route.get("factory_archetype", ""),
+            "asset_type": explicit_route.get("asset_type", "general"),
             "matched_keywords": matched,
             "confidence": min(0.95, 0.58 + 0.08 * len(matched)),
             "explicit_selection": True,
@@ -74,6 +84,7 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
                 for route, keywords in strong_matches
                 if route["code"] != explicit_route["code"]
             ],
+            "compatibility_warnings": compatibility_warnings,
         }
 
     if len(strong_matches) > 1:
@@ -121,6 +132,7 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
         "industry_label": route["label"],
         "factory_industry": route["factory_industry"],
         "factory_archetype": route.get("factory_archetype", ""),
+        "asset_type": route.get("asset_type", "general"),
         "matched_keywords": matched,
         "confidence": min(0.95, 0.58 + 0.08 * len(matched)),
     }
@@ -148,6 +160,11 @@ def _new_run(
     manifest_uri: str = "",
     domain_results: dict[str, Any] | None = None,
     object_id: str | None = None,
+    report_profile: dict[str, Any] | None = None,
+    missing_inputs: list[dict[str, Any]] | None = None,
+    skipped_fields: list[dict[str, Any]] | None = None,
+    acceptance: dict[str, Any] | None = None,
+    release_limitations: list[str] | None = None,
 ) -> dict[str, Any]:
     if stage not in _ACTIVE_STAGES | {"cancelled", "failed"}:
         raise ValueError("invalid delivery stage")
@@ -165,6 +182,13 @@ def _new_run(
         "artifact_uris": sorted(set(artifact_uris or [])),
         "manifest_uri": manifest_uri,
         "domain_results": dict(domain_results or {}),
+        # 所选报告配置随运行冻结：历史运行因此可重放，新配置只影响新运行。
+        "report_profile": dict(report_profile or {}),
+        "missing_inputs": [dict(item) for item in missing_inputs or []],
+        "skipped_fields": [dict(item) for item in skipped_fields or []],
+        # 分级验收状态。缺省是"未开始"而不是空字典：读的人不该从缺字段推断状态。
+        "acceptance": dict(acceptance or _empty_acceptance()),
+        "release_limitations": sorted({str(item) for item in release_limitations or []}),
         "blockers": list(blockers or []),
         "validation_condition": "甲方原始材料缺失，结果按受控假设范围校验",
         "service_version": SERVICE_VERSION,

@@ -353,6 +353,10 @@ def _create(
             "current": True,
             "template_version": template_version,
             "report_revision_id": report_revision_id,
+            "evidence_policy": final_basis.get("evidence_policy"),
+            "evidence_origin": final_basis.get("evidence_origin"),
+            "project_fact_certified": final_basis.get("project_fact_certified"),
+            "formal_promotion": copy.deepcopy(final_basis.get("formal_promotion")),
             "basis_fingerprint": final_basis.get("fingerprint"),
             "basis": final_basis,
             "document_revision_id": (final_basis.get("document") or {}).get(

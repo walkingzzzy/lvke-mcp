@@ -6,6 +6,11 @@ from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.runtime.storage import sha256_json, utc_now
+from lvke_mcp.runtime.formal_promotion import (
+    FormalLineageError,
+    SIM_A_FORMAL,
+    validate_object_formal_lineage,
+)
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_target
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
@@ -40,6 +45,153 @@ from .preparation import (
 from .target_resolve import (
     _resolve_target,
 )
+
+
+def complete_pending_suite_retest(
+    workspace_id: str,
+    child_review_id: str,
+) -> dict[str, Any] | None:
+    """Complete a ReviewPackage retest only after the child seven-domain dossier exists."""
+
+    pending: list[tuple[str, dict[str, Any]]] = []
+    for parent_review_id in STORE.review_ids(workspace_id):
+        events = STORE.events(workspace_id, parent_review_id)
+        intents = {
+            str((row.get("payload") or {}).get("operation_id") or ""): row.get("payload") or {}
+            for row in events
+            if row.get("event_type") == "retest_started"
+        }
+        completed = {
+            str((row.get("payload") or {}).get("operation_id") or "")
+            for row in events
+            if row.get("event_type") == "retest_completed"
+        }
+        for row in events:
+            payload = row.get("payload") or {}
+            operation_id = str(payload.get("operation_id") or "")
+            if (
+                row.get("event_type") == "retest_child_started"
+                and str(payload.get("child_review_id") or "") == child_review_id
+                and operation_id in intents
+                and operation_id not in completed
+            ):
+                pending.append((parent_review_id, intents[operation_id]))
+    if not pending:
+        return None
+    if len(pending) != 1:
+        raise ValueError("retest_operation_conflict")
+
+    parent_review_id, intent = pending[0]
+    operation_id = str(intent.get("operation_id") or "")
+    child = _project(workspace_id, child_review_id, check_freshness=False)
+    if not child.get("formal_suite_review_complete"):
+        return {
+            "status": "pending",
+            "code": "retest_assessment_required",
+            "parent_review_id": parent_review_id,
+            "retest_review_id": child_review_id,
+        }
+
+    parent_basis = intent.get("parent_basis") or {}
+    old_findings = list(parent_basis.get("findings") or [])
+    new_by_match = {_finding_match_key(row): row for row in child.get("findings") or []}
+    new_by_rule: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for finding in child.get("findings") or []:
+        new_by_rule.setdefault(
+            (str(finding.get("rule_id") or ""), str(finding.get("category") or "")),
+            [],
+        ).append(finding)
+    metrics = (child.get("coverage") or {}).get("dimension_metrics") or {}
+    executed_rules = {
+        str(check_id)
+        for row in metrics.values()
+        if isinstance(row, dict)
+        for check_id in row.get("executed_checks") or []
+    }
+    assessments = child.get("suite_assessments") or {}
+    confirmations = child.get("suite_dimension_confirmations") or {}
+
+    from .suite_review import CHECK_CATALOG
+
+    closed: list[str] = []
+    remaining: list[str] = []
+    for old_finding in old_findings:
+        old_id = str(old_finding.get("finding_id") or "")
+        rule_id = str(old_finding.get("rule_id") or "")
+        new_finding = new_by_match.get(_finding_match_key(old_finding))
+        if new_finding is None:
+            matches = new_by_rule.get((rule_id, str(old_finding.get("category") or "")), [])
+            new_finding = matches[0] if matches else None
+        spec = CHECK_CATALOG.get(rule_id) or {}
+        dimension = str(spec.get("dimension") or old_finding.get("review_area") or "")
+        if spec.get("kind") == "semantic":
+            coverage_ok = dimension in assessments and dimension in confirmations
+        else:
+            coverage_ok = _finding_coverage_rule_id(old_finding) in executed_rules
+        retest_passed = new_finding is None and coverage_ok
+        (closed if retest_passed else remaining).append(old_id)
+        _append_retest_event_once(
+            workspace_id,
+            parent_review_id,
+            "finding_retested",
+            {
+                "operation_id": operation_id,
+                "finding_id": old_id,
+                "new_status": "remediation_in_progress",
+                "retest_passed": retest_passed,
+                "parent_review_id": parent_review_id,
+                "retest_review_id": child_review_id,
+                "before_value": deepcopy(old_finding.get("actual")),
+                "after_value": "finding_not_reproduced" if retest_passed else deepcopy((new_finding or {}).get("actual")),
+                "remediation_evidence": deepcopy(intent.get("remediation_evidence") or []),
+                "same_rule_pack": (
+                    (child.get("rule_pack") or {}).get("content_hash")
+                    == (parent_basis.get("rule_pack") or {}).get("content_hash")
+                ),
+                "retested_at": intent.get("operation_started_at"),
+            },
+            identity_fields=("finding_id",),
+        )
+    closed = sorted(set(closed))
+    remaining = sorted(set(remaining))
+    link = {
+        "operation_id": operation_id,
+        "parent_review_id": parent_review_id,
+        "child_review_id": child_review_id,
+        "parent_target_sha256": (parent_basis.get("target") or {}).get("target_sha256"),
+        "child_target_sha256": (child.get("target") or {}).get("target_sha256"),
+        "parent_rule_pack_hash": (parent_basis.get("rule_pack") or {}).get("content_hash"),
+        "child_rule_pack_hash": (child.get("rule_pack") or {}).get("content_hash"),
+        "completed": True,
+        "closed_finding_ids": closed,
+        "remaining_finding_ids": remaining,
+        "remediation_evidence": deepcopy(intent.get("remediation_evidence") or []),
+        "remediation_evidence_hash": str(intent.get("remediation_evidence_hash") or ""),
+        "retested_at": intent.get("operation_started_at"),
+    }
+    _append_retest_event_once(workspace_id, parent_review_id, "retest_linked", link)
+    _append_retest_event_once(workspace_id, child_review_id, "retest_linked", link)
+    completion = {
+        "operation_id": operation_id,
+        "parent_review_id": parent_review_id,
+        "child_review_id": child_review_id,
+        "expected_finding_ids": list(intent.get("expected_finding_ids") or []),
+        "link_hash": sha256_json(link),
+        "completed": True,
+    }
+    _append_retest_event_once(
+        workspace_id, child_review_id, "retest_completed", {**completion, "side": "child"},
+    )
+    _append_retest_event_once(
+        workspace_id, parent_review_id, "retest_completed", {**completion, "side": "parent"},
+    )
+    return {
+        "status": "completed",
+        "parent_review_id": parent_review_id,
+        "retest_review_id": child_review_id,
+        "closed_finding_ids": closed,
+        "remaining_finding_ids": remaining,
+    }
 
 
 def _retest_operation_identity(
@@ -150,6 +302,37 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             parent = _project(workspace_id, parent_review_id)
         except ValueError:
             return _blocked("review_not_found", _message("review_not_found"))
+        parent_evidence = (
+            parent.get("evidence_metadata")
+            if isinstance(parent.get("evidence_metadata"), dict)
+            else {}
+        )
+        parent_formal_lineage: dict[str, Any] = {}
+        if (
+            str((parent.get("project_context") or {}).get("evidence_track") or "")
+            == SIM_A_FORMAL
+            or str(parent_evidence.get("evidence_policy") or "") == SIM_A_FORMAL
+        ):
+            try:
+                parent_formal_lineage = validate_object_formal_lineage(
+                    workspace_id,
+                    parent_evidence,
+                )
+            except FormalLineageError as exc:
+                return _blocked(
+                    exc.code,
+                    f"复测前父审查的正式 promotion 谱系无效：{exc.message}",
+                    review_id=parent_review_id,
+                )
+            if any(
+                parent_evidence.get(key) != value
+                for key, value in parent_formal_lineage.items()
+            ):
+                return _blocked(
+                    "formal_lineage_metadata_mismatch",
+                    "复测前父审查的 promotion 元数据不是规范值",
+                    review_id=parent_review_id,
+                )
         if intent:
             failed = next(
                 (
@@ -206,8 +389,8 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             ]
             requested_packs = list(args.get("rule_pack_ids") or old_components)
             mode = str(args.get("mode") or parent.get("mode") or "quick")
-            if mode not in {"quick", "deep"}:
-                return _blocked("review_mode_invalid", "mode 必须为 quick 或 deep")
+            if mode not in {"quick", "standard", "deep"}:
+                return _blocked("review_mode_invalid", "mode 必须为 quick、standard 或 deep")
             prepare_args = {
                 "workspace_id": workspace_id,
 
@@ -216,6 +399,8 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                 "rule_pack_ids": requested_packs,
                 "industry_overlays": list(args.get("industry_overlays") or []),
                 "project_context": deepcopy(parent.get("project_context") or {}),
+                "review_profile": str(parent.get("review_profile") or mode),
+                "review_mode": str(parent.get("review_mode") or "internal"),
             }
             parent_basis = {
                 "target": deepcopy(parent.get("target") or {}),
@@ -244,6 +429,8 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     if str(row.get("finding_id") or "")
                 ),
                 "remediation_evidence": deepcopy(evidence),
+                "remediation_evidence_hash": sha256_json(evidence),
+                **deepcopy(parent_formal_lineage),
                 "operation_started_at": utc_now(),
             }
             _append_retest_event_once(
@@ -342,6 +529,33 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     "retest_child_review_unavailable",
                     _message("retest_child_review_unavailable"),
                 )
+            if parent_formal_lineage:
+                child_evidence = (
+                    child.get("evidence_metadata")
+                    if isinstance(child.get("evidence_metadata"), dict)
+                    else {}
+                )
+                try:
+                    child_lineage = validate_object_formal_lineage(
+                        workspace_id,
+                        child_evidence,
+                    )
+                except FormalLineageError as exc:
+                    return _retest_failure(
+                        workspace_id,
+                        parent_review_id,
+                        intent,
+                        exc.code,
+                        f"复测子审查的正式 promotion 谱系无效：{exc.message}",
+                    )
+                if child_lineage != parent_formal_lineage:
+                    return _retest_failure(
+                        workspace_id,
+                        parent_review_id,
+                        intent,
+                        "formal_lineage_mixed_promotions",
+                        "复测子审查与父审查来自不同 promotion",
+                    )
             intended_target_sha256 = str((intent.get("resolved_target") or {}).get("target_sha256") or "")
             if str((child.get("target") or {}).get("target_sha256") or "") != intended_target_sha256:
                 return _retest_failure(
@@ -361,6 +575,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     "review_preparation_id": preparation_id,
                     "child_review_id": child_review_id,
                     "child_target_sha256": intended_target_sha256,
+                    **deepcopy(parent_formal_lineage),
                 },
 
             )
@@ -375,6 +590,26 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
 
                 "retest_child_review_unavailable",
                 _message("retest_child_review_unavailable"),
+            )
+        if str((parent.get("target") or {}).get("target_type") or "") == "review_package":
+            return _ok(
+                status="accepted",
+                code="retest_assessment_required",
+                parent_review_id=parent_review_id,
+                retest_review_id=child_review_id,
+                review_id=child_review_id,
+                review_status=child["review_status"],
+                validation_status=child["validation_status"],
+                validation_complete=child["validation_complete"],
+                overall_verdict="incomplete",
+                closed_finding_ids=[],
+                remaining_finding_ids=list(intent.get("expected_finding_ids") or []),
+                resource_uris=[
+                    _review_uri(workspace_id, parent_review_id),
+                    _review_uri(workspace_id, child_review_id),
+                ],
+                blockers=["retest_assessment_required"],
+                next_actions=["在复测子审查重新提交受影响领域 Assessment、确认七域并调用 review_finalize"],
             )
         parent_basis = intent.get("parent_basis") or {}
         old_findings = list(parent_basis.get("findings") or [])
@@ -452,6 +687,8 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             "closed_finding_ids": closed,
             "remaining_finding_ids": remaining,
             "remediation_evidence": deepcopy(intent.get("remediation_evidence") or []),
+            "remediation_evidence_hash": str(intent.get("remediation_evidence_hash") or ""),
+            **deepcopy(parent_formal_lineage),
             "retested_at": intent.get("operation_started_at"),
         }
         _append_retest_event_once(
@@ -474,6 +711,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             "child_review_id": child_review_id,
             "expected_finding_ids": list(intent.get("expected_finding_ids") or []),
             "link_hash": sha256_json(link),
+            **deepcopy(parent_formal_lineage),
             "completed": True,
         }
         _append_retest_event_once(

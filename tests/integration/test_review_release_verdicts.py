@@ -13,6 +13,10 @@ from lvke_mcp.servers.lvke_deliverable_review._service.events import _project_ev
 from lvke_mcp.servers.lvke_deliverable_review._service.lifecycle import get_review
 from lvke_mcp.servers.lvke_deliverable_review.contracts import normalize_project_context
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
+from lvke_mcp.servers.lvke_deliverable_review._service.base import EXPORT_STORE
+from lvke_mcp.servers.lvke_deliverable_review._service.export import (
+    _export_record_integrity_reasons,
+)
 
 
 class ReviewReleaseVerdictsTest(unittest.TestCase):
@@ -73,7 +77,7 @@ class ReviewReleaseVerdictsTest(unittest.TestCase):
             state["blockers"],
         )
 
-    def test_sim_a_formal_project_delivery_does_not_require_nested_fact_flag(self) -> None:
+    def test_sim_a_formal_project_delivery_requires_certified_parent_lineage(self) -> None:
         state = self._append_passed_review(
             "review-sim-a-formal",
             "review_sim_a_formal",
@@ -85,9 +89,9 @@ class ReviewReleaseVerdictsTest(unittest.TestCase):
             },
         )
         self.assertEqual(state["technical_verdict"], "pass")
-        self.assertEqual(state["release_verdict"], "pass")
-        self.assertEqual(state["overall_verdict"], "pass")
-        self.assertNotIn("project_fact_certification_required", state["blockers"])
+        self.assertEqual(state["release_verdict"], "fail")
+        self.assertEqual(state["overall_verdict"], "fail")
+        self.assertIn("project_fact_certification_required", state["blockers"])
 
     def test_failed_release_verdict_is_returned_as_successful_partial_review(self) -> None:
         workspace_id = "review-partial-envelope"
@@ -195,6 +199,49 @@ class ReviewReleaseVerdictsTest(unittest.TestCase):
             "standard_methodology_full_text_required:PKG-STD-011",
             state["blockers"],
         )
+
+    def test_formal_export_basis_integrity_includes_promotion_metadata(self) -> None:
+        workspace_id = "review-export-formal-basis"
+        formal = {
+            "evidence_policy": "sim_a_formal",
+            "evidence_origin": "sim_a_template",
+            "project_fact_certified": True,
+            "formal_promotion": {
+                "promotion_id": "zmprom_fixture",
+                "template_pack_id": "zmtp_fixture",
+                "promotion_hash": "sha256:" + "a" * 64,
+                "promoted_files": [],
+            },
+        }
+        basis = {
+            "review_id": "review_fixture",
+            "event_chain_hash": "sha256:" + "b" * 64,
+            "formats": ["json"],
+            "review_status": "validated",
+            "overall_verdict": "pass",
+            **formal,
+        }
+        payload = {**basis, "export_id": "rvexp_fixture", "files": []}
+        record = EXPORT_STORE.put(
+            workspace_id,
+            payload,
+            producer="lvke-deliverable-review.review_export",
+            source_ids=["review_fixture"],
+            basis=basis,
+            schema_version="deliverable_review_export.v1",
+        )
+        reasons = _export_record_integrity_reasons(
+            workspace_id,
+            {
+                "review_id": "review_fixture",
+                "export_id": "rvexp_fixture",
+                "export_record_id": record["object_id"],
+                "export_record_hash": record["content_hash"],
+                "export_basis_hash": record["basis_hash"],
+                "export_files": [],
+            },
+        )
+        self.assertEqual(reasons, [])
 
 
 if __name__ == "__main__":

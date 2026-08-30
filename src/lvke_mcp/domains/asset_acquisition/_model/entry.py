@@ -57,6 +57,10 @@ def run_acquisition_model(
     portfolio_candidate = spec.get("lease_portfolio") or {}
 
     def any_positive(value: Any) -> bool:
+        if isinstance(value, dict):
+            monthly_values = value.get("monthly_values")
+            annual_values = value.get("annual_values")
+            value = monthly_values if monthly_values is not None else annual_values
         values = value if isinstance(value, (list, tuple)) else [value]
         return any(_number(item) > 0 for item in values)
 

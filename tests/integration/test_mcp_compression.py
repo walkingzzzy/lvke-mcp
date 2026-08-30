@@ -105,7 +105,7 @@ class McpCompressionTopologyTest(unittest.TestCase):
                 )
             )
         self.assertEqual(len(SERVER_SPECS), 14)
-        self.assertEqual(total_tools, 173)
+        self.assertEqual(total_tools, 180)
         # 轻量 outputSchema 为正式候选契约要求；预算随 envelope 字段上调。
         self.assertLess(total_chars, 450_000)
 

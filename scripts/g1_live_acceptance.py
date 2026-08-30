@@ -21,7 +21,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(SCRIPTS))
 
-from acceptance_common import call_tool, classify_outcome, object_id_from_payload  # noqa: E402
+from acceptance_common import call_tool, classify_outcome  # noqa: E402
 from g1_golden_chain import ChainStep, run_golden_chain  # noqa: E402
 from lvke_mcp.runtime.build_metadata import build_metadata  # noqa: E402
 from lvke_mcp.testing.server_manifest import SERVER_SPECS  # noqa: E402

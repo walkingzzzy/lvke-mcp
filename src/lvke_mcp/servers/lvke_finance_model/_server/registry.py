@@ -63,11 +63,6 @@ from .spec_tools import (
     _tool_validate_spec,
 )
 
-from .validation_tools import (
-    _tool_promote_to_formal,
-    _tool_validate_post_generation,
-)
-
 
 def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(
@@ -184,6 +179,12 @@ def build_server() -> OfficialStdioServer:
             "properties": {
                 "workspace_id": {"type": "string", "minLength": 1},
                 "fact_pack": fact_pack_schema,
+                "evidence_pack_ids": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                    "uniqueItems": True,
+                    "description": "SIM-A 正式 FactPack 必须绑定的同工作区 EvidencePack",
+                },
                 "idempotency_key": {"type": "string", "minLength": 1},
             },
             "required": ["workspace_id", "fact_pack", "idempotency_key"],

@@ -107,6 +107,10 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         # 与 run_id 同级透出，让 package / CSV / XLSX 的消费方都能反查 confirmed Spec
         "spec_id": payload.get("spec_id"),
         "spec_hash": payload.get("spec_hash"),
+        "evidence_policy": payload.get("evidence_policy"),
+        "evidence_origin": payload.get("evidence_origin"),
+        "project_fact_certified": bool(payload.get("project_fact_certified", False)),
+        "formal_promotion": payload.get("formal_promotion"),
         "table_contract_hash": payload.get("table_contract_hash"),
         "engine_delivery_count": payload.get("engine_delivery_count"),
         "reference_source_sheet_count": payload.get("reference_source_sheet_count"),

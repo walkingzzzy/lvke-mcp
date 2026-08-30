@@ -7,7 +7,8 @@ from typing import Any
 TARGET_TYPES = {
     "finance_run", "finance_tables_package", "finance_xlsx", "finance_xlsx_source",
     "acquisition_run", "acquisition_tables_package", "report_revision",
-    "report_artifact", "combined_deliverable",
+    "report_artifact", "combined_deliverable", "review_package",
+    "research_package", "evidence_pack", "finance_spec", "basis_of_estimate",
 }
 VERDICTS = {"pass", "conditional_pass", "fail", "incomplete"}
 SEVERITIES = {"P0", "P1", "P2", "P3"}
@@ -26,6 +27,38 @@ TRANSACTION_STRUCTURES = {
     "ppp", "other",
 }
 ASSET_TYPES = {"general", "amusement_park", "solar_power", "hotel_lease", "mineral_processing"}
+
+REVIEW_MODES = {"internal", "external"}
+REVIEW_PROFILES = {"quick", "standard", "deep"}
+REVIEW_DIMENSIONS = {
+    "compliance",
+    "article_quality",
+    "data_quality",
+    "source_quality",
+    "financial_model",
+    "financial_tables",
+    "feasibility",
+}
+DIMENSION_STATUSES = {
+    "passed", "failed", "incomplete", "not_determinable", "not_applicable",
+}
+COMPLIANCE_STATUSES = {
+    "conforms_to_checked_requirements",
+    "nonconformity_found",
+    "evidence_incomplete",
+    "professional_determination_required",
+}
+REVIEW_COMPONENT_ROLES = {
+    "report",
+    "source_evidence",
+    "base_data",
+    "finance_model",
+    "finance_tables",
+    "attachment",
+}
+FULL_SUITE_REQUIRED_ROLES = {
+    "report", "source_evidence", "base_data", "finance_model", "finance_tables",
+}
 
 
 def normalize_project_context(value: Any, *, target_type: str) -> dict[str, Any]:
@@ -99,7 +132,7 @@ def normalize_target(target: Any) -> dict[str, Any]:
 
 
 def finding_blocks(finding: dict[str, Any]) -> bool:
-    if str(finding.get("status") or "open") in {"resolved", "rejected", "superseded"}:
+    if is_terminal_finding(finding):
         return False
     severity = str(finding.get("severity") or "P2")
     if severity == "P0":
@@ -109,12 +142,24 @@ def finding_blocks(finding: dict[str, Any]) -> bool:
     return bool(finding.get("blocking")) and str(finding.get("status")) != "waived"
 
 
+def is_terminal_finding(finding: dict[str, Any]) -> bool:
+    """Return whether a finding is no longer active for verdict purposes.
+
+    ``confirmed`` records acknowledgement only; it is intentionally not a
+    terminal state and therefore continues to participate in blocking rules.
+    """
+
+    return str(finding.get("status") or "open") in {
+        "resolved", "rejected", "superseded", "waived",
+    }
+
+
 def verdict_for(findings: list[dict[str, Any]], incomplete_reasons: list[str]) -> str:
     if incomplete_reasons:
         return "incomplete"
     active = [
         row for row in findings
-        if row.get("status", "open") not in {"resolved", "rejected", "superseded", "waived", "confirmed"}
+        if not is_terminal_finding(row)
     ]
     if any(row.get("severity") == "P0" for row in active):
         return "fail"
