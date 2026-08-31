@@ -78,9 +78,21 @@
         "finance_get_run",
         "finance_validate_post_generation",
         "finance_promote_to_formal",
-        "finance_generate_package"
+        "finance_generate_package",
+        "acquisition_validate_spec",
+        "acquisition_save_spec",
+        "acquisition_confirm_spec",
+        "acquisition_run_model",
+        "acquisition_get_run",
+        "acquisition_create_scenario_matrix",
+        "acquisition_solve_max_price",
+        "acquisition_render_tables",
+        "acquisition_export_tables_csv",
+        "acquisition_export_tables_xlsx",
+        "acquisition_generate_artifact",
+        "acquisition_get_artifact"
       ],
-      "servers": ["lvke-finance-model", "lvke-finance-tables"],
+      "servers": ["lvke-finance-model", "lvke-finance-tables", "lvke-asset-acquisition"],
       "required_inputs": ["workspace_id", "spec_id"],
       "allowed_evidence_tracks": [
         "technical_fixture",
@@ -273,9 +285,21 @@
         "delivery_generate_template_pack",
         "delivery_confirm_formal_promotion",
         "delivery_status",
-        "delivery_get_artifacts"
+        "delivery_get_artifacts",
+        "reference_search",
+        "reference_get",
+        "reference_list",
+        "reference_observe",
+        "reference_verify",
+        "archive_find_similar_projects",
+        "archive_extract_structure",
+        "archive_compare_cases",
+        "archive_get_template_paragraph",
+        "geo_query",
+        "geo_distance_matrix",
+        "template_fill"
       ],
-      "servers": ["lvke-zero-material-delivery"],
+      "servers": ["lvke-zero-material-delivery", "lvke-reference"],
       "required_inputs": ["workspace_id"],
       "allowed_evidence_tracks": [
         "technical_fixture",
@@ -289,7 +313,7 @@
         "EVIDENCE_BINDING_STALE"
       ],
       "outputs": [],
-      "notes": "编排 Skill；具体工具路由见各域 Skill 映射"
+      "notes": "编排 Skill；具体工具路由见各域 Skill 映射。lvke-reference 的 reference/archive/geo/template_fill 族挂在这里，教学入口是 references/preserved/precedent-driven-drafting/SKILL.md（先例驱动起草）"
     },
     {
       "skill": "lvke-delivery-guardrails",

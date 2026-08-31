@@ -10,7 +10,7 @@ description: "Use when the user needs to query organized feasibility-study sourc
 ## 工作流
 
 1. 接收 `analysis_task_id`，先用 `analysis_query` 找到相关原文和 locator。需要字段候选时，调用 `analysis_extract_candidates(field_specs)`；其输出是原值/摘录/locator，不是已确认输入。
-2. 需要检查受控表格结构时调用 `analysis_profile_tabular`；它只统计已解析的 cell locator、表头和公式/数值计数，不重算工作簿。
+2. 需要检查受控表格结构时调用 `analysis_profile_tabular`；它只统计已解析的 cell locator、表头和公式/数值计数，不重算工作簿。它接受**两种 locator 形状**（取并集，不是只认一种）：CSV 解析器发 `kind="cell"` 且**无 `sheet`**，XLSX 解析器发 `kind="spreadsheet_cell"` 且**有 `sheet`**。CSV 按 `table_kind` 归到 `csv` 表名下（缺省 `table`），不伪造工作表名——所以 CSV 画像里出现的 `csv` 是占位表名而非真实 sheet。既非这两种 kind、或 cell 坐标解析不出行列的资料，会以 `no_cell_locators` / `invalid_cell_locators` 进 `skipped` 而不是静默通过。
 3. 只从可回指来源整理 observations，保留 `source_id`、指标、单位、时点、范围和 locator。单位相同时用 `analysis_compare`；需要换算时只用 `analysis_normalize_compare`，并提供每个指标明确的 source/target unit、factor 与 conversion_basis。
 4. 调用 `analysis_build_evidence_pack`，明确 `expected_fields`、候选事实和冲突，取得 `evidence_pack_id`。
 

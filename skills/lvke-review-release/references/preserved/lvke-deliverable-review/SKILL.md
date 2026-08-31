@@ -11,6 +11,8 @@ description: 审查财务运行、十三表、研报和联合交付包，执行 
 
 `review_resolve_standards → review_prepare → review_start → review_get → review_list_findings → review_disposition_finding → review_retest → review_export`
 
+本链（无 package 步）**仅适用于单一不可变目标**——`finance_run`、`finance_tables_package`、`report_revision`、`research_package`、`evidence_pack` 等。这类目标走确定性规则包路径，不进七域聚合。**五材料套件与七域审查必须走 package-first 链**：`review_package_prepare → review_package_confirm → review_prepare(target={target_type:"review_package", target_id:<已确认 package_id>}) → review_start → review_submit_assessment → review_confirm_dimension → review_finalize`（详见 `lvke-research-report-review`）。把套件塞进本链会拿不到七域结论，且 `review_finalize` 会以 `review_package_target_required` 拒绝。
+
 所有 P0/P1 finding 必须处置并按需带证据复测；`review_export` 仅导出审查结果，不执行发布、认证、角色检查或安全签审。
 
 ## 证据边界

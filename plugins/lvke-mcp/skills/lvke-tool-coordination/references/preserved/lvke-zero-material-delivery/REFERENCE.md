@@ -132,6 +132,30 @@ metadata:
 | `delivery_get` | `workspace_id`, `object_id` | 按不可变 ID 读 Intent / AssumptionPackage / DeliveryRun |
 | `delivery_transition` | `+ operation`, `delivery_run_id`, `idempotency_key` | `cancel` 取消；`resume` 从已取消运行建恢复快照 |
 
+## 行业未解析是自恢复路径，不是工具故障
+
+`delivery_create_from_sentence` 无法从一句话唯一确定行业时，返回
+`status=missing_inputs`、`code=missing_route`（一条也没命中）或 `ambiguous_route`
+（多条并列命中），并给出可直接选用的候选清单：
+
+```json
+"missing_inputs": [{
+  "field": "industry",
+  "reason": "ambiguous_route",
+  "candidates": [
+    {"industry_code": "...", "industry_label": "...", "matched_keywords": ["..."]}
+  ]
+}]
+```
+
+`candidates` 是**对象数组**（每项含 `industry_code` + `industry_label`），不是字符串
+数组；`ambiguous_route` 的每项另带 `matched_keywords`，说明它是凭哪些词命中的，可据
+此判断哪条才是用户本意（`missing_route` 列全部可选行业，无 `matched_keywords`）。
+
+正确处置是**从 `candidates` 里挑一个 `industry_code`，带 `industry` 参数重新创建
+交付意图**（换新 `idempotency_key`），而不是把它当工具故障重试或改走别的路线——
+DeliveryIntent 与初始 DeliveryRun 此时已创建，缺的只是行业选择。
+
 ## 读状态时的三个坑
 
 **`query_success` 不是交付状态。** 它只表示这次查询本身成功；真实状态看

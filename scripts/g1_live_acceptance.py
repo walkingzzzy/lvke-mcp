@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""G1 live MCP acceptance: 173-tool census + full synthetic golden chain."""
+"""G1 live MCP acceptance: full tool census + full synthetic golden chain."""
 
 from __future__ import annotations
 
@@ -27,7 +27,24 @@ from lvke_mcp.runtime.build_metadata import build_metadata  # noqa: E402
 from lvke_mcp.testing.server_manifest import SERVER_SPECS  # noqa: E402
 
 REPORTS = ROOT / "dev-docs" / "reports"
-EXPECTED_TOOL_COUNT = 173
+
+#: 全量工具面基数。main() 的 ok 判据用**严格相等**比对它与实际探测到的工具数
+#: （见下方 `len(tool_records) == EXPECTED_TOOL_COUNT`），所以改动工具面
+#: （新增/删除/合并 register_tool）时必须同步此常量，否则脚本必然自检失败——
+#: 本常量停在 173 而真值已到 180 就是实例。
+#:
+#: 真值只能用运行时自省取，不要数源码里的 register_tool 字面量：动态分派、
+#: 别名遮蔽与条件注册都会让字面量计数偏离实际暴露的工具面。取数方法：
+#:
+#:   python -c "import sys; sys.path.insert(0,'src'); \
+#:     from importlib import import_module; \
+#:     from lvke_mcp.testing.server_manifest import SERVER_SPECS; \
+#:     print(sum(len((getattr(import_module(s.module),'SERVER',None) \
+#:       or import_module(s.module).build_server()).tool_specs) for s in SERVER_SPECS))"
+#:
+#: 与 scripts/validate_skill_tool_mapping.py 的 _live_tool_index() 同源；
+#: 该脚本自身通过 stdio `tools/list` 枚举，两条路径实测同为 180。
+EXPECTED_TOOL_COUNT = 180
 
 
 def _utc_now() -> str:

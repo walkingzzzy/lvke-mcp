@@ -69,6 +69,38 @@ impact / sensitivity / validation_condition）。
 `acquisition_render_tables` 与 `acquisition_get_run` 等只读入口同样携带上述等级字段
 （四个入口共用一个结果构造器），所以绑定 table package 前先看 `formal_usable`。
 
+## `ota_commission` 是双语义字段
+
+`hotel_operation.ota_commission` 按**取值区间**判别语义，不按单位声明：
+
+| 取值 | 判为 | 计算式 |
+|---|---|---|
+| `[0, 1]` | 抽佣比率 | 客房收入 × 系数 |
+| `> 1` | 金额（万元/期） | 取值 × 期内酒店经营占比 |
+
+所以填 `0.5` 会被当成 **50% 抽佣**，而不是 0.5 万元佣金；真实小额佣金必须换算成
+比率填，或改用大于 1 的万元金额。同一字段填 `0.08` 与 `135` 实测得到 IRR
++5.52% 与 −33.66% 两种结论。
+
+**实际采用的语义在 run 的 `assumptions` 里回报**（形如"ota_commission 按取值判别
+语义：比率（客房收入×系数）"）。跑完 `acquisition_run_model` 先核这一条，与预期
+不符就换另一量级重报，不要靠猜。
+
+## `confirmation_scope=process_acceptance` 无条件生效
+
+`acquisition_confirm_spec(confirmation_scope="process_acceptance")` 只要显式请求就
+生效，产出的确认修订固定带 `project_fact_certified=false` 与
+`business_decision_status="not_selected"`。
+
+重建依据是否完整**不再决定资格档位**，只决定是否附一条
+`PROCESS_ACCEPTANCE_BASIS_INCOMPLETE` 质量提示（内含 `gaps` 与所缺的
+reconstruction record / process acceptance basis 字段名）。依据不全时确认修订照样
+创建——请求过程验收就拿到过程验收资格，不会因为依据不齐反而被判回正式档。
+
+因此：拿到 `PROCESS_ACCEPTANCE_BASIS_INCOMPLETE` 不等于确认失败，按缺口补依据即可；
+反过来，**不能把 process_acceptance 修订当项目事实**引用，`project_fact_certified`
+恒为 false。
+
 ## 只消费固化对象
 
 `acquisition_render_tables` 只消费已固化 run，绝不重算财务；
