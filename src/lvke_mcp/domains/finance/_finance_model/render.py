@@ -164,9 +164,13 @@ def finance_tables_markdown(r: dict[str, Any]) -> str:
         ("附表8 还款付息测算表（万元）", "debt-service"),
         ("附表9 项目投资现金流量表（万元）", "cashflow"),
         ("附表10 项目资本金流量表（万元）", "capital-cashflow"),
+        # 附表11 已是正式交付表（见 _run_service.base.DELIVERY_TABLE_META），
+        # 故从 display_seq（仅展示、不占编号）移入 seq。留在 display_seq 里会让
+        # markdown 审计副本称它"控制表 C03"、而 XLSX/CSV 称"附表11"——同一张表
+        # 两个名字，审查方无从对应大纲条款。
+        ("附表11 财务计划现金流量表（万元）", "financial-plan"),
     ]
     display_seq = [
-        ("控制表 C03 财务计划现金流量表（万元）", "financial-plan"),
         ("附表（展示）主要技术经济指标表", "indicators"),
         ("附表（展示）单因素敏感性分析表", "sensitivity"),
     ]
@@ -319,7 +323,7 @@ def _render_annual_tables(r: dict[str, Any]) -> dict[str, str]:
             rows.append(f"| {label} | {cells} |")
         t["sensitivity"] = f"{header}\n{sep}\n" + "\n".join(rows) + "\n\n> 表内为项目财务内部收益率(IRR, %)对各因子变动的敏感性。"
 
-    # 【P0-5】财务计划现金流量表（C03 控制表）：投资/融资/经营三活动 + 期末现金 + 累计盈余 + 缺口
+    # 【P0-5】财务计划现金流量表（正式交付表附表11）：投资/融资/经营三活动 + 期末现金 + 累计盈余 + 缺口
     fp = a.get("financial_plan") or []
     if fp:
         body = "\n".join(

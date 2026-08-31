@@ -6,6 +6,7 @@ import unittest
 
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_PACKAGE_STORE
+from lvke_mcp.domains.finance.run_service import ENGINE_DELIVERY_COUNT
 from lvke_mcp.adapters.report_repository import REVISION_STORE
 from lvke_mcp.adapters.project_planning_repository import PROJECT_CONTEXT_STORE
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
@@ -80,7 +81,9 @@ class McpDeliveryChainTest(unittest.TestCase):
         self.assertTrue(prepared["success"], prepared)
         contract_snapshot = prepared["finance_table_contract"]
         self.assertTrue(contract_snapshot["contract_valid"], contract_snapshot)
-        self.assertEqual(contract_snapshot["manifest_count"], 13)
+        self.assertEqual(
+            contract_snapshot["manifest_count"], ENGINE_DELIVERY_COUNT,
+        )
         self.assertEqual(
             contract_snapshot["table_contract_hash"],
             delivery_table_contract_hash(),

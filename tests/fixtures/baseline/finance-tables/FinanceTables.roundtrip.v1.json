@@ -2,7 +2,7 @@
   "schema": "finance_tables_roundtrip.v1",
   "status": "partial",
   "run_binding": true,
-  "table_count": 13,
+  "table_count": 14,
   "table_ids": [
     "investment",
     "interest-during-construction",
@@ -16,9 +16,10 @@
     "profit-distribution",
     "debt-service",
     "cashflow",
-    "capital-cashflow"
+    "capital-cashflow",
+    "financial-plan"
   ],
-  "csv_count": 13,
+  "csv_count": 14,
   "csv_integrity": true,
   "csv_hash_contract": true,
   "xlsx_hash_contract": true,

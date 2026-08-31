@@ -5,10 +5,10 @@
   "source": {
     "verification_scope": "reviewed_extraction_bundle",
     "count_semantics": {
-      "engine_delivery_count": 13,
+      "engine_delivery_count": 14,
       "reference_source_sheet_count": 15,
       "review_workbook_sheet_count": 16,
-      "note": "15 张 canonical_tables 是参考结构来源，16 张 review workbook sheets 含投资复核；二者均不得参与十三表交付完整性计数。"
+      "note": "engine_delivery_count 14 = 原十三表 + 附表11 财务计划现金流量表（2023大纲 financial_sustainability 要求；『十三表』为历史称谓，实际数量以本字段为准）。15 张 canonical_tables 是参考结构来源，16 张 review workbook sheets 含投资复核；二者均不得参与交付完整性计数，也不随附表11 增加——该表在甲方底稿中不存在，以 reference_provenance=engine_defined_no_reference_sheet 显式声明无底稿可比对。"
     },
     "workbook_provenance": {
       "original_filename": "投资类项目经济计算表.xlsx",
@@ -114,7 +114,8 @@
     "engine_table_order": [
       "investment", "interest-during-construction", "working-capital", "funding",
       "income-statement", "total-cost", "wage", "depreciation", "amortization",
-      "profit-distribution", "debt-service", "cashflow", "capital-cashflow"
+      "profit-distribution", "debt-service", "cashflow", "capital-cashflow",
+      "financial-plan"
     ],
     "reference_delivery_sheet_count": 15,
     "workbook_sheet_count": 16,
@@ -131,7 +132,8 @@
       "profit-distribution": {"engine_delivery_no": "附表7", "reference_sheet": "附表7", "reference_title": "利润与利润分配表", "reference_source_sheets": ["附表7", "附表5", "附表6", "附表6-5", "附表6-6"], "formula_dependency_sources": ["附表5", "附表6", "附表6-5", "附表6-6"]},
       "debt-service": {"engine_delivery_no": "附表8", "reference_sheet": "附表8", "reference_title": "还本付息测算表", "reference_source_sheets": ["附表8", "附表2", "附表6", "附表7"], "formula_dependency_sources": ["附表2", "附表6", "附表7"]},
       "cashflow": {"engine_delivery_no": "附表9", "reference_sheet": "附表9", "reference_title": "项目投资现金流量表", "reference_source_sheets": ["附表9", "附表1", "附表3", "附表5", "附表6", "附表6-5", "附表7"], "formula_dependency_sources": ["附表1", "附表3", "附表5", "附表6", "附表6-5", "附表7"]},
-      "capital-cashflow": {"engine_delivery_no": "附表10", "reference_sheet": "附表10", "reference_title": "项目资本金现金流量表", "reference_source_sheets": ["附表10", "附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"], "formula_dependency_sources": ["附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"]}
+      "capital-cashflow": {"engine_delivery_no": "附表10", "reference_sheet": "附表10", "reference_title": "项目资本金现金流量表", "reference_source_sheets": ["附表10", "附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"], "formula_dependency_sources": ["附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"]},
+      "financial-plan": {"engine_delivery_no": "附表11", "reference_sheet": "", "reference_provenance": "engine_defined_no_reference_sheet", "reference_title": "财务计划现金流量表", "reference_source_sheets": [], "formula_dependency_sources": ["附表6", "附表6-2", "附表6-3", "附表7", "附表8"], "provenance_note": "《投资类项目经济计算表.xlsx》未提供本表（实测该工作簿无「财务计划」/「附表11」），故本表结构由引擎自定义并在此冻结；reference_sheet 留空表示无参考底稿可比对，不参与 15 张参考 sheet 计数。"}
     },
     "minimum_detail_requirements": {
       "investment": {"construction_items": 3, "quantity_indicator_pairs": 3},
@@ -146,7 +148,8 @@
       "profit-distribution": {"required_rows": 18},
       "debt-service": {"repayment_source_rows": 3, "coverage_ratios": 2},
       "cashflow": {"cashflow_component_rows": 10},
-      "capital-cashflow": {"cashflow_component_rows": 10}
+      "capital-cashflow": {"cashflow_component_rows": 10},
+      "financial-plan": {"cashflow_component_rows": 2}
     },
     "applicability": {
       "investment": {"always": true, "not_applicable_when": []},
@@ -161,7 +164,8 @@
       "profit-distribution": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
       "debt-service": {"all_of": ["params.is_operating=true", "funding.loan>0"], "not_applicable_when": ["params.is_operating=false", "funding.loan<=0"]},
       "cashflow": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
-      "capital-cashflow": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]}
+      "capital-cashflow": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]},
+      "financial-plan": {"all_of": ["params.is_operating=true"], "not_applicable_when": ["params.is_operating=false"]}
     },
     "required_row_groups": {
       "investment": [
@@ -250,6 +254,15 @@
         {"id": "principal", "any_of": ["借款本金偿还", "还本"]}, {"id": "interest", "any_of": ["借款利息支付", "付息"]},
         {"id": "operating_cost", "any_of": ["经营成本"]}, {"id": "tax", "any_of": ["所得税"]},
         {"id": "net", "any_of": ["所得税后净现金流量", "资本金净现金流"]}, {"id": "cumulative", "any_of": ["累计净现金流量"]}
+      ],
+      "financial-plan": [
+        {"id": "operating", "any_of": ["经营活动净现金流"]},
+        {"id": "investing", "any_of": ["投资活动净流出"]},
+        {"id": "financing", "any_of": ["融资活动净流入"]},
+        {"id": "debt_service", "any_of": ["还本付息"]},
+        {"id": "net", "any_of": ["净现金流量"]},
+        {"id": "cumulative", "any_of": ["累计盈余资金"]},
+        {"id": "gap", "any_of": ["是否存在资金缺口", "资金缺口"]}
       ]
     }
   },
@@ -704,6 +717,36 @@
       "blocking_if_missing_for_reference": [],
       "summary_columns": [
         "计算期(年)", "阶段", "资本金投入", "经营现金流入", "还本", "付息", "资本金净现金流"
+      ]
+    },
+    "financial-plan": {
+      "required_formula_families": ["financial_plan_rollforward"],
+      "critical_formula_signatures": {"net_cashflow": "operating_net+finance_in-invest_out-debt_service", "cumulative": "prev_cumulative+net_cashflow"},
+      "delivery_no": "附表11",
+      "title": "财务计划现金流量表",
+      "reference_source": "",
+      "reference_source_sha256": "",
+      "reference_provenance": "engine_defined_no_reference_sheet",
+      "provenance_note": "本表在《投资类项目经济计算表.xlsx》中不存在（实测无「财务计划」/「附表11」），结构由引擎 annual._build_financial_plan 定义并在此冻结。reference_source 留空即声明「无参考底稿」，不得据此推断已比对过甲方底稿。",
+      "reference_layout": "annual_record_rows",
+      "reference_columns": ["计算期", "阶段", "经营活动", "投资活动", "融资活动", "还本付息", "净现金流量", "累计盈余资金", "资金缺口"],
+      "reference_row_tree": [
+        "经营活动净现金流",
+        "投资活动净流出/流动资金增加/回收",
+        "融资活动净流入/贷款提款/资本金投入/政府补助",
+        "还本付息",
+        "净现金流量/累计盈余资金",
+        "资金缺口标记"
+      ],
+      "formula_dependencies": [
+        "经营活动净现金流 ← 附表7（净利润）+ 附表6-2（折旧）+ 附表6-3（摊销）+ 附表8（利息）",
+        "还本付息 ← 附表8",
+        "投资活动 ← 附表3（流动资金增加与回收）"
+      ],
+      "required_input_fields": [],
+      "blocking_if_missing_for_reference": [],
+      "summary_columns": [
+        "计算期(年)", "阶段", "经营活动净现金流", "投资活动净流出", "融资活动净流入", "还本付息", "净现金流量", "累计盈余资金", "是否存在资金缺口"
       ]
     }
   },

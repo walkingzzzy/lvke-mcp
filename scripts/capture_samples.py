@@ -655,6 +655,10 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
 
     manifest = list((rendered or {}).get("table_manifest") or [])
     csv_manifest = list((csv_export or {}).get("csv_manifest") or [])
+    try:
+        expected_delivery_count = int((rendered or {}).get("engine_delivery_count") or 0)
+    except (TypeError, ValueError):
+        expected_delivery_count = 0
     csv_bytes = b""
     try:
         csv_bytes = base64.b64decode(str((csv_read or {}).get("content") or ""), validate=True)
@@ -668,8 +672,18 @@ def capture_finance_tables(runner: Runner, context: CoreContext) -> CoreContext:
     checks = {
         "rendered": _status(rendered) in {"ok", "partial"} and bool(package_id),
         "bound_run": (rendered or {}).get("run_id") == context.run_id,
-        "thirteen_tables": len(manifest) == 13,
-        "csv_exported": len(csv_uris) == 13 and len(csv_manifest) == 13,
+        # 交付表数量取服务端自报的 engine_delivery_count，不写字面量 13：
+        # 附表11 财务计划现金流量表进入交付集后是 14 张。本脚本通过 stdio 驱动
+        # 服务、不 import 领域常量，所以以响应字段为真源；缺该字段时回退比对
+        # 两侧长度是否一致（仍能抓出"渲染 14 张但只导出 13 个 CSV"这类漂移）。
+        "delivery_tables": (
+            len(manifest) == expected_delivery_count
+            if expected_delivery_count
+            else len(manifest) > 0
+        ),
+        "csv_exported": (
+            len(csv_uris) == len(manifest) and len(csv_manifest) == len(manifest)
+        ),
         "csv_integrity": bool(((csv_export or {}).get("csv_integrity") or {}).get("valid")),
         "csv_read": _status(csv_read) == "ok" and csv_bytes.startswith(b"\xef\xbb\xbf"),
         "csv_technical_scope": (

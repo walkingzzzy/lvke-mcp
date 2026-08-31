@@ -121,7 +121,14 @@ def test_post_generation_coverage_is_non_blocking_and_traceable() -> None:
         item for item in snapshot["requirements"]
         if item["requirement_id"] == "financial_sustainability"
     )
-    assert sustainability["known_gap"]
+    # 原断言是 `assert sustainability["known_gap"]` —— 它钉住的是「财务计划现金
+    # 流量表缺失」这条诚实披露。该缺口已实际关闭（附表11 进交付集），所以此处
+    # 反过来断言：缺口标记必须消失，且该需求要求的三张表都在契约里。
+    # 若将来有人只删 known_gap 而不真的补表，table_codes 这条会拦住。
+    assert not sustainability.get("known_gap")
+    assert "financial-plan" in sustainability["table_codes_missing"] or (
+        "financial-plan" in sustainability["table_codes_present"]
+    )
 
 
 def test_candidate_finance_spec_persists_generation_baseline() -> None:
@@ -163,7 +170,11 @@ def test_finance_run_persists_post_generation_coverage_snapshot() -> None:
     assert result["generation_standard"] == "ndrc-feasibility-outline-2023"
     assert result["standard_source_hash"] == source_fingerprint()
     assert result["standard_coverage_snapshot"]["status"] == "partial"
-    assert len(result["table_manifest"]) == 13
+    # 14 = 原十三表 + 附表11 财务计划现金流量表。以常量而非字面量断言，避免下次
+    # 交付集变动时又要改字面量（且字面量与常量不一致时很难看出哪个是真源）。
+    from lvke_mcp.domains.finance.run_service import ENGINE_DELIVERY_COUNT
+
+    assert len(result["table_manifest"]) == ENGINE_DELIVERY_COUNT == 14
 
     persisted = run_service.get_workspace_finance_run(
         workspace_id,

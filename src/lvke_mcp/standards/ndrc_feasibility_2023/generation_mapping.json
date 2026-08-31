@@ -125,12 +125,12 @@
         "cashflow.net_cashflow_by_year", "cashflow.cumulative_surplus",
         "cashflow.funding_gap", "cashflow.continuation_plan"
       ],
-      "delivery_tables": ["cashflow", "capital-cashflow"],
+      "delivery_tables": ["cashflow", "capital-cashflow", "financial-plan"],
       "report_sections": ["financial_sustainability", "funding_continuation_plan"],
       "generation_when_missing": "cash_gap_projection_with_explicit_support_assumption",
       "validation_rules": ["annual_cash_balance_reconciles", "negative_cash_years_disclosed"],
       "formal_evidence": ["support_commitment", "working_capital_and_renewal_plan"],
-      "known_gap": "2023大纲要求财务计划现金流量表；当前十三表未设置独立同名表，只能由项目投资现金流量表和资本金现金流量表部分覆盖，正式版必须补充独立表或明确适用性说明。"
+      "gap_closure": "财务计划现金流量表已作为附表11 进入交付集（引擎 annual.financial_plan → 交付表 financial-plan，逐年输出经营/投资/融资三活动、还本付息、累计盈余资金与资金缺口标记；净现金流与累计盈余在 XLSX 内为真公式，还本付息链至附表8）。其参考结构已在 docs/reference_table_schema.json 冻结，并以 reference_provenance=engine_defined_no_reference_sheet 声明甲方底稿无此表。原 known_gap 所述『当前十三表未设置独立同名表、只能部分覆盖』已不成立。正式资格仍由 formal_evidence 与勾稽门禁决定，不因补表自动取得。"
     }
   ],
   "non_blocking_conformance": {

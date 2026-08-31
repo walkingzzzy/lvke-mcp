@@ -56,14 +56,23 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
         contract = delivery_table_contract()
         counts = delivery_count_semantics()
 
-        self.assertEqual(ENGINE_DELIVERY_COUNT, 13)
+        # 交付表 14 张：原 13 张 + 附表11 财务计划现金流量表（2023 大纲
+        # financial_sustainability 要求，附表9/10 只覆盖项目投资与资本金口径，
+        # 给不出期末现金/累计盈余/资金缺口）。"十三表"是历史称谓。
+        # 参考来源 15 / 审查工作簿 16 两个数**不变**：附表11 在甲方底稿里不存在，
+        # 以 reference_provenance=engine_defined_no_reference_sheet 显式声明无底稿。
+        self.assertEqual(ENGINE_DELIVERY_COUNT, 14)
         self.assertEqual(len(DELIVERY_TABLE_KEYS), ENGINE_DELIVERY_COUNT)
         self.assertEqual(len(contract), ENGINE_DELIVERY_COUNT)
         self.assertEqual(
             [item["table_code"] for item in contract],
             list(DELIVERY_TABLE_KEYS),
         )
-        self.assertEqual([item["order"] for item in contract], list(range(1, 14)))
+        self.assertEqual(
+            [item["order"] for item in contract],
+            list(range(1, ENGINE_DELIVERY_COUNT + 1)),
+        )
+        self.assertEqual(contract[-1]["delivery_no"], "附表11")
         self.assertEqual(list(_DELIVERY_SHEETS), list(DELIVERY_TABLE_KEYS))
         self.assertEqual(
             list(_DELIVERY_SHEETS.values()),
@@ -74,7 +83,7 @@ class FinanceFixtureAcceptanceTest(unittest.TestCase):
         self.assertTrue(all(item["reconciliation_rules"] for item in contract))
         self.assertTrue(delivery_table_contract_hash().startswith("sha256:"))
         self.assertEqual(counts, {
-            "engine_delivery_count": 13,
+            "engine_delivery_count": 14,
             "reference_source_sheet_count": 15,
             "review_workbook_sheet_count": 16,
         })

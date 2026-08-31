@@ -438,7 +438,7 @@
   },
   {
     "name": "acquisition_run_model",
-    "description": "仅消费已确认 spec_id；hotel_lease 运行月度模型，solar_power 运行年度模型。",
+    "description": "运行收购模型：已确认 spec 产出可用于正式候选的结果；未确认候选 spec 也可运行，但结果标记 spec_confirmation_status 并仅供估算预览。hotel_lease 运行月度模型，solar_power 运行年度模型。",
     "inputSchema": {
       "properties": {
         "workspace_id": {

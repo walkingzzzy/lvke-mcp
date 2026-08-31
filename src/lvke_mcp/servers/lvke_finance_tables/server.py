@@ -48,7 +48,7 @@ _SOURCE_PACKAGE_ID = {
     "type": "string",
     "minLength": 1,
     "description": (
-        "可选：消费既有十三表 package 而不重新渲染。省略时会新渲染一个包，"
+        "可选：消费既有交付表 package 而不重新渲染。省略时会新渲染一个包，"
         "其 content hash 可能与主包不同（package payload 内嵌可变门禁状态）。"
         "要求 XLSX/CSV 与主包同一 package_id 时必须显式传入。"
     ),
@@ -61,6 +61,7 @@ _TABLE_ID_ALIASES = {
     "profit_distribution": "profit-distribution",
     "debt_service": "debt-service",
     "capital_cashflow": "capital-cashflow",
+    "financial_plan": "financial-plan",
 }
 
 
@@ -113,11 +114,12 @@ def build_server() -> OfficialStdioServer:
     server = OfficialStdioServer(SERVER_NAME, SERVER_VERSION, logger)
     read = types.ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
     write = types.ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False)
-    server.register_tool("tables_render", "只消费 run_id 渲染十三表并固化 package；绝不重新计算财务。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "format": {"type": "string", "enum": ["structured", "markdown"], "default": "structured"}, "template_version": _TEMPLATE_VERSION}, "required": ["workspace_id", "run_id"]}, lambda a: service.render(a["workspace_id"], a["run_id"], a.get("format", "structured"), a.get("template_version", "")), _OUTPUT, write)
-    server.register_tool("tables_validate", "校验 run 的十三表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "validation_scope": {"type": "string", "enum": ["technical", "formal"], "default": "formal", "description": "technical 仅校验结构，formal 还要求宿主正式门禁"}}, "required": ["workspace_id", "run_id"]}, lambda a: service.validate(a["workspace_id"], a["run_id"], validation_scope=a.get("validation_scope", "formal")), _VALIDATE_OUTPUT, read)
+    server.register_tool("tables_render", "只消费 run_id 渲染交付表并固化 package；绝不重新计算财务。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "format": {"type": "string", "enum": ["structured", "markdown"], "default": "structured"}, "template_version": _TEMPLATE_VERSION}, "required": ["workspace_id", "run_id"]}, lambda a: service.render(a["workspace_id"], a["run_id"], a.get("format", "structured"), a.get("template_version", "")), _OUTPUT, write)
+    server.register_tool("tables_validate", "校验 run 的交付表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "validation_scope": {"type": "string", "enum": ["technical", "formal"], "default": "formal", "description": "technical 仅校验结构，formal 还要求宿主正式门禁"}}, "required": ["workspace_id", "run_id"]}, lambda a: service.validate(a["workspace_id"], a["run_id"], validation_scope=a.get("validation_scope", "formal")), _VALIDATE_OUTPUT, read)
     server.register_tool(
         "tables_export_xlsx",
-        "从同一 run_id 导出恰好13张财务表的 XLSX；默认 validation_scope=formal。"
+        "从同一 run_id 导出全部 14 张交付财务表的 XLSX（原十三表 + 附表11 财务计划"
+        "现金流量表）；默认 validation_scope=formal。"
         "formal 门禁未过时**不拒绝导出**，而是降级为「正式候选·含限制」：文件内写入"
         "不得对外正式交付的标记，未通过项进 release_limitations，需以 tables_validate"
         "(validation_scope=formal) 的 blockers 为正式资格判据。"
@@ -154,7 +156,7 @@ def build_server() -> OfficialStdioServer:
     )
     server.register_tool(
         "tables_export_csv",
-        "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，"
+        "从同一 run_id 原生导出 15 个 UTF-8 BOM CSV（14 张交付表 + 数据血缘表）；只写标量单元格，"
         "给定 finance_tables_package_id 时消费既有包。默认 validation_scope=formal；"
         "formal 门禁未过时降级为含限制的正式候选件（文件内写入限制标记、未通过项进 release_limitations），不是拒绝导出；"
         "validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
@@ -189,7 +191,7 @@ def build_server() -> OfficialStdioServer:
         _OUTPUT,
         write,
     )
-    server.register_tool("tables_get_package", "读取已固化十三表 package 摘要。", {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _BASE["workspace_id"], "finance_tables_package_id": {"type": "string", "minLength": 1}}, "required": ["workspace_id", "finance_tables_package_id"]}, lambda a: service.get_package(a["workspace_id"], a["finance_tables_package_id"]), _OUTPUT, read)
+    server.register_tool("tables_get_package", "读取已固化交付表 package 摘要（14 张交付表）。", {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _BASE["workspace_id"], "finance_tables_package_id": {"type": "string", "minLength": 1}}, "required": ["workspace_id", "finance_tables_package_id"]}, lambda a: service.get_package(a["workspace_id"], a["finance_tables_package_id"]), _OUTPUT, read)
     package_table_properties = {
         "workspace_id": _BASE["workspace_id"],
         "finance_tables_package_id": {"type": "string", "minLength": 1},
@@ -197,7 +199,7 @@ def build_server() -> OfficialStdioServer:
     }
     server.register_tool(
         "tables_list_tables",
-        "列出不可变十三表 package 中的固定表注册表与单表 Resource；不重新渲染。",
+        "列出不可变交付表 package 中的固定表注册表与单表 Resource；不重新渲染。",
         {"type": "object", "additionalProperties": False, "properties": package_table_properties, "required": ["workspace_id", "finance_tables_package_id"]},
         lambda a: service.list_tables(a["workspace_id"], a["finance_tables_package_id"], a.get("expected_run_id", "")),
         _OUTPUT,

@@ -248,6 +248,32 @@ _TABLE_SPECS: dict[str, dict[str, Any]] = {
             ("net_cashflow", "资本金净现金流"),
         ],
     },
+    # 附表11。列键取自**运行时真正的生产者** annual._build_financial_plan
+    # （period/cumulative/gap…），不是 statements.financial_plan_rows
+    # （year/cash_end/cum_surplus/funding_gap/min_cash）——后者全仓无调用方、
+    # 是同语义第二份实现且已成死代码。按它写会让 5 列恒为 None（已实测踩过）。
+    # 标签需同时满足冻结契约的 reference_columns 词元与 required_row_groups，
+    # 改标签前先看 docs/reference_table_schema.json 的 financial-plan 条目。
+    # gap 是布尔，按原值输出、不折算数字，免得 0/1 被下游当金额读。
+    "financial-plan": {
+        "delivery_no": "附表11",
+        "title": "财务计划现金流量表",
+        "annual_key": "financial_plan",
+        "columns": [
+            ("period", "计算期(年)"),
+            ("phase", "阶段"),
+            ("operating_net", "经营活动净现金流"),
+            ("invest_out", "投资活动净流出"),
+            ("finance_in", "融资活动净流入"),
+            ("loan_draw", "其中：贷款提款"),
+            ("capital_own", "其中：资本金投入"),
+            ("gov_subsidy", "其中：政府补助"),
+            ("debt_service", "还本付息"),
+            ("net_cashflow", "净现金流量"),
+            ("cumulative", "累计盈余资金"),
+            ("gap", "是否存在资金缺口"),
+        ],
+    },
 }
 
 

@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 from lvke_mcp.domains.finance import tables_service
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.model_application import run_model
+from lvke_mcp.domains.finance.run_service import ENGINE_DELIVERY_COUNT
 
 
 class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
@@ -63,7 +64,7 @@ class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
     def test_invalid_scope_is_rejected(self) -> None:
         self.assertEqual(self._export("other")["code"], "validation_scope_invalid")
 
-    def test_technical_xlsx_has_exactly_thirteen_marked_sheets(self) -> None:
+    def test_every_delivery_sheet_carries_the_preview_marking(self) -> None:
         exported = self._export("technical")
         self.assertEqual(exported["validation_scope"], "technical")
         self.assertEqual(exported["release_grade"], "technical_preview")
@@ -79,7 +80,9 @@ class XlsxTechnicalPreviewScopeTest(unittest.TestCase):
         self.assertIsInstance((resolved or (None, ""))[0], bytes)
         workbook = load_workbook(exported["deliverable_path"], read_only=True, data_only=False)
         try:
-            self.assertEqual(len(workbook.sheetnames), 13)
+            # 按交付集常量断言，不写字面量：本测试要保证的是「每张交付表都带
+            # 预览标记」，而不是"恰好 13 张"。附表11 进交付集后是 14 张。
+            self.assertEqual(len(workbook.sheetnames), ENGINE_DELIVERY_COUNT)
             for sheet in workbook.worksheets:
                 with self.subTest(sheet=sheet.title):
                     notice = str(sheet["A2"].value or "")

@@ -866,6 +866,61 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 "atomic capital cashflow inflow-outflow", family="net_cashflow",
             )
 
+    # 附表11：净现金流量与累计盈余必须是**工作簿内真公式**，不能只落引擎数值。
+    # 正式门禁按 required_formula_families 逐表核 coverage，而"声明了族名却不写
+    # 公式"会让 coverage=0 并卡住整条正式链——那等于用声明伪装成已实现。
+    # 还本付息同时链到附表8，与附表10 的 debt_links 同构，避免两处出现口径不同的
+    # 还本付息数字。
+    plan = layouts.get("financial-plan") or {}
+    if plan:
+        plan_build_years = max(int((fin.get("params") or {}).get("build_years") or 0), 0)
+        for offset, row in enumerate(range(plan.get("first", 4), plan.get("last", 3) + 1)):
+            phase_col = col("financial-plan", "phase")
+            is_operating_row = bool(
+                phase_col and plan["ws"].cell(row, phase_col).value == "运营期"
+            )
+            if is_operating_row and debt:
+                debt_row = debt.get("first", 4) + max(offset - plan_build_years, 0)
+                ds_col = col("financial-plan", "debt_service")
+                p_col = col("debt-service", "principal")
+                i_col = col("debt-service", "interest")
+                if ds_col and p_col and i_col and debt_row <= debt.get("last", 3):
+                    ref = (
+                        f"'附表8'!{debt['ws'].cell(debt_row, p_col).coordinate}"
+                        f"+'附表8'!{debt['ws'].cell(debt_row, i_col).coordinate}"
+                    )
+                    set_formula(
+                        "financial-plan", row, "debt_service", f"={ref}", ref,
+                        family="debt_links",
+                    )
+            op_col = col("financial-plan", "operating_net")
+            inv_col = col("financial-plan", "invest_out")
+            fin_col = col("financial-plan", "finance_in")
+            ds_col = col("financial-plan", "debt_service")
+            net_col = col("financial-plan", "net_cashflow")
+            cum_col = col("financial-plan", "cumulative")
+            if op_col and inv_col and fin_col and ds_col and net_col:
+                formula = (
+                    f"={plan['ws'].cell(row, op_col).coordinate}"
+                    f"+{plan['ws'].cell(row, fin_col).coordinate}"
+                    f"-{plan['ws'].cell(row, inv_col).coordinate}"
+                    f"-{plan['ws'].cell(row, ds_col).coordinate}"
+                )
+                set_formula(
+                    "financial-plan", row, "net_cashflow", formula,
+                    "operating+financing-investing-debt_service",
+                    family="financial_plan_rollforward",
+                )
+                if cum_col:
+                    net_ref = plan["ws"].cell(row, net_col).coordinate
+                    cum_formula = (
+                        f"={net_ref}"
+                        if row == plan.get("first", 4)
+                        else f"={plan['ws'].cell(row - 1, cum_col).coordinate}+{net_ref}"
+                    )
+                    plan["ws"].cell(row, cum_col, cum_formula)
+                    formula_families["financial-plan"].add("financial_plan_rollforward")
+
     def append_cashflow_tree(key: str, components: list[tuple[str, list[str]]]) -> None:
         layout = layouts[key]
         ws = layout["ws"]

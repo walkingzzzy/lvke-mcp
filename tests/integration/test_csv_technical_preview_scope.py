@@ -16,6 +16,7 @@ from pathlib import Path
 from lvke_mcp.domains.finance import tables_service
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
 from lvke_mcp.domains.finance.model_application import run_model
+from lvke_mcp.domains.finance.run_service import ENGINE_DELIVERY_COUNT
 
 _BANNER_HEAD = "【技术预览·不可正式使用】"
 
@@ -70,11 +71,15 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
         exported = self._export("whatever")
         self.assertEqual(exported["code"], "validation_scope_invalid")
 
-    def test_technical_scope_produces_fourteen_files(self) -> None:
+    def test_technical_scope_produces_one_file_per_table_plus_lineage(self) -> None:
         exported = self._export("technical")
         self.assertTrue(exported.get("csv_resource_uris"), exported)
         directory = Path(exported["deliverable_path"])
-        self.assertEqual(len(sorted(directory.glob("*.csv"))), 14)
+        # 交付表各一份 + 1 份数据血缘表。按常量断言而非字面量：附表11 进交付集后
+        # 是 14+1=15 份，原断言写死 14（=13+1）。
+        self.assertEqual(
+            len(sorted(directory.glob("*.csv"))), ENGINE_DELIVERY_COUNT + 1,
+        )
 
     def test_every_technical_file_carries_the_in_file_marking(self) -> None:
         exported = self._export("technical")
@@ -107,7 +112,7 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
         exported = self._export("technical")
         integrity = exported.get("csv_integrity") or {}
         self.assertTrue(integrity.get("valid"), integrity)
-        self.assertEqual(integrity["verified_table_count"], 13)
+        self.assertEqual(integrity["verified_table_count"], ENGINE_DELIVERY_COUNT)
 
     def test_technical_export_still_binds_the_same_package(self) -> None:
         exported = self._export("technical")

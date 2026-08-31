@@ -550,6 +550,10 @@ class McpCompressionParityTest(unittest.TestCase):
             "tables_get_debt_service": "debt_service",
             "tables_get_cashflow": "cashflow",
             "tables_get_capital_cashflow": "capital_cashflow",
+            # 附表11 财务计划现金流量表。它没有旧的独立 tables_get_* 工具（压缩前
+            # 就不存在这张交付表），但 registry 按交付集派生 alias_tool，所以这里
+            # 必须同步声明，否则「别名恰好等于 registry 路由」这条不变量会失衡。
+            "tables_get_financial_plan": "financial_plan",
         }
         canonical = {
             item["alias_tool"]: item["table_id"]

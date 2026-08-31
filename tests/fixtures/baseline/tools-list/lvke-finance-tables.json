@@ -6,7 +6,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "只消费 run_id 渲染十三表并固化 package；绝不重新计算财务。",
+    "description": "只消费 run_id 渲染交付表并固化 package；绝不重新计算财务。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -158,7 +158,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "校验 run 的十三表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。",
+    "description": "校验 run 的交付表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -306,7 +306,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "从同一 run_id 导出恰好13张正式财务表的 XLSX；默认 formal。validation_scope='technical' 时文件内逐表标记为估算预览且永不可取得正式资格。",
+    "description": "从同一 run_id 导出全部 14 张交付财务表的 XLSX（原十三表 + 附表11 财务计划现金流量表）；默认 validation_scope=formal。formal 门禁未过时**不拒绝导出**，而是降级为「正式候选·含限制」：文件内写入不得对外正式交付的标记，未通过项进 release_limitations，需以 tables_validate(validation_scope=formal) 的 blockers 为正式资格判据。validation_scope='technical' 时文件内逐表标记为估算预览且永不可取得正式资格。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -462,7 +462,7 @@
       "openWorldHint": false,
       "readOnlyHint": false
     },
-    "description": "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，给定 finance_tables_package_id 时消费既有包。默认 formal，正式门禁不过即拒绝；validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
+    "description": "从同一 run_id 原生导出 15 个 UTF-8 BOM CSV（14 张交付表 + 数据血缘表）；只写标量单元格，给定 finance_tables_package_id 时消费既有包。默认 validation_scope=formal；formal 门禁未过时降级为含限制的正式候选件（文件内写入限制标记、未通过项进 release_limitations），不是拒绝导出；validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -618,7 +618,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "读取已固化十三表 package 摘要。",
+    "description": "读取已固化交付表 package 摘要（14 张交付表）。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -758,7 +758,7 @@
       "openWorldHint": false,
       "readOnlyHint": true
     },
-    "description": "列出不可变十三表 package 中的固定表注册表与单表 Resource；不重新渲染。",
+    "description": "列出不可变交付表 package 中的固定表注册表与单表 Resource；不重新渲染。",
     "execution": {
       "taskSupport": "forbidden"
     },
@@ -931,6 +931,8 @@
             "debt-service",
             "debt_service",
             "depreciation",
+            "financial-plan",
+            "financial_plan",
             "funding",
             "income-statement",
             "income_statement",
@@ -1110,6 +1112,8 @@
             "debt-service",
             "debt_service",
             "depreciation",
+            "financial-plan",
+            "financial_plan",
             "funding",
             "income-statement",
             "income_statement",

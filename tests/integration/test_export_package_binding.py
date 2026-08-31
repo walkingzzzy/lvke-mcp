@@ -82,7 +82,9 @@ class ExportPackageBindingTest(unittest.TestCase):
         self.assertEqual(str(run.get("spec_hash") or ""), payload.get("spec_hash"))
         self.assertEqual(str(run.get("spec_id") or ""), payload.get("spec_id"))
         self.assertTrue(payload.get("spec_hash"), "package 未记录 spec_hash")
-        self.assertEqual(payload.get("engine_delivery_count"), 13)
+        # 14 = 原 13 张 + 附表11 财务计划现金流量表；15/16 是参考底稿与审查工作簿
+        # 的 sheet 数，附表11 在甲方底稿中不存在，故这两个数不随交付表增加而变。
+        self.assertEqual(payload.get("engine_delivery_count"), 14)
         self.assertEqual(payload.get("reference_source_sheet_count"), 15)
         self.assertEqual(payload.get("review_workbook_sheet_count"), 16)
         self.assertEqual(payload.get("table_contract_hash"), delivery_table_contract_hash())

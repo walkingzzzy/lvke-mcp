@@ -43,6 +43,15 @@ _EXPECTED_ENGINE_MAPPING: dict[str, tuple[str, str, tuple[str, ...]]] = {
         "附表10", "附表10",
         ("附表3", "附表4", "附表5", "附表6", "附表6-5", "附表7", "附表8"),
     ),
+    # 附表11 无参考底稿：reference_sheet 为空字符串是**显式声明**而非缺失。
+    # 《投资类项目经济计算表.xlsx》里没有这张表（实测「财务计划」/「附表11」零命中），
+    # 所以它的结构由引擎自定义并在 reference_table_schema.json 冻结。
+    # 空 reference_sheet 也让它自动不进 reference_to_delivery 映射，
+    # 因而不参与跨表依赖复核块与 15 张参考 sheet 计数。
+    "financial-plan": (
+        "附表11", "",
+        ("附表6", "附表6-2", "附表6-3", "附表7", "附表8"),
+    ),
 }
 _EXPECTED_REFERENCE_SHEETS = (
     "附表1", "附表2", "附表3", "附表4", "附表5", "附表6", "附表6-1", "附表6-2",
@@ -158,22 +167,41 @@ def validate_reference_contract(path: str = "") -> dict[str, Any]:
             issues.append(prefix + "缺真实参考表标题")
         if tuple(item.get("formula_dependency_sources") or ()) != deps:
             issues.append(prefix + "公式上游 sheet 集不等于审查清单")
-        if tuple(item.get("reference_source_sheets") or ()) != (reference_sheet, *deps):
-            issues.append(prefix + "reference_source_sheets 未覆盖主表及全部公式上游")
-        artifact = artifacts.get(reference_sheet) or {}
-        if contract.get("reference_source") != artifact.get("path"):
-            issues.append(prefix + "reference_source 未指向映射主表")
-        if contract.get("reference_source_sha256") != artifact.get("sha256"):
-            issues.append(prefix + "表级 sha256 与 source.artifacts 不一致")
-        legacy_stats = contract.get("reference_source_stats") or {}
-        artifact_stats = artifact.get("stats") or {}
-        normalized_legacy = {
-            "data_rows": legacy_stats.get("data_rows"),
-            "formula_cells": legacy_stats.get("formula_cells"),
-            "cross_sheet_ref_occurrences": legacy_stats.get("cross_sheet_refs"),
-        }
-        if normalized_legacy != artifact_stats:
-            issues.append(prefix + "表级 stats 与 source.artifacts 不一致")
+        # 无参考底稿的引擎自定义表（reference_sheet 为空串）：四项"与甲方底稿对齐"
+        # 的校验不适用——没有底稿可指向、可比 sha256、可比 stats。这里**显式豁免**
+        # 并要求它自报来源性质，而不是给它编造一个 artifact 路径与哈希：
+        # 那会让"未与任何底稿比对过"伪装成"已比对通过"。
+        # 结构类校验（layout/columns/row_tree/formula_families/signatures/
+        # minimum_detail/applicability）一项都不豁免，仍逐条要求。
+        engine_defined = not str(reference_sheet).strip()
+        if engine_defined:
+            if str(item.get("reference_provenance") or "") != "engine_defined_no_reference_sheet":
+                issues.append(prefix + "无参考底稿的表必须声明 reference_provenance=engine_defined_no_reference_sheet")
+            if not str(item.get("provenance_note") or "").strip():
+                issues.append(prefix + "无参考底稿的表必须写明 provenance_note（为何无底稿）")
+            if tuple(item.get("reference_source_sheets") or ()) != ():
+                issues.append(prefix + "无参考底稿的表 reference_source_sheets 必须为空")
+            if str(contract.get("reference_source") or "").strip():
+                issues.append(prefix + "无参考底稿的表 reference_source 必须留空")
+            if str(contract.get("reference_source_sha256") or "").strip():
+                issues.append(prefix + "无参考底稿的表 reference_source_sha256 必须留空")
+        else:
+            if tuple(item.get("reference_source_sheets") or ()) != (reference_sheet, *deps):
+                issues.append(prefix + "reference_source_sheets 未覆盖主表及全部公式上游")
+            artifact = artifacts.get(reference_sheet) or {}
+            if contract.get("reference_source") != artifact.get("path"):
+                issues.append(prefix + "reference_source 未指向映射主表")
+            if contract.get("reference_source_sha256") != artifact.get("sha256"):
+                issues.append(prefix + "表级 sha256 与 source.artifacts 不一致")
+            legacy_stats = contract.get("reference_source_stats") or {}
+            artifact_stats = artifact.get("stats") or {}
+            normalized_legacy = {
+                "data_rows": legacy_stats.get("data_rows"),
+                "formula_cells": legacy_stats.get("formula_cells"),
+                "cross_sheet_ref_occurrences": legacy_stats.get("cross_sheet_refs"),
+            }
+            if normalized_legacy != artifact_stats:
+                issues.append(prefix + "表级 stats 与 source.artifacts 不一致")
         if not contract.get("reference_layout"):
             issues.append(prefix + "缺 reference_layout")
         if not isinstance(contract.get("reference_columns"), list) or not contract.get("reference_columns"):
@@ -313,6 +341,17 @@ def validate_reference_sources(path: str = "") -> dict[str, Any]:
                     str(edge.get("to_sheet") or "")
                 )
             for key, (_, reference_sheet, deps) in _EXPECTED_ENGINE_MAPPING.items():
+                if not str(reference_sheet).strip():
+                    # 引擎自定义表（无参考底稿）：冻结工作簿里没有对应 sheet，
+                    # 自然也没有跨表引用边可比。此处跳过而**不是**把它算作
+                    # "依赖不一致" —— 后者会让 reference_structure_ready 永远
+                    # False，从而把整条正式交付链锁死（实测就是这个症状：
+                    # 逐表 grade 全部 reference、coverage 全 1.0，却仍报
+                    # finance_reference_structure_incomplete）。
+                    # 它声明的 formula_dependency_sources 描述的是**引擎内部**
+                    # 取数上游，由 delivery_table_contract 的
+                    # formula_dependencies 与渲染层保证，不经甲方底稿佐证。
+                    continue
                 if dependency_map.get(reference_sheet, set()) != set(deps):
                     issues.append(f"analysis_manifest: {key} 上游依赖与冻结契约不一致")
             summaries = {

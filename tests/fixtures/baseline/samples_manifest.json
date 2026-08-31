@@ -1,6 +1,6 @@
 {
   "schema": "baseline_samples.v1",
-  "captured_at": "2026-08-27T22:13:24+0800",
+  "captured_at": "2026-09-01T00:49:52+0800",
   "protocol_version": "2025-11-25",
   "plan_ref": "dev-docs/architecture/MCP_INDEPENDENCE_PLAN.md §29.2",
   "domains": [
@@ -45,11 +45,11 @@
       "tool": "tables_render→tables_export_csv→tables_export_xlsx→lvke_read_resource",
       "params": {
         "workspace_id": "baseline-core-v2",
-        "run_id": "run_9b3aeb915d65"
+        "run_id": "run_995b36f781c9"
       },
       "status": "ok",
       "file": "finance-tables/FinanceTables.roundtrip.v1.json",
-      "sha256": "bbef595ba34752efcdc4a94a603f0d58709aafa6ace585288c7e763e941625c9",
+      "sha256": "fb292c8a34c82258aaec8f149b791f5c10f6ce6bbc9f683369b831d2a9a4fa6f",
       "detail": "",
       "note": "绑定本次 FinanceRun 的十三表、CSV 和 XLSX 技术工件"
     },
@@ -63,7 +63,7 @@
       },
       "status": "ok",
       "file": "research/ResearchPackage.roundtrip.v1.json",
-      "sha256": "77d1de785dbd836b33264d58502b596ec10f341f4758051ef912515e9e9d7b43",
+      "sha256": "82a9ff9f587b38ca343179771623653b8e1cfd80c122c0705fe85956f679c8b9",
       "detail": "",
       "note": "可回读 partial ResearchPackage；不冒充独立质量审计完成"
     },
@@ -91,7 +91,7 @@
       },
       "status": "ok",
       "file": "report/ReportRevision.roundtrip.v1.json",
-      "sha256": "f4f1d92de31c231e6262bf9e599bf77094ecb3495f0e5fef214b53982a59f3da",
+      "sha256": "a02dede43a5d46b567b10fe12713c63e83d337b344f576fa48642aa05eeebe13",
       "detail": "",
       "note": "绑定本次 Finance、十三表、Evidence 与 Research 对象的 partial 报告工件"
     }

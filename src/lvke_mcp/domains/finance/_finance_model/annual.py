@@ -840,7 +840,9 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
         annual["working_capital"]["total"] = wc_total
         annual["working_capital"]["net_working_capital"] = wc_total
 
-    # 【P0-5 / F13-P0-04】财务计划现金流量表(C03 控制表,不占 13 张交付编号)：
+    # 【P0-5 / F13-P0-04】财务计划现金流量表（现为正式交付表**附表11**；
+    # 原为不占编号的 C03 控制表，2023 大纲 financial_sustainability 要求独立同名表，
+    # 已随交付集扩到 14 张一并进入 XLSX/CSV，见 _run_service.base.DELIVERY_TABLE_META）：
     #   逐年汇总 投资/融资/经营 三类活动现金流,输出期末现金、累计盈余资金与资金缺口,
     #   判断项目各期能否正常运营、资金链是否安全。仅经营性项目构造(非经营性走全生命周期资金平衡)。
     annual["financial_plan"] = _build_financial_plan(r, annual, debt)

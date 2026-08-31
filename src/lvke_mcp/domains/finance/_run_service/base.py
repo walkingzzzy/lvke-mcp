@@ -38,6 +38,19 @@ DELIVERY_TABLE_META: tuple[tuple[str, str, str], ...] = (
     ("debt-service", "附表8", "还款付息测算表"),
     ("cashflow", "附表9", "项目投资现金流量表"),
     ("capital-cashflow", "附表10", "项目资本金流量表"),
+    # 附表11 财务计划现金流量表。2023 大纲 financial_sustainability 要求此表，
+    # 附表9/10 只覆盖项目投资与资本金两个口径，给不出「各期期末现金、累计盈余、
+    # 是否存在资金缺口」——即原 known_gap 所述"只能部分覆盖"。
+    #
+    # 编号取 11 而非内部代号 C03：权威参考工作簿《投资类项目经济计算表.xlsx》
+    # 没有这张表（实测「财务计划」/「附表11」零命中），无外部编号可继承；
+    # 附表10 是现有最大号（13 张表只排到 10，因 6-1/6-2/6-3 是附表6 子表），
+    # 11 是自然续号。交付件里出现"控制表 C03"会让审查方无从对应大纲条款。
+    #
+    # 它的参考结构已在 docs/reference_table_schema.json 冻结，并以
+    # reference_provenance=engine_defined_no_reference_sheet 显式声明"无底稿"，
+    # 因此可达 reference 级、不会卡住正式交付门禁 all_tables_reference_grade。
+    ("financial-plan", "附表11", "财务计划现金流量表"),
 )
 
 
@@ -63,6 +76,11 @@ _DELIVERY_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "debt-service": ("item", "total"),
     "cashflow": ("item", "total"),
     "capital-cashflow": ("item", "total"),
+    # 附表11 是逐年记录表（每行一年），不是"项目/合计"式科目表，故必填列取
+    # period + cumulative 这两个立表根据。键名以运行时生产者
+    # annual._build_financial_plan 为准（**不是** statements.financial_plan_rows，
+    # 后者全仓无调用方、键名不同，是同语义的第二份实现且已成死代码）。
+    "financial-plan": ("period", "cumulative"),
 }
 
 _DELIVERY_REQUIRED_COLUMN_GROUPS: dict[str, tuple[tuple[str, ...], ...]] = {
@@ -83,6 +101,7 @@ _DELIVERY_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "debt-service": ("annual.debt_service",),
     "cashflow": ("annual.project_cashflow",),
     "capital-cashflow": ("annual.capital_cashflow",),
+    "financial-plan": ("annual.financial_plan",),
 }
 
 _DELIVERY_RECONCILIATION_RULES: dict[str, tuple[str, ...]] = {
@@ -99,6 +118,10 @@ _DELIVERY_RECONCILIATION_RULES: dict[str, tuple[str, ...]] = {
     "debt-service": ("debt_balance_reconciles", "coverage_ratios_recompute"),
     "cashflow": ("project_cashflow_reconciles",),
     "capital-cashflow": ("capital_cashflow_reconciles",),
+    # 只声明确有实现的判据：checks.py 的「财务计划无资金缺口年」按
+    # annual.financial_plan 的 gap 逐年判定（非阻断，属可持续性提示）。
+    # 不编造无人执行的规则名，否则会变成永远无法满足的伪要求。
+    "financial-plan": ("financial_plan_no_funding_gap",),
 }
 
 
@@ -114,8 +137,10 @@ def delivery_table_contract() -> list[dict[str, Any]]:
             "order": order,
             "unit": "万元",
             "period_semantics": (
+                # 附表11 与附表9/10 同属全周期表：_build_financial_plan 先输出
+                # 建设期各年，再输出运营期各年。
                 "construction_and_operation_years"
-                if key in {"cashflow", "capital-cashflow"}
+                if key in {"cashflow", "capital-cashflow", "financial-plan"}
                 else "construction_years"
                 if key in {"investment", "interest-during-construction", "funding"}
                 else "operation_years"
