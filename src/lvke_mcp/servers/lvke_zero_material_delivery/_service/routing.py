@@ -138,11 +138,71 @@ def _resolve_route(sentence: str, explicit_industry: str = "") -> dict[str, Any]
     }
 
 
+#: 请求语与交付物名，不属于项目名称本身。整句直接当项目名会把
+#: "帮我做一份……的可行性研究报告" 整条塞进 project_name，之后每一章标题、
+#: manifest 和报告正文都带着这句客套话。
+_REQUEST_PREFIXES = (
+    "帮我做一份", "帮我做个", "帮我做", "帮忙做一份", "帮忙做", "请帮我做",
+    "请做一份", "我想做", "我要做", "麻烦做一份", "麻烦做", "做一份", "做个",
+    "生成一份", "生成", "编制一份", "编制", "写一份", "写",
+)
+_DELIVERABLE_SUFFIXES = (
+    "的可行性研究报告", "的可研报告", "的项目建议书", "的资金申请报告",
+    "的初步设计", "的实施方案", "可行性研究报告", "可研报告", "项目建议书",
+)
+#: 省/市/区县三级行政区划。用于从句子里抽出 region —— 此前 region 只认显式
+#: 参数，一句话里写了"武汉市江夏区"也照样留空，后续每一章的地区槽位都缺。
+#: 逐级独立匹配，每级都要求"后缀前只有 1~4 个汉字"。整体一次性匹配会让
+#: 非贪婪量词从句首开始吞字符（"帮我做一份武汉市"被整段当成城市名）。
+_PROVINCE_RE = re.compile(r"[一-鿿]{2,4}(?:省|自治区|特别行政区)|北京市|上海市|天津市|重庆市")
+_CITY_RE = re.compile(r"[一-鿿]{2,4}(?:市|自治州|地区|盟)")
+_DISTRICT_RE = re.compile(r"[一-鿿]{2,4}(?:区|县|自治县|旗)")
+
+
 def _project_name(sentence: str, supplied: str = "") -> str:
     if supplied.strip():
         return supplied.strip()
     compact = re.sub(r"\s+", "", sentence).strip("，。；;,. ")
+    for prefix in _REQUEST_PREFIXES:
+        if compact.startswith(prefix):
+            compact = compact[len(prefix):]
+            break
+    for suffix in _DELIVERABLE_SUFFIXES:
+        if compact.endswith(suffix):
+            compact = compact[: -len(suffix)]
+            break
+    compact = compact.strip("，。；;,. 的")
     return compact[:80] or "零材料技术预估项目"
+
+
+def _region_from_sentence(sentence: str, supplied: str = "") -> str:
+    """Extract a province/city/district region string from the sentence.
+
+    只做确定性的行政区划后缀匹配，抽不到就返回空串让上游报缺口——不猜、
+    不按项目名硬凑一个地区。
+    """
+
+    if supplied.strip():
+        return supplied.strip()
+    compact = re.sub(r"\s+", "", sentence)
+    # 从项目名而非原句里抽：原句含"帮我做一份"等请求语，逐级正则仍可能把它
+    # 的尾字并进省市名。项目名已剥离请求语与交付物名。
+    haystack = _project_name(sentence) or compact
+    # 逐级向后扫：每级都从上一级命中的末尾开始，否则市级正则会在
+    # "武汉市江夏区" 里从第二个字再匹配出 "汉市"，拼出 "武汉市汉市江夏区"。
+    parts: list[str] = []
+    cursor = 0
+    for pattern in (_PROVINCE_RE, _CITY_RE, _DISTRICT_RE):
+        match = pattern.search(haystack, cursor)
+        if match is None:
+            continue
+        parts.append(match.group(0))
+        cursor = match.end()
+    # 只接受至少两级（如"武汉市江夏区"或"湖北省武汉市"）：单一个"区"或"市"
+    # 极易命中普通词（"园区""上市"），宁缺勿错。
+    if len(parts) < 2:
+        return ""
+    return "".join(parts)
 
 
 def _new_run(

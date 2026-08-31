@@ -483,7 +483,17 @@ _COST_CANDIDATE_ITEM = {
         "quantity_unit": {"type": "string"},
         "unit_consumption": {"type": "number", "minimum": 0},
         "unit_price_yuan": {"type": "number", "minimum": 0},
-        "conversion_to_wan": {"type": "number", "exclusiveMinimum": 0},
+        "conversion_to_wan": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "default": 0.0001,
+            "description": (
+                "把 数量×单耗×单价 的乘积换算为万元的乘数，不是「1 万元 = 10000 元」的进率。"
+                "单价按元计价时取 0.0001（等于 ÷10000）；单价已按万元计价时取 1。"
+                "填 10000 会把金额放大 1 亿倍。省略时默认 0.0001。"
+            ),
+        },
         "loss_rate": {"type": "number", "minimum": 0, "maximum": 10},
         "tax_basis": {"type": "string"},
         "period": {"type": "string"},

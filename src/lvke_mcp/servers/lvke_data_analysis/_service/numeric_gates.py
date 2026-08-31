@@ -145,10 +145,27 @@ def _label_occurrences(
     return occurrences
 
 
+#: 分句标记。标签与数字之间一旦跨越这些标记，就不属于同一分句，不能配对。
+#: 顿号是关键：中文成本/投资明细正是用它并列的（"主要原材料 46,968.00 万元、
+#: 水电能源 1,600.00 万元"）。纯字符距离下"水电能源"离 46,968 只有 13 字符、
+#: 离它自己的 1,600 有 19 字符，于是 Gate 2 把原材料的金额判给了水电能源，
+#: 且 attribution_gate 仍报 passed —— 候选事实的 numeric_value 是别项的数。
+_CLAUSE_MARKERS = frozenset("，,；;。、：:（）()")
+
+
+def _crosses_clause_boundary(text: str, a_end: int, b_start: int) -> bool:
+    """True when a clause marker separates two spans."""
+
+    if not text or a_end >= b_start:
+        return False
+    return any(ch in _CLAUSE_MARKERS for ch in text[a_end:b_start])
+
+
 def _nearest_label_fields(
     occurrences: list[tuple[int, int, frozenset[str]]],
     m_start: int,
     m_end: int,
+    text: str = "",
 ) -> tuple[set[str], int, int]:
     """Fields owning the label phrase closest to a measure (Gate 2 core).
 
@@ -166,6 +183,17 @@ def _nearest_label_fields(
 
     if not occurrences:
         return set(), m_start, m_end
+    # 先按分句过滤：跨越顿号/逗号等标记的标签与本数字不在同一分句，不参与
+    # 最近判定。全部被过滤时退回原集合，让单位与限定词门去裁决，而不是在这里
+    # 猜一个——宁可后续门拒绝，也不要配错。
+    if text:
+        same_clause = [
+            occ for occ in occurrences
+            if not _crosses_clause_boundary(text, occ[1], m_start)
+            and not _crosses_clause_boundary(text, m_end, occ[0])
+        ]
+        if same_clause:
+            occurrences = same_clause
     ordered = sorted(occurrences, key=lambda o: _span_distance(m_start, m_end, o[0], o[1]))
     p_start, p_end = ordered[0][0], ordered[0][1]
     phrase = [ordered[0]]
@@ -232,7 +260,9 @@ def _numeric_text_measure(
             rejection_reason = "unit_incompatible"
             continue
         # Gate 2: the closest declared label must belong to this field.
-        owners, p_start, p_end = _nearest_label_fields(occurrences, match.start(), match.end())
+        owners, p_start, p_end = _nearest_label_fields(
+            occurrences, match.start(), match.end(), text
+        )
         if field not in owners:
             rejection_reason = "nearest_label_mismatch"
             continue

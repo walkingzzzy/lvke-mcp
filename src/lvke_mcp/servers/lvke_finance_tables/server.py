@@ -117,7 +117,10 @@ def build_server() -> OfficialStdioServer:
     server.register_tool("tables_validate", "校验 run 的十三表 manifest 与必需表；默认 formal，任一正式 blocker 都返回业务失败。", {"type": "object", "additionalProperties": False, "properties": {**_BASE, "validation_scope": {"type": "string", "enum": ["technical", "formal"], "default": "formal", "description": "technical 仅校验结构，formal 还要求宿主正式门禁"}}, "required": ["workspace_id", "run_id"]}, lambda a: service.validate(a["workspace_id"], a["run_id"], validation_scope=a.get("validation_scope", "formal")), _VALIDATE_OUTPUT, read)
     server.register_tool(
         "tables_export_xlsx",
-        "从同一 run_id 导出恰好13张正式财务表的 XLSX；默认 formal。"
+        "从同一 run_id 导出恰好13张财务表的 XLSX；默认 validation_scope=formal。"
+        "formal 门禁未过时**不拒绝导出**，而是降级为「正式候选·含限制」：文件内写入"
+        "不得对外正式交付的标记，未通过项进 release_limitations，需以 tables_validate"
+        "(validation_scope=formal) 的 blockers 为正式资格判据。"
         "validation_scope='technical' 时文件内逐表标记为估算预览且永不可取得正式资格。",
         {
             "type": "object",
@@ -132,7 +135,8 @@ def build_server() -> OfficialStdioServer:
                     "default": "formal",
                     "description": (
                         "technical：产出带文件内警示的过程验收 XLSX，"
-                        "validation_complete 恒为 false；formal：保持正式门禁。"
+                        "validation_complete 恒为 false；"
+                        "formal：门禁未过时降级为「正式候选·含限制」并写入文件内标记，不拒绝导出。"
                     ),
                 },
             },
@@ -151,7 +155,8 @@ def build_server() -> OfficialStdioServer:
     server.register_tool(
         "tables_export_csv",
         "从同一 run_id 原生导出 14 个 UTF-8 BOM CSV（十三表 + 数据血缘表）；只写标量单元格，"
-        "给定 finance_tables_package_id 时消费既有包。默认 formal，正式门禁不过即拒绝；"
+        "给定 finance_tables_package_id 时消费既有包。默认 validation_scope=formal；"
+        "formal 门禁未过时降级为含限制的正式候选件（文件内写入限制标记、未通过项进 release_limitations），不是拒绝导出；"
         "validation_scope='technical' 可产出过程验收文件，但文件首行标记不可正式使用。",
         {
             "type": "object",
@@ -165,7 +170,8 @@ def build_server() -> OfficialStdioServer:
                     "enum": ["technical", "formal"],
                     "default": "formal",
                     "description": (
-                        "formal：正式门禁未过则拒绝导出。technical：产出过程验收 CSV，"
+                        "formal：门禁未过时降级为含限制的正式候选件并写入限制标记，不拒绝导出。"
+                        "technical：产出过程验收 CSV，"
                         "每个文件首行写入不可正式使用标记，release_grade=technical_preview，"
                         "validation_complete 恒为 false。"
                     ),

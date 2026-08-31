@@ -72,17 +72,23 @@ _METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("depreciation", re.compile(r"年折旧|折旧(?:费|额)?", re.I)),
     ("profit", re.compile(r"利润总额|利润", re.I)),
     ("annual_use", re.compile(r"年使用|年度使用|年投入|年度投入|年度资金使用", re.I)),
-    ("engineering_cost", re.compile(r"工程费用合计|工程费合计", re.I)),
+    # 正文常写"工程费用 54,000.00 万元"而不带"合计"二字；不补这一写法时它会
+    # 落到更宽的 construction_investment（建设投资），把明细当成合计。
+    # "工程费用"必须排除"建筑工程费/安装工程费"这类以它结尾的分项名，否则
+    # engineering_cost 会抢走 civil_cost / installation_cost 的数值。
+    ("engineering_cost", re.compile(r"(?<![建筑土安装])工程费用合计|(?<![建筑土安装])工程费合计|(?<![建筑土安装])工程费用|(?<![建筑土安装])工程费(?!用)", re.I)),
     ("civil_cost", re.compile(r"建筑工程费|土建工程费", re.I)),
     ("equipment_cost", re.compile(r"设备及工器具购置费|设备购置费|设备费", re.I)),
     ("installation_cost", re.compile(r"安装工程费|安装费", re.I)),
     ("other_investment_cost", re.compile(r"工程建设其他费", re.I)),
     ("contingency", re.compile(r"基本预备费|预备费", re.I)),
-    ("wage_cost", re.compile(r"工资及福利|工资福利", re.I)),
+    ("wage_cost", re.compile(r"工资及福利|工资福利|工资及附加", re.I)),
     ("average_wage", re.compile(r"人均年工资|人均工资", re.I)),
-    ("salary_cost", re.compile(r"工资约|工资额|基本工资", re.I)),
-    ("welfare_cost", re.compile(r"福利约|福利费|福利额", re.I)),
-    ("maintenance_cost", re.compile(r"设备维护|维修费|维护费", re.I)),
+    # 成本明细里常直接写"工资 1,050.00 万元"、"福利 315.00 万元"。
+    ("salary_cost", re.compile(r"工资约|工资额|基本工资|工资", re.I)),
+    ("welfare_cost", re.compile(r"福利约|福利费|福利额|福利", re.I)),
+    ("maintenance_cost", re.compile(r"设备维护|维修费|维护费|修理与维护|修理费|修理", re.I)),
+    ("raw_material_cost", re.compile(r"主要原材料|原材料|原料", re.I)),
     ("utility_cost", re.compile(r"水电能源|能源费|水电费", re.I)),
     ("insurance_cost", re.compile(r"保险费|保险", re.I)),
     ("marketing_cost", re.compile(r"营销费|营销", re.I)),
@@ -107,6 +113,7 @@ _FINANCIAL_METRICS = {
     "net_profit", "income_tax", "depreciation", "profit", "annual_use",
     "engineering_cost", "civil_cost", "equipment_cost", "installation_cost", "other_investment_cost",
     "contingency", "wage_cost", "maintenance_cost", "utility_cost", "insurance_cost",
+    "raw_material_cost",
     "marketing_cost", "lease_cost", "management_cost", "salary_cost", "welfare_cost",
 }
 
@@ -139,13 +146,26 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("profit", re.compile(r"profit_total|total_profit|profit_before|(?:^|[.\[])profit(?:$|[.\[])", re.I)),
     ("annual_use", re.compile(r"(?:funding_annual_schedule|financial_plan).*?(?:finance_in|invest_out)", re.I)),
     ("engineering_cost", re.compile(r"breakdown_detail\.engineering_total", re.I)),
+    # 工程费三项分项此前只有正文模式、没有 run 路径模式，于是被识别出来后
+    # 在 run 里找不到值，照样报 REPORT.NUMBERS.BOUND 假阳性（昨天 civil_cost
+    # 就是这么产生的）。run 里两处都有：invest_breakdown 扁平键与
+    # breakdown_detail.engineering 的 [名称, 金额] 明细行。
+    ("civil_cost", re.compile(r"invest_breakdown\.civil_wan|breakdown_detail\.engineering.*建筑工程费", re.I)),
+    ("equipment_cost", re.compile(r"invest_breakdown\.equipment_wan|breakdown_detail\.engineering.*设备", re.I)),
+    ("installation_cost", re.compile(r"invest_breakdown\.installation_wan|breakdown_detail\.engineering.*安装工程费", re.I)),
     ("other_investment_cost", re.compile(r"breakdown_detail\.other|invest_breakdown\.other_items|invest_breakdown\.other_wan", re.I)),
     ("contingency", re.compile(r"breakdown_detail\.contingency|invest_breakdown\.contingency_items|invest_breakdown\.reserve_wan", re.I)),
-    ("wage_cost", re.compile(r"cost_items\.工资|wage_wan", re.I)),
-    ("salary_cost", re.compile(r"annual\.wage\[\d+\]\.wage$", re.I)),
-    ("welfare_cost", re.compile(r"annual\.wage\[\d+\]\.welfare$", re.I)),
-    ("maintenance_cost", re.compile(r"cost_items\.(?:设备维护|维修|维护)", re.I)),
+    ("wage_cost", re.compile(r"cost_items\.工资及(?:福利|附加)|wage_wan", re.I)),
+    # 正文模式新增了"工资 1,050"、"福利 315"、"修理与维护 800" 这些写法后，
+    # run 侧路径必须同步覆盖 `cost_items.<同名键>`，否则会从"不识别"变成
+    # "识别出来但在 run 里找不到值"，照样报 REPORT.NUMBERS.BOUND 假阳性。
+    # annual.wage[*] 是按工资率推算的分年明细，与 cost_items 里用户显式给的
+    # 金额不是同一个数，两者都要认。
+    ("salary_cost", re.compile(r"annual\.wage\[\d+\]\.wage$|cost_items\.工资$", re.I)),
+    ("welfare_cost", re.compile(r"annual\.wage\[\d+\]\.welfare$|cost_items\.福利$", re.I)),
+    ("maintenance_cost", re.compile(r"cost_items\.(?:修理与维护|设备维护|维修|维护|修理)", re.I)),
     ("utility_cost", re.compile(r"cost_items\.(?:水电能源|能源|水电)", re.I)),
+    ("raw_material_cost", re.compile(r"cost_items\.(?:主要原材料|原材料|原料)", re.I)),
     ("insurance_cost", re.compile(r"cost_items\.保险", re.I)),
     ("marketing_cost", re.compile(r"cost_items\.营销", re.I)),
     ("lease_cost", re.compile(r"cost_items\.(?:场地使用及租赁|场地租赁|租赁)", re.I)),

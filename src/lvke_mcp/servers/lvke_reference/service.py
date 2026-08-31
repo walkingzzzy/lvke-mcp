@@ -145,6 +145,23 @@ def geo_query(
     return err("lvke-reference.geo_input_invalid", "geo_query 需要 geocode 字符串或 nearby_pois 坐标对象")
 
 
+def _normalized_geo_endpoint(item: Any) -> Any:
+    """Accept ``lon``/``longitude``/``latitude`` as aliases for ``lng``/``lat``.
+
+    下游只认 ``lat``+``lng``。传 ``lon`` 时坐标读不到，端点退化成"按 name 解析"，
+    于是报 ``map-geo.not_found``（"请检查地名拼写或传 lat/lng"）——真正的问题是
+    键名拼错，而那句提示把人引向地名。这里做一次确定性别名归一化，不猜数值。
+    """
+
+    if not isinstance(item, dict):
+        return item
+    normalized = dict(item)
+    for alias, canonical in (("lon", "lng"), ("longitude", "lng"), ("latitude", "lat")):
+        if canonical not in normalized and alias in normalized:
+            normalized[canonical] = normalized[alias]
+    return normalized
+
+
 def geo_distance_matrix(
     origins: list[Any],
     destinations: list[Any],
@@ -155,7 +172,14 @@ def geo_distance_matrix(
             "lvke-reference.geo_mode_invalid",
             "当前离线数据仅支持 haversine_with_highway_estimate",
         )
-    return _handler("lvke_mcp.servers.map_geo.server", "_tool_distance_matrix", {"origins": origins, "destinations": destinations})
+    return _handler(
+        "lvke_mcp.servers.map_geo.server",
+        "_tool_distance_matrix",
+        {
+            "origins": [_normalized_geo_endpoint(item) for item in origins],
+            "destinations": [_normalized_geo_endpoint(item) for item in destinations],
+        },
+    )
 
 
 def archive_find_similar(arguments: dict[str, Any]) -> dict[str, Any]:

@@ -223,11 +223,6 @@ def extract_candidates(
                     and isinstance(cell_value, str)
                     and cell_value.strip().lower() in {alias.lower() for alias in aliases}
                 )
-                original_value = (
-                    None
-                    if is_header_anchor
-                    else (cell_value if locator.get("kind") == "cell" else _excerpt(text, match_offset))
-                )
                 # A parsed table cell carries its own authoritative number; prose
                 # goes through the offset-aware three-gate scanner.  A header
                 # anchor is never a value, numeric or otherwise.
@@ -246,6 +241,17 @@ def extract_candidates(
                         segment_role=str(locator.get("role") or locator.get("segment_role") or ""),
                     )
                     numeric_value = numeric_measure.get("numeric_value")
+                # `value`/`original_value` 必须与 `numeric_value`/`excerpt` 同源。
+                # 原值此前锚在"别名首次出现处"，数字由三道门在它自己找到的 offset
+                # 上取——同一段文本里别名出现多次时两者指向不同事实：value 是某一句，
+                # numeric_value 与 excerpt 是另一句。下游按 value 复核、按
+                # numeric_value 计算，就成了"复核通过但算错数"。
+                prose_offset = int(numeric_measure.get("measure_offset", match_offset))
+                original_value = (
+                    None
+                    if is_header_anchor
+                    else (cell_value if locator.get("kind") == "cell" else _excerpt(text, prose_offset))
+                )
                 # A field is satisfied when it yields either a retained original
                 # value or a gate-approved number, so a purely numeric hit does
                 # not get mislabelled ``candidate_without_value``.
@@ -263,10 +269,7 @@ def extract_candidates(
                         "original_value": original_value,
                         "numeric_value": numeric_value,
                         "expected_unit": str(spec.get("expected_unit") or "") or None,
-                        "excerpt": _excerpt(
-                            text,
-                            int(numeric_measure.get("measure_offset", match_offset)),
-                        ),
+                        "excerpt": _excerpt(text, prose_offset),
                         "locator": locator,
                     }
                 if numeric_measure:

@@ -92,10 +92,47 @@ def _schema_validation_message(exc: ValidationError) -> str:
         }.get(expected_type if isinstance(expected_type, str) else "")
     repair = "补充该字段并按工具 schema 提交" if exc.validator == "required" else "按该字段的类型、枚举和边界修正后重试"
     example_text = f" Example: {json.dumps(example, ensure_ascii=False)}." if example is not None else ""
+    # 对象类型的 fallback example 是字面量 {}，等于没给信息：调用方传错键名时
+    # 只知道"这个键不允许"，不知道**允许哪些**，只能反复试错（实测同一聚合入口
+    # 连撞三次）。所以对象校验失败时把合法键集直接列出来，required 单列。
+    keys_text = _schema_keys_hint(exc, schema)
     return (
         f"Schema validation failed at '{location}': {constraint}. "
-        f"Remediation: {repair}.{example_text}"
+        f"Remediation: {repair}.{example_text}{keys_text}"
     )
+
+
+def _schema_keys_hint(exc: ValidationError, schema: dict[str, Any]) -> str:
+    """List the accepted keys when an object failed validation.
+
+    ``additionalProperties`` 拒绝与 ``required`` 缺失都属于"键名不对"，而这两类
+    错误单靠约束文本无法自我修复。这里只读 schema 本身，不猜业务语义。
+    """
+
+    candidates: list[dict[str, Any]] = []
+    if isinstance(schema, dict) and isinstance(schema.get("properties"), dict):
+        candidates.append(schema)
+    # additionalProperties 违规时 exc.schema 可能是 True/False 布尔，真正带
+    # properties 的是它的父 schema。
+    parent = getattr(exc, "parent", None)
+    parent_schema = getattr(parent, "schema", None) if parent is not None else None
+    if isinstance(parent_schema, dict) and isinstance(parent_schema.get("properties"), dict):
+        candidates.append(parent_schema)
+    for candidate in candidates:
+        properties = candidate.get("properties") or {}
+        allowed = sorted(str(name) for name in properties)
+        if not allowed:
+            continue
+        required = sorted(
+            str(name)
+            for name in (candidate.get("required") or [])
+            if isinstance(name, str)
+        )
+        parts = [f" Accepted keys: {', '.join(allowed)}."]
+        if required:
+            parts.append(f" Required: {', '.join(required)}.")
+        return "".join(parts)
+    return ""
 
 ToolResult = dict[str, Any]
 ToolHandlerResult = ToolResult | types.InputRequiredResult

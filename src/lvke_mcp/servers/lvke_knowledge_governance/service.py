@@ -204,13 +204,50 @@ def submit_candidate(args: dict[str, Any]) -> dict[str, Any]:
     if source_revision_id and assessed_revision_id != source_revision_id:
         blockers.append("rubric_revision_mismatch")
     if blockers:
+        # 三类原因此前共用同一个 code / message / next_actions（"必须绑定可定位
+        # 的不可变证据"+"补充 Resource、hash 和 locator"），只有 blockers 里的
+        # 码不同。但"评估不存在"要去建评估、"评估未达标"要先改章节到达标、
+        # "证据 locator 缺失"才是补 Resource —— 处置完全不同，笼统一句会把人
+        # 引向错误方向。这里按具体 blocker 分派。
+        code = "knowledge_candidate_evidence_ineligible"
+        message = "知识候选必须绑定可定位的不可变证据"
+        next_actions = ["补充不可变 Resource、content hash 和 locator 后重新提交"]
+        if "rubric_assessment_not_found" in blockers:
+            code = "knowledge_candidate_rubric_missing"
+            message = (
+                "知识候选必须绑定同一工作区内真实存在的 RubricAssessment；"
+                f"未找到 rubric_assessment_id={assessment_id or '(未提供)'}"
+            )
+            next_actions = [
+                "先调用 review_score_section 对来源章节评分，取返回的 rubric_assessment_id",
+                "确认该评估与本候选在同一 workspace_id 下",
+            ]
+        elif "rubric_assessment_not_passing" in blockers:
+            payload = (assessment or {}).get("payload") or {}
+            code = "knowledge_candidate_rubric_not_passing"
+            message = (
+                "来源章节的 rubric 评分未达标，不能沉淀为知识："
+                f"weighted_score={payload.get('weighted_score')}，"
+                f"passing={payload.get('passing')}"
+            )
+            next_actions = [
+                "先按 rubric 各维度 signals 修订来源章节，重新 review_score_section 至 passing=true",
+                "或改用已达标章节作为知识来源",
+            ]
+        elif "rubric_revision_mismatch" in blockers:
+            code = "knowledge_candidate_rubric_revision_mismatch"
+            message = (
+                "rubric 评估针对的 report_revision 与 source_revision_id 不一致："
+                f"评估自 {assessed_revision_id or '(空)'}，候选声明 {source_revision_id}"
+            )
+            next_actions = ["对 source_revision_id 指向的同一 revision 重新评分后再提交"]
         return _envelope(
             False,
             "blocked",
-            code="knowledge_candidate_evidence_ineligible",
-            message="知识候选必须绑定可定位的不可变证据",
+            code=code,
+            message=message,
             blockers=blockers,
-            next_actions=["补充不可变 Resource、content hash 和 locator 后重新提交"],
+            next_actions=next_actions,
         )
     evidence_policy = combine_evidence_policies(evidence)
     # Evidence bindings are caller descriptors, not resolved immutable parent

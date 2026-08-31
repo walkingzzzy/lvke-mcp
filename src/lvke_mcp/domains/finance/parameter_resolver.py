@@ -478,6 +478,30 @@ def finance_spec_candidate_schema() -> dict[str, Any]:
                     + "；兼容扁平候选字段，推荐放入 finance_inputs 或 input_revision。"
                 ),
             }
+    # `investment` 是 FinanceSpec dataclass 的合法字段（附表1 三段式明细），
+    # finance_prepare_spec 的返回值里一直带着它。但候选 schema 此前不声明它，
+    # 而 additionalProperties=False —— 于是把该工具的返回 spec 原样回填给
+    # finance_validate_spec 会被拒绝。往返必须自洽，所以显式声明。
+    # 注意它与扁平 invest_breakdown 不是同一口径：这里是工程费/其他费/预备费
+    # 的细项展开，不参与 input_revision 提升。
+    if "investment" not in properties:
+        properties["investment"] = {
+            "type": ["object", "null"],
+            "additionalProperties": False,
+            "description": (
+                "附表1 投资明细三段式（工程费用/工程建设其他费用/预备费）细项，单位万元；"
+                "与扁平 invest_breakdown 口径不同，仅用于附表1 明细展开。"
+            ),
+            "properties": {
+                name: {"type": ["number", "null"], "minimum": 0}
+                for name in (
+                    "civil_wan", "equipment_wan", "installation_wan",
+                    "land_wan", "management_wan", "design_wan", "consulting_wan",
+                    "supervision_wan", "bidding_wan", "test_run_wan",
+                    "basic_wan", "price_wan",
+                )
+            },
+        }
     schema["description"] = (
         "FinanceSpec 候选：收入模型、成本税费语义及完整确定性财务输入。"
         "未知字段拒绝；重复输入必须归一化后一致。"

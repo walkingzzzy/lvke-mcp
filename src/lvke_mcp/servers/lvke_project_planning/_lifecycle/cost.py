@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 from lvke_mcp.domains.project_planning import application as service
+from lvke_mcp.runtime.quality_severity import is_blocking, split_quality_codes
 
 from .base import _candidate, _payload, _put_candidate
 
@@ -157,28 +158,92 @@ def validate_cost_drivers(
         "construction_wan", "civil_wan", "equipment_wan", "installation_wan",
         "other_wan", "reserve_wan", "interest_wan", "working_capital_wan"
     )}
+    field_details: dict[str, dict[str, Any]] = {}
     if any(value is None or value < 0 for value in values.values()):
         errors.append("/invest_breakdown")
-    elif abs(
-        values["construction_wan"]
-        - sum(values[key] for key in ("civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan"))
-    ) > Decimal("0.01"):
-        errors.append("/invest_breakdown/construction_wan")
+    else:
+        engineering = sum(
+            values[key]
+            for key in ("civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan")
+        )
+        if abs(values["construction_wan"] - engineering) > Decimal("0.01"):
+            errors.append("/invest_breakdown/construction_wan")
+            # 只报 invalid_or_missing_value 说不清要求：这条是勾稽规则，
+            # 必须把期望值和构成项一起给出，否则调用方只能猜。
+            field_details["/invest_breakdown/construction_wan"] = {
+                "code": "investment_breakdown_not_reconciled",
+                "rule": "construction_wan = civil_wan + equipment_wan + installation_wan + other_wan + reserve_wan",
+                "observed": float(values["construction_wan"]),
+                "expected": float(engineering),
+                "difference": float(values["construction_wan"] - engineering),
+                "components": {
+                    key: float(values[key])
+                    for key in ("civil_wan", "equipment_wan", "installation_wan", "other_wan", "reserve_wan")
+                },
+                "resolution": "把 construction_wan 改为五项之和（建设投资合计），或修正分项金额",
+            }
     if len(items) < 3:
         errors.append("/operating_cost_items")
+    # 成本量级对账。收入侧有锚点，成本侧此前完全没有：`conversion_to_wan` 用错
+    # 方向（0.0001 写成 10000）会把年成本放大 1 亿倍，而校验器只看分项是否齐全，
+    # 于是"年运营成本 46.97 万亿元 vs 总投资 7 万元"照样判 valid 并进入下游。
+    # 这是口径非法而非置信度不足，登记为阻断码。
+    annual_cost = sum(
+        (service._decimal(item.get("annual_amount_wan")) or Decimal("0")) for item in items
+    )
+    total_investment = None
+    if all(values[key] is not None for key in ("construction_wan", "interest_wan", "working_capital_wan")):
+        total_investment = (
+            values["construction_wan"] + values["interest_wan"] + values["working_capital_wan"]
+        )
+    scale_code = ""
+    if total_investment is not None and total_investment > 0 and annual_cost > 0:
+        ratio = annual_cost / total_investment
+        if ratio > Decimal("100"):
+            scale_code = "project_scale_inconsistent:annual_operating_cost_vs_total_investment"
+            errors.append("/operating_cost_items/annual_amount_wan")
+            field_details["/operating_cost_items/annual_amount_wan"] = {
+                "code": "cost_magnitude_implausible",
+                "annual_operating_cost_wan": float(annual_cost),
+                "total_investment_wan": float(total_investment),
+                "ratio": float(ratio.quantize(Decimal("0.01"))),
+                "threshold": 100,
+                "resolution": (
+                    "年运营成本超过项目总投资 100 倍，通常是 conversion_to_wan 方向用反"
+                    "（元→万元应为 0.0001，不是 10000）或单价单位与 unit_price_yuan 不一致"
+                ),
+            }
     if errors:
         unique = sorted(set(errors))
+        codes = [scale_code] if scale_code else []
+        codes.extend("cost_driver_validation_failed" for _ in unique)
+        blockers, _ = split_quality_codes(codes)
         return service._envelope(
-            success=True,
-            status="partial",
-            code="cost_driver_validation_failed",
-            blockers=[],
-            warnings=["投资或运营成本驱动不完整；候选仍可确认和进入下游。"],
+            success=not blockers,
+            status="blocked" if blockers else "partial",
+            code=scale_code or "cost_driver_validation_failed",
+            blockers=blockers,
+            warnings=(
+                ["成本量级与项目总投资不相容；该候选不得进入下游。"]
+                if blockers
+                else ["投资或运营成本驱动不完整；候选仍可确认和进入下游。"]
+            ),
             quality_issues=[
-                {"code": "cost_driver_validation_failed", "path": path, "blocking": False}
+                {
+                    "code": scale_code if path == "/operating_cost_items/annual_amount_wan" and scale_code else "cost_driver_validation_failed",
+                    "path": path,
+                    "blocking": is_blocking(
+                        scale_code
+                        if path == "/operating_cost_items/annual_amount_wan" and scale_code
+                        else "cost_driver_validation_failed"
+                    ),
+                }
                 for path in unique
             ],
-            field_errors={path: {"code": "invalid_or_missing_value"} for path in unique},
+            field_errors={
+                path: field_details.get(path, {"code": "invalid_or_missing_value"})
+                for path in unique
+            },
             valid=False,
         )
     return service._envelope(success=True, status="ok", valid=True)

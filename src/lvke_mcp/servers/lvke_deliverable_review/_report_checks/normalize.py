@@ -64,7 +64,7 @@ def _metric_unit_compatible(metric: str, unit: str) -> bool:
         "equipment_cost", "installation_cost", "other_investment_cost",
         "contingency", "wage_cost", "maintenance_cost", "utility_cost",
         "insurance_cost", "marketing_cost", "lease_cost", "management_cost",
-        "salary_cost", "welfare_cost",
+        "salary_cost", "welfare_cost", "raw_material_cost",
     }:
         return canonical == "万元"
     if metric in {"project_irr", "capital_irr", "discount_rate", "bep"}:
@@ -90,13 +90,24 @@ def _semantic_near(text: str, start: int, end: int, unit: str) -> str:
     # conjunctions are also part of canonical metric names (for example
     # ``设备及工器具购置费``); treating ``及/和/与`` as separators truncates
     # that label and can bind its amount to the following metric instead.
-    clause_markers = ("，", ",", "；", ";", "。")
+    #
+    # 顿号必须算边界：中文成本/投资明细就是用它并列的（"主要原材料 46,968.00
+    # 万元、水电能源 1,600.00 万元"）。此前顿号不是边界，于是"水电能源"这个
+    # 标签能跨过顿号绑到前一项的 46,968 上，批量产出"utility_cost 无法在 run
+    # 中复现"这类假 P0 —— 引擎数字是对的，错的是标签配对。
+    #
+    # 括号是**有方向**的：左括号只能当 clause 的起点、右括号只能当终点。若把
+    # 两者都当双向边界，"工程费用 54,000.00 万元（建筑工程费 18,000.00、…）"
+    # 里括注内的分项会把括号外的"工程费用"当成自己的标签。
+    clause_markers = ("，", ",", "；", ";", "。", "、", "：", ":")
+    open_markers = clause_markers + ("（", "(")
+    close_markers = clause_markers + ("）", ")")
     clause_start = max(
-        (text.rfind(marker, 0, start) for marker in clause_markers),
+        (text.rfind(marker, 0, start) for marker in open_markers),
         default=-1,
     ) + 1
     following = [
-        position for marker in clause_markers
+        position for marker in close_markers
         if (position := text.find(marker, end)) >= 0
     ]
     clause_end = min(following) if following else len(text)

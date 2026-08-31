@@ -104,11 +104,16 @@ class PostGenerationValidationTest(unittest.TestCase):
             validation_scope="technical",
         )
         self.assertTrue(result["success"], result)
-        # The viability dimension should report an error gracefully
-        self.assertEqual(
-            result["dimensions"]["viability"]["status"],
-            "error",
-        )
+        # run 不存在时该维度"没有结论"，而不是"校验器崩了"：两者的处置不同
+        # （前者补 run_id，后者修代码），所以状态用 not_determinable，并显式
+        # 声明 conclusion_available=False。同时它不得进 blockers —— blockers
+        # 表示"这份交付有问题"，缺 run 不是交付质量问题。
+        viability = result["dimensions"]["viability"]
+        self.assertEqual(viability["status"], "not_determinable")
+        self.assertFalse(viability["conclusion_available"])
+        self.assertEqual(viability["blockers"], [])
+        self.assertIn("viability", result["incomplete_dimensions"])
+        self.assertFalse(result["validation_complete"])
 
     def test_all_dimensions_are_structured(self) -> None:
         result = validate_post_generation(

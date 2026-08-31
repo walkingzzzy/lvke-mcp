@@ -273,6 +273,11 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
         "outcome": "ok" if schema_valid else "partial",
         "status": "ok" if schema_valid else "partial",
         "code": None,
+        # valid 恒为 True 是刻意的（见 test_solar_candidate_reports_missing_
+        # model_start_date_without_blocking）：它表示"校验已完成、诊断可用"，
+        # 不表示契约成立 —— 后者看 schema_valid，正式资格看 formal_valid /
+        # formal_release_eligible。三者含义不同，不可互相替代；只读 valid
+        # 会误判为通过，须同时读 schema_valid。
         "valid": True,
         "schema_valid": schema_valid,
         "formal_valid": bool(

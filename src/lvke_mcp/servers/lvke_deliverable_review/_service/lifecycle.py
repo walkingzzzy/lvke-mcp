@@ -38,6 +38,37 @@ from .preparation import (
 )
 
 
+def _quality_warnings(
+    base_warnings: list[str],
+    quality_issues: list[str],
+) -> list[str]:
+    """Summarise quality codes instead of restating every one of them.
+
+    此前 blockers 会被全量复制进 quality_issues、release_limitations 和
+    warnings 三处：56 个 finding 就是 168 行 ``质量提示：blocking_finding:<id>``，
+    把信封撑爆却没有任何实质信息 —— ID 列表不说明问题是什么。明细留在
+    quality_issues 一处，warnings 只给可读摘要与查询入口。
+    """
+
+    warnings = list(base_warnings)
+    if not quality_issues:
+        return warnings
+    finding_ids = [
+        item.split(":", 1)[1]
+        for item in quality_issues
+        if item.startswith("blocking_finding:") and ":" in item
+    ]
+    others = [item for item in quality_issues if not item.startswith("blocking_finding:")]
+    if finding_ids:
+        warnings.append(
+            f"质量提示：{len(finding_ids)} 个阻断 finding 未关闭；"
+            "调用 review_list_findings 查看明细与处置建议"
+        )
+    # 非 finding 类的码数量有限且各自含义不同，仍逐条列出。
+    warnings.extend(f"质量提示：{item}" for item in others)
+    return warnings
+
+
 def _run_async_review(
     workspace_id: str,
     review_id: str,
@@ -293,10 +324,9 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             blockers=[],
             quality_issues=quality_issues,
             release_limitations=quality_issues,
-            warnings=[
-                *list(current.get("warnings") or []),
-                *(f"质量提示：{item}" for item in quality_issues),
-            ],
+            warnings=_quality_warnings(
+                list(current.get("warnings") or []), quality_issues
+            ),
             next_actions=["调用 review_get 查询深度校验进度"] if execution == "async" else ["处理 findings 或导出不可变校验结果"],
         )
     return _write("review_start", args, execute)
@@ -331,10 +361,9 @@ def get_review(args: dict[str, Any] | str, review_id: str = "") -> dict[str, Any
         blockers=[],
         quality_issues=quality_issues,
         release_limitations=quality_issues,
-        warnings=[
-            *list(state.get("warnings") or []),
-            *(f"质量提示：{item}" for item in quality_issues),
-        ],
+        warnings=_quality_warnings(
+            list(state.get("warnings") or []), quality_issues
+        ),
         resource_uris=[_review_uri(workspace_id, review_id)],
         next_actions=_next_actions(state),
     )

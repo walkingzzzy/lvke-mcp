@@ -24,6 +24,10 @@ BLOCKING_CODES: frozenset[str] = frozenset({
     # 规模基准不可信
     "project_scale_inconsistent",
     "input_revision_scale_drift",
+    # 市场目标量单位与产能单位不相容（"亿元" vs "套/年"）。这不是置信度
+    # 不足，而是口径非法：两个量纲不同的数不能相互校验，继续算下去产能与
+    # 收入的对应关系整条是假的。此前该码未登记，落到"未知码默认不阻断"。
+    "market_capacity_unit_mismatch",
     # 关键环节根本没产出对象，后续引用的是空基准
     "finance_run_persistence_failed",
     "finance_spec_prepare_failed",

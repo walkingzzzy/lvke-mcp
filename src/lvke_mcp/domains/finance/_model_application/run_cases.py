@@ -18,6 +18,8 @@ from lvke_mcp.runtime.evidence_qualification import project_fact_may_be_certifie
 from lvke_mcp.runtime.responses import ok
 from lvke_mcp.runtime.storage import sha256_json
 
+from .spec_cases import _canonical_candidate_inputs
+
 from .base import (
     SERVER_NAME,
     _active_idempotency_record,
@@ -184,6 +186,37 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         preflight_quality_issues.append("finance_spec_missing_using_flat_baseline")
     input_revision = args.get("input_revision") if isinstance(args.get("input_revision"), dict) else payload.get("input_revision")
     input_revision = input_revision if isinstance(input_revision, dict) else {}
+    if not input_revision and spec is not None:
+        # 内联 spec 路径：`finance_prepare_spec` 会把 spec 里的扁平财务字段抽成
+        # `input_revision` 并随 Spec 一起固化，走 spec_id 时这份 revision 已在
+        # payload 里。直接传 spec 时没有那一步，若不在这里补抽，计算层读到的
+        # 是空 revision —— 总投资、资金结构、行业全部落到通用默认值，却只留
+        # 一条不阻断的 `total_investment_missing_using_default`，最终产出一份
+        # 与调用方输入完全无关的十三表。所以复用同一个规范化函数。
+        derived_inputs, _adoption, derived_rejections = _canonical_candidate_inputs(spec, None, {})
+        if derived_rejections:
+            return _err_env(
+                f"{SERVER_NAME}.candidate_input_invalid",
+                "内联 spec 的财务输入字段非法或冲突，无法派生 input_revision",
+                status="blocked",
+                blockers=["candidate_input_invalid"],
+                field_errors=[
+                    {
+                        "path": str(item.get("path") or f"/spec/{item.get('input') or 'unknown'}"),
+                        "code": str(item.get("reason") or "candidate_input_invalid"),
+                        "input": item.get("input"),
+                        **({"conflicts_with": item.get("conflicts_with")} if item.get("conflicts_with") else {}),
+                    }
+                    for item in derived_rejections
+                ],
+                next_actions=[
+                    "修正 spec 中的财务输入字段后重试",
+                    "或改用 finance_prepare_spec → finance_confirm_spec → finance_run_model(spec_id=...)",
+                ],
+                run_id=None,
+                missing_inputs=[],
+            )
+        input_revision = derived_inputs
     if not input_revision.get("total_investment_wan"):
         preflight_quality_issues.append("total_investment_missing_using_default")
     rail_missing = _rail_transit_missing_inputs(

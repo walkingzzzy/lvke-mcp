@@ -13,6 +13,27 @@ SERVER_VERSION = "0.1.0"
 logger = get_logger(SERVER_NAME)
 _OUTPUT = {"type": "object", "additionalProperties": True, "properties": {"success": {"type": "boolean"}}}
 _STRING = {"type": "string"}
+#: 距离矩阵端点。items 此前是完全开放的 `{}`，调用方无从得知经度键叫 `lng`
+#: 而不是 `lon`——传 `lon` 会被当成"地名解析失败"，报"请检查地名拼写或传
+#: lat/lng"，而真正的问题是字段名拼错。显式声明后 schema 层即可拦住。
+_GEO_ENDPOINT = {
+    "type": "object",
+    "properties": {
+        "name": {**_STRING, "description": "端点名称；无 lat/lng 时按本地地名库解析"},
+        "lat": {"type": "number", "minimum": -90, "maximum": 90, "description": "纬度"},
+        "lng": {
+            "type": "number", "minimum": -180, "maximum": 180,
+            "description": "经度。注意键名是 lng，不是 lon；也可写 longitude",
+        },
+        "longitude": {"type": "number", "minimum": -180, "maximum": 180, "description": "lng 的别名"},
+        "latitude": {"type": "number", "minimum": -90, "maximum": 90, "description": "lat 的别名"},
+        "label": {**_STRING, "description": "矩阵输出中显示的标签"},
+    },
+    "description": (
+        "要么给 lat + lng（经度键名为 lng），要么给可被本地地名库解析的 name。"
+        "只给 name 且解析不到时返回 map-geo.not_found。"
+    ),
+}
 
 
 def _schema(properties: dict, required: list[str]) -> dict:
@@ -48,8 +69,8 @@ def build_server() -> OfficialStdioServer:
         "limit": {"type": "integer", "minimum": 1, "maximum": 200},
     }, ["operation", "query_or_point"]), lambda a: service.geo_query(a["operation"], a["query_or_point"], float(a.get("radius_km", 5)), a.get("category", ""), a.get("limit")), _OUTPUT, read)
     server.register_tool("geo_distance_matrix", "使用原 Haversine 与公路系数估算实现计算起终点距离矩阵。", _schema({
-        "origins": {"type": "array", "minItems": 1, "items": {}},
-        "destinations": {"type": "array", "minItems": 1, "items": {}},
+        "origins": {"type": "array", "minItems": 1, "items": _GEO_ENDPOINT},
+        "destinations": {"type": "array", "minItems": 1, "items": _GEO_ENDPOINT},
         "mode": {"type": "string", "enum": ["haversine_with_highway_estimate"], "default": "haversine_with_highway_estimate"},
     }, ["origins", "destinations"]), lambda a: service.geo_distance_matrix(a["origins"], a["destinations"], a.get("mode", "haversine_with_highway_estimate")), _OUTPUT, read)
     server.register_tool("archive_find_similar_projects", "调用原档案相似项目检索。", _schema({"brief": {}, "top_n": {"type": "integer", "default": 5}}, ["brief"]), service.archive_find_similar, _OUTPUT, read)

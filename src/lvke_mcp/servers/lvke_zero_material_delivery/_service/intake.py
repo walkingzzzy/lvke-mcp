@@ -17,7 +17,7 @@ from .base import (
 from .explicit_inputs import extract_explicit_inputs
 from .questions import compute_missing_inputs, summarize_gaps
 from .report_profiles import ReportProfileError, resolve_profile
-from .routing import _new_run, _project_name, _resolve_route
+from .routing import _new_run, _project_name, _region_from_sentence, _resolve_route
 
 
 def _sentence_is_acquisition(sentence: str, request_payload: dict[str, Any]) -> bool:
@@ -97,7 +97,7 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
             "explicit_inputs": explicit["fields"],
             "explicit_input_unmapped": explicit["unmapped"],
             "project_name": _project_name(sentence, request_payload["project_name"]),
-            "region": request_payload["region"],
+            "region": _region_from_sentence(sentence, request_payload["region"]),
             "industry": route,
             "project_nature": request_payload["project_nature"] or "待确认",
             "report_type": request_payload["report_type"],

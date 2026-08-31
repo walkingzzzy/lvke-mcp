@@ -217,12 +217,29 @@ def apply(
         current_hash = "sha256:" + hashlib.sha256(
             str((span or {}).get("content") or "").strip().encode("utf-8")
         ).hexdigest()
-        if descriptor is None or span is None or not hmac.compare_digest(
+        # 三种情况此前共用 section_patch_stale（"内容已变化或章节绑定失效"），
+        # 但处置完全不同：章节不在 outline 要改 preparation；正文里还没有这个
+        # 标题要用整篇 report_propose 首次落章；只有第三种才是真的被人改过。
+        # 笼统一个码会把"首次落章"读成"并发冲突"，让人反复重新提案。
+        if descriptor is None:
+            return _failure(
+                "section_not_in_outline",
+                f"章节 {section_id} 不在该 revision 的 outline 中；"
+                "请先用 report_prepare 固化包含该章节的 outline",
+            )
+        if span is None:
+            return _failure(
+                "section_absent_from_document",
+                f"章节《{descriptor.get('title')}》已在 outline 固化，但当前正文尚无对应标题，"
+                "report_propose_section 只能改写正文里已存在的章节；"
+                "首次落章请用 report_propose 提交含该标题的整篇正文",
+            )
+        if not hmac.compare_digest(
             str(basis.get("base_section_content_hash") or ""), current_hash
         ):
             return _failure(
                 "section_patch_stale",
-                "目标章节内容已变化或章节绑定失效，请基于最新 revision 重新提案",
+                "目标章节内容自提案创建后已变化，请基于最新 revision 重新提案",
             )
 
     try:

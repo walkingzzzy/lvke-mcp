@@ -58,7 +58,21 @@ def fill_template(template: dict, data: dict) -> FillResult:
 
     predefined_rows = template.get("rows")
     if predefined_rows:
-        # 静态行模板
+        # 静态行模板。data 必须是 {row_key: {col_key: value}}，row_key 形如
+        # ``construction.civil``。传成 {"rows": [...]} 或用中文行名做键时，
+        # 每一行都 data.get(row_key, {}) 落空 —— 此前整表渲染成空白却零
+        # warning，调用方只能靠肉眼发现数据没进去。这里显式报缺口。
+        expected_keys = [str(row["key"]) for row in predefined_rows]
+        supplied_keys = [str(key) for key in data] if isinstance(data, dict) else []
+        matched_keys = [key for key in supplied_keys if key in set(expected_keys)]
+        if supplied_keys and not matched_keys:
+            warnings.append(
+                "data 的键与模板行键完全不匹配，整表将渲染为空白。"
+                f"传入键={supplied_keys[:6]}；期望形如 {{row_key: {{col_key: value}}}}，"
+                f"row_key 取值 {expected_keys[:6]}"
+                f"{'…' if len(expected_keys) > 6 else ''}；"
+                f"col_key 取值 {[col['key'] for col in cols]}"
+            )
         for row in predefined_rows:
             row_key = row["key"]
             row_data = data.get(row_key, {})

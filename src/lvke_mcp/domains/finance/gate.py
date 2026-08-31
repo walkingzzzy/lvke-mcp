@@ -517,13 +517,40 @@ def _assert_formal_export_qualification(
                     "message": f"财务附表结构无法校验：{type(exc).__name__}",
                 })
             if not quality.get("reference_structure_ready"):
+                # 此前只印"有效 N/M 张"，而 N==M 时这句读起来自相矛盾（实测
+                # "有效 11/11 张"仍判不完整）。结构就绪的真实判据是逐表深度与
+                # 必需行列是否齐全，张数相等只说明没有整表缺失。所以消息必须
+                # 指向真因，并把逐表缺失明细带出来。
+                blocking_missing = quality.get("blocking_missing_by_table") or {}
+                reasons: list[str] = []
+                if not quality.get("depth_ok"):
+                    reasons.append("逐表深度未达标")
+                if blocking_missing:
+                    reasons.append(f"{len(blocking_missing)} 张表存在必需行列缺失")
+                if quality.get("ineffective_tables"):
+                    reasons.append(
+                        f"未生效表 {len(quality.get('ineffective_tables') or [])} 张"
+                    )
+                if not reasons:
+                    reasons.append("结构就绪标记未置位")
                 blockers.append({
                     "code": "finance_reference_structure_incomplete",
                     "message": (
-                        "财务附表不完整："
-                        f"有效 {quality.get('effective_table_count', 0)}/"
-                        f"{quality.get('required_table_count', 13)} 张"
+                        "财务附表结构未达交付深度："
+                        + "；".join(reasons)
+                        + f"（有效 {quality.get('effective_table_count', 0)}/"
+                        f"{quality.get('required_table_count', 13)} 张，"
+                        f"不适用 {len(quality.get('not_applicable_tables') or [])} 张）"
                     ),
+                    "details": {
+                        "depth_ok": quality.get("depth_ok"),
+                        "effective_table_count": quality.get("effective_table_count"),
+                        "required_table_count": quality.get("required_table_count"),
+                        "not_applicable_tables": quality.get("not_applicable_tables"),
+                        "ineffective_tables": quality.get("ineffective_tables"),
+                        "blocking_missing_by_table": blocking_missing,
+                        "missing_fields_by_table": quality.get("missing_fields_by_table"),
+                    },
                 })
 
             open_blocking = [
@@ -570,6 +597,8 @@ def assert_publish_finance_binding(
     bound_tables_package_id = ""
     bound_xlsx_uri = ""
     bound_xlsx_hash = ""
+    package_failures: list[dict[str, Any]] = []
+    run_view: dict[str, Any] = {}
 
     # FinanceSpec v3 acquisition runs publish their own acquisition report
     # pack.  Return before touching audit_db/table_render/table_pack so the
@@ -607,7 +636,6 @@ def assert_publish_finance_binding(
             from lvke_mcp.domains.finance.run_service import DELIVERY_TABLE_KEYS
 
             expected_table_ids = set(DELIVERY_TABLE_KEYS)
-            package_failures: list[dict[str, Any]] = []
             valid_packages: list[tuple[dict[str, Any], Any, str]] = []
             matching_packages = [
                 record
@@ -662,7 +690,16 @@ def assert_publish_finance_binding(
                 xlsx_uri = str(package_record.get("resource_uri") or "") + "/xlsx"
                 xlsx_path = xlsx_path_from_uri(xlsx_uri)
                 if xlsx_path is None:
-                    reasons.append("xlsx_resource_missing")
+                    # 正式绑定只认 formal 导出件（`<pkg>.xlsx`），不接受
+                    # `validation_scope=technical` 产出的 `<pkg>.technical.xlsx`。
+                    # 但两种情况的处置完全不同：一种是"还没导出"，另一种是
+                    # "只导了预览件，需要按 formal 重导"。此前都报
+                    # xlsx_resource_missing，让人以为文件根本不存在。
+                    technical_uri = str(package_record.get("resource_uri") or "") + "/xlsx-technical"
+                    if xlsx_path_from_uri(technical_uri) is not None:
+                        reasons.append("xlsx_formal_export_missing_technical_preview_only")
+                    else:
+                        reasons.append("xlsx_resource_missing")
                 else:
                     from lvke_mcp.adapters.spreadsheets.finance_export import (
                         assess_finance_delivery_quality,
@@ -674,9 +711,18 @@ def assert_publish_finance_binding(
                     if not delivery_quality.get("validation_complete"):
                         reasons.append("xlsx_semantic_validation_failed")
                 if reasons:
+                    technical_preview_uri = (
+                        str(package_record.get("resource_uri") or "") + "/xlsx-technical"
+                    )
                     package_failures.append({
                         "package_id": package_id,
                         "reasons": reasons,
+                        "xlsx_resource_uri": xlsx_uri if xlsx_path is not None else None,
+                        "technical_preview_xlsx_uri": (
+                            technical_preview_uri
+                            if xlsx_path_from_uri(technical_preview_uri) is not None
+                            else None
+                        ),
                     })
                 else:
                     valid_packages.append((package_record, xlsx_path, xlsx_uri))
@@ -703,6 +749,22 @@ def assert_publish_finance_binding(
                     xlsx_path.read_bytes()
                 ).hexdigest()
 
+    # actual_bound 曾从初始化到 return 之间从未被赋值，于是 `bound_run_id` 有值
+    # 而 `actual_bound_run_id` 恒为 null，同一响应里两个字段互相矛盾。这里按
+    # 实际读到的 run_view 回填：它才是"实际解析到的绑定 run"。
+    if not actual_bound:
+        actual_bound = str((run_view or {}).get("run_id") or "")
+    # 候选 package 与 XLSX 即使未通过判定也要回报：诊断信息不该因为结论是
+    # "不合格"就消失。此前 package 存在但未过门禁时这两个字段是 null，读起来
+    # 像"根本没找到 package"，而 blockers 里明明列着它的 package_id。
+    candidate_package_id = bound_tables_package_id
+    candidate_xlsx_uri = bound_xlsx_uri
+    if not candidate_package_id:
+        for item in reversed(package_failures):
+            candidate_package_id = candidate_package_id or str(item.get("package_id") or "")
+            candidate_xlsx_uri = candidate_xlsx_uri or str(item.get("xlsx_resource_uri") or "")
+            if candidate_package_id:
+                break
     return {
         "ok": not blockers,
         "blockers": blockers,
@@ -710,6 +772,8 @@ def assert_publish_finance_binding(
         "bound_run_id": bound or None,
         "actual_bound_run_id": actual_bound or None,
         "finance_tables_package_id": bound_tables_package_id or None,
+        "candidate_finance_tables_package_id": candidate_package_id or None,
+        "candidate_xlsx_resource_uri": candidate_xlsx_uri or None,
         "xlsx_resource_uri": bound_xlsx_uri or None,
         "xlsx_hash": bound_xlsx_hash or None,
         "binding": binding,

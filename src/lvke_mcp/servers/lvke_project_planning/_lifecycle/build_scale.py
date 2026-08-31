@@ -10,6 +10,7 @@ import yaml
 
 from lvke_mcp.domains.finance.industry_aliases import normalize_industry
 from lvke_mcp.domains.project_planning import application as service
+from lvke_mcp.runtime.quality_severity import is_blocking
 from lvke_mcp.runtime.storage import sha256_json
 
 from .base import _candidate, _payload, _put_candidate, _selection
@@ -126,6 +127,14 @@ def get_industry_constraints(
         "公共服务": ("public_service", "public service", "government", "公共服务"),
         "矿产加工": ("mineral", "mineral_processing", "mining", "ore", "矿产", "选矿"),
     }
+    # supported_industries 此前只列中文键，而 industry_code 实际接受的是英文码
+    # （machinery → 机械）。照中文清单填"机械"这里能拿到参数，但
+    # planning_resolve_industry_skill 的路由表只认英文 prefix，会直接拒绝 ——
+    # 清单把调用方引向死路。所以把每个行业的可接受写法一并暴露。
+    supported_industry_codes = sorted(
+        {token for tokens in aliases.values() for token in tokens} | set(aliases)
+    )
+    industry_code_map = {key: sorted(tokens) for key, tokens in sorted(aliases.items())}
     selected_key, industry = _resolve_industry_key(project, aliases)
     if not selected_key:
         # 线性交通工程（轨道、铁路、公路）的规模由线路长度、车站数、敷设
@@ -164,6 +173,8 @@ def get_industry_constraints(
                 matched_industry_key=None,
                 matched_field_template_key=template_key,
                 supported_industries=sorted(aliases),
+                supported_industry_codes=supported_industry_codes,
+                industry_code_map=industry_code_map,
                 supported_field_templates=sorted(
                     (manifest.get("field_templates") or {}).keys()
                 ),
@@ -191,6 +202,8 @@ def get_industry_constraints(
             industry_code=project.get("industry_code"),
             matched_industry_key=None,
             supported_industries=sorted(aliases),
+            supported_industry_codes=supported_industry_codes,
+            industry_code_map=industry_code_map,
             supported_field_templates=sorted(
                 (manifest.get("field_templates") or {}).keys()
             ),
@@ -371,10 +384,13 @@ def confirm_build_scale(
     selected = next(item for item in candidates if item["candidate_id"] == selected_candidate_id)
     quality_issues = []
     if not selected.get("feasible"):
+        # 严重性一律交给 quality_severity 判定。此处曾把 blocking 硬编码成
+        # False，于是"市场单位与产能单位不相容"这类口径非法问题被降级成随件
+        # 披露的限制项，确认后顶层 feasible 还从 false 翻成 true。
         quality_issues = [
             {
                 "code": str(code),
-                "blocking": False,
+                "blocking": is_blocking(str(code)),
                 "candidate_id": selected_candidate_id,
             }
             for code in (selected.get("violations") or ["build_scale_candidate_infeasible"])

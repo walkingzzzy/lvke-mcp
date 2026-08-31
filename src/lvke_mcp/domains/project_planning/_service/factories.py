@@ -17,6 +17,7 @@ from lvke_mcp.runtime.evidence_qualification import (
     project_fact_may_be_certified,
 )
 from lvke_mcp.runtime.formal_promotion import FormalLineageError
+from lvke_mcp.runtime.quality_severity import split_quality_codes
 
 from .base import (
     _blocked,
@@ -386,14 +387,21 @@ def create_build_scale_case(
                 **request_payload,
             },
         )
+        # blockers 曾硬编码成 []，feasible 曾只看本次重算的 failures 而忽略
+        # 上游传入的 quality_issues —— 于是求解阶段 feasible=false 的候选，
+        # 确认后顶层会翻成 true。严重性交给 quality_severity 判定，feasible
+        # 必须同时满足"本次约束无违反"和"没有阻断级质量问题"。
+        combined_blockers, _ = split_quality_codes(
+            str(item.get("code") or "") for item in combined_quality_issues
+        )
         return _envelope(
-            success=True,
-            status="partial" if combined_quality_issues else "ok",
-            blockers=[],
+            success=not combined_blockers,
+            status="blocked" if combined_blockers else ("partial" if combined_quality_issues else "ok"),
+            blockers=combined_blockers,
             warnings=["建设规模约束未完全满足；选择已固化并保留质量诊断。"] if combined_quality_issues else [],
             quality_issues=combined_quality_issues,
             release_limitations=normalized_selection["release_limitations"],
-            feasible=not failures,
+            feasible=not failures and not combined_blockers,
             resource_uris=[record["resource_uri"]],
             next_actions=["基于 BuildScaleCase 编制投资和定员驱动，不把估算规模冒充设计成果"],
             build_scale_case_id=record["object_id"],

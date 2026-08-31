@@ -81,6 +81,14 @@ def _build_report_prepare_next_actions(
             "缺少十三表包：请先调 finance_run_model 确认生成 run_id，"
             "再调 tables_render 生成十三表 package，将返回的 package_id 传入 report_prepare"
         )
+    if "legacy_finance_binding_ignored" in blockers:
+        # 只报"旧绑定被忽略"不说该删哪个字段，调用方只能猜。
+        actions.append(
+            "同时传入了新契约 finance_binding 与旧字段 run_id / "
+            "finance_tables_package_id：请删除顶层 run_id 与 "
+            "finance_tables_package_id，只保留 "
+            "finance_binding={kind, run_id, package_id}"
+        )
     if not actions:
         actions.append("补齐或修复上游不可变对象后重新 report_prepare")
     research_ids_without_prefix = [rid for rid in research_ids if not rid.startswith("rpack_")]

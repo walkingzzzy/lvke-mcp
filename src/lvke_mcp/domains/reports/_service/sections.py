@@ -60,6 +60,17 @@ def propose_section(args: dict[str, Any]) -> dict[str, Any]:
     if current.get("status") != "ok":
         return current
     descriptor = current["section"]
+    # 正文里还没有这个标题时，提案注定在 apply 阶段失败（章节 span 找不到）。
+    # 此前 propose 照样成功创建，让调用方以为可以继续，直到 apply 才报
+    # section_patch_stale —— 而那个码说的是"内容已变化"，方向完全是错的。
+    # propose 阶段就能判定，就在这里拒绝并指出首次落章该走哪条路。
+    if current.get("found_in_document") is False:
+        return _failure(
+            "section_absent_from_document",
+            f"章节《{descriptor.get('title')}》已在 outline 固化，但当前正文尚无对应标题；"
+            "report_propose_section 只能改写正文里已存在的章节。"
+            "首次落章请调用 report_propose 提交含该标题的整篇正文，再用本工具做后续改写。",
+        )
     revision, _native_alias = _resolve_revision_record(
         workspace_id,
         revision_id,

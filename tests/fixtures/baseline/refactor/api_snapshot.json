@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-30T10:49:36+0000",
+  "generated_at": "2026-08-30T13:58:15+0000",
   "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
     "module_count": 474,
-    "symbol_count": 5941,
+    "symbol_count": 5946,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -10704,9 +10704,10 @@
           "signature": "(*, finance_inputs: 'dict[str, Any] | None' = None, table_manifest: 'list[dict[str, Any]] | None' = None, report_sections: 'list[str] | None' = None, invest_type: 'str' = '') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.domains.finance.generation_standard"
         },
-        "model_checks": {
-          "kind": "module",
-          "target": "lvke_mcp.domains.finance._finance_model.checks"
+        "get_workspace_finance_run": {
+          "kind": "callable",
+          "signature": "(workspace_id: 'str', *, run_id: 'str' = '', view: 'str' = 'summary') -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.domains.finance._run_service.query"
         },
         "tables_application": {
           "kind": "module",
@@ -13990,6 +13991,11 @@
           "kind": "callable",
           "signature": "(evidence_policy: 'str', *, own_qualification_passed: 'bool', parents: 'Iterable[Any]' = ()) -> 'bool'",
           "defined_in": "lvke_mcp.runtime.evidence_qualification"
+        },
+        "split_quality_codes": {
+          "kind": "callable",
+          "signature": "(codes: 'Iterable[object]') -> 'tuple[list[str], list[str]]'",
+          "defined_in": "lvke_mcp.runtime.quality_severity"
         }
       }
     },
@@ -21603,6 +21609,10 @@
           "kind": "module",
           "target": "lvke_mcp.runtime.logging"
         },
+        "quality_severity": {
+          "kind": "module",
+          "target": "lvke_mcp.runtime.quality_severity"
+        },
         "responses": {
           "kind": "module",
           "target": "lvke_mcp.runtime.responses"
@@ -22646,7 +22656,7 @@
         "BLOCKING_CODES": {
           "kind": "container",
           "value_type": "frozenset",
-          "length": 19
+          "length": 20
         },
         "BLOCKING_PREFIXES": {
           "kind": "container",
@@ -37001,6 +37011,11 @@
           "signature": "(workspace_id: 'str', project_context_id: 'str') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_project_planning._lifecycle.build_scale"
         },
+        "is_blocking": {
+          "kind": "callable",
+          "signature": "(code: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.quality_severity"
+        },
         "normalize_industry": {
           "kind": "callable",
           "signature": "(industry: str) -> str",
@@ -37124,6 +37139,11 @@
           "signature": "(project_type: 'str', pollutant_types: 'list[str]') -> 'dict[str, Any]'",
           "defined_in": "lvke_mcp.servers.lvke_project_planning._lifecycle.cost"
         },
+        "is_blocking": {
+          "kind": "callable",
+          "signature": "(code: 'str') -> 'bool'",
+          "defined_in": "lvke_mcp.runtime.quality_severity"
+        },
         "prepare_cost_drivers": {
           "kind": "callable",
           "signature": "(workspace_id: 'str', project_context_id: 'str', build_scale_case_id: 'str', invest_breakdown: 'dict[str, Any]', operating_cost_items: 'list[dict[str, Any]]', *, idempotency_key: 'str') -> 'dict[str, Any]'",
@@ -37132,6 +37152,11 @@
         "service": {
           "kind": "module",
           "target": "lvke_mcp.domains.project_planning.application"
+        },
+        "split_quality_codes": {
+          "kind": "callable",
+          "signature": "(codes: 'Iterable[object]') -> 'tuple[list[str], list[str]]'",
+          "defined_in": "lvke_mcp.runtime.quality_severity"
         },
         "validate_cost_drivers": {
           "kind": "callable",

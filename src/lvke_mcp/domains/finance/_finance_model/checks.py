@@ -72,10 +72,25 @@ def check_consistency(r: dict[str, Any]) -> list[dict[str, Any]]:
             "detail": f"分项净额 {_fmt(net)} vs 估算 {_fmt(stated)} 万元，差额 {_fmt(delta)} 万元",
         }
         if not working_capital_ok:
+            # 流动资金由周转天数×营收/成本推导，而营收成本又受它影响——这是个
+            # 不动点，调用方只拿到差额时只能反复试算（实测迭代两轮才收敛）。
+            # 分项净额就是本轮的解，连同应随之调整的总投资一起给出，让下一次
+            # 提交能直接收敛，而不是继续猜。
+            construction = round(float(inv.get("construction") or 0.0), 2)
+            interest = round(float(inv.get("interest") or 0.0), 2)
             check.update(
                 {
                     "code": "working_capital_inconsistent",
                     "blocking": True,
+                    "resolution": {
+                        "set_invest_breakdown_working_capital_wan": net,
+                        "set_total_investment_wan": round(construction + interest + net, 2),
+                        "note": (
+                            "把 invest_breakdown.working_capital_wan 改为分项净额，"
+                            "并把 total_investment_wan 改为 建设投资+建设期利息+该净额，"
+                            "然后重新 prepare/confirm/run；周转天数不变时一次即可收敛。"
+                        ),
+                    },
                 }
             )
         checks.append(check)

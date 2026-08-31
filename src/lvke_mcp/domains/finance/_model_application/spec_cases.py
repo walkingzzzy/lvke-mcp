@@ -730,10 +730,31 @@ def _canonical_candidate_inputs(
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
     spec_inputs: dict[str, Any] = {}
     if isinstance(supplied_spec, dict):
+        input_keys = set(finance_input_schema().get("properties") or {})
         nested = supplied_spec.get("finance_inputs")
         if isinstance(nested, dict):
             spec_inputs.update(nested)
-        for key in set(finance_input_schema().get("properties") or {}):
+        # FinanceSpec 允许把成本与税率写成业务分组（`cost.cost_items`、
+        # `tax.vat_rate`），validate_spec 也接受这种形态。但计算层只认扁平的
+        # 顶层键，分组不提升就会被静默丢弃：`cost.cost_items` 五项明细齐全却
+        # 读不到，模型退回"总成本费用率 75%"估算，产出与输入无关的成本。
+        # `revenue` 不在此列——它有自己的 model/products 结构，由收入模型消费。
+        for group in ("cost", "tax"):
+            group_values = supplied_spec.get(group)
+            if not isinstance(group_values, dict):
+                continue
+            for key, value in group_values.items():
+                if key not in input_keys:
+                    continue
+                if key in spec_inputs and spec_inputs[key] != value:
+                    return {}, [], [{
+                        "input": key,
+                        "reason": "candidate_input_conflict",
+                        "path": f"/spec/{group}/{key}",
+                        "conflicts_with": f"/spec/finance_inputs/{key}",
+                    }]
+                spec_inputs[key] = value
+        for key in input_keys:
             if key in supplied_spec:
                 if key in spec_inputs and spec_inputs[key] != supplied_spec[key]:
                     return {}, [], [{

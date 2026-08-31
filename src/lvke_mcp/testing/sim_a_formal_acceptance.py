@@ -128,6 +128,15 @@ def _g3_formal_overlays(finance: dict[str, Any], spec: dict[str, Any]) -> tuple[
         "confirmed": True,
     }
     finance["cost_behavior_confirmed"] = True
+    # 这里刚把成本明细改成四项国标口径（外购原材料费/外购燃料及动力费/
+    # 工资及福利费/修理费）。spec.cost.cost_items 里还留着场景工厂那份不同
+    # 分类（人员薪酬/材料与耗材/…），两份口径不一致。以前 spec 侧的嵌套
+    # cost_items 被静默忽略，冲突看不出来；现在它会被正常提升，必须同步替换，
+    # 否则 candidate_input_conflict 会 fail-closed（这个拒绝本身是对的）。
+    spec_cost = dict(spec.get("cost") or {})
+    spec_cost["cost_items"] = dict(finance["cost_items"])
+    spec_cost["cost_behavior"] = dict(finance["cost_behavior"])
+    spec["cost"] = spec_cost
     finance["tax_component_policy_confirmed"] = True
     finance["urban_maintenance_rate"] = 0.07
     finance["education_surcharge_rate"] = 0.03
