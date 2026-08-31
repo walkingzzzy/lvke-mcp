@@ -665,8 +665,28 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
             binding_conflicts.append(f"plan_source_hash_conflict:{index}:{source_id}")
         expected_locator = str(bound.get("locator") or "").strip()
         supplied_locator = citation.get("locator")
-        if expected_locator and supplied_locator and str(supplied_locator).strip() != expected_locator:
-            binding_conflicts.append(f"plan_source_locator_conflict:{index}:{source_id}")
+        # 结构化 locator（dict）不能用 str() 比对：那会拿到 "{'kind': ...}" 的
+        # repr，与 plan 侧字符串永不相等。而 citation 审计恰恰**只**解析结构化
+        # locator，dr_add_sources 的 schema 又**只**接受字符串 —— 两道门要求互斥，
+        # 绑定过来源的引用因此永远提交不上去（实测必须先 dr_remove_sources 才能
+        # 走通 dr_submit）。这里对 dict 取其寻址字段再比，形状不同但指向同一处
+        # 即视为一致。
+        if isinstance(supplied_locator, dict):
+            supplied_address = str(
+                supplied_locator.get("locator")
+                or supplied_locator.get("kind")
+                or ""
+            ).strip()
+        else:
+            supplied_address = str(supplied_locator or "").strip()
+        if expected_locator and supplied_address and supplied_address != expected_locator:
+            # plan 侧常写成 "web_snapshot:src_xxx"，结构化侧只带 kind
+            # ("web_snapshot")；前者以后者为前缀即认为同源，不算冲突。
+            if not (
+                expected_locator.startswith(supplied_address)
+                or supplied_address.startswith(expected_locator)
+            ):
+                binding_conflicts.append(f"plan_source_locator_conflict:{index}:{source_id}")
     if binding_conflicts:
         failure = _failure("source_binding_conflict", "提交引用与最新研究计划中的来源绑定不一致")
         failure["blockers"] = sorted(set(binding_conflicts))

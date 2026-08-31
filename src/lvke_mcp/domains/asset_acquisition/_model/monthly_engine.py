@@ -188,6 +188,11 @@ def _run_monthly_acquisition_model(
     cash = 0.0
     retained_earnings = 0.0
     cumulative_depreciation = 0.0
+    # 维护性资本支出资本化累计额：它从现金流出，必须同时进固定资产原值，
+    # 否则资产 = 负债 + 权益 永不成立（见 balance_sheet.py 同一修复）。
+    cumulative_capex = 0.0
+    asset_disposed = False
+    ota_semantics_seen: set[str] = set()
     for index in range(months):
         period_start = cursor
         period_end = _month_end(cursor)
@@ -221,7 +226,15 @@ def _run_monthly_acquisition_model(
             ) * hotel_activity
             hotel_revenue = room_revenue + ancillary
             ota_value = drivers["ota_commission"][index]
-            ota_cost = room_revenue * ota_value if 0 <= ota_value <= 1 else ota_value * hotel_activity
+            # ota_commission 有两种语义且按取值区间判别：[0,1] 视为抽佣比率，
+            # >1 视为金额（万元）。这是既有契约行为，改判会静默重算历史 spec，
+            # 因此保留判别规则，但必须把判别结果显式披露——否则同一字段填
+            # 0.08 与 135 会得到 IRR +5.52% 与 −33.66% 两种结论而无任何提示，
+            # 且 0.5 万元的真实小额佣金会被当成 50% 抽佣。
+            ota_is_rate = 0 <= ota_value <= 1
+            ota_cost = room_revenue * ota_value if ota_is_rate else ota_value * hotel_activity
+            if ota_value:
+                ota_semantics_seen.add("rate" if ota_is_rate else "amount_wan")
             payroll_cost = drivers["payroll"][index] * hotel_activity
             utilities_cost = drivers["utilities"][index] * hotel_activity
             consumables_cost = drivers["consumables"][index] * hotel_activity
@@ -242,18 +255,42 @@ def _run_monthly_acquisition_model(
         tax = taxable * income_tax_rate
         vat = revenue * vat_rate
         surtax = vat * surtax_rate
-        net_profit = taxable_raw - tax
-        cfads = revenue - operating_cost - tax - surtax - maintenance_capex
         exit_cash = net_exit if index == exit_month else 0.0
         debt_row = debt_rows[index]
+        interest_month = _number(debt_row.get("interest_wan") or 0.0)
+        # 利润表净利润必须扣利息与税金及附加。此前是 `taxable_raw - tax`，即
+        # 只扣了成本与折旧：实测利息列 404.60 明明在同一行输出，净利润却没扣，
+        # 差额恒等于利息本身；光伏侧同一缺陷使净利由 +48.375 翻成 −731.077。
+        # 所得税沿用项目（税前融资）口径不变——现金流与 IRR 不受本次修改影响，
+        # 改的只是利润表这一行，故与附表 tax 列的口径差异在此显式说明。
+        # lease_adjustment 是负值一次性招租支出（leasing_cost + fitout_allowance，
+        # 见 schedules.py:160-161），属真实费用而非押金，必须进利润表；只从现金
+        # 扣、不进损益，同样会撑开资产=负债+权益的缺口。
+        net_profit = taxable_raw - interest_month - surtax - tax + lease_adjustment
+        cfads = revenue - operating_cost - tax - surtax - maintenance_capex
         project_cf = cfads + lease_adjustment + exit_cash
         equity_cf = project_cf - debt_row["debt_service_wan"]
         project_monthly.append(project_cf)
         equity_monthly.append(equity_cf)
         cash = round(cash + equity_cf, 2)
         cumulative_depreciation = round(cumulative_depreciation + depreciation_month, 2)
+        # 资产已处置后不再资本化维护支出——资产不在账上，再资本化就又撑开缺口
+        # （实测每期偏 95，恰为月度维护性资本支出）。此时它是纯费用，已通过
+        # cfads 从现金扣除，也须进损益。
+        if asset_disposed:
+            net_profit -= maintenance_capex
+        else:
+            cumulative_capex = round(cumulative_capex + maintenance_capex, 2)
+        book_value = round(max(total_cost + cumulative_capex - cumulative_depreciation, 0.0), 2)
+        if exit_cash:
+            # 处置当期资产必须出账，处置损益进损益表。此前 exit_cash 只进现金、
+            # 资产原值不核销，资产侧凭空多出一份已卖掉的资产：实测 Y5 起
+            # total_assets 比 L+E 多 17,000.11（恰为 exit_value），且逐期不收敛。
+            disposed_book_value = book_value
+            net_profit += exit_cash - disposed_book_value
+            asset_disposed = True
         retained_earnings = round(retained_earnings + net_profit, 2)
-        fixed_asset_net = round(max(total_cost - cumulative_depreciation, 0.0), 2)
+        fixed_asset_net = 0.0 if asset_disposed else book_value
         debt_wan = round(float(debt_row.get("closing_principal_wan") or 0.0), 2)
         equity_wan = round(equity + retained_earnings, 2)
         total_assets = round(cash + fixed_asset_net, 2)
@@ -401,6 +438,19 @@ def _run_monthly_acquisition_model(
             "月度自然月计算；交割、开业与租约起止按实际有效天数计量",
             "租约到期后不默认续租；无有效合同的配套租赁不计入确认收入",
             "mixed_owner_operator 合并酒店自营与配套租赁收入，不将酒店可承受租金计作业主收入",
+            "利润表净利润已扣建设期后利息与税金及附加；维护性资本支出资本化进固定资产，退出年资产出账并确认处置损益",
+            *(
+                [
+                    "ota_commission 按取值判别语义："
+                    + "、".join(
+                        "比率（客房收入×系数）" if kind == "rate" else "金额（万元/期）"
+                        for kind in sorted(ota_semantics_seen)
+                    )
+                    + "。若与预期不符请改用另一量级重报——该字段 [0,1] 判为比率、>1 判为金额。"
+                ]
+                if ota_semantics_seen
+                else []
+            ),
         ],
     }
 

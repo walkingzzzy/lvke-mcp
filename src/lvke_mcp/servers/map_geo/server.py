@@ -67,6 +67,17 @@ class POIStorage:
                 names.add("武昌站")
             if compact in {re.sub(r"[\s,，、]+", "", name) for name in names}:
                 return rec
+        # 行政区级查询（以 区/县/市辖区 结尾）若没有专属记录，必须返回未命中，
+        # 不得落到下面的 address 子串匹配。否则 "武汉市江岸区" 会因为
+        # "武汉市政府" 的 address 恰好是 "武汉市江岸区沿江大道" 而被吞掉，
+        # 静默换成一个 12km 外的无关 POI 且 status=ok、零 warning。
+        # 实测 江岸区→武汉市政府、武昌区→东湖(湿地)、洪山区→光谷(工业园)。
+        if re.search(r"(?:区|县|旗)$", compact):
+            for rec in self._records:
+                rec_district = re.sub(r"[\s,，、]+", "", str(rec.get("district") or ""))
+                if rec_district and compact.endswith(rec_district):
+                    return rec
+            return None
         # 模糊匹配:address 字段包含或 name 包含
         for rec in self._records:
             haystack = re.sub(r"[\s,，、]+", "", str(rec.get("address", "")) + str(rec.get("name", "")))

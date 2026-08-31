@@ -34,10 +34,22 @@ def profile_tabular(
         if document.get("source_type") != "controlled_file":
             skipped.append({"source_id": source_id, "reason": "not_controlled_tabular_file"})
             continue
+        # 两个 parser 各满足一半条件，旧判据 `kind=="cell" and sheet` 的交集为空，
+        # 于是任何已正常解析的表格都被判 no_cell_locators：
+        #   CSV  → kind="cell"，无 sheet（单表无工作表概念）
+        #   XLSX → kind="spreadsheet_cell"，有 sheet
+        # 这里按两种真实形状取并集，CSV 归到单一默认表名。
         sheets: dict[str, list[dict[str, Any]]] = {}
         for locator in document.get("locators") or []:
-            if isinstance(locator, dict) and locator.get("kind") == "cell" and locator.get("sheet"):
-                sheets.setdefault(str(locator["sheet"]), []).append(locator)
+            if not isinstance(locator, dict):
+                continue
+            if locator.get("kind") not in {"cell", "spreadsheet_cell"}:
+                continue
+            sheet_name = str(locator.get("sheet") or "").strip()
+            if not sheet_name:
+                # 无工作表的单表资料（CSV）：用表名占位，保持后续按表分组的形状。
+                sheet_name = str(locator.get("table_kind") or "table")
+            sheets.setdefault(sheet_name, []).append(locator)
         if not sheets:
             skipped.append({"source_id": source_id, "reason": "no_cell_locators"})
             continue

@@ -1252,6 +1252,44 @@ def _with_canonical_locators(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
+def _spreadsheet_formula_cells(path: Path, sheet_name: str) -> dict[str, str]:
+    """Return ``{cell: formula}`` for one sheet, empty when unavailable.
+
+    读公式用 data_only=False；这是与 read_sheet(data_only=True) 互补的第二次
+    打开，专门用来区分"空单元格"与"有公式但无缓存值"。任何失败都退回空 dict，
+    绝不因为拿不到公式而丢掉原本能读到的数值格。
+    """
+
+    try:
+        import openpyxl  # type: ignore
+    except Exception:  # noqa: BLE001
+        return {}
+    try:
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=False)
+    except Exception:  # noqa: BLE001
+        return {}
+    try:
+        if sheet_name not in wb.sheetnames:
+            return {}
+        ws = wb[sheet_name]
+        found: dict[str, str] = {}
+        for row in ws.iter_rows():
+            for cell in row:
+                value = cell.value
+                if isinstance(value, str) and value.startswith("="):
+                    found[str(cell.coordinate)] = value
+                    if len(found) >= 20_000:
+                        return found
+        return found
+    except Exception:  # noqa: BLE001
+        return {}
+    finally:
+        try:
+            wb.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 def _parse_spreadsheet_locators(path: Path) -> tuple[list[dict[str, Any]], str]:
     """Extract bounded, exact cell fragments from xls/xlsx workbooks."""
 
@@ -1266,21 +1304,35 @@ def _parse_spreadsheet_locators(path: Path) -> tuple[list[dict[str, Any]], str]:
     try:
         for sheet_name in sheet_names[:100]:
             result = backend.read_sheet(path, sheet_name, max_rows=2000, max_cols=256)
+            # 未缓存的公式格在 data_only 模式下读出 None，与"空单元格"同形。全部
+            # 丢弃会让甲方财务模板的合计/勾稽行（正是公式格）在证据侧凭空消失，
+            # 且 status=succeeded 无任何提示——实测 44 个格只留 35 个，标签列在、
+            # 数值列不在。这里改为：公式格保留 locator 但显式标注取不到值，
+            # 让"这里有值但读不到"与"这里没有值"可区分。
+            formula_cells = _spreadsheet_formula_cells(path, sheet_name)
             for row_index, row in enumerate(result.rows, start=1):
                 for column_index, value in enumerate(row, start=1):
-                    if value is None or (isinstance(value, str) and not value.strip()):
-                        continue
                     cell = f"{_spreadsheet_column(column_index)}{row_index}"
-                    locators.append({
+                    is_blank = value is None or (isinstance(value, str) and not value.strip())
+                    if is_blank and cell not in formula_cells:
+                        continue
+                    locator_row: dict[str, Any] = {
                         "kind": "spreadsheet_cell",
                         "locator": f"workbook:{sheet_name}!{cell}",
                         "sheet": sheet_name,
                         "cell": cell,
                         "row_index": row_index,
                         "column_index": column_index,
-                        "text": str(value),
+                        "text": "" if is_blank else str(value),
                         "original_value": value,
-                    })
+                    }
+                    if cell in formula_cells:
+                        locator_row["formula"] = formula_cells[cell]
+                        if is_blank:
+                            # 公式存在但无缓存值：不得当作已取到数值。
+                            locator_row["value_unresolved"] = True
+                            locator_row["unresolved_reason"] = "formula_not_cached"
+                    locators.append(locator_row)
                     if len(locators) >= 50_000:
                         return locators, "spreadsheet_locator_limit_reached"
     except Exception:  # noqa: BLE001

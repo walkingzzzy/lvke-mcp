@@ -213,7 +213,17 @@ def confirm_saved_spec(
                 })
         formal_candidate = mark_spec_confirmed(candidate)
         estimate_preview = _is_estimate_preview_spec(candidate)
-        process_acceptance = _is_process_acceptance_spec(candidate)
+        # 调用方显式请求的 process_acceptance 必须无条件生效。
+        # `_is_process_acceptance_spec()` 定义为"重建依据无缺口"，依据不全时返回
+        # False，于是下面的降级分支整块被跳过、落到 `or "formal_input"` 默认值——
+        # 请求越不合格，拿到的资格反而越高（实测请求 process_acceptance 得到
+        # formal_input + formal_release_eligible=true，与 project_candidate 逐字段
+        # 相同）。依据完整性只决定是否附 PROCESS_ACCEPTANCE_BASIS_INCOMPLETE
+        # 质量提示，不决定资格档位。
+        process_acceptance = (
+            confirmation_scope == "process_acceptance"
+            or _is_process_acceptance_spec(candidate)
+        )
         schema_ok, schema_errors = (
             validate(formal_candidate)
             if estimate_preview or process_acceptance

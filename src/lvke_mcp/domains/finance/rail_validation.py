@@ -61,6 +61,16 @@ def revenue_input_complete(
             and _positive(revenue.get("average_fare_yuan"))
             and bool(revenue.get("ridership_ramp") or revenue.get("ramp"))
         )
+    if model == "flat":
+        # flat 模型的驱动就是达产营收本身。此前没有 flat 分支，spec 侧写了
+        # `revenue.annual_revenue_wan` 也会落到下面的 revenue_by_year 检查并
+        # 返回 False，于是模型改用"投资额×30%"派生基线——一个与输入无关的数。
+        # 这里显式承认 spec 侧的达产营收（含 flat 回退时保留的
+        # `fixed_annual_revenue_wan`），与函数开头对 input_revision 的判断同源。
+        if _positive(revenue.get("annual_revenue_wan")) or _positive(
+            revenue.get("fixed_annual_revenue_wan")
+        ):
+            return True
     series = revision.get("revenue_by_year")
     return isinstance(series, list) and any(
         isinstance(value, (int, float)) and value > 0 for value in series

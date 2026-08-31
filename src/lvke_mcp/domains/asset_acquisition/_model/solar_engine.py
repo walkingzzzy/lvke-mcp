@@ -113,6 +113,19 @@ def _run_solar_acquisition_model(
         tax_after_interest = max(revenue - opex[index] - depreciation_amount - annual_interest, 0.0) * income_tax_rate
         cfads = revenue - opex[index] - tax_after_interest - maintenance[index]
         exit_cash = net_exit if index + 1 == exit_year else 0.0
+        # 处置账面净值 = 取得成本 + 已资本化维护支出 − 累计折旧（与 balance_sheet
+        # 的 book_value 同式），供处置损益与资产出账配对使用。
+        disposed_before = bool(exit_year) and index + 1 > int(exit_year)
+        cumulative_dep_to_date = sum(
+            _number(depreciation_values[i] if i < len(depreciation_values) else 0.0)
+            for i in range(index + 1)
+        )
+        cumulative_capex_to_date = sum(
+            _number(maintenance[i]) for i in range(index + 1) if not (bool(exit_year) and i + 1 > int(exit_year))
+        )
+        disposal_book_value = max(
+            total_cost + cumulative_capex_to_date - cumulative_dep_to_date, 0.0
+        ) if exit_cash else 0.0
         project_cf = revenue - opex[index] - tax - maintenance[index] + exit_cash
         equity_cf = cfads + exit_cash - annual_service
         project_annual.append(project_cf)
@@ -130,11 +143,25 @@ def _run_solar_acquisition_model(
             "period_basis": "calendar_year" if year_start.month == 1 else "rolling_model_year",
             "gross_generation_mwh": gross_generation, "sold_generation_mwh": sold_generation,
             "tariff_yuan_per_kwh": tariff, "revenue_wan": revenue,
-            "operating_cost_wan": opex[index], "income_tax_wan": tax,
+            # 利润表的所得税列必须与净利润同源（含息税基）。此前这里放的是
+            # 项目口径 tax（不扣息），而 net_profit 用 tax_after_interest，
+            # 结果利润表逐行复算恒差两种税口径之差（实测 Y1 差 143.12）——
+            # 表自身不平。项目口径的税另存 project_income_tax_wan 供现金流侧使用。
+            "operating_cost_wan": opex[index], "income_tax_wan": tax_after_interest,
+            "project_income_tax_wan": tax,
             "maintenance_capex_wan": maintenance[index], "debt_service_wan": annual_service,
             "interest_wan": annual_interest, "project_cf_wan": project_cf, "equity_cf_wan": equity_cf,
             "depreciation_wan": depreciation_amount,
-            "net_profit_wan": revenue - opex[index] - depreciation_amount - tax,
+            # 净利润须扣利息（与 monthly_engine 同一缺陷的第二份实现）。原式
+            # `revenue - opex - depreciation - tax` 漏 annual_interest，使 Y1
+            # 报 +48.375 而含息实为 −731.077——符号都反了。这里用含息税基
+            # tax_after_interest，与利润表"扣息后计税"的口径自洽。
+            # 处置当期另计处置损益（价款 − 账面净值），与资产出账配对。
+            "net_profit_wan": (
+                revenue - opex[index] - depreciation_amount - annual_interest - tax_after_interest
+                + (exit_cash - disposal_book_value if exit_cash else 0.0)
+                - (maintenance[index] if disposed_before else 0.0)
+            ),
             "closing_principal_wan": closing_debt,
         })
         for month_offset, debt_row in enumerate(debt_rows[index * 12:(index + 1) * 12]):
@@ -168,6 +195,8 @@ def _run_solar_acquisition_model(
         net_profit=[row["net_profit_wan"] for row in annual],
         depreciation=depreciation_values[:years],
         closing_debt=[row["closing_principal_wan"] for row in annual],
+        maintenance_capex=[row.get("maintenance_capex_wan") or 0.0 for row in annual],
+        disposal_period_index=(int(exit_year) - 1) if exit_year else None,
         year_meta=annual,
     )
     annual = rolled

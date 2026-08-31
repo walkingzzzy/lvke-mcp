@@ -31,8 +31,32 @@ _MISSING_INPUT = {
         "impact": {"type": "string", "description": "对技术验收与正式候选的影响"},
         "status": {"type": "string", "enum": ["pending", "skipped", "answered"]},
         "priority": {"type": "integer", "minimum": 1},
+        # 行业未解析/歧义路径产出的是"待澄清项"形状：只有 field + reason +
+        # candidates，没有 critical/status/impact（那三个是字段级假设清单专属）。
+        # 这两个键此前不在 properties 里、而四个字段又无条件必填，于是该路径的
+        # 响应整条过不了 outputSchema，调用方只拿到 invalid_tool_output：
+        # candidates 与 next_actions 全被吞掉，自恢复路径彻底不可见。
+        # 实测 23/23 常见行业都走这条路，等于整条入口不可用。
+        "reason": {"type": "string", "description": "行业未解析或歧义的具体原因"},
+        # candidates 实际是对象数组（`{industry_code, industry_label}`），不是
+        # 字符串数组——写成 string 会继续判非法输出。这里按真实载荷声明，并允许
+        # 未来扩展键（additionalProperties 默认放开），避免再次因形状假设而阻断。
+        "candidates": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "industry_code": {"type": "string"},
+                    "industry_label": {"type": "string"},
+                },
+            },
+            "description": "可供调用方选择的行业候选，每项含 industry_code 与 industry_label",
+        },
     },
-    "required": ["field", "critical", "status", "impact"],
+    # 只强制 field。其余按分支各自成立：字段级假设清单带
+    # critical/status/impact，待澄清项带 reason/candidates。无条件必填四项会把
+    # 错误路径判成非法输出——这正是 outputschema-rejects-error-path 的同类错误。
+    "required": ["field"],
 }
 
 _REPORT_PROFILE = {

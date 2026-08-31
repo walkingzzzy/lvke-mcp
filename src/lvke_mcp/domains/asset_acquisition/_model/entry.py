@@ -202,8 +202,24 @@ def run_acquisition_model(
     project_irr = _safe_irr(project_cashflows)
     equity_irr = _safe_irr(equity_cashflows)
     payback = payback_period(project_cashflows, rate=discount_rate)
+    # 净利润须扣利息（与 monthly_engine / solar_engine 同一缺陷的第三份实现）。
+    # 这里用含息税基 equity_tax 与利润表口径自洽。
+    # 处置损益（价款 − 账面净值）与资产出账配对；处置后维护支出转费用。
+    _exit_idx = int(exit_year) - 1 if exit_year else None
+    def _disposal_pl(index: int) -> float:
+        if _exit_idx is None or index != _exit_idx:
+            return -float(maintenance[index]) if _exit_idx is not None and index > _exit_idx else 0.0
+        cum_dep = sum(float(depreciation_values[i]) for i in range(index + 1))
+        cum_capex = sum(float(maintenance[i]) for i in range(index + 1))
+        book = max(float(total_acquisition_cost) + cum_capex - cum_dep, 0.0)
+        return float(net_exit_value) - book
     net_profit = [
-        owner_revenue[index] - owner_opex[index] - depreciation_values[index] - project_tax[index]
+        owner_revenue[index]
+        - owner_opex[index]
+        - depreciation_values[index]
+        - debt_schedule[index]["interest_wan"]
+        - equity_tax[index]
+        + _disposal_pl(index)
         for index in range(years)
     ]
     closing_debt = [
@@ -217,6 +233,8 @@ def run_acquisition_model(
         net_profit=net_profit,
         depreciation=depreciation_values,
         closing_debt=closing_debt,
+        maintenance_capex=list(maintenance[:years]),
+        disposal_period_index=_exit_idx,
         year_meta=[
             {
                 "year": index + 1,

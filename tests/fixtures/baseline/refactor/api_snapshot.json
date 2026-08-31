@@ -1,6 +1,6 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-30T13:58:15+0000",
+  "generated_at": "2026-08-31T03:06:29+0000",
   "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
@@ -3056,7 +3056,7 @@
         },
         "roll_annual_balance_sheet": {
           "kind": "callable",
-          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
+          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', maintenance_capex: 'list[float] | None' = None, disposal_period_index: 'int | None' = None, year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.asset_acquisition._model.balance_sheet"
         }
       }
@@ -3161,7 +3161,7 @@
         },
         "roll_annual_balance_sheet": {
           "kind": "callable",
-          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
+          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', maintenance_capex: 'list[float] | None' = None, disposal_period_index: 'int | None' = None, year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.asset_acquisition._model.balance_sheet"
         },
         "run_acquisition_model": {
@@ -3661,7 +3661,7 @@
         },
         "roll_annual_balance_sheet": {
           "kind": "callable",
-          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
+          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', maintenance_capex: 'list[float] | None' = None, disposal_period_index: 'int | None' = None, year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.asset_acquisition._model.balance_sheet"
         }
       }
@@ -4860,7 +4860,7 @@
         },
         "roll_annual_balance_sheet": {
           "kind": "callable",
-          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
+          "signature": "(*, years: 'int', total_cost: 'float', opening_equity: 'float', equity_cf: 'list[float]', net_profit: 'list[float]', depreciation: 'list[float]', closing_debt: 'list[float]', maintenance_capex: 'list[float] | None' = None, disposal_period_index: 'int | None' = None, year_meta: 'list[dict[str, Any]] | None' = None) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.asset_acquisition._model.balance_sheet"
         },
         "run_acquisition_model": {

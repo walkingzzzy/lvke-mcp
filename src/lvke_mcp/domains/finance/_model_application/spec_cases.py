@@ -738,8 +738,24 @@ def _canonical_candidate_inputs(
         # `tax.vat_rate`），validate_spec 也接受这种形态。但计算层只认扁平的
         # 顶层键，分组不提升就会被静默丢弃：`cost.cost_items` 五项明细齐全却
         # 读不到，模型退回"总成本费用率 75%"估算，产出与输入无关的成本。
-        # `revenue` 不在此列——它有自己的 model/products 结构，由收入模型消费。
-        for group in ("cost", "tax"):
+        #
+        # `revenue` 组**仅在 model=="flat" 时**提升，且只提升白名单交集键。
+        # flat 模型的驱动就是 `annual_revenue_wan` 本身，不提升它就被静默丢弃、
+        # 达产营收退回"投资额×30%"派生基线：实测 97,680 变 20,520，利润总额由
+        # +40,614.71 翻成 −35,631、NPV 由 +164,301.87 翻成 −246,330.44、IRR 无解，
+        # 而 consistency_ok 仍为 true。
+        #
+        # 其他模型（tourism / product_sales / property_sales / rail_transit）另有
+        # 自己的量价驱动，其 `revenue.annual_revenue_wan` 只是**由那些驱动折算出的
+        # 回显值**，与调用方显式 input_revision 常有正常的舍入差（实测零材料
+        # tourism 链 12000.0 vs 12000.3）。把回显值当独立输入提升会把这种舍入差
+        # 判成 candidate_input_conflict，整条链 fail-closed —— 那是误杀，不是把关。
+        revenue_group = supplied_spec.get("revenue")
+        revenue_model = (
+            str(revenue_group.get("model") or "") if isinstance(revenue_group, dict) else ""
+        )
+        promoted_groups = ("cost", "tax", "revenue") if revenue_model == "flat" else ("cost", "tax")
+        for group in promoted_groups:
             group_values = supplied_spec.get(group)
             if not isinstance(group_values, dict):
                 continue

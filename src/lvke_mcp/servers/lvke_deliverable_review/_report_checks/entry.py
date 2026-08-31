@@ -121,6 +121,29 @@ def review_report(
             matches = _claim_run_matches(claim, run_index)
             if matches:
                 metrics["financial_claims_matched"] += 1
+            elif claim.get("citation_scope") == "external":
+                # 引自外部规划/统计口径的数字（左侧最近归属标记是"全省/规划提出"
+                # 等）不是本项目财务指标，不该要求在 run 里复现——实测省级
+                # 5,500 亿/1,000 亿被判 4 条 P0 假阳性。但也不静默放过：降为 P2
+                # 并要求正文明确标注来源与口径，仍留痕可复核。
+                findings.append(rules.finding(
+                    "REPORT.NUMBERS.BOUND",
+                    "P2",
+                    "引述外部口径的数字未在正文标注来源与口径归属",
+                    category="report_citation_scope",
+                    expected={"metric": metric, "citation_scope": "external"},
+                    actual={
+                        "value": claim["value"],
+                        "unit": claim["unit"],
+                        "context": claim["context"],
+                        "interpretation": "按引文处理，不参与本项目 run 数字绑定",
+                    },
+                    target_location=claim["location"],
+                    evidence=[],
+                    standard_basis=standard_basis,
+                    review_area="report",
+                    remediation="在正文明确该数字的来源与口径（如'全省规划目标'），或改用本项目对应指标",
+                ))
             else:
                 binding_severity = "P1" if metric in {"capital", "debt"} else "P0"
                 findings.append(rules.finding(

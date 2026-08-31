@@ -86,6 +86,45 @@ def semantic_finance_index(run: dict[str, Any]) -> dict[str, list[dict[str, Any]
     return {key: value for key, value in index.items() if value}
 
 
+#: 引述来源标记：出现在数字左侧、说明"这是谁的口径"。命中即认为该数字引自外部
+#: 规划/统计，不是本项目财务指标。只收对**主体归属**有判别力的词——"预计/约"这类
+#: 不确定性副词不在此列（本项目自己的预测也会用），否则会漏掉真的错绑。
+_CITATION_SCOPE_MARKERS: tuple[str, ...] = (
+    "规划提出", "规划明确", "规划要求", "规划将", "发展规划",
+    "力争到", "根据规划", "按照规划", "上述规划", "两份规划",
+    "全省", "全市", "全国", "全区", "本省", "本市",
+    "国家统计局", "统计公报", "统计年鉴", "行业协会", "白皮书",
+    "同业", "可比项目", "参照", "参考值", "行业均值", "行业平均",
+)
+
+#: 项目自身归属标记：命中时优先判为项目指标，即使同句另有引述标记。
+#: 例如"本项目营收 97,680 万元，占全省 5,500 亿元的 1.78%"——97,680 左侧最近的
+#: 归属词是"本项目"，不能因为句尾出现"全省"就放过它。
+_PROJECT_SCOPE_MARKERS: tuple[str, ...] = (
+    "本项目", "该项目", "项目达产", "达产年", "本工程", "项目总投资", "本报告",
+)
+
+
+def _citation_scope(line: str, start: int) -> str:
+    """Return ``"external"`` when the number is quoted from an outside caliber.
+
+    只看数字左侧：右侧文本属于下一个论断，纳入会让"本项目 X，全省 Y"里的 X 也
+    被误判为引文。左侧取最近的归属标记——项目标记比引述标记更近则判 project。
+    返回 ``""`` 表示无法判定，按既有 fail-closed 逻辑照常校验绑定。
+    """
+
+    left = line[:start]
+    if not left:
+        return ""
+    nearest_citation = max((left.rfind(token) for token in _CITATION_SCOPE_MARKERS), default=-1)
+    nearest_project = max((left.rfind(token) for token in _PROJECT_SCOPE_MARKERS), default=-1)
+    if nearest_citation < 0:
+        return ""
+    if nearest_project > nearest_citation:
+        return "project"
+    return "external"
+
+
 def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     section = ""
@@ -129,6 +168,14 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
             context_start = max(0, start - 40)
             context_end = min(len(line), end + 40)
             context = line[context_start:context_end]
+            # 引述语境判别：正文引用外部规划/统计口径的数字（"规划提出…全省…达到
+            # 5,500 亿元"）不是本项目财务指标，不该要求在 run 里复现。实测 7 条
+            # REPORT.NUMBERS.BOUND 里 4 条是这类假阳性——省级 5,500 亿/1,000 亿
+            # 被当作项目营业收入。
+            # 判据是**数字左侧的引述标记**（谁的口径），不是数值大小：
+            # 数值阈值会把真的量级错绑一起放过。右侧不看，避免"本项目营收 X，
+            # 全省目标 Y"这种句子把 X 也误判成引文。
+            citation_scope = _citation_scope(line, start)
             metric = metric_override or _semantic_near(line, start, end, raw_unit)
             period = _period_near(line, start, end)
             if unit == "间" and not metric:
@@ -169,6 +216,7 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
                 "text": text,
                 "context": context,
                 "claim_type": claim_type,
+                "citation_scope": citation_scope,
                 "metric": metric,
                 "value": value,
                 "unit": unit,

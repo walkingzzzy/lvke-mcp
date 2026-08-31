@@ -163,13 +163,19 @@ _PATH_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # 金额不是同一个数，两者都要认。
     ("salary_cost", re.compile(r"annual\.wage\[\d+\]\.wage$|cost_items\.工资$", re.I)),
     ("welfare_cost", re.compile(r"annual\.wage\[\d+\]\.welfare$|cost_items\.福利$", re.I)),
-    ("maintenance_cost", re.compile(r"cost_items\.(?:修理与维护|设备维护|维修|维护|修理)", re.I)),
-    ("utility_cost", re.compile(r"cost_items\.(?:水电能源|能源|水电)", re.I)),
-    ("raw_material_cost", re.compile(r"cost_items\.(?:主要原材料|原材料|原料)", re.I)),
-    ("insurance_cost", re.compile(r"cost_items\.保险", re.I)),
-    ("marketing_cost", re.compile(r"cost_items\.营销", re.I)),
-    ("lease_cost", re.compile(r"cost_items\.(?:场地使用及租赁|场地租赁|租赁)", re.I)),
-    ("management_cost", re.compile(r"cost_items\.管理", re.I)),
+    # 成本项路径一律允许 cost_items 之后带前缀词：真实 cost_items 键名常写成
+    # "销售与管理费用"、"外购原材料"、"场地使用及租赁"。旧写法把词锚在点号后
+    # 紧邻位置，于是正文正则 `管理费用|管理费` 能识别出 management_cost，路径
+    # 正则 `cost_items\.管理` 却匹配不到 `cost_items.销售与管理费用`——
+    # candidate_paths 为 0，run 里明明有 1500 也被报"无法复现"。
+    # 判据升级：两表不仅键要对齐，同一概念的正则覆盖范围也必须一致。
+    ("maintenance_cost", re.compile(r"cost_items\.[^.]*?(?:修理与维护|设备维护|维修|维护|修理)", re.I)),
+    ("utility_cost", re.compile(r"cost_items\.[^.]*?(?:水电能源|能源|水电)", re.I)),
+    ("raw_material_cost", re.compile(r"cost_items\.[^.]*?(?:主要原材料|原材料|原料)", re.I)),
+    ("insurance_cost", re.compile(r"cost_items\.[^.]*?保险", re.I)),
+    ("marketing_cost", re.compile(r"cost_items\.[^.]*?营销", re.I)),
+    ("lease_cost", re.compile(r"cost_items\.[^.]*?(?:场地使用及租赁|场地租赁|租赁)", re.I)),
+    ("management_cost", re.compile(r"cost_items\.[^.]*?管理", re.I)),
 )
 
 

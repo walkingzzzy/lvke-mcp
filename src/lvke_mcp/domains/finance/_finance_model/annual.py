@@ -140,14 +140,21 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
         # welfare/surcharges.  Treating it as base salary and applying the
         # welfare rate again inflated table 6-1 and broke the cost-detail tie.
         wage_key_includes_welfare = wage is not None
-        if wage is None and isinstance(cost_items, dict):
+        # 显式给出的福利/附加金额。此前循环 break 在首个含"工资"的键上，与之
+        # **平行**的独立"福利"键从不被读取：附表6 用了输入的 315，附表6-1 却按
+        # 引擎默认 14% 重算成 147，两表劳务合计 1365 vs 1197 差 168，而
+        # cost_item_tree 勾稽不覆盖两表之间的 tie，报 ok。
+        explicit_welfare: float | None = None
+        if isinstance(cost_items, dict):
             for _k, _v in cost_items.items():
                 _ks = str(_k)
-                if "工资" in _ks or "薪" in _ks or "人工" in _ks:
+                is_wage_key = "工资" in _ks or "薪" in _ks or "人工" in _ks
+                if is_wage_key and wage is None:
                     wage = _f(_v)
                     if "福利" in _ks or "附加" in _ks:
                         wage_key_includes_welfare = True
-                    break
+                elif not is_wage_key and ("福利" in _ks or "附加" in _ks):
+                    explicit_welfare = _f(_v)
         # BC-P3：工资占比/福利率/所得税率三级取值（spec.cost → config → 兜底=原硬编码 0.15/0.14/0.25）。
         _spec = r.get("spec")
         _wage_rate = _cost_param(_spec, "wage_rate", "cost")       # 原硬编码 0.15
@@ -172,7 +179,11 @@ def _build_annual(r: dict[str, Any]) -> dict[str, Any]:
             wage = 0.0 if negative_cash_cost else round(_wage_base * _wage_rate, 2)
             wage_estimated = True
         wage = round(max(min(float(wage or 0.0), max(op_cash_cost, 0.0)), 0.0), 2)
-        if wage_key_includes_welfare and not wage_estimated and _welfare_rate > 0:
+        if explicit_welfare is not None and not wage_estimated:
+            # 调用方显式给了福利金额，直接采用——附表6 与附表6-1 因此同源。
+            # 按占比重算会把用户给的 315 换成 1050×14%=147，两表口径当场分叉。
+            welfare = round(float(explicit_welfare), 2)
+        elif wage_key_includes_welfare and not wage_estimated and _welfare_rate > 0:
             # 输入已是「工资及福利」总额：内拆，禁止 total 膨胀到 输入×(1+r)
             wage_total = wage
             wage = round(wage_total / (1.0 + float(_welfare_rate)), 2)

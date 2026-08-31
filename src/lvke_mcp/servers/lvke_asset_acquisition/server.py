@@ -355,7 +355,19 @@ _HOTEL_OPERATION_SCHEMA = {
         "consumables": _MONTHLY_DRIVER_SCHEMA,
         "maintenance": _MONTHLY_DRIVER_SCHEMA,
         "maintenance_capex": _MONTHLY_DRIVER_SCHEMA,
-        "ota_commission": _MONTHLY_DRIVER_SCHEMA,
+        # 双语义字段，必须在 schema 上写明：[0,1] 判为抽佣比率（客房收入×系数），
+        # >1 判为金额（万元/期）。此前沿用 _MONTHLY_DRIVER_SCHEMA（其 _MONEY 注为
+        # "金额单位：万元"），description 未提比率解释，导致填 0.08 与 135 得到
+        # IRR +5.52% 与 −33.66% 两种结论且无任何提示。
+        "ota_commission": {
+            **_MONTHLY_DRIVER_SCHEMA,
+            "description": (
+                "OTA 佣金，双语义按取值判别：取值在 [0,1] 视为抽佣比率（客房收入×系数）；"
+                "取值 >1 视为金额（万元/期）。注意 0.5 会被判为 50% 抽佣而不是 0.5 万元；"
+                "实际采用的语义会在运行结果 assumptions 中回报。"
+                + str(_MONTHLY_DRIVER_SCHEMA.get("description") or "")
+            ),
+        },
         "evidence_ids": _EVIDENCE_IDS,
     },
 }
