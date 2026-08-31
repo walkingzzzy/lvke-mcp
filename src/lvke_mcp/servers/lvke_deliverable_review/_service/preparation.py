@@ -91,9 +91,17 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             if review_mode != str(package_payload.get("review_mode") or ""):
                 return _blocked("review_mode_package_mismatch", "review_mode 必须与冻结 ReviewPackage 一致")
         raw_project_context = dict(args.get("project_context") or {})
+        # 外部套件默认降到过程验收（方向保守、保留）。但**必须披露**：
+        # normalize_project_context 对同一份 {generic_feasibility, real} 会给
+        # project_delivery，而这里 setdefault 成 process_acceptance，于是
+        # review_prepare 与 review_resolve_standards 同参数返回不同 review_purpose，
+        # 且此前响应里没有任何提示 —— 调用方无从知道口径被改过。
+        scope_defaults_applied: list[str] = []
         if target["target_type"] == "review_package" and review_mode == "external":
-            raw_project_context.setdefault("review_purpose", "process_acceptance")
-            raw_project_context.setdefault("release_scope", "process_acceptance")
+            for field in ("review_purpose", "release_scope"):
+                if not str(raw_project_context.get(field) or "").strip():
+                    raw_project_context[field] = "process_acceptance"
+                    scope_defaults_applied.append(field)
         project_context = normalize_project_context(
             raw_project_context,
             target_type=target["target_type"],
@@ -209,6 +217,14 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             f"标准包仅支持框架性过程验收：{item}；不得声称已按方法书全文完成"
             for item in standards.get("framework_only") or []
         )
+        if scope_defaults_applied:
+            warnings.append(
+                "外部套件未显式声明 "
+                + "/".join(scope_defaults_applied)
+                + "，已按 process_acceptance 处理（不授予正式交付资格）；"
+                "review_resolve_standards 对同一 project_context 可能返回 "
+                "project_delivery，如需正式口径请显式传入"
+            )
         return _ok(
             review_preparation_id=record["object_id"], 
             target=basis["target"], bindings=basis["bindings"],

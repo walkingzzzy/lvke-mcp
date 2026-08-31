@@ -247,10 +247,36 @@ def _citation_consistency_issues(
     citations: list[Any],
     evidence_payloads: list[dict[str, Any]],
     source_snapshot_ids: list[str],
+    plan_sources: list[dict[str, Any]] | None = None,
 ) -> list[str]:
-    """Validate that every citation resolves to the immutable submitted basis."""
+    """Validate that every citation resolves to the immutable submitted basis.
+
+    ``plan_sources`` 是 ``dr_add_sources`` 绑进 plan 的来源描述符（含 object_id
+    与 content_hash）。这是**第二道**引用门：修好第一道门
+    （``_resolve_citation_audit`` 的 allowed_source_ids）之后，如果这里的
+    ``known_sources`` 仍不含 plan 来源，confirm 会在这里再拦一次 —— 两处必须
+    同时改，否则只是把阻断点往后挪。
+
+    刻意带上 content_hash（而不是像 source_snapshot_ids 那样置空）：置空会跳过
+    下面的 ``citation_content_hash_mismatch`` 校验，等于为了解开死锁而放弃
+    篡改检测。plan 描述符本身就带 hash，没有理由不校验。
+    """
 
     known_sources: dict[str, str] = {str(item): "" for item in source_snapshot_ids}
+    for source in plan_sources or []:
+        if not isinstance(source, dict):
+            continue
+        source_id = str(
+            source.get("object_id")
+            or source.get("source_id")
+            or source.get("source_snapshot_id")
+            or source.get("file_id")
+            or ""
+        ).strip()
+        if source_id:
+            known_sources.setdefault(
+                source_id, _canonical_content_hash(source.get("content_hash"))
+            )
     for evidence in evidence_payloads:
         for source in evidence.get("sources") or []:
             if not isinstance(source, dict):
@@ -745,6 +771,27 @@ def _submit_agent_unlocked(args: dict[str, Any]) -> dict[str, Any]:
             "evidence_pack_ids": evidence_pack_ids,
             "source_snapshot_ids": source_snapshot_ids,
             "plan_source_ids": sorted(plan_source_ids),
+            # 同时固化 id→content_hash 映射：confirm 侧的第二道引用门要校验
+            # citation 的 content_hash 是否与依据一致，只存裸 id 会让它无 hash
+            # 可比而被迫跳过篡改检测。只取寻址与校验必需的两个字段，不整份复制
+            # 描述符（其余字段属 plan revision，不该在提交包里产生第二份真相）。
+            "plan_source_hashes": {
+                str(
+                    item.get("object_id")
+                    or item.get("source_id")
+                    or item.get("source_snapshot_id")
+                    or item.get("file_id")
+                    or ""
+                ).strip(): str(item.get("content_hash") or "")
+                for item in plan_sources
+                if str(
+                    item.get("object_id")
+                    or item.get("source_id")
+                    or item.get("source_snapshot_id")
+                    or item.get("file_id")
+                    or ""
+                ).strip()
+            },
             "plan_revision_id": str(plan.get("object_id") or ""),
             "plan_basis_hash": str(plan.get("basis_hash") or ""),
         },
@@ -906,6 +953,32 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     source_snapshot_ids = [
         str(item) for item in evidence_basis.get("source_snapshot_ids") or [] if str(item)
     ]
+    # 缺陷：submit 认三类来源（EvidencePack、调用时传入的 source_snapshot_ids、
+    # 以及 dr_add_sources 绑进 plan 的 sources —— 见 submit 侧
+    # ``allowed_source_ids.update(plan_source_ids)``），而 confirm 此前只认前两类。
+    # 于是「只走 dr_add_sources 绑定来源」这条 Skill 教的标准顺序下，submit 通过、
+    # confirm 必然报 citation_source_not_in_basis，且无恢复路径：
+    #   - 补传 source_snapshot_ids 重提 → task_already_terminal
+    #   - accept_material_limitations=true 救不了（引用审计门在其判定之前 return）
+    # partial 包永久卡死，只能整条 DR 会话重开。
+    #
+    # 这里从 submit **已固化**的 payload 读回（submit 在同一个 evidence 字典里写了
+    # plan_source_ids），而不是重新读 plan revision：confirm 是对固化提交包的独立
+    # 复核，必须复核 submit 当时的依据。若改读当前 plan，plan 事后新增来源会让
+    # 旧包凭空变合法，那是把不可变对象的边界打穿。
+    plan_source_ids = [
+        str(item) for item in evidence_basis.get("plan_source_ids") or [] if str(item)
+    ]
+    # id→content_hash。``plan_source_hashes`` 是本次修复新增的固化字段，此前
+    # 提交的包没有它 —— 那些包退化为「认来源但无 hash 可比」（与
+    # source_snapshot_ids 的既有行为一致），不会因为缺字段而重新变成死锁。
+    plan_source_hashes = evidence_basis.get("plan_source_hashes")
+    if not isinstance(plan_source_hashes, dict):
+        plan_source_hashes = {}
+    plan_source_descriptors = [
+        {"object_id": item, "content_hash": str(plan_source_hashes.get(item) or "")}
+        for item in plan_source_ids
+    ]
     evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
     if any(record is None for record in evidence_records):
         return _failure(
@@ -939,6 +1012,9 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         evidence_payloads,
         source_snapshot_ids,
     )
+    # 与 submit 侧对齐（见上方 plan_source_ids 的说明）。两处必须同时认这三类，
+    # 否则 submit 过了 confirm 仍然过不去。
+    allowed_source_ids.update(plan_source_ids)
     resolved_citations, resolution_issues = _resolve_citation_audit(
         workspace_id,
         citations,
@@ -1093,6 +1169,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         citations,
         evidence_payloads,
         source_snapshot_ids,
+        plan_sources=plan_source_descriptors,
     )
     if citation_issues:
         return {

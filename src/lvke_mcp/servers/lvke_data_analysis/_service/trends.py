@@ -131,6 +131,23 @@ def financial_trends(
             first_value, last_value = float(first["value"]), float(last["value"])
             if years <= 0 or first_value <= 0 or last_value < 0:
                 issues.append({"method": "cagr", "series_key": "|".join(key), "reason": "invalid_cagr_base_or_span"})
+            elif years < 1.0:
+                # 不足一年的跨度不做年化：唯一护栏原本只有 years<=0，于是
+                # 2024Q1→Q2（span 0.25 年，100→133.5）会返回 **217.6%** 年化，
+                # 且 issues=[]、status=ok、零 warning —— 一个把季度波动放大成
+                # 荒谬年增长率的数字被当成正常结果交出去。
+                # 年化的前提是"这个增速可代表全年"，短跨度不成立；这属口径非法
+                # 而非置信度不足，所以拒绝出数而不是附警告放行。
+                issues.append({
+                    "method": "cagr",
+                    "series_key": "|".join(key),
+                    "reason": "cagr_span_below_one_year",
+                    "elapsed_years": round(years, 4),
+                    "detail": (
+                        "跨度不足一年，年化会把短期波动放大成失真的年增长率；"
+                        "请改用 yoy/qoq，或提供至少跨一整年的序列"
+                    ),
+                })
             else:
                 results.append(_trend_record(last, "cagr", (last_value / first_value) ** (1.0 / years) - 1.0, first))
     if "common_size" in requested:

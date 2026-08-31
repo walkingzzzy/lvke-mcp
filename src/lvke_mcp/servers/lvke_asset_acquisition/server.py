@@ -414,9 +414,38 @@ _SOLAR_SPEC_SCHEMA = {
     },
     "required": ["version", "asset_type", "transaction"],
 }
+#: 判别式前置门：``oneOf`` 的报错只会说"not valid under any of the given schemas"，
+#: 因为两个分支各 19KB/11KB，远超判别式能存活的 2KiB 分支上限，客户端无法据此
+#: 定位真因（实测填 asset_type="wind" 撞墙 3 次仍不知道哪里错）。
+#: 这里先用一个 1 行的 allOf/if-then 把 asset_type 本身的合法值单独判掉，让
+#: "判别字段写错"与"分支内字段写错"两类错误分离：前者由本段给出明确枚举，
+#: 后者仍由对应分支逐字段报错。
+#: 注意 hotel 分支的 required 不含 asset_type（历史兼容：省略即 hotel_lease），
+#: 所以这里只在**显式提供** asset_type 时校验，不能改成无条件必填。
+_ASSET_TYPE_GUARD = {
+    "if": {"required": ["asset_type"]},
+    "then": {
+        "properties": {
+            "asset_type": {
+                "type": "string",
+                "enum": ["hotel_lease", "solar_power"],
+                "description": (
+                    "资产类型判别式。只接受 hotel_lease 与 solar_power；"
+                    "省略时按 hotel_lease 处理。填其它值会导致整个 spec 无法匹配任何分支。"
+                ),
+            }
+        }
+    },
+}
 _SPEC_SCHEMA = {
+    "allOf": [_ASSET_TYPE_GUARD],
     "oneOf": [_HOTEL_SPEC_SCHEMA, _SOLAR_SPEC_SCHEMA],
-    "description": "按 asset_type 判别的 FinanceSpec v3 候选；业务层继续报告正式交付缺项",
+    "description": (
+        "按 asset_type 判别的 FinanceSpec v3 候选；业务层继续报告正式交付缺项。"
+        "asset_type 只接受 hotel_lease 或 solar_power（省略即 hotel_lease）；"
+        "若报错只说 not valid under any of the given schemas，先核对 asset_type，"
+        "再核对该分支的必填字段（酒店看 asset_scope 各项与 status 枚举）"
+    ),
     "x-lvke-schema-uri": _ASSET_ACQUISITION_SPEC_SCHEMA_URI,
     "examples": [{
         "version": "finance_spec.v3",

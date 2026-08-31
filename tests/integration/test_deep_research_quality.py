@@ -152,6 +152,123 @@ class DeepResearchQualityTest(unittest.TestCase):
         self.assertEqual(artifacts["quality_summary"]["missing_fields"], ["target_share"])
         self.assertEqual(artifacts["market_field_bindings"][0]["field"], "market_size")
 
+    def test_confirm_quality_accepts_plan_bound_sources_without_snapshot_ids(self) -> None:
+        """dr_add_sources 绑定的来源必须同时被 submit 与 confirm 两道门认可。
+
+        这是 Skill 教的标准顺序（add_sources → submit → confirm），此前
+        confirm 侧漏了 plan 来源，导致 submit 通过、confirm 必然报
+        citation_source_not_in_basis，且无恢复路径（重提报
+        task_already_terminal，accept_material_limitations 也绕不过，因为引用
+        审计门在其判定之前就 return）。既有测试全部显式传 source_snapshot_ids，
+        所以这条路径零覆盖。
+        """
+
+        digest = self._put_source("plan-source-1", "全省装备制造业营业收入 5500 亿元。")
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "装备制造业规模",
+            "plan_items": [{"field": "market_size", "required": True}],
+            "idempotency_key": "dr-start-plan-bound",
+        })
+        self.assertTrue(started["success"], started)
+        task_id = started["task_id"]
+
+        plan = application.get_plan(self.workspace, task_id)
+        self.assertTrue(plan["success"], plan)
+        bound = application.add_sources({
+            "workspace_id": self.workspace,
+            "task_id": task_id,
+            "expected_basis_hash": plan["basis_hash"],
+            "sources": [{
+                "source_type": "source_snapshot",
+                "object_id": "plan-source-1",
+                "resource_uri": (
+                    "lvke://data-acquisition/workspaces/dr-quality-test/sources/plan-source-1"
+                ),
+                "content_hash": digest,
+                "locator": "web_snapshot",
+                "evidence_track": "real",
+                "allowed_uses": ["fact_extraction"],
+            }],
+        })
+        self.assertTrue(bound["success"], bound)
+
+        # 关键：**不传** source_snapshot_ids，只靠 plan 绑定。
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": task_id,
+            "report_md": "全省规模见来源定位。",
+            "citations": [self._citation(
+                "plan-source-1",
+                digest,
+                resource_uri=(
+                    "lvke://data-acquisition/workspaces/dr-quality-test/sources/plan-source-1"
+                ),
+            )],
+        })
+        self.assertTrue(submitted["success"], submitted)
+        package_id = submitted["research_package_id"]
+
+        record = PACKAGE_STORE.get(self.workspace, package_id)
+        evidence = (record or {}).get("payload", {}).get("agent_artifacts", {}).get("evidence", {})
+        self.assertEqual(evidence["plan_source_ids"], ["plan-source-1"])
+        # hash 必须一并固化，否则 confirm 侧第二道门无 hash 可比、只能跳过篡改检测。
+        self.assertEqual(evidence["plan_source_hashes"]["plan-source-1"], digest)
+
+        confirmed = application.confirm_quality({
+            "workspace_id": self.workspace,
+            "research_package_id": package_id,
+            "accept_material_limitations": True,
+        })
+        self.assertNotIn(
+            "research_citation_audit_failed",
+            str(confirmed.get("code") or ""),
+            confirmed,
+        )
+        self.assertTrue(confirmed["success"], confirmed)
+
+    def test_confirm_quality_still_rejects_unbound_citation_source(self) -> None:
+        """放开 plan 来源不能顺带放过**未绑定**的来源（fail-closed 未被削弱）。"""
+
+        digest = self._put_source("plan-source-2", "已绑定来源正文。")
+        self._put_source("stray-source", "从未绑定进 plan 的来源。")
+        started = application.start_agent({
+            "workspace_id": self.workspace,
+            "topic": "未绑定来源",
+            "plan_items": [{"field": "market_size", "required": True}],
+            "idempotency_key": "dr-start-stray",
+        })
+        task_id = started["task_id"]
+        plan = application.get_plan(self.workspace, task_id)
+        application.add_sources({
+            "workspace_id": self.workspace,
+            "task_id": task_id,
+            "expected_basis_hash": plan["basis_hash"],
+            "sources": [{
+                "source_type": "source_snapshot",
+                "object_id": "plan-source-2",
+                "resource_uri": (
+                    "lvke://data-acquisition/workspaces/dr-quality-test/sources/plan-source-2"
+                ),
+                "content_hash": digest,
+                "locator": "web_snapshot",
+                "evidence_track": "real",
+                "allowed_uses": ["fact_extraction"],
+            }],
+        })
+        # 引用一个 plan 里没有的来源：submit 就该拒。
+        submitted = application.submit_agent({
+            "workspace_id": self.workspace,
+            "task_id": task_id,
+            "report_md": "引用了未绑定来源。",
+            "citations": [self._citation("stray-source", digest)],
+        })
+        self.assertFalse(submitted["success"], submitted)
+        self.assertTrue(
+            any("stray-source" in str(item) for item in submitted.get("blockers") or []),
+            submitted,
+        )
+
     def test_submit_without_quality_fields_keeps_legacy_package_shape(self) -> None:
         digest = self._put_source("source-1", "政策资料正文。")
         started = application.start_agent({

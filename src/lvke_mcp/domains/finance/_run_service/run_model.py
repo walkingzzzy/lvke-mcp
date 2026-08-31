@@ -377,6 +377,14 @@ def run_workspace_finance_model(
         policy_profile=policy_profile,
         industry_profile=industry_profile,
     )
+    # 断言必须拿调用方哈希去比**注入前**的 spec。
+    # `_apply_minimum_compute_baseline` 会在收入驱动不完整时把
+    # `resolved_spec["revenue"]` 整块换成 {"model":"flat","annual_revenue_wan":…}
+    # 的估算基线；若拿注入后的对象去比，任何诚实的调用方哈希都必然被拒
+    # （调用方不可能预知服务端要注入什么）。这里先留存注入前的身份。
+    spec_identity_before_baseline = (
+        compute_spec_hash(resolved_spec) if isinstance(resolved_spec, dict) else ""
+    )
     input_revision, resolved_spec, default_assumptions = _apply_minimum_compute_baseline(
         input_revision,
         resolved_spec,
@@ -458,7 +466,15 @@ def run_workspace_finance_model(
     missing = list(dict.fromkeys(missing))
 
     resolved_spec_hash = spec_hash or compute_spec_hash(resolved_spec)
-    if spec_hash and isinstance(resolved_spec, dict) and spec_hash != compute_spec_hash(resolved_spec):
+    # 与注入前的身份比对（见上方 spec_identity_before_baseline 的说明）。
+    # 注入后的哈希仍作为 spec_hash 回报——调用方需要知道模型实际算的是什么，
+    # 但不该因为服务端注入了基线就被判成"哈希不一致"。
+    if (
+        spec_hash
+        and isinstance(resolved_spec, dict)
+        and spec_hash != spec_identity_before_baseline
+        and spec_hash != compute_spec_hash(resolved_spec)
+    ):
         return {
             "ok": False, "available": False, "workspace_id": workspace_id,
             "reason": "spec_hash_mismatch", "missing_inputs": [],

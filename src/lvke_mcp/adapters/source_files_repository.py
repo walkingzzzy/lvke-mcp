@@ -913,6 +913,37 @@ def _decode_csv(data: bytes) -> tuple[str, str, str]:
     return "", "", "csv_encoding_invalid"
 
 
+def _decode_text(data: bytes) -> tuple[str, str, str]:
+    """Decode plain text / Markdown with the same discipline as CSV.
+
+    缺陷：此处原本是裸 ``data.decode("utf-8", errors="replace")`` —— 同一文件
+    里 CSV 分支做了三级检测（``_decode_csv``），文本分支一个都没有。GB18030
+    的「总投资 46968 万元」会变成 ``��Ͷ�� 46968 ��Ԫ``：**数字全部存活、
+    中文标签全变替换符**，字符数 12→15。后果不止是预览难看：
+
+    - locator 的 start/end offset 建立在乱码文本上，下游 citation fragment
+      复核按这些 offset 取值，取到的是残骸；
+    - 这正是本产品反复栽的「标签与数字错配」形态——数字在、标签没了，
+      配对逻辑会把数字绑到别的标签上；
+    - 且原实现既不设 ``degraded_reason`` 也不设 ``parser``，``status=succeeded``，
+      调用方无从发现。
+
+    与 CSV 的唯一差异：CSV 解不出就 fail-closed 返回空（结构化表格解不出等于
+    没有可用单元格），而文本这里**保留** replace 兜底并附降级码。理由是纯文本
+    可能本就含二进制片段或混合编码，整份丢弃会让原本可读的部分也不可用；
+    但降级必须显式留痕，不能像原来那样静默。
+    """
+
+    for encoding in ("utf-8-sig", "utf-8", "gb18030"):
+        try:
+            # 归一化编码名：utf-8-sig 成功时说明有 BOM，如实回报以便追溯。
+            return data.decode(encoding, errors="strict"), encoding, ""
+        except UnicodeDecodeError:
+            continue
+    # 三种都不成立：保留可读部分，但把「有字节被替换」这件事显式说出来。
+    return data.decode("utf-8", errors="replace"), "unknown", "text_encoding_undecodable"
+
+
 _CSV_INTEGER = re.compile(r"^[+-]?[0-9]+$")
 _CSV_NUMBER = re.compile(r"^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$")
 
@@ -1350,19 +1381,23 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
     degraded_reason = ""
     ocr_status = "not_required"
     parser = "mcp-source-parser.v1"
-    csv_encoding = ""
+    # 编码/分隔符诊断。``encoding`` 由 CSV 与纯文本两条分支共用（同一个
+    # ``analysis["encoding"]`` 出口），故不再叫 csv_encoding。
+    detected_encoding = ""
     csv_delimiter = ""
     if str(mime or "").lower() in _SPREADSHEET_MIMES or path.suffix.lower() in {".xls", ".xlsx", ".xlsm"}:
         locators, degraded_reason = _parse_spreadsheet_locators(path)
         text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
         parser = "mcp-spreadsheet-parser.v1"
     elif _is_csv(mime, path):
-        locators, csv_encoding, csv_delimiter, degraded_reason = _parse_csv_cells(data, path, mime)
+        locators, detected_encoding, csv_delimiter, degraded_reason = _parse_csv_cells(data, path, mime)
         text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
         parser = "mcp-csv-parser.v1"
     elif mime.startswith("text/") or path.suffix.lower() in _TEXT_SUFFIXES:
-        text = data.decode("utf-8", errors="replace")[:200_000]
+        decoded, detected_encoding, degraded_reason = _decode_text(data)
+        text = decoded[:200_000]
         locators = [{"kind": "document_text", "text": text}] if text.strip() else []
+        parser = "mcp-text-parser.v1"
     elif _is_docx(mime, path):
         locators, degraded_reason = _parse_docx_locators(data)
         text = "\n".join(str(item.get("text") or "") for item in locators)[:200_000]
@@ -1385,8 +1420,8 @@ def _parse_bytes(path: Path, mime: str) -> dict[str, Any]:
         "parser": parser,
         "created_at": _now(),
     }
-    if csv_encoding:
-        analysis["encoding"] = csv_encoding
+    if detected_encoding:
+        analysis["encoding"] = detected_encoding
     if csv_delimiter:
         analysis["delimiter"] = csv_delimiter
     # Enrich CSV analysis with field-value-unit associations

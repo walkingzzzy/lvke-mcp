@@ -368,12 +368,38 @@ def prepare_workspace_finance_spec(
         and not finance_in.get("annual_revenue_wan")
     ):
         missing.append("annual_revenue_wan")
-    # spec_hash 必须算在"盖章前"的 spec 上。generation_standard 是服务端按
-    # 当前标准基线盖的注记，不是调用方提供的内容；把它算进 spec 身份会让
-    # 同一份 spec 在标准版本变动后 hash 变化，从而使已确认 Spec 无法复用
-    # （_confirmed_spec_record 校验的是未盖章 spec 的 hash，两侧对不上）。
-    spec_hash = compute_spec_hash(spec if isinstance(spec, dict) else None)
-    spec = stamp_finance_spec(spec, invest_type=invest_type)
+    # spec_hash 必须与**同一记录里固化的 spec** 自洽：本函数返回并存入
+    # SPEC_STORE 的是盖章**后**的 spec，所以 hash 也必须算在盖章后。
+    #
+    # 原实现先算后盖（hash 对应盖章前、存的 spec 是盖章后），导致该候选
+    # spec_id 永久不可用：run 侧按 `compute_spec_hash(stored_spec)` 复算必然
+    # 不等，报 spec_hash_mismatch，且调用方无法覆盖（payload 优先于入参），
+    # force_recompute / 空串 / review_candidate 四条逃生路全封。
+    # 同一个 stamp 在 _model_application/spec_cases.py 是**先盖后算**（自洽），
+    # 所以带 spec 参数的路径一直正常 —— 两处顺序不一致才是缺陷本体。
+    # 上游 `_confirmed_spec_record`（本文件 :56）校验的也正是
+    # `stored_hash == compute_spec_hash(stored_spec)` 这条自洽性。
+    #
+    # 原注释担心的"标准版本变动后 hash 变化使已确认 Spec 无法复用"确实存在，
+    # 但先算后盖并不能解决它（存进去的 spec 照样带新版注记），只是把不一致
+    # 从"跨版本"挪成了"同一记录内"。正确做法是复用校验按记录自洽性判断：
+    # 标准版本变动会生成新的候选 revision，旧已确认 revision 连同它当时的
+    # 注记与 hash 一起保持自洽、仍可复用。stamp 已验证幂等（重复盖章 hash
+    # 不变），故盖章后取 hash 是稳定的。
+    if reused_confirmed_record is not None:
+        # 复用已确认 Spec 时**不重新盖章、不重算 hash**：直接沿用该记录固化的
+        # spec_hash。理由是身份必须与被复用的那条记录一致 —— 上层
+        # `spec_cases.can_reuse_confirmed` 正是拿返回的 spec_hash 与记录里的
+        # spec_hash 比对来判断能否复用，一旦这里算出不同值，复用会静默失效并
+        #新建一条记录，`prepare_spec(strategy="reuse_confirmed")` 就不再返回
+        # 原确认对象的 id（被 test_prepare_reuses_the_original_confirmed_spec_identity
+        # 正确拦下）。历史已确认记录可能是未盖章形态，重新盖章会改变其身份。
+        spec_hash = str((reused_confirmed_record.get("payload") or {}).get("spec_hash") or "")
+        if not spec_hash:
+            spec_hash = compute_spec_hash(spec if isinstance(spec, dict) else None)
+    else:
+        spec = stamp_finance_spec(spec, invest_type=invest_type)
+        spec_hash = compute_spec_hash(spec if isinstance(spec, dict) else None)
     generation_basis = generation_baseline(invest_type=invest_type)
     standard_coverage = coverage_snapshot(
         finance_inputs=finance_in,

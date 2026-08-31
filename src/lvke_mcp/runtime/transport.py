@@ -561,9 +561,57 @@ class OfficialStdioServer:
     @staticmethod
     def _validate(instance: Any, schema: dict[str, Any]) -> None:
         validator = Draft202012Validator(schema, format_checker=FormatChecker())
-        error = next(validator.iter_errors(instance), None)
-        if error is not None:
-            raise error
+        errors = list(validator.iter_errors(instance))
+        if not errors:
+            return
+        # 取**最具体**的错误，而不是第一个。
+        # jsonschema 先报容器级校验器（oneOf/anyOf/allOf），其 message 只有
+        # "is not valid under any of the given schemas" —— 对判别式联合类型
+        # （如收购 spec 的 hotel/solar 两分支，各 19KB/11KB 远超判别式能存活的
+        # 2KiB 上限）这句话零信息量，实测要逐分支二分才能定位真因。
+        # 同一次校验里往往已经有一条精确错误（例如
+        # path=['asset_type'] / validator=enum / "'wind' is not one of [...]"），
+        # 只是排在后面。按 (路径深度, 是否容器校验器) 排序把它顶上来。
+        # 改一处惠及 14 个服务的全部入口，与 transport 追加 "Accepted keys" 同理。
+        _CONTAINER_VALIDATORS = {"oneOf", "anyOf", "allOf", "if", "then", "else", "not"}
+
+        def _specificity(error: ValidationError) -> tuple[int, int]:
+            # 路径越深越具体；容器级校验器排最后。
+            return (
+                0 if str(error.validator) not in _CONTAINER_VALIDATORS else 1,
+                -len(list(error.absolute_path)),
+            )
+
+        best = sorted(errors, key=_specificity)[0]
+        if str(best.validator) in _CONTAINER_VALIDATORS and best.context:
+            # 容器级错误仍然胜出时（判别字段本身合法、但分支内某字段越界，此时
+            # 顶层只有一条 oneOf），精确原因藏在 ``context`` 的子错误里：
+            #   sub: ['solar_operation','installed_capacity_mw'] -5 <= minimum 0
+            # 但 context 混着**所有**分支的子错误，直接挑最深的会挑到错分支
+            # （酒店分支报 transaction.calculation_granularity 'monthly' was
+            # expected，而调用方填的是光伏）。所以先按 schema_path 的分支序号
+            # 分组，丢掉那些"判别字段不符"的分支——判别字段报错说明调用方压根
+            # 不是想填那个分支，它的其余报错全是噪音。
+            by_branch: dict[Any, list[ValidationError]] = {}
+            for sub in best.context:
+                branch = next(iter(sub.schema_path), None)
+                by_branch.setdefault(branch, []).append(sub)
+            def _is_discriminant_rejection(item: ValidationError) -> bool:
+                # const/enum 直接落在某个标量键上，即"这个分支不是你要的分支"。
+                return str(item.validator) in {"const", "enum"} and bool(
+                    list(item.absolute_path)
+                )
+
+            candidates: list[ValidationError] = []
+            for branch_errors in by_branch.values():
+                if any(_is_discriminant_rejection(item) for item in branch_errors):
+                    continue
+                candidates.extend(item for item in branch_errors if list(item.absolute_path))
+            deepest = sorted(candidates or [], key=_specificity)
+            if deepest:
+                # 子错误自带完整 absolute_path，调用方按该路径直接定位字段。
+                raise deepest[0]
+        raise best
 
     def _call_tool(
         self,

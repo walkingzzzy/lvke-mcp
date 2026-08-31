@@ -484,6 +484,19 @@ def _resolve_target(
         if not payload.get("available") or str(payload.get("run_id") or "") != target_id:
             blockers.append("finance_run_not_found")
         bindings["finance_run_id"] = target_id
+        # target_sha256 是目标身份，必须只由不可变内容决定。
+        # `view="full"` 会并入 `audit.issues` —— 那是审查后**可追加**的字段
+        # （record_model_issues 由 vendor_review / persist_verdict 写入）。于是
+        # prepare 记录 hash 之后、confirm 重解析之前若有任何 audit 写入，
+        # 组件 hash 就会漂移并报 formal_lineage_content_hash_mismatch，而模型
+        # 结果、spec 绑定、tables 一个都没变 —— 与已知的 finance tables package
+        # "payload 内嵌可变门禁状态"同源。
+        # 这里剔除可追加的审计投影：issues 与 consistency 仍可从 run 的 checks
+        # 视图读到，不影响诊断，只是不再参与身份。
+        if isinstance(payload.get("audit"), dict):
+            payload = {
+                key: value for key, value in payload.items() if key != "audit"
+            }
     elif target_type == "review_package":
         from .suite_package import get_package, package_integrity_reasons
 

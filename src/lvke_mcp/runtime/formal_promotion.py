@@ -560,7 +560,21 @@ def validate_finance_run(
     if not isinstance(snapshot, dict):
         _fail("formal_lineage_unsigned_history", "正式 FinanceRun 缺少不可变结果快照")
     snapshot_hash = run_store.finance_run_snapshot_hash(snapshot)
-    if not hmac.compare_digest(str(record.get("content_hash") or ""), snapshot_hash):
+    # 「没有 content_hash」与「content_hash 不一致」是两种完全不同的处置，必须分码。
+    # content_hash 只在 evidence_policy == "sim_a_formal" 时写入
+    # （run_store.py 的 formal_run 分支），普通 run 从不写。此前两种情况共用
+    # 一个"快照哈希不一致"，于是「这个 run 还没晋升成正式对象」被报成篡改告警：
+    # 排查方向被系统性带偏（会去查序列化/哈希算法），而真实处置是先晋升或改用
+    # external 模式做专项审查。
+    stored_content_hash = str(record.get("content_hash") or "")
+    if not stored_content_hash:
+        _fail(
+            "formal_finance_run_not_promoted",
+            "FinanceRun 不是 sim_a_formal 正式对象（无 content_hash），"
+            "内部套件只受理已晋升的正式谱系；"
+            "请先完成正式晋升，或改用 review_mode=external 做专项审查",
+        )
+    if not hmac.compare_digest(stored_content_hash, snapshot_hash):
         _fail("formal_finance_run_content_hash_mismatch", "FinanceRun 快照哈希不一致")
     if run_id != f"run_{snapshot_hash.removeprefix('sha256:')[:24]}":
         _fail("formal_finance_run_identity_mismatch", "FinanceRun ID 与结果快照不一致")
