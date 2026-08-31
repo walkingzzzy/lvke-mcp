@@ -406,6 +406,12 @@ def run_model(
     if not saved:
         return _failed({"error": "SPEC_NOT_FOUND"}, "SPEC_NOT_FOUND")
     spec = copy.deepcopy(saved.get("spec") or {})
+    # 未确认候选 spec 允许运行（估算预览路线依赖它，改判会破坏既有链路），
+    # 但必须显式回报确认状态：此前工具描述写"仅消费已确认 spec_id"、
+    # save_spec 的 next_actions 又写"或直接运行模型"，两处自述互相矛盾，
+    # 而响应里没有任何字段能让调用方判断这个 run 是否建立在已确认 spec 上。
+    # 现在把状态透出，由调用方自行决定是否可用于交付；描述侧同步改为如实表述。
+    spec_confirmation_status = str(saved.get("confirmation_status") or "candidate")
     checked = validate_spec(spec)
     try:
         run = acquisition_service.create_run(
@@ -431,16 +437,25 @@ def run_model(
          "process_acceptance_valid": bool(run.get("process_acceptance_valid")),
          "business_decision_status": run.get("business_decision_status"),
          "evidence_binding_hash": run.get("evidence_binding_hash"),
+         "spec_confirmation_status": spec_confirmation_status,
          "validation_status": {
              "consistency_ok": bool(run.get("consistency_ok")),
              "formal_spec_valid": bool(run.get("formal_spec_valid")),
              "evidence_formal_ok": bool(run.get("evidence_formal_ok")),
+             "spec_confirmed": spec_confirmation_status == "confirmed",
         }, "idempotent_replay": bool(run.get("idempotent_replay"))},
         object_id=run_id, uris=[_uri(workspace_id, "runs", run_id)],
         warnings=(
             list(checked.get("warnings") or [])
             + [str(item.get("detail") or item.get("code")) for item in run.get("issues") or []]
             + (["该运行使用受限或不完整输入，结果携带质量诊断"] if restricted_preview else [])
+            + (
+                ["该运行基于未确认候选 Spec（confirmation_status="
+                 f"{spec_confirmation_status}）；结果仅供估算预览，正式交付须先 "
+                 "acquisition_confirm_spec 再重跑"]
+                if spec_confirmation_status != "confirmed"
+                else []
+            )
         ),
         next_actions=(
             [

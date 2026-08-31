@@ -106,9 +106,17 @@ def _with_execution_defaults(
             normalized["solar_operation"] = solar
         if isinstance(solar, dict):
             default(solar, "installed_capacity_mw", 0.001, "/solar_operation/installed_capacity_mw")
-            default(solar, "annual_utilization_hours", 1.0, "/solar_operation/annual_utilization_hours")
             default(solar, "tariff_yuan_per_kwh", 0.01, "/solar_operation/tariff_yuan_per_kwh")
-            default(solar, "projection_years", 10, "/solar_operation/projection_years")
+            # 不再给 annual_utilization_hours / projection_years 注默认值：
+            # 引擎读的是 `utilization_hours`（solar_engine.py:49）与
+            # `remaining_operating_years`（:56），**键名不同**，全仓无任何消费方
+            # （已 grep 确认）。填这两个键等于给永不被读的字段注值，却因此在
+            # warnings 里产出 low-confidence 的 EXECUTION_DEFAULT_APPLIED 记录：
+            # 实测报「annual_utilization_hours 默认为 1.0」而发电量仍按输入的
+            # 1250h 正确计算、报「projection_years 默认为 10」而实际用了 20 年。
+            # 这类假阳性把真实缺口淹没在噪音里，比不报更糟。
+            # 真正缺 utilization_hours 时，引擎自己会 fail-closed 抛
+            # AcquisitionModelError（:51-54），不需要在这里兜底。
         normalized.setdefault("revenue", {})
     else:
         if isinstance(transaction, dict):
@@ -120,7 +128,10 @@ def _with_execution_defaults(
             normalized["revenue"] = revenue
         if isinstance(revenue, dict):
             default(revenue, "model", "flat", "/revenue/model")
-            default(revenue, "annual_revenue_wan", 1.0, "/revenue/annual_revenue_wan")
+            # 同理不注 annual_revenue_wan：收购域的收入由 hotel_operation 与
+            # lease_portfolio 驱动（monthly_engine 的 room_revenue + lease_revenue），
+            # 全仓无消费方读 revenue.annual_revenue_wan。注了只会产出
+            # 「/revenue/annual_revenue_wan 默认为 1.0」这条与实际计算无关的假阳性。
         hotel = normalized.get("hotel_operation")
         if hotel is None:
             hotel = {}

@@ -193,8 +193,33 @@ class FormulaBackend:
             "total": sum(len(v) for v in refs.values()),
         }
 
-    def dependency_tree(self, sheet: str, cell: str, *, max_depth: int = 6) -> dict[str, Any]:
-        """对 sheet!cell 递归追公式依赖树（跨表，带环保护）。"""
+    def dependency_tree(
+        self,
+        sheet: str,
+        cell: str,
+        *,
+        max_depth: int = 6,
+        max_range_cells: int = 64,
+        max_nodes: int = 2000,
+    ) -> dict[str, Any]:
+        """对 sheet!cell 递归追公式依赖树（跨表，带环保护，区间展开且截断可见）。
+
+        缺陷（A2）：区间引用此前被 ``c_cell.split(":", 1)[0]`` 压成左上角单元格，
+        ``成本明细!B6 = SUM(B2:B5)`` 只展开出 B2，B3/B4/B5 静默消失且输出侧没有
+        任何标记 —— 调用方拿到的是一棵看着完整、实际漏了 3/4 依赖的树。更糟的是
+        ``SUM(汇总!B2:B3)`` 复用了深度/环保护那个 ``truncated:true``，让"区间被砍"
+        与"递归到底"不可区分。
+
+        现在区间会真的展开（``max_range_cells`` 为每个区间的展开上限），并把区间
+        本身登记进节点的 ``range_references``：单元格数、实际展开数、是否被截断、
+        区间原文。超上限时子节点带 ``range_truncated``，与深度/环保护的
+        ``truncated`` 分开命名，三种截断（``cycle_or_max_depth``/``already_visited``/
+        ``max_range_cells``/``max_nodes``）各自可归因，不再混为一个 ``truncated``。
+
+        ``max_nodes`` 是展开后新增的总量护栏：原实现靠"区间只取一格"隐式控规模，
+        去掉那个压缩后必须有个显式上限，否则一条 ``SUM(A:Z)`` 就能把树撑爆。
+        """
+
         wb_f = self._formula_wb()
         wb_v = self._value_wb()
         names = list(wb_f.sheetnames)
@@ -217,11 +242,32 @@ class FormulaBackend:
             return None, _jsonable(val if val is not None else cached)
 
         visited: set[str] = set()
+        budget = {"nodes": max(1, int(max_nodes))}
 
         def _walk(sh: str, cl: str, depth: int) -> dict[str, Any]:
             node_id = f"{sh}!{cl}"
-            if node_id in visited or depth > max_depth:
-                return {"id": node_id, "truncated": True}
+            # 三种截断分别归因。原实现把"已访问过"和"超深度"合成一个
+            # ``truncated:true``；区间展开后重复引用（B2:C3 与单点 B2 同现）会
+            # 大量命中"已访问"，若仍报 cycle_or_max_depth 就是在误导。
+            if node_id in visited:
+                return {
+                    "id": node_id,
+                    "truncated": True,
+                    "truncation_reason": "already_visited",
+                }
+            if depth > max_depth:
+                return {
+                    "id": node_id,
+                    "truncated": True,
+                    "truncation_reason": "max_depth",
+                }
+            if budget["nodes"] <= 0:
+                return {
+                    "id": node_id,
+                    "truncated": True,
+                    "truncation_reason": "max_nodes",
+                }
+            budget["nodes"] -= 1
             visited.add(node_id)
             formula, value = _formula_at(sh, cl)
             node: dict[str, Any] = {"id": node_id, "value": value}
@@ -230,20 +276,104 @@ class FormulaBackend:
                 return node
             node["type"] = "formula"
             node["formula"] = formula
-            children = []
-            for r in extract_references(formula, names):
-                # 只追单点引用（区间取左上角），避免树爆炸
-                if "!" in r:
-                    c_sheet, c_cell = r.split("!", 1)
+            children: list[dict[str, Any]] = []
+            range_refs: list[dict[str, Any]] = []
+            for ref in extract_references(formula, names):
+                if "!" in ref:
+                    c_sheet, c_ref = ref.split("!", 1)
                 else:
-                    c_sheet, c_cell = sh, r
-                c_cell = c_cell.split(":", 1)[0]
-                children.append(_walk(c_sheet, c_cell, depth + 1))
+                    c_sheet, c_ref = sh, ref
+                if ":" not in c_ref:
+                    children.append(_walk(c_sheet, c_ref, depth + 1))
+                    continue
+                cells, total = _expand_range(c_ref, limit=max_range_cells)
+                if not cells:
+                    # 区间解析不了：绝不退回"取左上角"，那会伪装成完整依赖。
+                    range_refs.append({
+                        "reference": f"{c_sheet}!{c_ref}",
+                        "range": c_ref,
+                        "cell_count": None,
+                        "expanded_count": 0,
+                        "range_truncated": True,
+                        "reason": "range_unparsable",
+                    })
+                    children.append({
+                        "id": f"{c_sheet}!{c_ref}",
+                        "type": "range",
+                        "range_truncated": True,
+                        "truncation_reason": "range_unparsable",
+                    })
+                    continue
+                truncated = total > len(cells)
+                range_refs.append({
+                    "reference": f"{c_sheet}!{c_ref}",
+                    "range": c_ref,
+                    "cell_count": total,
+                    "expanded_count": len(cells),
+                    "range_truncated": truncated,
+                    **({"reason": "max_range_cells"} if truncated else {}),
+                })
+                for c_cell in cells:
+                    child = _walk(c_sheet, c_cell, depth + 1)
+                    # 标注这个子节点来自哪个区间，让"哪些格属于 B2:B5"可追。
+                    child["from_range"] = f"{c_sheet}!{c_ref}"
+                    children.append(child)
+                if truncated:
+                    children.append({
+                        "id": f"{c_sheet}!{c_ref}",
+                        "type": "range",
+                        "range_truncated": True,
+                        "truncation_reason": "max_range_cells",
+                        "cell_count": total,
+                        "expanded_count": len(cells),
+                    })
             if children:
                 node["depends_on"] = children
+            if range_refs:
+                node["range_references"] = range_refs
+                if any(item["range_truncated"] for item in range_refs):
+                    node["range_truncated"] = True
             return node
 
         return _walk(sheet, cell.replace("$", ""), 0)
+
+
+_RANGE_ENDPOINT = re.compile(r"^\$?([A-Za-z]{1,3})\$?(\d+)$")
+
+
+def _expand_range(ref: str, *, limit: int) -> tuple[list[str], int]:
+    """把 ``B2:B5`` 展开成 ``["B2","B3","B4","B5"]``。
+
+    返回 ``(展开出的单元格, 区间总格数)``。总数独立返回，是为了让调用方能区分
+    "全展开"与"到 limit 就停了"——只给列表的话，截断在输出上不可见，正是 A2 的
+    失效模式。解析不了时返回 ``([], 0)``：宁可显式报不可解析，也不猜。
+    """
+
+    from openpyxl.utils import column_index_from_string, get_column_letter  # type: ignore
+
+    parts = str(ref or "").split(":")
+    if len(parts) != 2:
+        return [], 0
+    start, end = (_RANGE_ENDPOINT.match(part.strip()) for part in parts)
+    if start is None or end is None:
+        return [], 0
+    try:
+        col_start = column_index_from_string(start.group(1).upper())
+        col_end = column_index_from_string(end.group(1).upper())
+    except ValueError:
+        return [], 0
+    row_start, row_end = int(start.group(2)), int(end.group(2))
+    # Excel 允许倒序写法（B5:B2），归一化后再展开。
+    col_start, col_end = min(col_start, col_end), max(col_start, col_end)
+    row_start, row_end = min(row_start, row_end), max(row_start, row_end)
+    total = (col_end - col_start + 1) * (row_end - row_start + 1)
+    cells: list[str] = []
+    for row in range(row_start, row_end + 1):
+        for col in range(col_start, col_end + 1):
+            if len(cells) >= max(1, int(limit)):
+                return cells, total
+            cells.append(f"{get_column_letter(col)}{row}")
+    return cells, total
 
 
 def _jsonable(v: Any) -> Any:
@@ -262,6 +392,7 @@ __all__ = [
     "_CELL",
     "_CROSS_SHEET",
     "_SAME_SHEET",
+    "_expand_range",
     "_jsonable",
     "_require_openpyxl",
     "defaultdict",

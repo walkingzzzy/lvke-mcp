@@ -279,6 +279,15 @@ def _project_events(workspace_id: str, review_id: str) -> dict[str, Any]:
         and not state["pending_retest_operation_ids"]
         and chain_ok
     )
+    # findings_available 与 validation_complete 是两件事，必须解耦：
+    #   validation_complete = 「本次审查可取得正式资格」——挂起复测时必须为 False，
+    #                          它把关正式导出与发布，不能放宽。
+    #   findings_available   = 「引擎已跑完并产出 findings」——这与是否有挂起复测无关。
+    # 此前 disposition 用 validation_complete 当前置，于是复测挂起时对一个
+    # 实有 12 条 findings 的审查报「校验引擎尚未形成 findings」，错误码与事实相反，
+    # 且父审查再也无法处置 finding（挂起只在子审查整体 pass 时才清除，而
+    # 「复测=部分整改」是常态）——父审查进入不可逃逸状态。
+    state["findings_available"] = bool(engine_completed and not engine_failed)
     if state.get("deployment_mode") == "shadow":
         state["shadow_comparison"] = _shadow_comparison(
             state,

@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
+from lvke_mcp.runtime.coordination import build_coordination  # noqa: E402
 from lvke_mcp.runtime.logging import get_logger  # noqa: E402
 from lvke_mcp.runtime.responses import err, ok  # noqa: E402
 from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
@@ -78,15 +79,26 @@ def _tool_fill_template(args: dict) -> dict:
             f"未找到 template_id={tid}",
         )
     result = fill_template(tpl, data)
-    return ok(
-        {
-            "template_id": tid,
-            "markdown": result.markdown,
-            "warnings": result.warnings,
-            "rows_used": result.rows_used,
-        },
-        source=f"{SERVER_NAME}.fill_template",
-    )
+    payload = {
+        "template_id": tid,
+        "markdown": result.markdown,
+        "warnings": result.warnings,
+        # rows_used 现在是"真的收到数据的行数"（曾恒等于模板行数）；
+        # 模板渲染出的行数单独给，避免两个语义再挤在一个字段里。
+        "rows_used": result.rows_used,
+        "rows_rendered": result.rows_rendered,
+    }
+    envelope = ok(payload, source=f"{SERVER_NAME}.fill_template")
+    if result.warnings:
+        # 填充缺口必须冒泡到信封层：只塞进 data.warnings 时，只看 envelope
+        # warnings/status 的调用方会以为这张表填得干干净净。
+        envelope["warnings"] = list(result.warnings)
+        envelope["status"] = "partial"
+        envelope["next_actions"] = [
+            "核对被丢弃的行/列键与非数值单元格后重新填充；不要直接把本表用于勾稽"
+        ]
+        envelope["coordination"] = build_coordination(envelope, server_name=SERVER_NAME)
+    return envelope
 
 
 def build_server() -> StdioServer:

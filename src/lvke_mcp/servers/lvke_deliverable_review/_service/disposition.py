@@ -58,7 +58,11 @@ def _require_open_review(
         return None, _blocked("review_not_found", _message("review_not_found"))
     if state.get("invalidated"):
         return None, _blocked("review_invalidated", "目标或审查依据已变化，旧审查不可继续处置", review_id=review_id)
-    if not state.get("validation_complete"):
+    # 处置 finding 的前置是「引擎已产出 findings」，不是「本次审查已取得正式资格」。
+    # 用 validation_complete 当前置会在复测挂起时锁死父审查：findings 明明在册却
+    # 报「引擎尚未形成 findings」。处置本身不授予正式资格，正式资格仍由
+    # validation_complete 在导出/发布侧把关，这里放开不削弱任何门禁。
+    if not state.get("findings_available"):
         return None, _blocked("review_not_ready", "校验引擎尚未形成 findings", review_id=review_id)
     return state, None
 

@@ -223,6 +223,7 @@ def _new_run(
     report_profile: dict[str, Any] | None = None,
     missing_inputs: list[dict[str, Any]] | None = None,
     skipped_fields: list[dict[str, Any]] | None = None,
+    skip_history: list[dict[str, Any]] | None = None,
     acceptance: dict[str, Any] | None = None,
     release_limitations: list[str] | None = None,
 ) -> dict[str, Any]:
@@ -246,6 +247,13 @@ def _new_run(
         "report_profile": dict(report_profile or {}),
         "missing_inputs": [dict(item) for item in missing_inputs or []],
         "skipped_fields": [dict(item) for item in skipped_fields or []],
+        # 跳过决策的**全量历史**，只增不减。
+        #
+        # ``skipped_fields`` 是"当前仍跳过"的集合，回答一个此前跳过的字段会把它
+        # 从那里移除——于是 rev2 有两项跳过、rev3 回答后变成 []，整段决策历史在
+        # 每一处（限制清单、run 记录、manifest）都查不到了。审计要能追到
+        # "谁在哪个版本改变了这个决策"，就必须有一处只增不减的记录。
+        "skip_history": [dict(item) for item in skip_history or []],
         # 分级验收状态。缺省是"未开始"而不是空字典：读的人不该从缺字段推断状态。
         "acceptance": dict(acceptance or _empty_acceptance()),
         "release_limitations": sorted({str(item) for item in release_limitations or []}),

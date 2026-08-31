@@ -1204,10 +1204,21 @@ def get_dimension(args: dict[str, Any]) -> dict[str, Any]:
     ) if row["dimension"] == dimension)
     findings = [row for row in state.get("findings") or [] if row.get("review_area") == dimension]
     assessment = (assessments.get(dimension) or {}).get("payload") or {}
+    # state["findings"] 已由 suite_assessment_submitted 事件投影，assessment payload
+    # 里的 findings 是同一批记录。此前直接拼接会让每条语义 finding 出现两次：
+    # dimension_result.finding_count=1，返回数组长度却是2；消费方按数组长度统计
+    # P0 会翻倍。按 finding_id 去重，保留 state 投影（它带完整 history）优先。
+    merged_findings: dict[str, dict[str, Any]] = {}
+    for row in [*findings, *list(assessment.get("findings") or [])]:
+        if not isinstance(row, dict):
+            continue
+        finding_id = str(row.get("finding_id") or "")
+        key = finding_id or sha256_json(row)
+        merged_findings.setdefault(key, row)
     return _ok(
         review_id=review_id,
         dimension_result=result,
-        findings=[*findings, *list(assessment.get("findings") or [])],
+        findings=list(merged_findings.values()),
         coverage=deepcopy(assessment.get("coverage") or {}),
         resource_uris=[str((assessments.get(dimension) or {}).get("resource_uri") or "")],
         warnings=[], blockers=[], next_actions=[],
@@ -1368,14 +1379,20 @@ def finalize(args: dict[str, Any]) -> dict[str, Any]:
             "formal_suite_review_complete": dossier_payload["formal_suite_review_complete"],
         })
         retest_result = None
-        if dossier_payload["formal_suite_review_complete"]:
-            from .suite_retest import complete_pending_suite_retest
+        # 只要子审查**产出了 dossier**（不论 overall 是否 pass）就清除父审查的挂起
+        # 复测：复测的语义是「已就整改后的目标重新独立评审并给出结论」，结论是
+        # failed 也是结论。此前要求 formal_suite_review_complete（即 overall=="pass"
+        # 且 profile 为 standard/deep）才清除，于是「复测了但只整改一部分」这条最
+        # 常见路径永远清不掉挂起，父审查再也无法处置 finding。
+        # 注意：这里清的只是「复测流程是否有回音」，不授予任何正式资格——
+        # formal_suite_review_complete 仍按原判据参与正式资格，未放宽。
+        from .suite_retest import complete_pending_suite_retest
 
-            retest_result = complete_pending_suite_retest(
-                workspace_id,
-                review_id,
-                check_catalog=CHECK_CATALOG,
-            )
+        retest_result = complete_pending_suite_retest(
+            workspace_id,
+            review_id,
+            check_catalog=CHECK_CATALOG,
+        )
         return _ok(
             status="ok" if overall == "pass" else "incomplete" if overall == "incomplete" else "partial",
             review_id=review_id,

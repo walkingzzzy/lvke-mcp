@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-from typing import Any
+from typing import Any, Iterable
 
 
 from lvke_mcp.runtime.quality_severity import split_quality_codes
@@ -187,6 +187,12 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             *(delivery_artifacts.get("blockers") or []),
             *(delivery_artifacts.get("quality_issues") or []),
             *gap_summary["release_limitations"],
+            # 跳过史里"已补答"的条目也进限制清单：配置缺口重算只看当前状态，
+            # 追不到那些已被回答、因此从 missing_inputs 消失的跳过决策。
+            *_skip_limitations(
+                list(run.get("skipped_fields") or []),
+                list(run.get("skip_history") or []),
+            ),
         ])
         technical = run_technical_acceptance(
             workspace_id,
@@ -254,6 +260,9 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             report_profile=profile_selection,
             missing_inputs=field_gaps,
             skipped_fields=list(run.get("skipped_fields") or []),
+            # 跳过史随每个新版本继承。重算不是"重新开始"：漏传就等于每次
+            # delivery_start 都把跳过历史清一次，Z3 那条审计链在这里断掉。
+            skip_history=list(run.get("skip_history") or []),
             acceptance=acceptance,
             release_limitations=quality_issues,
         )
@@ -293,6 +302,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             report_profile=profile_selection,
             missing_inputs=field_gaps,
             gap_summary=gap_summary,
+            # 跳过状态在顶层与 delivery_run 里都给：调用方最可能只读顶层，
+            # 只放进不可变记录等于把"这些数字无人确认"藏进一层嵌套。
+            skipped_fields=[dict(item) for item in run.get("skipped_fields") or []],
+            skip_history=[dict(item) for item in run.get("skip_history") or []],
             acceptance=acceptance,
             validation_complete=False,
             input_evidence_complete=False,
@@ -524,6 +537,15 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
             "technical_preview_ready=false：工件仅为中间产物或技术验收存在阻断项，"
             "不构成可交付的技术预览"
         )
+    skipped_now = [
+        dict(item) for item in run.get("skipped_fields") or [] if isinstance(item, dict)
+    ]
+    if skipped_now:
+        warnings.append(
+            f"{len(skipped_now)} 个字段由用户显式跳过、未经确认："
+            + "、".join(str(item.get("field") or "") for item in skipped_now[:5])
+            + "；已按受控假设取值并计入交付限制"
+        )
     internal_status = str(dict(acceptance.get("internal") or {}).get("status") or "")
     formal_status = str(dict(acceptance.get("formal") or {}).get("status") or "")
     if internal_status in {"not_started", "pending"}:
@@ -561,7 +583,18 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
         report_profile=dict(run.get("report_profile") or {}),
         missing_inputs=[dict(item) for item in run.get("missing_inputs") or []],
         skipped_fields=[dict(item) for item in run.get("skipped_fields") or []],
-        release_limitations=[str(item) for item in run.get("release_limitations") or []],
+        # 跳过史独立暴露：``skipped_fields`` 只答"现在还缺谁的确认"，
+        # 审计要问的是"这个字段的确认过程有没有变过"。
+        skip_history=[dict(item) for item in run.get("skip_history") or []],
+        release_limitations=sorted(
+            {
+                *(str(item) for item in run.get("release_limitations") or []),
+                *_skip_limitations(
+                    list(run.get("skipped_fields") or []),
+                    list(run.get("skip_history") or []),
+                ),
+            }
+        ),
         warnings=warnings,
         blockers=run_blockers,
         next_actions=(
@@ -726,6 +759,38 @@ def list_assumptions(args: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _skip_limitations(
+    # Iterable 而非 list：调用点有传 ``dict.values()`` 的，不值得为此多一次拷贝。
+    skipped_fields: Iterable[dict[str, Any]] | None,
+    skip_history: Iterable[dict[str, Any]] | None = None,
+) -> list[str]:
+    """Turn current skips and resolved skip history into disclosure codes.
+
+    两类码分开：``required_field_skipped:*`` 是"此刻仍未确认"，
+    ``required_field_skip_resolved:*`` 是"曾跳过、已补答"。后者不是缺陷，但它是
+    决策变更的凭据——只留前者会让"跳过又补答"这段历史在限制清单里彻底消失，
+    而审计正是靠限制清单发现"这个数字的确认过程不寻常"。
+    """
+
+    current = {
+        str(item.get("field") or "")
+        for item in skipped_fields or []
+        if isinstance(item, dict) and str(item.get("field") or "")
+    }
+    resolved = {
+        str(item.get("field") or "")
+        for item in skip_history or []
+        if isinstance(item, dict)
+        and str(item.get("field") or "")
+        and str(item.get("resolution") or "") == "answered"
+        and str(item.get("field") or "") not in current
+    }
+    return sorted(
+        {f"required_field_skipped:{name}" for name in current}
+        | {f"required_field_skip_resolved:{name}" for name in resolved}
+    )
+
+
 def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = require_safe_id(args.get("workspace_id"), "workspace_id")
     package_id = require_safe_id(args.get("assumption_package_id"), "assumption_package_id")
@@ -827,12 +892,37 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             for item in prior_run_payload.get("skipped_fields") or []
             if isinstance(item, dict) and str(item.get("field") or "")
         }
+        # 跳过史继承自前版并只增不减：``skipped_fields`` 表示"当前仍跳过"，
+        # 回答后会从那里移除，而"曾经选择跳过"这个决策必须留痕。
+        skip_history = {
+            str(item.get("field")): dict(item)
+            for item in prior_run_payload.get("skip_history") or []
+            if isinstance(item, dict) and str(item.get("field") or "")
+        }
         # 已回答的字段从跳过清单移除：回答优先于此前的跳过登记。
         answered = {str(item.get("name") or "") for item in confirmations}
         for item in skipped:
             merged_skips[item["field"]] = item
+            # 首次登记时记下"在哪个 run / 哪个假设包版本上跳过的"，
+            # 后续版本只改 resolution，不覆盖首次登记事实。
+            skip_history.setdefault(
+                item["field"],
+                {
+                    **item,
+                    "skipped_in_run_id": str(source_run["object_id"]),
+                    "skipped_from_assumption_package_id": package_id,
+                    "resolution": "skipped",
+                },
+            )
         for name in answered:
             merged_skips.pop(name, None)
+            historical = skip_history.get(name)
+            if historical is not None:
+                # 不删除历史条目：把它标成"已回答"，并指名是哪个版本回答的。
+                # 删除会让 rev3 看起来"从来没人跳过这个字段"。
+                historical["resolution"] = "answered"
+                historical["answered_in_assumption_package_id"] = revised["object_id"]
+        skip_history_rows = sorted(skip_history.values(), key=lambda item: item["field"])
         next_run = _new_run(
             workspace_id,
             intent_id=intent_id,
@@ -843,17 +933,39 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
             status_reason="confirmed_inputs_require_new_domain_objects",
             object_refs={"assumption_package_id": revised["object_id"]},
             report_profile=dict(prior_run_payload.get("report_profile") or {}),
+            missing_inputs=[
+                dict(item) for item in prior_run_payload.get("missing_inputs") or []
+            ],
             skipped_fields=sorted(merged_skips.values(), key=lambda item: item["field"]),
+            skip_history=skip_history_rows,
+            release_limitations=_skip_limitations(
+                merged_skips.values(), skip_history_rows
+            ),
         )
         return _envelope(
             True,
             "accepted",
-            warnings=["用户确认值仍不是合同、测绘、报价或权属证据"],
+            warnings=[
+                "用户确认值仍不是合同、测绘、报价或权属证据",
+                *(
+                    [
+                        f"{len(merged_skips)} 个字段仍处于用户跳过状态，"
+                        "将按受控假设取值并在交付物中披露"
+                    ]
+                    if merged_skips
+                    else []
+                ),
+            ],
             blockers=["recalculation_required"],
             next_actions=["使用新的 delivery_run_id 重算财务、十三表和报告"],
             resource_uris=[revised["resource_uri"], next_run["resource_uri"]],
             assumption_package=_view(revised, "assumption_package_id"),
             delivery_run=_view(next_run, "delivery_run_id"),
+            skipped_fields=sorted(merged_skips.values(), key=lambda item: item["field"]),
+            skip_history=skip_history_rows,
+            release_limitations=_skip_limitations(
+                merged_skips.values(), skip_history_rows
+            ),
             validation_complete=False,
             input_evidence_complete=False,
         )
@@ -891,6 +1003,17 @@ def confirm_assumptions(args: dict[str, Any]) -> dict[str, Any]:
         "confirmation_run": recalculation_run,
         "automatic_recalculation": True,
         "confirmation_idempotent_replay": bool(confirmation.get("idempotent_replay")),
+        # 跳过状态取**确认动作**这一侧：重算被阻断时 recalculated 可能根本没算到
+        # 缺口那一步，而"这次调用跳过了哪些字段"是确认动作自己的事实，不该因为
+        # 下游重算失败而从响应里消失。
+        "skipped_fields": confirmation.get("skipped_fields") or [],
+        "skip_history": confirmation.get("skip_history") or [],
+        "release_limitations": sorted(
+            {
+                *(str(item) for item in recalculated.get("release_limitations") or []),
+                *(str(item) for item in confirmation.get("release_limitations") or []),
+            }
+        ),
     }
 
 
@@ -920,6 +1043,14 @@ def _transition_control(args: dict[str, Any], *, operation: str) -> dict[str, An
         if operation == "resume" and stage != "cancelled":
             return _blocked("delivery_run_not_cancelled", "只有 cancelled 运行可以恢复")
         next_stage = "cancelled" if operation == "cancel" else str(payload.get("resume_stage") or "received")
+        # cancel/resume 是**状态迁移**，不是重新开始：所选报告配置、字段缺口、
+        # 跳过登记与跳过史都必须随快照传下去。
+        #
+        # 此前这四项一个都没传，于是新快照的 report_profile 是 {}——与
+        # ``routing._new_run`` 里"所选报告配置随运行冻结：历史运行因此可重放"
+        # 的承诺直接矛盾：恢复出来的运行不知道自己该用哪份配置，
+        # ``promotion.generate_template_pack`` 读到空配置便认为"未冻结"，
+        # 于是允许用另一份配置覆盖——验收对象与晋升对象因此可以不是同一份配置。
         next_run = _new_run(
             workspace_id,
             intent_id=str(payload.get("intent_id") or ""),
@@ -930,6 +1061,26 @@ def _transition_control(args: dict[str, Any], *, operation: str) -> dict[str, An
             resume_stage=stage if operation == "cancel" else "",
             status_reason=reason or operation,
             object_refs=dict(payload.get("object_refs") or {}),
+            report_profile=dict(payload.get("report_profile") or {}),
+            missing_inputs=[
+                dict(item)
+                for item in payload.get("missing_inputs") or []
+                if isinstance(item, dict)
+            ],
+            skipped_fields=[
+                dict(item)
+                for item in payload.get("skipped_fields") or []
+                if isinstance(item, dict)
+            ],
+            skip_history=[
+                dict(item)
+                for item in payload.get("skip_history") or []
+                if isinstance(item, dict)
+            ],
+            # 限制项同样继承：取消再恢复不得洗掉已披露的限制。
+            release_limitations=[
+                str(item) for item in payload.get("release_limitations") or []
+            ],
         )
         return _envelope(
             True,
@@ -938,6 +1089,18 @@ def _transition_control(args: dict[str, Any], *, operation: str) -> dict[str, An
             next_actions=["调用 delivery_start 继续运行"] if operation == "resume" else [],
             resource_uris=[next_run["resource_uri"]],
             delivery_run=_view(next_run, "delivery_run_id"),
+            # 顶层回显继承下来的配置与跳过状态：调用方一眼可见迁移没有洗掉冻结项。
+            report_profile=dict(payload.get("report_profile") or {}),
+            skipped_fields=[
+                dict(item)
+                for item in payload.get("skipped_fields") or []
+                if isinstance(item, dict)
+            ],
+            skip_history=[
+                dict(item)
+                for item in payload.get("skip_history") or []
+                if isinstance(item, dict)
+            ],
             validation_complete=False,
             input_evidence_complete=False,
         )
@@ -982,6 +1145,14 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
             f"{len(unusable)} 个交付工件不可用（validation_status 非通过），"
             "URI 可读但不得作为交付物引用"
         )
+    skipped_now = [
+        dict(item) for item in run.get("skipped_fields") or [] if isinstance(item, dict)
+    ]
+    if skipped_now:
+        warnings.append(
+            f"{len(skipped_now)} 个字段由用户显式跳过、未经确认，"
+            "工件中相关数字为受控假设"
+        )
     return _envelope(
         True,
         (
@@ -1008,7 +1179,17 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
         and not _acceptance_blockers(run),
         acceptance=acceptance,
         report_profile=dict(run.get("report_profile") or {}),
-        release_limitations=[str(item) for item in run.get("release_limitations") or []],
+        skipped_fields=[dict(item) for item in run.get("skipped_fields") or []],
+        skip_history=[dict(item) for item in run.get("skip_history") or []],
+        release_limitations=sorted(
+            {
+                *(str(item) for item in run.get("release_limitations") or []),
+                *_skip_limitations(
+                    list(run.get("skipped_fields") or []),
+                    list(run.get("skip_history") or []),
+                ),
+            }
+        ),
         blockers=sorted(
             {
                 *(str(item) for item in (run.get("blockers") or [])),

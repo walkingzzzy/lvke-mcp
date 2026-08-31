@@ -9,6 +9,10 @@
 跳过是被允许的：用户可以只回答关键项。跳过登记为 ``skipped``，进入报告披露、
 manifest 与验收限制——但**关键字段跳过不得因此获得正式资格**，那条线由
 ``acceptance``/``promotion`` 的门禁执行，本模块只负责如实标注。
+
+"允许跳过"必须一路传到底，缺一环就等于契约作废：缺口行要出得来（否则计数为
+0）、限制码要产出（否则披露层看不到跳过）、生成门禁要放行（否则跳过等于卡死）。
+本模块负责前两环，第三环在 ``promotion._pending_assumption_fields``。
 """
 
 from __future__ import annotations
@@ -62,6 +66,15 @@ _CRITICAL_IMPACT = (
 )
 _OPTIONAL_IMPACT = (
     "非关键字段。未回答时按行业种子取值，计入交付限制，不单独阻断技术验收。"
+)
+#: 用户跳过了、但所选配置并未把它列为必填的字段。
+#:
+#: 关键性是相对"所选配置的必填字段"定义的：配置根本不要求该字段，跳过它只需
+#: 如实披露。把它按关键字段处理会凭空造出一个正式资格阻断项——用户跳过一个
+#: 与本配置无关的参数，不该因此永久失去正式候选资格。
+_SKIPPED_NON_REQUIRED_IMPACT = (
+    "用户显式跳过，且所选报告配置未将其列为必填字段。按受控假设取值，"
+    "计入交付限制并在产物中披露；不单独阻断技术验收与正式候选资格。"
 )
 
 
@@ -164,18 +177,41 @@ def compute_missing_inputs(
         str(item.get("field") or "")
         for item in (skipped or [])
         if isinstance(item, dict)
+        and str(item.get("field") or "")
     }
     locations = _chapter_index(profile)
+    required = [str(item) for item in profile.get("required_fields") or []]
+    # 显式跳过的字段即便不在 ``required_fields`` 里也必须出一行。
+    #
+    # 跳过项的合法集合是"假设包字段 ∪ 配置必填字段"（见
+    # ``lifecycle._configured_required_fields``），因此用户完全可以跳过
+    # ``loan_ratio`` 这类只存在于假设包、不在配置必填清单里的字段。此前本循环
+    # 只遍历 ``required_fields``，那些跳过项一行都不产生，于是
+    # ``summarize_gaps`` 的 skipped 过滤器无从匹配：``skipped_count`` 恒为 0、
+    # ``required_field_skipped:*`` 永不产出，跳过动作在披露层面完全消失——
+    # 用户看到 ``skipped_fields`` 有两项、``skipped_count`` 却是 0。
+    #
+    # 追加而不是并集重排：``required_fields`` 的相对顺序保持不变，跳过的非必填
+    # 项排在其后（最终仍按 priority + 字段名整体排序）。
+    required_set = set(required)
+    extra_skipped = sorted(skipped_names - required_set)
     rows: list[dict[str, Any]] = []
-    for name in [str(item) for item in profile.get("required_fields") or []]:
-        if name in answered:
+    for name in [*required, *extra_skipped]:
+        # 跳过项不因"已被确认过"而消失：确认动作会把字段从跳过清单移除
+        # （见 ``lifecycle.confirm_assumptions`` 的 merged_skips），
+        # 所以仍留在清单里的就是仍然跳过的，必须继续披露。
+        if name in answered and name not in skipped_names:
             continue
         resolved = field_spec(profile, name)
         # 元数据缺失时**按关键字段处理**（fail-closed）。配置加载期已经挡住这种
         # 配置，这里是第二道：未知字段宁可多问一次、多阻断一次，也不能静默降级成
         # 可选项而让正式门禁失效。
         spec = dict(resolved or {"critical": True})
-        critical = bool(spec.get("critical", True))
+        required_by_profile = name in required_set
+        # 关键性只对**本配置的必填字段**有意义。跳过一个配置并不要求的字段
+        # （如通用配置下的 loan_ratio），不得据内置字段表的 critical 判成
+        # "关键必填字段未答"——那会凭空产出一个永久阻断正式资格的限制码。
+        critical = bool(spec.get("critical", True)) if required_by_profile else False
         fallback = (
             "sentence_explicit_input"
             if name in answered
@@ -185,14 +221,23 @@ def compute_missing_inputs(
                 else "controlled_assumption_pending"
             )
         )
+        if critical:
+            impact = _CRITICAL_IMPACT
+        elif required_by_profile:
+            impact = _OPTIONAL_IMPACT
+        else:
+            impact = _SKIPPED_NON_REQUIRED_IMPACT
         row = {
             "field": name,
             "section": locations.get(name, "未在配置章节中直接引用"),
             "critical": critical,
+            # 让读的人能区分"配置要求但未答"与"配置不要求、用户跳过"：
+            # 两者的正式资格后果不同，只看 critical 看不出这个差别。
+            "required_by_profile": required_by_profile,
             "unit": str(spec.get("unit") or ""),
             "controlled_assumption_source": fallback,
             "current_seed_value": seeded.get(name),
-            "impact": _CRITICAL_IMPACT if critical else _OPTIONAL_IMPACT,
+            "impact": impact,
             "status": "skipped" if name in skipped_names else "pending",
             "priority": 1 if critical else 2,
         }
@@ -223,10 +268,17 @@ def summarize_gaps(missing_inputs: list[dict[str, Any]]) -> dict[str, Any]:
                 f"required_field_unanswered:{item.get('field')}"
                 for item in critical_open
             }
+            # 每个跳过项都出一条限制码，**不再**排除 critical 的那些。
+            #
+            # 此前写作 ``if not item.get("critical")``：其本意是"关键字段跳过已由
+            # required_field_unanswered 覆盖，不必重复"。但两者语义不同——
+            # unanswered 是"没回答"，skipped 是"用户明确选择不回答"。审计要能看出
+            # 是哪一种，而排除掉之后，一个被跳过的关键字段在限制清单里完全看不出
+            # "跳过"这个决策存在过。两条码并存不冲突：前者阻断正式资格（见
+            # ``acceptance.REQUIRED_FIELD_UNANSWERED_PREFIX``），后者只披露。
             | {
                 f"required_field_skipped:{item.get('field')}"
                 for item in skipped
-                if not item.get("critical")
             }
         ),
     }

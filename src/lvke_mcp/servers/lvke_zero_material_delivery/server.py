@@ -31,6 +31,11 @@ _MISSING_INPUT = {
         "impact": {"type": "string", "description": "对技术验收与正式候选的影响"},
         "status": {"type": "string", "enum": ["pending", "skipped", "answered"]},
         "priority": {"type": "integer", "minimum": 1},
+        "required_by_profile": {
+            "type": "boolean",
+            "description": "false 表示所选配置并未把该字段列为必填；"
+            "跳过它只需披露，不阻断正式候选资格",
+        },
         # 行业未解析/歧义路径产出的是"待澄清项"形状：只有 field + reason +
         # candidates，没有 critical/status/impact（那三个是字段级假设清单专属）。
         # 这两个键此前不在 properties 里、而四个字段又无条件必填，于是该路径的
@@ -56,6 +61,33 @@ _MISSING_INPUT = {
     # 只强制 field。其余按分支各自成立：字段级假设清单带
     # critical/status/impact，待澄清项带 reason/candidates。无条件必填四项会把
     # 错误路径判成非法输出——这正是 outputschema-rejects-error-path 的同类错误。
+    "required": ["field"],
+}
+
+#: 当前仍处于跳过状态的字段。形状取自 ``lifecycle.confirm_assumptions`` 实际
+#: 落库的载荷（field + reason），不是按字段名推断的。
+_SKIPPED_FIELD = {
+    "type": "object",
+    "properties": {
+        "field": {"type": "string"},
+        "reason": {"type": "string"},
+    },
+    "required": ["field"],
+}
+
+#: 跳过决策的全量历史，只增不减。``resolution`` 区分"仍跳过"与"已补答"——
+#: ``skipped_fields`` 只反映当前状态，回答一个此前跳过的字段会把它从那里移除，
+#: 于是决策变更本身无处可查。
+_SKIP_HISTORY_ENTRY = {
+    "type": "object",
+    "properties": {
+        "field": {"type": "string"},
+        "reason": {"type": "string"},
+        "resolution": {"type": "string", "enum": ["skipped", "answered"]},
+        "skipped_in_run_id": {"type": "string"},
+        "skipped_from_assumption_package_id": {"type": "string"},
+        "answered_in_assumption_package_id": {"type": "string"},
+    },
     "required": ["field"],
 }
 
@@ -173,6 +205,8 @@ _OUTPUT = make_tool_output_schema(
         "missing_inputs": {"type": "array", "items": _MISSING_INPUT},
         "gap_summary": {"type": "object"},
         "acceptance": _ACCEPTANCE,
+        "skipped_fields": {"type": "array", "items": _SKIPPED_FIELD},
+        "skip_history": {"type": "array", "items": _SKIP_HISTORY_ENTRY},
         "release_limitations": {"type": "array", "items": {"type": "string"}},
         "validation_complete": {"type": "boolean"},
         "input_evidence_complete": {"type": "boolean"},
@@ -232,7 +266,8 @@ _DELIVERY_STATE_OUTPUT = make_tool_output_schema(
         "acceptance": _ACCEPTANCE,
         "report_profile": _REPORT_PROFILE,
         "missing_inputs": {"type": "array", "items": _MISSING_INPUT},
-        "skipped_fields": {"type": "array", "items": {"type": "object"}},
+        "skipped_fields": {"type": "array", "items": _SKIPPED_FIELD},
+        "skip_history": {"type": "array", "items": _SKIP_HISTORY_ENTRY},
         "release_limitations": {"type": "array", "items": {"type": "string"}},
         "validation_complete": {"type": "boolean"},
         "input_evidence_complete": {"type": "boolean"},

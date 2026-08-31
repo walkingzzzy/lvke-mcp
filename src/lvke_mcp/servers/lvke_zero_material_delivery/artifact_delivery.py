@@ -216,21 +216,32 @@ def build_delivery_artifacts(
         for item in source_run.get("skipped_fields") or []
         if isinstance(item, dict)
     ]
+    # 跳过史（含已补答的）随交付物披露：``skipped_fields`` 只答"现在还缺谁的
+    # 确认"，读报告的人还需要知道"哪些数字是先跳过、后来才补上的"。
+    skip_history = [
+        dict(item)
+        for item in source_run.get("skip_history") or []
+        if isinstance(item, dict)
+    ]
     from lvke_mcp.servers.lvke_zero_material_delivery._service.report_render import (
+        build_skip_history_slots,
         build_slot_values,
         render_report_markdown,
     )
 
-    slots = build_slot_values(
-        intent=intent,
-        assumption_package=assumption_package,
-        finance=finance,
-        blockers=blockers,
-        quality_issues=quality_issues,
-        public_research=public_research,
-        skipped_fields=skipped_fields,
-        report_profile=profile,
-    )
+    slots = {
+        **build_slot_values(
+            intent=intent,
+            assumption_package=assumption_package,
+            finance=finance,
+            blockers=blockers,
+            quality_issues=quality_issues,
+            public_research=public_research,
+            skipped_fields=skipped_fields,
+            report_profile=profile,
+        ),
+        **build_skip_history_slots(skipped_fields, skip_history),
+    }
     markdown, unresolved_slots = render_report_markdown(
         profile=profile,
         selection=profile_selection,
@@ -355,6 +366,9 @@ def build_delivery_artifacts(
         "report_profile": profile_selection,
         "unresolved_slots": unresolved_slots,
         "skipped_fields": skipped_fields,
+        # manifest 是交付包的审计入口，跳过史必须在此可查——run 记录会随版本
+        # 推进，manifest 与这一份交付物一一对应。
+        "skip_history": skip_history,
         "workspace_id": workspace_id,
         "delivery_run_id": delivery_run_id or source_run.get("delivery_run_id"),
         "intent_id": intent.get("delivery_intent_id"),

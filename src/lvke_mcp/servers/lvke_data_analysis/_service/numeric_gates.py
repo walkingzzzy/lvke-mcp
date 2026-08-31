@@ -183,17 +183,26 @@ def _nearest_label_fields(
 
     if not occurrences:
         return set(), m_start, m_end
-    # 先按分句过滤：跨越顿号/逗号等标记的标签与本数字不在同一分句，不参与
-    # 最近判定。全部被过滤时退回原集合，让单位与限定词门去裁决，而不是在这里
-    # 猜一个——宁可后续门拒绝，也不要配错。
+    # 分句过滤：跨越顿号/逗号等标记的标签与本数字不在同一分句，不参与最近判定。
+    #
+    # 关键：全部被过滤时**不得**退回未过滤集合。原实现退回后按字符距离配对，
+    # 而"宁可后续门拒绝"这个前提不成立——单位已匹配且调用方未声明限定词时，
+    # 后面没有任何门会再拦。于是单字段调用（分句内没有已声明标签）必然配错：
+    # 实测查 high_end_cnc_cluster_target 拿到邻项海洋工程装备的 1000，
+    # attribution_gate 仍报 passed，该值还能进 EvidencePack 且下游无门拦截。
+    #
+    # 批量声明多字段时邻项标签提供了竞争者、same_clause 非空，所以旧实现"看起来
+    # 是对的"——正确性依赖调用方是否恰好把邻项也声明了，而单字段调用是常见用法。
+    # 现在返回空集合：本字段不在 owners 里，Gate 2 判 nearest_label_mismatch，
+    # numeric_value 留空。宁可不给数，也不给一个别项的数。
     if text:
-        same_clause = [
+        occurrences = [
             occ for occ in occurrences
             if not _crosses_clause_boundary(text, occ[1], m_start)
             and not _crosses_clause_boundary(text, m_end, occ[0])
         ]
-        if same_clause:
-            occurrences = same_clause
+        if not occurrences:
+            return set(), m_start, m_end
     ordered = sorted(occurrences, key=lambda o: _span_distance(m_start, m_end, o[0], o[1]))
     p_start, p_end = ordered[0][0], ordered[0][1]
     phrase = [ordered[0]]

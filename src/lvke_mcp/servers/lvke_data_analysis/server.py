@@ -121,8 +121,14 @@ _COMPARE_OUTPUT = {
         "missing": {"type": "array", "items": _MISSING_OBSERVATION},
         "unable_to_compare": {"type": "array", "items": {"type": "object"}},
         "period_mismatches": {"type": "array", "items": {"type": "object"}},
+        # unit 从期间分组键移出后（见 _service/compare.py 的 A1 说明），
+        # 单位口径冲突有了自己的出口，必填以防又被静默省略。
+        "unit_mismatches": {"type": "array", "items": {"type": "object"}},
     },
-    "required": [*_OUTPUT["required"], "consistent", "conflicts", "missing", "unable_to_compare", "period_mismatches"],
+    "required": [
+        *_OUTPUT["required"], "consistent", "conflicts", "missing",
+        "unable_to_compare", "period_mismatches", "unit_mismatches",
+    ],
 }
 _MISSING_FIELD = {
     "type": "object",

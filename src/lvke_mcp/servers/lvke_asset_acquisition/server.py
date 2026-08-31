@@ -468,7 +468,13 @@ def build_server() -> OfficialStdioServer:
         ), _OUTPUT, write,
     )
     server.register_tool(
-        "acquisition_run_model", "仅消费已确认 spec_id；hotel_lease 运行月度模型，solar_power 运行年度模型。",
+        "acquisition_run_model",
+        # 如实表述：候选 spec 也能跑（估算预览路线依赖），但响应会回报
+        # spec_confirmation_status 并在未确认时附警告。原描述写"仅消费已确认
+        # spec_id"与 save_spec 的 next_actions"或直接运行模型"互相矛盾。
+        "运行收购模型：已确认 spec 产出可用于正式候选的结果；未确认候选 spec 也可运行，"
+        "但结果标记 spec_confirmation_status 并仅供估算预览。"
+        "hotel_lease 运行月度模型，solar_power 运行年度模型。",
         _schema({**base, "spec_id": _STRING, "discount_rate": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.08}, "scenario_id": {"type": "string", "minLength": 1, "default": "base", "description": "必须等于已确认 Spec 的 selected_scenario_id"}, **keyed}, ["workspace_id", "spec_id", "idempotency_key"]),
         lambda a: service.run_model(
             a["workspace_id"], a["spec_id"],

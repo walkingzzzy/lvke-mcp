@@ -101,15 +101,26 @@ def verify(dataset: str, record_id: str, as_of: str = "") -> dict[str, Any]:
         if isinstance(data, dict)
         else record_id
     )
+    # 缺陷（R1）：``as_of`` 此前只被写进响应（``result["requested_as_of"] = as_of``）
+    # 却从未下传给判定逻辑，判定仍走 ``status == "active"``。回显字段让"时点已被
+    # 采纳"看起来成立，实际是把「当前有效」冒充成「查询时点有效」。现在下传给
+    # policy-search，由 ``_as_of_verdict`` 做确定性时点判定并回填 active。
     result = _handler(
         "lvke_mcp.servers.policy_search.server",
         "_tool_verify_policy_active",
-        {"citation": citation},
+        {"citation": citation, "as_of": as_of},
     )
-    if as_of and isinstance(result, dict):
-        result["requested_as_of"] = as_of
     if isinstance(result, dict):
         result["requested_record_id"] = record_id
+        verdict = result.get("data")
+        if as_of and isinstance(verdict, dict):
+            # 顶层只回显"请求了什么时点""判定结论是什么"，向后兼容老调用方读的
+            # 顶层 requested_as_of。判定值（active）唯一权威在 data 里，不在顶层
+            # 再放一份同名字段——两处 active 会让"该信哪个"重新变成问题。
+            result["requested_as_of"] = as_of
+            for name in ("as_of_assessment", "as_of_reason"):
+                if name in verdict:
+                    result[name] = verdict[name]
     return result
 
 

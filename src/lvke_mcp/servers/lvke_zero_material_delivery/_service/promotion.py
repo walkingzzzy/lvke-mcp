@@ -18,7 +18,7 @@ from lvke_mcp.runtime.formal_promotion import (
 )
 from lvke_mcp.runtime.storage import require_safe_id, sha256_json
 
-from .acceptance import empty_acceptance
+from .acceptance import REQUIRED_FIELD_UNANSWERED_PREFIX, empty_acceptance
 from .assumptions import _field_values
 from .explicit_inputs import SOURCE_SENTENCE
 from .base import (
@@ -93,6 +93,111 @@ def _render_template(text: str, values: dict[str, str]) -> str:
     return _PLACEHOLDER_RE.sub(replace, text)
 
 
+#: 写入每个生成文件**正文开头**的模拟来源披露。
+#:
+#: 对象层已经带了 ``evidence_origin=sim_a_template`` /
+#: ``release_grade=technical_preview``，但文件一旦被导出、转发或打印，读的人只
+#: 看得到正文——那时对象层的标记等于不存在。finance 域为此把限制标记写进 CSV
+#: 首行、XLSX 的 A1、DOCX 页眉；这里同理，写在 Markdown 正文最前面。
+#:
+#: 四个可检索标记（拟定模板 / sim_a_template / 技术预估 / 不得作为）刻意同时
+#: 出现：中文读者按文案识别，程序按 evidence_origin 字面量检索，两条路都得通。
+_SIM_A_DISCLOSURE_LINES: tuple[str, ...] = (
+    "> **【拟定模板·不得作为交付物】**",
+    ">",
+    "> 本文为**拟定模板**（evidence_origin=`sim_a_template`，"
+    "release_grade=`technical_preview`），在甲方原始材料缺失条件下"
+    "由**受控假设**确定性填空生成，属技术预估性质。",
+    ">",
+    "> **不得作为对外正式交付物、投资决策依据或合规证明使用。**"
+    "全部项目特定数字须以合同、测绘、报价、权属、设计或批复等原始材料"
+    "替换并重算后，才可进入正式交付链。",
+)
+
+#: 跳过字段披露段的标题。跳过是"用户明确选择不回答"，与"尚未回答"不同，
+#: 必须在正文里留痕，否则读者无从知道这些数字是无人确认的受控假设。
+_SKIPPED_DISCLOSURE_TITLE = "## 用户跳过字段披露"
+_SKIPPED_DISCLOSURE_NOTE = (
+    "以下字段由用户显式跳过，未经确认，按受控假设取值并计入交付限制；"
+    "正式使用前必须逐项以原始材料替换。"
+)
+#: 跳过历史披露段。跳过后又回答的字段不再出现在 ``skipped_fields`` 里，
+#: 但"曾经选择跳过、后来才补答"这个决策变更本身是审计对象。
+_SKIP_HISTORY_TITLE = "## 跳过决策变更记录"
+_SKIP_HISTORY_NOTE = (
+    "以下字段曾被显式跳过，其后已由用户回答；保留本记录以便审计追溯决策变更。"
+)
+
+
+#: JSON 映射文件的披露文案（同一句话的单行形态，供机器与人同时读）。
+_MAPPING_DISCLOSURE = (
+    "【拟定模板·不得作为交付物】本文件由受控假设确定性生成，属技术预估性质"
+    "（evidence_origin=sim_a_template，release_grade=technical_preview），"
+    "不得作为对外正式交付物或投资决策依据。"
+)
+
+
+def _disclosure_block() -> str:
+    return "\n".join(_SIM_A_DISCLOSURE_LINES)
+
+
+def _skipped_disclosure(
+    skipped_fields: list[dict[str, Any]],
+    skip_history: list[dict[str, Any]],
+) -> str:
+    """Render the skip disclosure sections appended to every generated markdown."""
+
+    sections: list[str] = []
+    if skipped_fields:
+        rows = [
+            "| 字段 | 跳过原因 |",
+            "| --- | --- |",
+            *(
+                "| {field} | {reason} |".format(
+                    field=str(item.get("field") or ""),
+                    reason=str(item.get("reason") or "user_skipped"),
+                )
+                for item in sorted(
+                    skipped_fields, key=lambda item: str(item.get("field") or "")
+                )
+            ),
+        ]
+        sections.append(
+            "\n".join([_SKIPPED_DISCLOSURE_TITLE, "", _SKIPPED_DISCLOSURE_NOTE, "", *rows])
+        )
+    # 只列"已被回答"的历史项：仍在跳过中的已在上一段逐项披露，重复列出会让读者
+    # 以为同一个字段既跳过又已答。
+    still_skipped = {
+        str(item.get("field") or "")
+        for item in skipped_fields
+        if isinstance(item, dict)
+    }
+    resolved_history = [
+        item
+        for item in skip_history
+        if str(item.get("field") or "") not in still_skipped
+    ]
+    if resolved_history:
+        rows = [
+            "| 字段 | 原跳过原因 | 当前状态 |",
+            "| --- | --- | --- |",
+            *(
+                "| {field} | {reason} | {state} |".format(
+                    field=str(item.get("field") or ""),
+                    reason=str(item.get("reason") or "user_skipped"),
+                    state=str(item.get("resolution") or "answered"),
+                )
+                for item in sorted(
+                    resolved_history, key=lambda item: str(item.get("field") or "")
+                )
+            ),
+        ]
+        sections.append(
+            "\n".join([_SKIP_HISTORY_TITLE, "", _SKIP_HISTORY_NOTE, "", *rows])
+        )
+    return "\n\n".join(sections)
+
+
 def _template_path(industry_code: str, requirement_id: str) -> Path:
     industry = TEMPLATE_ROOT / industry_code / f"{requirement_id}.md.j2"
     if industry.is_file():
@@ -103,23 +208,45 @@ def _template_path(industry_code: str, requirement_id: str) -> Path:
     return TEMPLATE_ROOT / "generic" / "_default.md.j2"
 
 
-def _pending_assumption_fields(package: dict[str, Any]) -> list[dict[str, Any]]:
+def _pending_assumption_fields(
+    package: dict[str, Any],
+    skipped_fields: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Return fields still awaiting an answer, treating explicit skips as answered.
+
+    "已处理"有三种：用户确认过、句中已写明、用户显式跳过。前两种此前就被放行，
+    第三种没有——于是 ``skip_fields`` 是一条死路：跳过登记进了 DeliveryRun，
+    但生成模板包时这些字段仍算 pending，请求被 ``assumptions_not_confirmed``
+    拒绝，用户除了回答别无出路。而契约明确宣称"用户可以只回答关键项"。
+
+    放行**不等于**静默：跳过项由 ``questions.summarize_gaps`` 产出
+    ``required_field_skipped:*`` 限制码，并在 TemplatePack 正文的跳过披露段
+    逐项列出（见 ``_skipped_disclosure``）。这里只解开"不能继续"这一环。
+    """
+
+    skipped_names = {
+        str(item.get("field") or "")
+        for item in (skipped_fields or [])
+        if isinstance(item, dict) and str(item.get("field") or "")
+    }
     return [
         item
         for item in package.get("fields") or []
         if isinstance(item, dict)
         and not item.get("confirmed")
         and item.get("source_ref") != SOURCE_SENTENCE
+        and str(item.get("name") or "") not in skipped_names
     ]
 
 
-def _assumption_confirmed(package: dict[str, Any]) -> bool:
-    fields = [item for item in package.get("fields") or [] if isinstance(item, dict)]
-    if not fields:
-        return False
-    if str(package.get("confirmation_status") or "") == "confirmed":
-        return not _pending_assumption_fields(package)
-    return not _pending_assumption_fields(package)
+#: 此处曾有 ``_assumption_confirmed(package) -> bool``。它已被删除而不是保留：
+#: 布尔结果答不了"还差哪几个字段"，调用方只能回一句笼统的"须先确认"。现在
+#: 唯一入口是 ``_pending_assumption_fields``，它返回待办字段本身，拒绝信息因此
+#: 能逐项指名（见 ``generate_template_pack`` 的 pending_fields）。
+#:
+#: 顺带修掉的另一件事：原实现有一个 ``if confirmation_status == "confirmed"``
+#: 分支，其 then 与 else 返回完全相同的表达式——读的人会以为
+#: ``confirmation_status`` 参与了判定，实际不参与。
 
 
 def _assumption_table(fields: list[dict[str, Any]]) -> str:
@@ -321,11 +448,31 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
         if package_record is None:
             return _blocked("assumption_package_not_found", "未找到指定 AssumptionPackage")
         package = _view(package_record, "assumption_package_id")
-        if not _assumption_confirmed(package):
+        # 跳过登记在 DeliveryRun 上（假设包只记确认），因此判"还差哪些答案"必须
+        # 两者一起看。跳过史（含被后续回答覆盖的）也一并取出，供正文披露。
+        skipped_fields = [
+            dict(item)
+            for item in run.get("skipped_fields") or []
+            if isinstance(item, dict) and str(item.get("field") or "")
+        ]
+        skip_history = [
+            dict(item)
+            for item in run.get("skip_history") or []
+            if isinstance(item, dict) and str(item.get("field") or "")
+        ]
+        pending_fields = _pending_assumption_fields(package, skipped_fields)
+        if pending_fields:
             return _blocked(
                 "assumptions_not_confirmed",
-                "须先确认 AssumptionPackage 再生成拟定模板包",
-                next_actions=["调用 delivery_list_assumptions 与 delivery_confirm_assumptions"],
+                "须先确认 AssumptionPackage 再生成拟定模板包；未确认字段亦可显式跳过",
+                pending_fields=sorted(
+                    str(item.get("name") or "") for item in pending_fields
+                ),
+                next_actions=[
+                    "调用 delivery_list_assumptions 与 delivery_confirm_assumptions",
+                    "或在 delivery_confirm_assumptions 的 skip_fields 中显式跳过后重试"
+                    "（跳过项会计入交付限制并在模板正文披露）",
+                ],
             )
         intent_id = str(run.get("intent_id") or "")
         intent_record = INTENT_STORE.get(workspace_id, intent_id) if intent_id else None
@@ -440,9 +587,25 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
                 "requirement_description": str(requirement.get("description") or ""),
             }
             template_path = _template_path(industry_code, requirement_id)
-            body = _render_template(
+            rendered = _render_template(
                 template_path.read_text(encoding="utf-8"),
                 render_values,
+            )
+            # 披露注入在**渲染之后**、算 hash 之前：hash 必须覆盖披露段，否则
+            # 有人删掉披露仍能通过 ``expected_promoted_files`` 的正文/hash 相等
+            # 校验，而那正是这套 hash 要防的事。
+            #
+            # 注入而不是写进 15 份 .md.j2 模板：模板可被新增（每个行业目录一份），
+            # 落在模板里的披露会随"新加一个行业忘了抄披露"静默消失。生成器是
+            # 唯一出口，放这里才是不可绕过的。
+            body = "\n\n".join(
+                part
+                for part in (
+                    _disclosure_block(),
+                    rendered.strip(),
+                    _skipped_disclosure(skipped_fields, skip_history),
+                )
+                if part
             )
             digest = "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
             files.append(
@@ -457,12 +620,23 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
             )
             mapping_document = {
                 "schema_version": "sim-a-requirement-mapping.v1",
+                # 映射文件与 .md 同为可导出工件，同样必须自带披露：只有 .md 带
+                # 标记的话，单独拿到一份 .json 的人看不出它是拟定模板产物。
+                "disclosure": _MAPPING_DISCLOSURE,
                 "requirement_id": requirement_id,
                 "requirement_title": str(requirement.get("title") or requirement_id),
                 "evidence_policy": SIM_A_FORMAL,
                 "evidence_origin": SIM_A_ORIGIN,
+                "release_grade": "technical_preview",
                 "assumption_package_id": package_id,
                 "delivery_run_id": run_id,
+                # 跳过项与跳过史进映射文件：它决定了哪些 row 的取值无人确认。
+                "skipped_fields": sorted(
+                    skipped_fields, key=lambda item: str(item.get("field") or "")
+                ),
+                "skip_history": sorted(
+                    skip_history, key=lambda item: str(item.get("field") or "")
+                ),
                 "rows": mapping_rows,
             }
             mapping_text = json.dumps(mapping_document, ensure_ascii=False, indent=2)
@@ -491,7 +665,18 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
             "release_grade": "technical_preview",
             "technical_acceptance": "pending",
             "internal_acceptance": "pending",
+            # 披露已注入每份文件正文（不只是对象层标记）。留此字段是为了让审查侧
+            # 能直接判"这份 pack 的文件是否带正文披露"，不必反解 15 份正文。
+            "body_disclosure_applied": True,
             "report_profile": report_profile,
+            # 跳过项随 pack 冻结：晋升后的 SourceFile 只带正文，pack 是"哪些字段
+            # 未经确认"唯一的结构化记录。
+            "skipped_fields": sorted(
+                skipped_fields, key=lambda item: str(item.get("field") or "")
+            ),
+            "skip_history": sorted(
+                skip_history, key=lambda item: str(item.get("field") or "")
+            ),
             "requirement_ids": [str(item.get("requirement_id") or "") for item in requirements],
             "files": [
                 {
@@ -537,9 +722,38 @@ def generate_template_pack(args: dict[str, Any]) -> dict[str, Any]:
                 }
                 for item in files
             ],
+            warnings=[
+                "拟定模板包按受控假设生成，正文已写入不得作为交付物的披露标记",
+                *(
+                    [
+                        f"{len(skipped_fields)} 个字段由用户显式跳过，未经确认，"
+                        "已在正文与映射文件中逐项披露"
+                    ]
+                    if skipped_fields
+                    else []
+                ),
+            ],
+            # 跳过项随响应回传并进限制清单：调用方不必再去读 DeliveryRun 才知道
+            # 这份 pack 里有多少字段无人确认。
+            skipped_fields=payload["skipped_fields"],
+            skip_history=payload["skip_history"],
+            release_limitations=sorted(
+                {
+                    "evidence_origin_sim_a_template",
+                    *(
+                        f"required_field_skipped:{str(item.get('field') or '')}"
+                        for item in skipped_fields
+                    ),
+                }
+            ),
             next_actions=[
                 "核对拟定模板包后调用 delivery_confirm_formal_promotion",
                 "确认时必须填写 responsible_party 与 confirmation_note",
+                *(
+                    ["如需消除跳过限制项，先用 delivery_confirm_assumptions 回答被跳过字段"]
+                    if skipped_fields
+                    else []
+                ),
             ],
             validation_complete=False,
             input_evidence_complete=False,
@@ -604,6 +818,19 @@ def _acceptance_gate(workspace_id: str, delivery_run_id: str) -> dict[str, Any]:
     刻意在这里重新读一遍 review 域的领域确认，而不是相信 DeliveryRun 上写死的
     ``internal.status``：责任人通常在 ``delivery_start`` 之后才逐个确认，缓存值
     会长期停在 pending。
+
+    三段验收的阻断项**都要读**，``formal`` 那段尤其不能漏
+    ==================================================
+
+    此前只读 technical 与 internal 两段。``fold_formal`` 算出的
+    ``required_field_unanswered:*``（关键必填字段未回答，见
+    ``acceptance.REQUIRED_FIELD_UNANSWERED_PREFIX``）因此对晋升完全无效——
+    ``acceptance.formal.status`` 报 blocked，晋升却照样放行，同一个响应里
+    两个答案互相矛盾。
+
+    这个漏洞过去被另一道门挡着：关键字段未回答意味着假设包未确认，生成模板包
+    在 ``assumptions_not_confirmed`` 就被拒了，走不到这里。允许显式跳过之后
+    那道门不再兜底（跳过是被明确允许的），本处必须自己成立。
     """
 
     from .lifecycle import _refresh_acceptance
@@ -622,6 +849,7 @@ def _acceptance_gate(workspace_id: str, delivery_run_id: str) -> dict[str, Any]:
     acceptance = _refresh_acceptance(workspace_id, _view(record, "delivery_run_id"))
     technical = dict(acceptance.get("technical") or {})
     internal = dict(acceptance.get("internal") or {})
+    formal = dict(acceptance.get("formal") or {})
     blockers: list[str] = []
     technical_status = str(technical.get("status") or "not_started")
     internal_status = str(internal.get("status") or "not_started")
@@ -631,6 +859,18 @@ def _acceptance_gate(workspace_id: str, delivery_run_id: str) -> dict[str, Any]:
     if internal_status not in {"passed", "passed_with_limitations"}:
         blockers.append(f"internal_acceptance_not_passed:{internal_status}")
         blockers.extend(str(item) for item in internal.get("blockers") or [])
+    # formal 段自己算出的阻断项（关键必填字段未回答等）。
+    #
+    # 只取 ``fold_formal`` 独立判据产出的那些，**不**照搬整份 formal.blockers：
+    # 后者还含 ``technical_acceptance_not_passed:*`` /
+    # ``internal_acceptance_not_passed:*`` 的回声，而那两段的判据本函数上面已经
+    # 各自算过一次。整份并入只会让同一件事出现两条码，且在两段本已通过时把
+    # 陈旧的回声当成新阻断——那正是"新增阻断误杀正常链"的形状。
+    blockers.extend(
+        item
+        for item in (str(value) for value in formal.get("blockers") or [])
+        if item.startswith(REQUIRED_FIELD_UNANSWERED_PREFIX)
+    )
     return {"acceptance": acceptance, "blockers": sorted(set(blockers))}
 
 
@@ -687,6 +927,24 @@ def confirm_formal_promotion(args: dict[str, Any]) -> dict[str, Any]:
                 next_actions=[
                     "按 acceptance.technical.blockers 修复交付链后重算",
                     "七域责任人调用 review_submit_assessment 与 review_confirm_dimension",
+                    # 关键必填字段未答的唯一出路是回答它：跳过只换来技术预览，
+                    # 不换正式资格。说清替代路径，免得调用方反复重试同一个调用。
+                    *(
+                        [
+                            "回答关键必填字段后重算："
+                            + "、".join(
+                                item.removeprefix(REQUIRED_FIELD_UNANSWERED_PREFIX)
+                                for item in gate["blockers"]
+                                if item.startswith(REQUIRED_FIELD_UNANSWERED_PREFIX)
+                            )
+                            + "（这些字段跳过只能取得技术预览，不能取得正式候选资格）"
+                        ]
+                        if any(
+                            item.startswith(REQUIRED_FIELD_UNANSWERED_PREFIX)
+                            for item in gate["blockers"]
+                        )
+                        else []
+                    ),
                 ],
             )
         promoted_files = list(validated_pack["promoted_files"])

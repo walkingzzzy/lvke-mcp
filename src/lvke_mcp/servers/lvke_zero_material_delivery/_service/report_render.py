@@ -51,6 +51,12 @@ _ASSUMPTION_COLUMNS_DEFAULT: tuple[dict[str, Any], ...] = (
     {"header": "正式使用条件", "field": "validation_condition", "align": "left"},
 )
 
+#: 跳过决策变更段的固定说明。刻意不做成 profile 可配项：它是审计追溯依据，
+#: 不该因为某份配置忘记声明就整段消失。
+_SKIP_HISTORY_NOTICE = (
+    "以下字段曾被用户显式跳过、其后已补充回答；保留本记录以便审计追溯确认过程的变更。"
+)
+
 #: 财务血缘片段的兜底。配置的 ``fragments.finance_lineage`` 优先。
 _FINANCE_LINEAGE_DEFAULT: tuple[dict[str, str], ...] = (
     {"label": "FinanceRun", "field": "run_id"},
@@ -154,6 +160,10 @@ def build_slot_values(
         report_profile: 所选报告配置。正文说明句、表头、血缘片段结构都从它的
             ``prose`` / ``tables`` / ``fragments`` 读取；缺省时用内置兜底，
             使 v1 老配置仍可渲染。
+
+    跳过**历史**槽位刻意由独立的 :func:`build_skip_history_slots` 产出，不作为
+    本函数的新参数：本函数签名被 ``tests/fixtures/baseline/refactor`` 的 API 护栏
+    冻结，加参数会被判成公共 API 回退。调用方把两者的结果合并即可。
     """
 
     report = dict(report_profile or {})
@@ -267,6 +277,39 @@ def build_slot_values(
     return slots
 
 
+def build_skip_history_slots(
+    skipped_fields: list[dict[str, Any]],
+    skip_history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Render the "was skipped, later answered" slots for the report body.
+
+    与 ``skipped_fields`` 分开：后者是"现在还缺谁的确认"，本函数回答"这个字段的
+    确认过程有没有变过"。回答一个此前跳过的字段会把它从 ``skipped_fields`` 移除，
+    于是决策变更在正文里完全消失——而那正是审计要查的东西。
+
+    只列**已被回答**的历史项：仍在跳过中的由 ``skipped_fields`` 槽位逐项披露，
+    两处都列会让读者以为同一字段既跳过又已答。
+    """
+
+    still_skipped = {
+        str(item.get("field") or "")
+        for item in skipped_fields or []
+        if isinstance(item, dict)
+    }
+    rows = _bullet_list(
+        [
+            f"{_text(item.get('field'))}"
+            f"（原因：{_text(item.get('reason'))}；"
+            f"当前：{_text(item.get('resolution'), '已回答')}）"
+            for item in skip_history or []
+            if isinstance(item, dict)
+            and str(item.get("field") or "")
+            and str(item.get("field") or "") not in still_skipped
+        ]
+    )
+    return {"skip_history": rows, "_has_skip_history": bool(rows)}
+
+
 def render_report_markdown(
     *,
     profile: dict[str, Any],
@@ -341,7 +384,23 @@ def render_report_markdown(
     skipped_notice = str(disclosure.get("skipped_notice") or "")
     if skipped_notice and slots.get("_has_skipped_fields"):
         lines.extend([skipped_notice, "", str(slots.get("skipped_fields") or ""), ""])
+    # 跳过决策变更记录独立成段，且**不**依赖 profile 声明 disclosure 文案：
+    # 已补答的跳过项在配置里没有对应的 notice 键，若与 skipped_notice 共用条件，
+    # 老配置下这段会静默消失，而它正是审计追溯决策变更的唯一正文落点。
+    if slots.get("_has_skip_history"):
+        lines.extend(
+            [
+                _SKIP_HISTORY_NOTICE,
+                "",
+                str(slots.get("skip_history") or ""),
+                "",
+            ]
+        )
     return "\n".join(lines).rstrip() + "\n", sorted(set(unresolved))
 
 
-__all__ = ["build_slot_values", "render_report_markdown"]
+__all__ = [
+    "build_skip_history_slots",
+    "build_slot_values",
+    "render_report_markdown",
+]

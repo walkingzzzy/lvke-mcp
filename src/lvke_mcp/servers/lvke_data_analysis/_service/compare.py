@@ -48,17 +48,26 @@ def _missing_observations(observations: list[dict[str, Any]]) -> list[dict[str, 
 
 
 def _period_mismatches(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    """按 metric×scope 检出期间粒度冲突；**分组键不含 unit**。
+
+    缺陷（A1）：分组键原本含 ``unit``，单位一旦不同就落入不同 group，
+    ``len(period_types) > 1`` 永不触发。实测年度 12000 万元 vs 季度 0.3 亿元
+    返回 ``status:ok`` + ``period_mismatches:[]`` + 零 warning，而同单位的
+    年 vs 季能正确报 partial —— 单位差异把期间粒度门禁整个绕过了。
+
+    期间粒度与计量单位是两个独立维度：年 vs 季不可比，与它们写成万元还是
+    亿元无关。unit 差异改由 ``_unit_mismatches`` 单独报（对齐
+    ``analysis_compare_benchmark`` 的 ``mismatch_fields:["unit"]`` 语义），
+    不再充当期间分组的隔离墙。
+    """
+
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for item in observations:
         metric = str(item.get("metric") or "").strip()
         if not metric or item.get("value") is None:
             continue
         period = normalize_financial_period(item.get("period", item.get("as_of")))
-        key = (
-            metric.lower(),
-            str(item.get("unit") or "").strip().lower(),
-            str(item.get("scope") or "").strip().lower(),
-        )
+        key = (metric.lower(), str(item.get("scope") or "").strip().lower())
         groups.setdefault(key, []).append({**item, "period_metadata": period})
     mismatches: list[dict[str, Any]] = []
     for key, items in groups.items():
@@ -68,12 +77,57 @@ def _period_mismatches(observations: list[dict[str, Any]]) -> list[dict[str, Any
                 "comparison_key": "|".join(key),
                 "period_types": period_types,
                 "periods": sorted({str(item["period_metadata"]["normalized"]) for item in items}),
+                # 一并带出涉及的单位，便于调用方判断这组冲突是否还叠加了单位差异。
+                "units": sorted({str(item.get("unit") or "").strip() for item in items}),
                 "reason": "financial_period_granularity_mismatch",
             })
     return mismatches
 
 
+def _unit_mismatches(observations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """同 metric×scope 下出现多种计量单位时显式报出，不做任何换算。
+
+    unit 从期间分组键里移出后，单位冲突必须有自己的出口，否则会从
+    "被错误当成隔离墙"变成"彻底不报"。语义对齐
+    ``analysis_compare_benchmark`` 的 ``mismatch_fields:["unit"]``：
+    只声明口径不兼容，绝不推断换算系数（换算走 ``analysis_normalize_compare``
+    的显式规则）。
+    """
+
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in observations:
+        metric = str(item.get("metric") or "").strip()
+        if not metric or item.get("value") is None:
+            continue
+        key = (metric.lower(), str(item.get("scope") or "").strip().lower())
+        groups.setdefault(key, []).append(item)
+    mismatches: list[dict[str, Any]] = []
+    for key, items in groups.items():
+        units = sorted({str(item.get("unit") or "").strip() for item in items})
+        if len(units) > 1:
+            mismatches.append({
+                "comparison_key": "|".join(key),
+                "mismatch_fields": ["unit"],
+                "units": units,
+                "source_ids": sorted({str(item.get("source_id") or "") for item in items}),
+                "reason": "unit_basis_incompatible",
+            })
+    return mismatches
+
+
 def _comparison_key(item: dict[str, Any], *, include_entity: bool, include_dimension: bool) -> str:
+    """分组/聚合键。这里**刻意保留** ``unit``，与 ``_period_mismatches`` 不同。
+
+    两处对 unit 的取舍相反，是因为职责不同，不是漏改：
+
+    - ``_period_mismatches`` 只做"检出"，含 unit 会让单位差异变成隔离墙，
+      使期间粒度冲突永不触发（A1 的根因），所以必须去掉；
+    - 本函数的分组结果会被 ``_segment_comparison`` 求和（``segment_total``）、
+      被 ``_peer_comparison`` 逐值比对。去掉 unit 会把万元与亿元加到一起，
+      产出一个算术上就是错的合计。宁可分组，再由 ``_unit_mismatches``
+      显式报 ``unit_basis_incompatible``。
+    """
+
     period = normalize_financial_period(item.get("period", item.get("as_of")))
     parts = [
         str(item.get("metric") or "").strip().lower(),
@@ -175,6 +229,7 @@ def compare(
             target.append({"comparison_key": key, "observations": items, "values": sorted(values)})
     missing = _missing_observations(observations)
     period_mismatches = _period_mismatches(observations)
+    unit_mismatches = _unit_mismatches(observations)
     warnings = []
     if conflicts or unable:
         warnings.append("存在冲突或不可比较项，未进行静默合并")
@@ -182,15 +237,22 @@ def compare(
         warnings.append("部分来源缺少指标观察值，比较覆盖不完整")
     if period_mismatches:
         warnings.append("存在年度、季度或月度期间粒度不一致，不得直接比较")
+    if unit_mismatches:
+        warnings.append("同一指标出现多种计量单位，口径不兼容；换算须走显式规则")
     return {
         "success": True,
-        "status": "partial" if conflicts or unable or missing or period_mismatches else "ok",
+        "status": (
+            "partial"
+            if conflicts or unable or missing or period_mismatches or unit_mismatches
+            else "ok"
+        ),
         "comparison_mode": comparison_mode,
         "consistent": consistent,
         "conflicts": conflicts,
         "peer_rows": peer_rows,
         "segment_summaries": segment_summaries,
         "period_mismatches": period_mismatches,
+        "unit_mismatches": unit_mismatches,
         "missing": missing,
         "unable_to_compare": unable,
         "resource_uris": [],
@@ -274,7 +336,8 @@ def normalize_compare(
         if matched not in applied_rules:
             applied_rules.append(matched)
     comparison = compare(normalized, comparison_mode=comparison_mode) if normalized else {
-        "consistent": [], "conflicts": [], "missing": [], "unable_to_compare": [], "warnings": []
+        "consistent": [], "conflicts": [], "missing": [], "unable_to_compare": [],
+        "period_mismatches": [], "unit_mismatches": [], "warnings": [],
     }
     status_value = "partial" if unprocessed or comparison.get("status") == "partial" else "ok"
     payload = {

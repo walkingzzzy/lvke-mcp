@@ -89,6 +89,7 @@ from ._service.report_profiles import (  # noqa: F401
     resolve_profile,
 )
 from ._service.report_render import (  # noqa: F401
+    build_skip_history_slots,
     build_slot_values,
     render_report_markdown,
 )

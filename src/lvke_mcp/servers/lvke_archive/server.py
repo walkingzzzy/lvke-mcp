@@ -19,6 +19,7 @@ import sys
 from pathlib import Path
 
 
+from lvke_mcp.runtime.coordination import build_coordination  # noqa: E402
 from lvke_mcp.runtime.logging import get_logger  # noqa: E402
 from lvke_mcp.runtime.responses import err, ok  # noqa: E402
 from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
@@ -360,8 +361,11 @@ def _tool_get_template_paragraph(args: dict) -> dict:
             "套话段落需要全量索引；请先运行 scripts/build_archive_index.py",
         )
     records = storage.search(query=query, industry=industry, corpus="lvke", limit=top_k * 2)
-    if not records:
+    # corpus=lvke 先筛，空了才回退全语料。记录下来，空结果时要说清"窄筛也试过了"。
+    corpus_fallback_used = not records
+    if corpus_fallback_used:
         records = storage.search(query=query, industry=industry, limit=top_k * 2)
+    backend = storage.last_search_backend()
     for rec in records[:top_k]:
         snippet = (rec.brief or "")[:300]
         content_hash = hashlib.sha256(snippet.encode("utf-8")).hexdigest()
@@ -377,10 +381,93 @@ def _tool_get_template_paragraph(args: dict) -> dict:
             "evidence_level": "C",
             "note": "归档索引片段仅用于参考论证结构与表述风格。",
         })
-    return ok(
-        {"scene": scene, "industry": industry, "items": items},
-        source=f"{SERVER_NAME}.get_template_paragraph",
+    payload: dict = {
+        "scene": scene,
+        "industry": industry,
+        "items": items,
+        # 检索归因始终随载荷返回，不只在空结果时才给——调用方要能判断"只召回 1 条"
+        # 是库里就这么点，还是检索面根本没覆盖正文。
+        "retrieval": _retrieval_diagnostics(storage, query, backend),
+    }
+    result = ok(payload, source=f"{SERVER_NAME}.get_template_paragraph")
+    if items:
+        return result
+
+    # 缺陷（R2）：空结果此前是 ``items:[]`` + ``status:ok`` + 零 warning/next_actions，
+    # 无法区分「库里没有该场景段落」与「检索条件过窄/检索面不含正文」。实测
+    # risk-financial 与 necessity 两个合法 scene 都落在后者：BM25 索引缺失时
+    # ``_search_sqlite`` 退到 SQL LIKE，而 LIKE 只扫 reports.title/brief，扫不到
+    # chunks.content —— 正文里明明有 62 条含「偿债」的 chunk 也照样返回空。
+    diagnostics = payload["retrieval"]
+    warnings, next_actions = _empty_result_guidance(
+        scene=scene,
+        industry=industry,
+        diagnostics=diagnostics,
+        corpus_fallback_used=corpus_fallback_used,
     )
+    result["status"] = "empty"
+    result["warnings"] = warnings
+    result["next_actions"] = next_actions
+    result["coordination"] = build_coordination(result, server_name=SERVER_NAME)
+    return result
+
+
+def _retrieval_diagnostics(storage, query: str, backend: dict) -> dict:
+    """把"这次检索到底查了什么面、正文里有没有这些词"变成可读事实。"""
+
+    terms = [term for term in str(query or "").split() if term]
+    body_hits = {term: storage.count_chunks_containing(term) for term in terms}
+    backend_name = str(backend.get("backend") or "unknown")
+    return {
+        "query": query,
+        "query_terms": terms,
+        "backend": backend_name,
+        # SQL LIKE 回退只匹配报告标题与摘要；正文（chunks.content）不在检索面内。
+        "searched_fields": (
+            ["reports.title", "reports.brief"]
+            if backend_name in {"sql_like", "sql_filter_only"}
+            else ["chunks.content", "reports.title", "reports.brief"]
+        ),
+        "body_chunk_hits": body_hits,
+        "body_index_searchable": backend_name == "bm25_hybrid",
+    }
+
+
+def _empty_result_guidance(
+    *, scene: str, industry: str | None, diagnostics: dict, corpus_fallback_used: bool
+) -> tuple[list[str], list[str]]:
+    """空结果的归因与下一步：区分"库里没有"和"没查到该面"。"""
+
+    warnings: list[str] = []
+    next_actions: list[str] = []
+    hits = diagnostics.get("body_chunk_hits") or {}
+    positive = {term: count for term, count in hits.items() if isinstance(count, int) and count > 0}
+    if not diagnostics.get("body_index_searchable"):
+        warnings.append(
+            f"scene={scene} 未召回段落，且本次检索走 {diagnostics.get('backend')} 回退，"
+            f"检索面只有 {'/'.join(diagnostics.get('searched_fields') or [])}，不含正文 chunks.content"
+        )
+        next_actions.append(
+            "重建 BM25/向量索引以把正文纳入检索面：python scripts/build_archive_index.py"
+        )
+    if positive:
+        detail = "、".join(f"{term}×{count}" for term, count in sorted(positive.items()))
+        warnings.append(
+            f"正文中存在场景关键词（{detail}），空结果来自检索面或过滤条件，"
+            "不能据此判断档案库没有该场景段落"
+        )
+    elif all(isinstance(count, int) for count in hits.values()) and hits:
+        warnings.append(
+            "正文中未出现任何该场景关键词，档案库很可能确实没有该场景段落"
+        )
+        next_actions.append("改用 search_archive 自定义 query，或补充该场景的归档语料")
+    else:
+        warnings.append("无法探测正文命中数（非 sqlite 模式或查询失败），空结果原因不可判定")
+    if industry:
+        next_actions.append(f"industry={industry} 会收窄候选；去掉该过滤再试")
+    if corpus_fallback_used:
+        warnings.append("corpus=lvke 过滤后为空，已回退到全语料检索，仍无命中")
+    return warnings, next_actions
 
 
 # ── 注册 ───────────────────────────────────────────────────────────────

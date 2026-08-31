@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from lvke_mcp.runtime.storage import sha256_json
+from lvke_mcp.servers.lvke_deliverable_review.contracts import REVIEW_DIMENSIONS
 from lvke_mcp.servers.lvke_deliverable_review.store import STORE
 
 from .base import _finding_coverage_rule_id, _finding_match_key
@@ -77,12 +78,40 @@ def complete_pending_suite_retest(
     parent_review_id, intent = pending[0]
     operation_id = str(intent.get("operation_id") or "")
     child = _project(workspace_id, child_review_id, check_freshness=False)
-    if not child.get("formal_suite_review_complete"):
+    # 前置是「子审查已完成七域独立评审」，不是「子审查整体 pass」。
+    # 复测的语义是「已就整改后的目标重新独立评审并给出结论」——结论为 failed
+    # 也是结论。此前要求 formal_suite_review_complete（overall=="pass"），使
+    # 「复测了但只整改一部分」这条最常见路径永远清不掉挂起，父审查再也无法
+    # 处置 finding（见 disposition 侧同一缺陷）。
+    # 逐条关闭判据在下面仍是 `new_finding is None and coverage_ok`，按 finding
+    # 独立裁决，所以部分整改只会关闭真正已修的项，不会因整体放行而误关。
+    # 七域齐全只在 standard/deep 下要求。quick profile 的 require_semantic 为
+    # False，`quick_preview_without_semantic_assessment` 是合法状态、七域 Assessment
+    # 本就不必提交（suite_review.py:1176,1203）；若在这里无条件要求七域，quick
+    # 复测会永远卡在 retest_assessment_required —— 那等于把原来的死锁换成另一个
+    # 死锁。quick 下只要求引擎已产出确定性结论即可。
+    child_profile = str(child.get("review_profile") or child.get("mode") or "quick")
+    if child_profile in {"standard", "deep"}:
+        assessed = child.get("suite_assessments") or {}
+        confirmed = child.get("suite_dimension_confirmations") or {}
+        missing_dimensions = sorted(
+            (REVIEW_DIMENSIONS - set(assessed)) | (REVIEW_DIMENSIONS - set(confirmed))
+        )
+        if missing_dimensions:
+            return {
+                "status": "pending",
+                "code": "retest_assessment_required",
+                "parent_review_id": parent_review_id,
+                "retest_review_id": child_review_id,
+                "missing_dimensions": missing_dimensions,
+            }
+    elif not child.get("findings_available"):
         return {
             "status": "pending",
             "code": "retest_assessment_required",
             "parent_review_id": parent_review_id,
             "retest_review_id": child_review_id,
+            "missing_dimensions": [],
         }
 
     parent_basis = intent.get("parent_basis") or {}

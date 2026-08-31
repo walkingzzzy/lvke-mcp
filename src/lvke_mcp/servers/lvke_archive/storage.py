@@ -756,6 +756,38 @@ class ArchiveStorage:
         records.sort(key=lambda r: report_scores.get(r.report_id, 0.0), reverse=True)
         return records[: max(1, int(limit))]
 
+    def count_chunks_containing(self, term: str) -> int | None:
+        """正文 chunk 里含 ``term`` 的条数；不可查时返回 ``None``（不返回 0）。
+
+        存在的意义是让「检索返回空」可诊断。``_search_sqlite`` 的 SQL LIKE 回退只
+        扫 ``reports.title``/``brief``，扫不到 ``chunks.content``；BM25 索引缺失时，
+        正文里明明有「偿债」的场景查询也会返回空。调用方靠这个探针就能区分
+        「库里确实没有该场景段落」与「检索面没覆盖到正文」。
+
+        ``None`` 与 ``0`` 必须分开：``0`` 是"查过了，正文里确实没有"，``None`` 是
+        "查不了"（legacy 模式或 SQL 失败）——把后者当 0 会再造一次同类误判。
+        """
+
+        text = str(term or "").strip()
+        if not text or self._mode != "sqlite" or self._conn is None:
+            return None
+        try:
+            row = self._db_execute(
+                "SELECT count(*) AS c FROM chunks WHERE content LIKE ?",
+                [f"%{text}%"],
+            ).fetchone()
+        except Exception:  # noqa: BLE001
+            return None
+        return int(row["c"]) if row is not None else None
+
+    def last_search_backend(self) -> dict[str, Any]:
+        """最近一次 ``search`` 实际走的检索后端（bm25_hybrid / sql_like / sql_filter_only）。
+
+        对外暴露是为了让"返回空"能带上归因：``sql_like`` 意味着检索面不含正文。
+        """
+
+        return dict(self._last_search_backend)
+
     def get_meta(self, report_id: str) -> ArchiveRecord | None:
         if self._mode == "sqlite" and self._conn is not None:
             row = self._db_execute(

@@ -6,10 +6,12 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Any
 
 
+from lvke_mcp.runtime.coordination import build_coordination  # noqa: E402
 from lvke_mcp.runtime.logging import get_logger  # noqa: E402
 from lvke_mcp.runtime.responses import err, ok  # noqa: E402
 from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
@@ -17,6 +19,9 @@ from lvke_mcp.runtime.stdio import StdioServer  # noqa: E402
 SERVER_NAME = "policy-search"
 SERVER_VERSION = "0.1.0"
 logger = get_logger(SERVER_NAME)
+
+#: 只认 ISO 日历日 ``YYYY-MM-DD``。见 ``_parse_iso_date`` 的"宽进即失效"说明。
+_ISO_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 _QUERY_ALIASES = {
     "光伏": {"光伏", "太阳能", "可再生能源", "新能源", "新型电力系统"},
@@ -204,36 +209,127 @@ def _tool_get_policy_full(args: dict) -> dict:
     return ok(rec, source=f"{SERVER_NAME}.get_policy_full")
 
 
+def _parse_iso_date(value: Any) -> date | None:
+    """严格解析 ``YYYY-MM-DD``；解析不了就返回 None，绝不猜。
+
+    只接受 ISO 日历日期。``date.fromisoformat`` 还会吃下 ``20000101`` 和
+    ``2000-W01-1`` 这类写法，但那不是本域的输入约定；宽进会把"调用方写错格式"
+    伪装成"时点已被正确采纳"，正是 R1 的失效模式。
+    """
+
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not _ISO_DATE_RE.fullmatch(text):
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def _as_of_verdict(as_of: str, effective_date: Any) -> dict[str, Any]:
+    """按查询时点判定政策在该时点是否已生效。
+
+    缺陷（R1）：``as_of`` 此前只被回显进响应，判定完全走 ``status == "active"``。
+    于是 ``as_of=1990-01-01`` 查生效日 2000-01-01 的招标投标法会返回
+    ``active:true`` 并同时回显 ``requested_as_of``/``effective_date`` —— 回显字段
+    让"时点已被采纳"看起来成立，实际是把「当前有效」冒充成「查询时点有效」。
+
+    这里只判定"时点相对生效日"这一件确定的事，三种结局都显式区分：
+    - ``not_yet_effective``：as_of 严格早于 effective_date，此时不得报 active；
+    - ``in_effect_at_as_of``：as_of 不早于 effective_date，可沿用库内 status；
+    - ``undeterminable``：as_of 或 effective_date 缺失/格式不可解析 —— 诚实说
+      不可判定（``active=None``），不拿"当前 status"顶替时点判定。
+    """
+
+    verdict: dict[str, Any] = {"requested_as_of": as_of}
+    as_of_date = _parse_iso_date(as_of)
+    effective = _parse_iso_date(effective_date)
+    if as_of_date is None:
+        verdict["as_of_assessment"] = "undeterminable"
+        verdict["as_of_reason"] = (
+            "as_of 不是可解析的 YYYY-MM-DD 日期，无法按时点判定生效状态"
+        )
+        return verdict
+    if effective is None:
+        verdict["as_of_assessment"] = "undeterminable"
+        verdict["as_of_reason"] = (
+            "本地政策记录缺少可解析的 effective_date，无法按时点判定生效状态；"
+            "不得据此断言该政策在查询时点有效"
+        )
+        return verdict
+    verdict["effective_date_parsed"] = effective.isoformat()
+    if as_of_date < effective:
+        verdict["as_of_assessment"] = "not_yet_effective"
+        verdict["as_of_reason"] = (
+            f"查询时点 {as_of_date.isoformat()} 早于生效日 {effective.isoformat()}，"
+            "该政策在查询时点尚未生效"
+        )
+    else:
+        verdict["as_of_assessment"] = "in_effect_at_as_of"
+        verdict["as_of_reason"] = (
+            f"查询时点 {as_of_date.isoformat()} 不早于生效日 {effective.isoformat()}"
+        )
+    return verdict
+
+
 def _tool_verify_policy_active(args: dict) -> dict:
     citation = args.get("citation")
     if not isinstance(citation, str) or not citation.strip():
         return err(f"{SERVER_NAME}.invalid_argument", "citation 必须是非空字符串")
+    as_of = args.get("as_of")
+    as_of = as_of.strip() if isinstance(as_of, str) else ""
     rec = _get_storage().find_by_citation(citation)
     if rec is None:
-        return ok(
-            {
-                "citation": citation,
-                "matched": False,
-                "active": None,
-                "message": "未在本地政策库中找到匹配项;无法验证。建议人工复核或扩充数据库。",
-            },
-            source=f"{SERVER_NAME}.verify_policy_active",
-        )
-    status = rec.get("status", "unknown")
-    return ok(
-        {
+        payload: dict[str, Any] = {
             "citation": citation,
-            "matched": True,
-            "active": status == "active",
-            "policy_id": rec.get("policy_id"),
-            "title": rec.get("title"),
-            "doc_number": rec.get("doc_number"),
-            "status": status,
-            "effective_date": rec.get("effective_date"),
-            "issuer": rec.get("issuer"),
-        },
-        source=f"{SERVER_NAME}.verify_policy_active",
-    )
+            "matched": False,
+            "active": None,
+            "message": "未在本地政策库中找到匹配项;无法验证。建议人工复核或扩充数据库。",
+        }
+        if as_of:
+            payload["requested_as_of"] = as_of
+            payload["as_of_assessment"] = "undeterminable"
+            payload["as_of_reason"] = "未匹配到政策记录，无生效日可比对"
+        return ok(payload, source=f"{SERVER_NAME}.verify_policy_active")
+    status = rec.get("status", "unknown")
+    payload = {
+        "citation": citation,
+        "matched": True,
+        "active": status == "active",
+        "policy_id": rec.get("policy_id"),
+        "title": rec.get("title"),
+        "doc_number": rec.get("doc_number"),
+        "status": status,
+        "effective_date": rec.get("effective_date"),
+        "issuer": rec.get("issuer"),
+    }
+    if not as_of:
+        # 未传 as_of：语义仍是"按库内 status 判定当前是否有效"，行为不变。
+        payload["as_of_assessment"] = "not_requested"
+        return ok(payload, source=f"{SERVER_NAME}.verify_policy_active")
+
+    verdict = _as_of_verdict(as_of, rec.get("effective_date"))
+    payload.update(verdict)
+    assessment = verdict["as_of_assessment"]
+    warnings: list[str] = []
+    if assessment == "not_yet_effective":
+        # fail-closed：时点早于生效日，active 必须为 False，与库内 status 无关。
+        payload["active"] = False
+        warnings.append(verdict["as_of_reason"])
+    elif assessment == "undeterminable":
+        # 不可判定不等于有效：把 active 收回 None，不让"当前 active"冒充时点结论。
+        payload["active"] = None
+        warnings.append(verdict["as_of_reason"])
+    result = ok(payload, source=f"{SERVER_NAME}.verify_policy_active")
+    if warnings:
+        result["warnings"] = warnings
+        result["next_actions"] = [
+            "按查询时点复核政策适用性；引用前确认该时点的有效版本"
+        ]
+        result["coordination"] = build_coordination(result, server_name=SERVER_NAME)
+    return result
 
 
 def build_server() -> StdioServer:
@@ -270,13 +366,21 @@ def build_server() -> StdioServer:
     )
     server.register_tool(
         name="verify_policy_active",
-        description="按文号或标题校验报告引用的政策是否仍生效。",
+        description=(
+            "按文号或标题校验报告引用的政策是否仍生效。"
+            "传 as_of 时按该时点与 effective_date 比对：时点早于生效日返回 active=false;"
+            "时点或生效日不可解析返回 active=null(不可判定)。"
+        ),
         input_schema={
             "type": "object",
             "properties": {
                 "citation": {
                     "type": "string",
                     "description": "政策文号(如 国发〔2021〕23 号)或标题",
+                },
+                "as_of": {
+                    "type": "string",
+                    "description": "查询时点 YYYY-MM-DD;省略时按库内 status 判定当前是否有效",
                 },
             },
             "required": ["citation"],
