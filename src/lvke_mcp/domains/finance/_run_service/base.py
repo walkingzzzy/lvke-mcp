@@ -77,9 +77,9 @@ _DELIVERY_REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "cashflow": ("item", "total"),
     "capital-cashflow": ("item", "total"),
     # 附表11 是逐年记录表（每行一年），不是"项目/合计"式科目表，故必填列取
-    # period + cumulative 这两个立表根据。键名以运行时生产者
-    # annual._build_financial_plan 为准（**不是** statements.financial_plan_rows，
-    # 后者全仓无调用方、键名不同，是同语义的第二份实现且已成死代码）。
+    # period + cumulative 这两个立表根据。键名以运行时唯一生产者
+    # annual._build_financial_plan 为准（同语义的第二份实现
+    # statements.financial_plan_rows 键名不同，已作为死代码删除）。
     "financial-plan": ("period", "cumulative"),
 }
 

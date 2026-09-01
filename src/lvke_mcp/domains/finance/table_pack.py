@@ -53,7 +53,8 @@ def build_tables_structured(fin: dict[str, Any]) -> dict[str, Any]:
     """从 finance result 构建结构化 13 表（开发可读真源）。
 
     统一走 ``table_render.build_all_structured``（catalog 风格投影）。
-    对外 API / e2e 只暴露 13 张交付表；``_meta`` 写入 evidence / artifacts 侧。
+    对外 API / e2e 只暴露交付表（张数见 DELIVERY_TABLE_KEYS）；``_meta`` 写入
+    evidence / artifacts 侧。
     """
     pack = table_render.build_all_structured(fin)
     # 剥离内部 meta，避免被计成第 14 张「空表」
@@ -293,7 +294,8 @@ def structured_to_readable_md(
             lines.append(f"- ⚠️ {c.get('rule')}: {c.get('detail')}")
         lines.append("")
 
-    lines.append("## 13 张交付表（catalog 投影 / 结构化渲染）")
+    # 张数从交付清单派生，不写死：附表增减时标题会自动跟上（曾停在「13 张」）。
+    lines.append(f"## {len(_DELIVERY_META)} 张交付表（catalog 投影 / 结构化渲染）")
     lines.append("")
 
     for key, delivery_no, title in _DELIVERY_META:

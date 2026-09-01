@@ -1,11 +1,11 @@
 {
   "schema": "api_snapshot.v1",
-  "generated_at": "2026-08-31T03:06:29+0000",
+  "generated_at": "2026-09-01T02:12:04+0000",
   "plan_ref": "dev-docs/plans/MODULARIZATION_PLAN.md §7.3/§8",
   "python": "3.13.14",
   "summary": {
     "module_count": 474,
-    "symbol_count": 5946,
+    "symbol_count": 5955,
     "unimportable_count": 0
   },
   "unimportable": [],
@@ -750,7 +750,7 @@
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "FinanceExportError": {
           "kind": "class",
@@ -837,7 +837,7 @@
         "_DELIVERY_SHEETS": {
           "kind": "container",
           "value_type": "dict",
-          "length": 13
+          "length": 14
         },
         "_REQUIRED_FORMULA_FAMILIES": {
           "kind": "container",
@@ -1408,6 +1408,11 @@
         },
         "_SAME_SHEET": {
           "kind": "Pattern"
+        },
+        "_expand_range": {
+          "kind": "callable",
+          "signature": "(ref: 'str', *, limit: 'int') -> 'tuple[list[str], int]'",
+          "defined_in": "lvke_mcp.adapters.spreadsheets.formulas"
         },
         "_jsonable": {
           "kind": "callable",
@@ -6684,12 +6689,12 @@
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_SCHEMA_VERSION": {
           "kind": "constant",
@@ -6934,7 +6939,7 @@
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "TEMPLATE_VERSION": {
           "kind": "constant",
@@ -7182,7 +7187,7 @@
         "DELIVERY_ORDER": {
           "kind": "container",
           "value_type": "list",
-          "length": 13
+          "length": 14
         },
         "Optional": {
           "kind": "_SpecialForm"
@@ -7233,7 +7238,7 @@
         "DELIVERY_ORDER": {
           "kind": "container",
           "value_type": "list",
-          "length": 13
+          "length": 14
         },
         "annotations": {
           "kind": "_Feature"
@@ -7321,17 +7326,17 @@
         "DELIVERY_ORDER": {
           "kind": "container",
           "value_type": "list",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "annotations": {
           "kind": "_Feature"
@@ -11064,12 +11069,12 @@
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_SCHEMA_VERSION": {
           "kind": "constant",
@@ -12054,11 +12059,6 @@
           "signature": "(*, build_years: 'int', op_years: 'int', capital_outlays: 'list[float]', loan_draws: 'list[float]', op_inflows: 'list[float]', debt_rows: 'list[dict[str, Any]]', actual_tax_by_year: 'Optional[list[float]]' = None) -> 'list[dict[str, Any]]'",
           "defined_in": "lvke_mcp.domains.finance.statements"
         },
-        "financial_plan_rows": {
-          "kind": "callable",
-          "signature": "(*, build_years: 'int', op_years: 'int', invest_out_build: 'list[float]', finance_in_build: 'list[float]', op_operating_net: 'list[float]', wc_change_op: 'list[float]', terminal_recover: 'float', debt_rows: 'list[dict[str, Any]]', min_cash: 'float' = 0.0) -> 'list[dict[str, Any]]'",
-          "defined_in": "lvke_mcp.domains.finance.statements"
-        },
         "non_operating_funding_balance": {
           "kind": "callable",
           "signature": "(*, total_investment: 'float', capital: 'float', loan: 'float', subsidy: 'float', annual_opex: 'float' = 0.0, annual_subsidy: 'float' = 0.0, calc_years: 'int' = 1, build_years: 'int' = 1, debt_service: 'list[dict[str, Any]] | None' = None) -> 'dict[str, Any]'",
@@ -12083,12 +12083,12 @@
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "ENGINE_DELIVERY_COUNT": {
           "kind": "constant",
@@ -12180,7 +12180,7 @@
         "_DELIVERY_META": {
           "kind": "container",
           "value_type": "list",
-          "length": 13
+          "length": 14
         },
         "_fmt": {
           "kind": "callable",
@@ -12322,7 +12322,7 @@
         "DELIVERY_ORDER": {
           "kind": "container",
           "value_type": "list",
-          "length": 13
+          "length": 14
         },
         "Optional": {
           "kind": "_SpecialForm"
@@ -12397,12 +12397,12 @@
         "DELIVERY_TABLE_KEYS": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "DELIVERY_TABLE_META": {
           "kind": "container",
           "value_type": "tuple",
-          "length": 13
+          "length": 14
         },
         "ENGINE_DELIVERY_COUNT": {
           "kind": "constant",
@@ -21553,7 +21553,7 @@
         "TEMPLATES": {
           "kind": "container",
           "value_type": "dict",
-          "length": 19
+          "length": 20
         },
         "annotations": {
           "kind": "_Feature"
@@ -26298,6 +26298,7 @@
           "signature": "(data_dir: 'Path') -> None",
           "defined_in": "lvke_mcp.servers.lvke_archive.storage",
           "public_members": [
+            "count_chunks_containing",
             "extract_indicators",
             "extract_structure",
             "extract_structure_v2",
@@ -26305,6 +26306,7 @@
             "get_chapter",
             "get_chapter_by_theme",
             "get_meta",
+            "last_search_backend",
             "list_all",
             "mode",
             "reload",
@@ -26446,6 +26448,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "build_coordination": {
+          "kind": "callable",
+          "signature": "(result: 'dict[str, Any]', *, server_name: 'str | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.coordination"
+        },
         "build_server": {
           "kind": "callable",
           "signature": "() -> 'StdioServer'",
@@ -26529,6 +26536,7 @@
           "signature": "(data_dir: 'Path') -> None",
           "defined_in": "lvke_mcp.servers.lvke_archive.storage",
           "public_members": [
+            "count_chunks_containing",
             "extract_indicators",
             "extract_structure",
             "extract_structure_v2",
@@ -26536,6 +26544,7 @@
             "get_chapter",
             "get_chapter_by_theme",
             "get_meta",
+            "last_search_backend",
             "list_all",
             "mode",
             "reload",
@@ -32043,11 +32052,6 @@
         "annotations": {
           "kind": "_Feature"
         },
-        "complete_pending_suite_retest": {
-          "kind": "callable",
-          "signature": "(workspace_id: 'str', child_review_id: 'str') -> 'dict[str, Any] | None'",
-          "defined_in": "lvke_mcp.servers.lvke_deliverable_review._service.retest"
-        },
         "deepcopy": {
           "kind": "callable",
           "signature": "(x, memo=None, _nil=[])",
@@ -32413,6 +32417,11 @@
           "signature": "(*args, **kwargs)",
           "defined_in": "typing",
           "public_members": []
+        },
+        "REVIEW_DIMENSIONS": {
+          "kind": "container",
+          "value_type": "set",
+          "length": 7
         },
         "STORE": {
           "kind": "ReviewEventStore"
@@ -40319,7 +40328,9 @@
           "kind": "class",
           "signature": "(markdown: 'str', warnings: 'list[str]', rows_used: 'int') -> None",
           "defined_in": "lvke_mcp.servers.lvke_templates.filler",
-          "public_members": []
+          "public_members": [
+            "rows_rendered"
+          ]
         },
         "annotations": {
           "kind": "_Feature"
@@ -40327,6 +40338,11 @@
         "dataclass": {
           "kind": "callable",
           "signature": "(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False, weakref_slot=False)",
+          "defined_in": "dataclasses"
+        },
+        "field": {
+          "kind": "callable",
+          "signature": "(*, default=<dataclasses._MISSING_TYPE object>, default_factory=<dataclasses._MISSING_TYPE object>, init=True, repr=True, hash=None, compare=True, metadata=None, kw_only=<dataclasses._MISSING_TYPE object>)",
           "defined_in": "dataclasses"
         },
         "fill_template": {
@@ -40434,7 +40450,7 @@
         "TEMPLATES": {
           "kind": "container",
           "value_type": "dict",
-          "length": 19
+          "length": 20
         },
         "_tool_fill_template": {
           "kind": "callable",
@@ -40453,6 +40469,11 @@
         },
         "annotations": {
           "kind": "_Feature"
+        },
+        "build_coordination": {
+          "kind": "callable",
+          "signature": "(result: 'dict[str, Any]', *, server_name: 'str | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.coordination"
         },
         "build_server": {
           "kind": "callable",
@@ -40865,6 +40886,9 @@
         "INTENT_STORE": {
           "kind": "JSONArtifactStore"
         },
+        "Iterable": {
+          "kind": "_SpecialGenericAlias"
+        },
         "MANIFEST_STORE": {
           "kind": "JSONArtifactStore"
         },
@@ -41234,6 +41258,10 @@
             "write_text"
           ]
         },
+        "REQUIRED_FIELD_UNANSWERED_PREFIX": {
+          "kind": "constant",
+          "value_type": "str"
+        },
         "RUN_STORE": {
           "kind": "JSONArtifactStore"
         },
@@ -41466,6 +41494,11 @@
         },
         "annotations": {
           "kind": "_Feature"
+        },
+        "build_skip_history_slots": {
+          "kind": "callable",
+          "signature": "(skipped_fields: 'list[dict[str, Any]]', skip_history: 'list[dict[str, Any]] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_zero_material_delivery._service.report_render"
         },
         "build_slot_values": {
           "kind": "callable",
@@ -42079,6 +42112,11 @@
           "kind": "module",
           "target": "base64"
         },
+        "build_skip_history_slots": {
+          "kind": "callable",
+          "signature": "(skipped_fields: 'list[dict[str, Any]]', skip_history: 'list[dict[str, Any]] | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.servers.lvke_zero_material_delivery._service.report_render"
+        },
         "build_slot_values": {
           "kind": "callable",
           "signature": "(*, intent: 'dict[str, Any]', assumption_package: 'dict[str, Any]', finance: 'dict[str, Any]', blockers: 'list[str]', quality_issues: 'list[str]', public_research: 'dict[str, Any]', skipped_fields: 'list[dict[str, Any]]', report_profile: 'dict[str, Any] | None' = None) -> 'dict[str, Any]'",
@@ -42646,6 +42684,11 @@
         "annotations": {
           "kind": "_Feature"
         },
+        "build_coordination": {
+          "kind": "callable",
+          "signature": "(result: 'dict[str, Any]', *, server_name: 'str | None' = None) -> 'dict[str, Any]'",
+          "defined_in": "lvke_mcp.runtime.coordination"
+        },
         "build_server": {
           "kind": "callable",
           "signature": "() -> 'StdioServer'",
@@ -42655,6 +42698,33 @@
           "kind": "callable",
           "signature": "(cls=None, /, *, init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False, match_args=True, kw_only=False, slots=False, weakref_slot=False)",
           "defined_in": "dataclasses"
+        },
+        "date": {
+          "kind": "class",
+          "signature": null,
+          "defined_in": "datetime",
+          "public_members": [
+            "ctime",
+            "day",
+            "fromisocalendar",
+            "fromisoformat",
+            "fromordinal",
+            "fromtimestamp",
+            "isocalendar",
+            "isoformat",
+            "isoweekday",
+            "max",
+            "min",
+            "month",
+            "replace",
+            "resolution",
+            "strftime",
+            "timetuple",
+            "today",
+            "toordinal",
+            "weekday",
+            "year"
+          ]
         },
         "err": {
           "kind": "callable",

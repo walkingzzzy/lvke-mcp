@@ -444,6 +444,34 @@ TEMPLATES: dict[str, dict[str, Any]] = {
             "首年投入铺底流动资金，达产年补足",
         ],
     },
+    # ── 附表11 财务计划现金流量表 ─────────────────────────────────────
+    # 列键与 finance/_table_render/specs.py 的 "financial-plan" 一致，后者取自
+    # 运行时唯一生产者 annual._build_financial_plan。改列键前先看那两处。
+    "financial-plan": {
+        "template_id": "financial-plan",
+        "category": "cashflow",
+        "name": "财务计划现金流量表",
+        "description": "对应「投融资与财务方案-财务效益评价」的资金可持续性：逐年经营/投资/融资三活动净现金流、累计盈余资金与资金缺口年标记。",
+        "columns": [
+            {"key": "period", "label": "计算期(年)", "unit": "", "type": "number"},
+            {"key": "phase", "label": "阶段", "unit": "", "type": "string"},
+            {"key": "operating_net", "label": "经营活动净现金流", "unit": "万元", "type": "number"},
+            {"key": "invest_out", "label": "投资活动净流出", "unit": "万元", "type": "number"},
+            {"key": "finance_in", "label": "融资活动净流入", "unit": "万元", "type": "number"},
+            {"key": "loan_draw", "label": "其中：贷款提款", "unit": "万元", "type": "number"},
+            {"key": "capital_own", "label": "其中：资本金投入", "unit": "万元", "type": "number"},
+            {"key": "gov_subsidy", "label": "其中：政府补助", "unit": "万元", "type": "number"},
+            {"key": "debt_service", "label": "还本付息", "unit": "万元", "type": "number"},
+            {"key": "net_cashflow", "label": "净现金流量", "unit": "万元", "type": "number"},
+            {"key": "cumulative", "label": "累计盈余资金", "unit": "万元", "type": "number"},
+            {"key": "gap", "label": "是否存在资金缺口", "unit": "", "type": "boolean"},
+        ],
+        "notes": [
+            "逐年记录表(每行一年)，不是「项目/合计」式科目表",
+            "累计盈余资金逐年滚动；任一年为负即标记资金缺口年",
+            "gap 为布尔值，按原值输出，不折算 0/1，免得被下游当金额读",
+        ],
+    },
 }
 
 
@@ -452,10 +480,12 @@ TEMPLATES: dict[str, dict[str, Any]] = {
 #   - appendix_no    附表序号（正文内表如风险矩阵/行政手续进度序号为空串）
 #   - chapter_theme  对应 gov9/ent9 章节主题（供 appendix_manifest 归章）
 #   - indicators     该表提供/支撑的关键技经指标 key（供 fact_pack 勾稽核对）
-# P0：附表序号按【晏批注 13 张交付附表】编号对齐（交付口径，非甲方 Excel 模板编号）。
+# P0：附表序号按【晏批注交付附表】编号对齐（交付口径，非甲方 Excel 模板编号）。
 # 交付编号语义：附表2=建设期利息、附表4=资金筹措、附表5=收入、附表6=总成本、
 # 6-1=工资、6-2=折旧、6-3=摊销。折旧/摊销对外用交付编号 6-2/6-3，与甲方模板 6-5/6-6
-# 靠 standard_appendix_dict() 桥接。敏感性/技经指标为展示表，不占 13 张基础编号。
+# 靠 standard_appendix_dict() 桥接。敏感性/技经指标为展示表，不占交付编号。
+# 交付集现为 14 张（原十三表 + 附表11 财务计划现金流量表），张数真源在 finance 侧
+# table_pack.DELIVERY_TABLE_KEYS；本目录只做展示与甲方桥接，须与其一致。
 _APPENDIX_META: dict[str, dict[str, Any]] = {
     "investment-estimation": {"appendix_no": "附表1", "chapter_theme": "financial",
                               "indicators": ["total_investment", "construction_investment", "working_capital"]},
@@ -483,7 +513,9 @@ _APPENDIX_META: dict[str, dict[str, Any]] = {
                  "indicators": ["project_irr", "npv", "payback_years"]},
     "capital-cashflow": {"appendix_no": "附表10", "chapter_theme": "financial",
                          "indicators": ["capital_irr"]},
-    # 展示表（不占 13 张基础附表编号）
+    "financial-plan": {"appendix_no": "附表11", "chapter_theme": "financial",
+                       "indicators": []},
+    # 展示表（不占交付附表编号）
     "sensitivity": {"appendix_no": "", "chapter_theme": "risk",
                     "indicators": ["project_irr"]},
     "key-indicators": {"appendix_no": "", "chapter_theme": "conclusion",
@@ -549,7 +581,7 @@ def appendix_catalog(chapter_theme: str | None = None) -> list[dict[str, Any]]:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# P0-f：标准附表字典 —— 晏批注 13 张交付编号 ↔ 甲方 Excel 模板 16-sheet 桥接。
+# P0-f：标准附表字典 —— 晏批注交付编号（现 14 张）↔ 甲方 Excel 模板 16-sheet 桥接。
 # 用「业务名称」做主键联合识别，绝不按裸编号自动对映（否则甲方 6-2 燃动会被
 # 错当交付 6-2 折旧、甲方 6-5 折旧会被错当 6-6 摊销）。同时覆盖甲方表头 6-4/6-5
 # 编号漂移缺陷。证据：review_outputs_20260708/csv/excel_workbook_sheet_summary.csv、
@@ -562,7 +594,7 @@ def appendix_catalog(chapter_theme: str | None = None) -> list[dict[str, Any]]:
 #   template_id   系统内部 finance_model/catalog 的 template_id（None=系统未单列）
 #   vendor_sheet  甲方 Excel 工作表名（None=甲方模板无此表 / 交付不取自甲方）
 #   vendor_header 甲方 Excel 表头显示编号（体现 6-5/6-6 漂移；None=无）
-#   delivered     是否属于 13 张交付附表
+#   delivered     是否属于交付附表（当前交付集 14 张）
 #   note          桥接/漂移说明
 _STANDARD_APPENDIX_DICT: list[dict[str, Any]] = [
     {"delivery_no": "附表1", "business": "固定资产投资估算表", "template_id": "investment-estimation",
@@ -594,19 +626,23 @@ _STANDARD_APPENDIX_DICT: list[dict[str, Any]] = [
      "vendor_sheet": "附表9", "vendor_header": "附表9", "delivered": True, "note": "编号一致"},
     {"delivery_no": "附表10", "business": "项目资本金流量表", "template_id": "capital-cashflow",
      "vendor_sheet": "附表10", "vendor_header": "附表10", "delivered": True, "note": "编号一致"},
+    {"delivery_no": "附表11", "business": "财务计划现金流量表", "template_id": "financial-plan",
+     "vendor_sheet": None, "vendor_header": None, "delivered": True,
+     "note": "甲方 Excel 无此表（实测无「财务计划」/「附表11」工作表）；"
+             "结构由引擎 annual._build_financial_plan 定义，无甲方底稿可比对"},
     # ── 甲方模板专有 / 不交付（仅作公式对照与内部复算层）──
     {"delivery_no": "", "business": "外购原材料费估算表", "template_id": None,
      "vendor_sheet": "附表6-1", "vendor_header": "附表6-1", "delivered": False,
-     "note": "制造业专有；13 张交付口径不含，文旅/房地产项目并入总成本"},
+     "note": "制造业专有；交付口径不含，文旅/房地产项目并入总成本"},
     {"delivery_no": "", "business": "外购燃料和动力费估算表", "template_id": None,
      "vendor_sheet": "附表6-2", "vendor_header": "附表6-2", "delivered": False,
-     "note": "制造业专有；13 张交付口径不含，文旅/房地产项目并入总成本"},
+     "note": "制造业专有；交付口径不含，文旅/房地产项目并入总成本"},
     {"delivery_no": "", "business": "投资估算复核表", "template_id": None,
      "vendor_sheet": "投资复核", "vendor_header": "", "delivered": False,
      "note": "仅作双轨复算的内部对照层，不交付"},
     {"delivery_no": "", "business": "主要技术经济指标汇总表", "template_id": "key-indicators",
      "vendor_sheet": "主要经济指标汇总表", "vendor_header": "", "delivered": False,
-     "note": "展示/复核表；指标必须反向勾稽到现金流与13张基础附表"},
+     "note": "展示/复核表；指标必须反向勾稽到现金流与各张基础交付附表"},
     {"delivery_no": "", "business": "单因素敏感性分析表", "template_id": "sensitivity",
      "vendor_sheet": "敏感度分析", "vendor_header": "", "delivered": False,
      "note": "敏感度/敏感性及各因子子表统一映射为独立情景复核"},
@@ -617,7 +653,7 @@ _STANDARD_APPENDIX_DICT: list[dict[str, Any]] = [
 
 
 def standard_appendix_dict() -> list[dict[str, Any]]:
-    """返回标准附表字典（晏批注 13 张交付编号 ↔ 甲方 16-sheet 桥接）。
+    """返回标准附表字典（晏批注交付编号 ↔ 甲方 16-sheet 桥接）。
 
     Excel 导入映射时按 ``business``（业务名称）主键识别，不按裸编号；
     ``vendor_sheet`` 与 ``vendor_header`` 不一致的项即甲方 6-5/6-6 编号漂移。
@@ -645,7 +681,12 @@ def map_vendor_sheet(sheet_name: str = "", header_no: str = "", business: str = 
 
 
 def delivery_appendix_list() -> list[dict[str, Any]]:
-    """返回 13 张交付附表（按交付编号排序），供验收 B-02 与前端附表目录使用。"""
+    """返回 14 张交付附表（按交付编号排序），供验收 B-02 与前端附表目录使用。
+
+    张数以 ``delivered=True`` 为唯一判据，须与 finance 侧
+    ``table_pack.ENGINE_DELIVERY_COUNT`` / ``DELIVERY_TABLE_KEYS`` 保持一致
+    （附表11 财务计划现金流量表于 2026-08-31 并入交付集）。
+    """
     delivered = [dict(e) for e in _STANDARD_APPENDIX_DICT if e["delivered"]]
 
     def _k(it: dict[str, Any]) -> tuple[int, int]:

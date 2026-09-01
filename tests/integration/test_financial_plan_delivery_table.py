@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -106,6 +107,121 @@ class FinancialPlanDeliveryTableTest(unittest.TestCase):
         self.assertEqual(content.get("grade"), "reference", content.get("structure_gaps"))
         self.assertTrue(content.get("reference_structure"))
         self.assertEqual(content.get("structure_gaps"), [])
+
+    def test_funding_gap_check_reads_the_runtime_producer_key(self) -> None:
+        """C-1 回归：缺口检查必须读真生产者的 ``gap``，不是死代码的 ``funding_gap``。
+
+        原缺陷：``checks.py`` 读 ``funding_gap``（只存在于已删除的死代码
+        ``statements.financial_plan_rows``），使本检查恒 ``ok=true`` —— 注入真缺口年
+        仍报「缺口年数 0/N」，资金可持续性提示对任何项目都通过。
+        """
+
+        from lvke_mcp.domains.finance.checks import run_checks
+
+        def _gap_check(result: dict) -> dict:
+            rows = [
+                item for item in run_checks(result)
+                if str(item.get("rule") or "") == "财务计划无资金缺口年"
+            ]
+            self.assertEqual(len(rows), 1, rows)
+            return rows[0]
+
+        with_gap = _gap_check({"annual": {"financial_plan": [
+            {"period": 1, "phase": "建设期", "cumulative": 0.0, "gap": False},
+            {"period": 2, "phase": "运营期", "cumulative": -9999.0, "gap": True},
+        ]}})
+        self.assertFalse(with_gap["ok"], "真缺口年必须判 ok=false")
+        self.assertEqual(with_gap["detail"], "缺口年数 1/2")
+
+        without_gap = _gap_check({"annual": {"financial_plan": [
+            {"period": 1, "phase": "建设期", "cumulative": 0.0, "gap": False},
+            {"period": 2, "phase": "运营期", "cumulative": 120.0, "gap": False},
+        ]}})
+        self.assertTrue(without_gap["ok"], "无缺口年不得误判（fail-closed 不能误杀正常链）")
+        self.assertEqual(without_gap["detail"], "缺口年数 0/2")
+
+    def test_dead_duplicate_producer_stays_deleted(self) -> None:
+        """同语义第二份实现已删除：它两次让消费方按错键名写（列全 None、缺口恒 ok）。"""
+
+        import lvke_mcp.domains.finance.statements as statements
+
+        self.assertFalse(
+            hasattr(statements, "financial_plan_rows"),
+            "statements.financial_plan_rows 复活了；它的键名与运行时生产者不一致，"
+            "留着就会被下一个消费方照抄",
+        )
+
+    def test_rendered_rows_never_carry_the_dead_code_keys(self) -> None:
+        """真生产者的行只能带 gap，不得出现死代码的 funding_gap/cash_end 等键。"""
+
+        prepared = finance_service.prepare_spec({"workspace_id": self.workspace})
+        run = finance_service.run_model({
+            "workspace_id": self.workspace,
+            "spec_id": prepared["spec_id"],
+            "idempotency_key": "financial-plan-keys",
+        })
+        self.assertTrue(run.get("success"), run)
+        detail = finance_service.get_run({
+            "workspace_id": self.workspace, "run_id": run["run_id"], "view": "full",
+        })
+        payload = detail.get("data") or detail
+        rows = ((payload.get("annual") or {}).get("financial_plan")) or []
+        self.assertTrue(rows, "取不到 annual.financial_plan（响应信封结构变了？）")
+        for row in rows:
+            self.assertIn("gap", row)
+            for dead in ("funding_gap", "cash_end", "cum_surplus", "min_cash"):
+                self.assertNotIn(dead, row, f"出现死代码键 {dead}")
+
+    def test_appendix_catalog_matches_engine_delivery_count(self) -> None:
+        """C-4 回归：模板目录/附表字典的张数必须跟随引擎交付集，不得停在 13。"""
+
+        from lvke_mcp.domains.templates.catalog import (
+            TEMPLATES,
+            delivery_appendix_list,
+            map_vendor_sheet,
+        )
+        from lvke_mcp.domains.finance._table_render.specs import _TABLE_SPECS
+
+        self.assertIn("financial-plan", TEMPLATES)
+        delivered = delivery_appendix_list()
+        self.assertEqual(
+            len(delivered), ENGINE_DELIVERY_COUNT,
+            "附表目录张数与引擎交付集不一致（曾停在 13）",
+        )
+        self.assertEqual(delivered[-1]["delivery_no"], "附表11")
+
+        # 列键必须与 finance 侧规格逐项一致，否则前端目录与实际交付件对不上。
+        self.assertEqual(
+            [column["key"] for column in TEMPLATES["financial-plan"]["columns"]],
+            [key for key, _label in _TABLE_SPECS["financial-plan"]["columns"]],
+        )
+        # 甲方底稿无此表：vendor_sheet 为空且不得被 sheet 名匹配命中。
+        entry = map_vendor_sheet(business="财务计划现金流量表")
+        self.assertEqual(entry["delivery_no"], "附表11")
+        self.assertIsNone(entry["vendor_sheet"])
+        # 既有漂移映射不能被新增项破坏。
+        self.assertEqual(map_vendor_sheet(sheet_name="附表6-5")["delivery_no"], "附表6-2")
+
+    def test_review_standard_requirement_states_fourteen_tables(self) -> None:
+        """C-3 回归：审查标准文案跟上 14 张；requirement_id 保持不变（它是模板文件名）。"""
+
+        from lvke_mcp.runtime.package_config import package_config_dir
+
+        config_dir = package_config_dir()
+        catalog = json.loads(
+            (config_dir / "review_standard_requirements.json").read_text(encoding="utf-8")
+        )
+        rows = [
+            item for item in catalog["requirements"]
+            if item["requirement_id"] == "REQ-FINANCE-13-TABLES"
+        ]
+        self.assertEqual(len(rows), 1, "requirement_id 变了会同时打断模板解析与已固化对象")
+        self.assertNotIn("十三张", rows[0]["title"])
+        self.assertIn("十四", rows[0]["title"])
+        # 模板文件按 requirement_id 命名解析，必须仍然存在。
+        template = config_dir / "sim_a_templates" / "generic" / "REQ-FINANCE-13-TABLES.md.j2"
+        self.assertTrue(template.is_file(), f"模板按 requirement_id 命名解析，缺失即断链：{template}")
+        self.assertNotIn("十三表", template.read_text(encoding="utf-8"))
 
     def test_csv_export_includes_the_table(self) -> None:
         prepared = finance_service.prepare_spec({"workspace_id": self.workspace})

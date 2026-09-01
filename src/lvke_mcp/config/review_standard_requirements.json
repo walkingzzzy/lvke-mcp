@@ -18,8 +18,8 @@
     },
     {
       "requirement_id": "REQ-FINANCE-13-TABLES",
-      "title": "十三张财务附表",
-      "description": "十三表必须来自同一 FinanceRun 并通过 technical 与 formal 校验。",
+      "title": "十四张财务交付附表",
+      "description": "十四张交付附表（原十三表 + 附表11 财务计划现金流量表）必须来自同一 FinanceRun 并通过 technical 与 formal 校验。requirement_id 保留 13-TABLES 字样只为兼容既有模板文件名与已固化对象，不代表交付张数。",
       "required_evidence": ["FinanceRun", "FinanceTablesPackage"]
     },
     {

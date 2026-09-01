@@ -69,9 +69,12 @@ def run_checks(
         )
 
     # Funding gap any year
+    # 键名以运行时真正的生产者 annual._build_financial_plan 为准（它写 "gap"）。
+    # 曾误读同语义死代码 statements.financial_plan_rows 的 "funding_gap"，
+    # 导致本检查恒 ok=true（真缺口年也报「缺口年数 0/N」）。死代码已删除。
     fp = (result.get("annual") or {}).get("financial_plan") or []
     if fp:
-        gaps = [x for x in fp if x.get("funding_gap")]
+        gaps = [x for x in fp if x.get("gap")]
         checks.append(
             {
                 "rule": "财务计划无资金缺口年",
