@@ -11,6 +11,21 @@ from .ingest import _documents_from_task
 from .numeric_gates import _cell_position, _locator_text
 
 
+def _column_letters(index: int) -> str:
+    """1 → A、27 → AA。与 source_files_repository._spreadsheet_column 同算法。
+
+    刻意不跨层 import 适配器层的私有函数：本模块只需要把 DOCX 行投影成
+    A1 形式供画像分组，反向依赖 adapters 会让分析域耦合到资料解析实现。
+    """
+
+    value = max(1, int(index))
+    letters = ""
+    while value:
+        value, remainder = divmod(value - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
 def profile_tabular(
     workspace_id: str,
     task_id: str,
@@ -42,6 +57,40 @@ def profile_tabular(
         sheets: dict[str, list[dict[str, Any]]] = {}
         for locator in document.get("locators") or []:
             if not isinstance(locator, dict):
+                continue
+            if locator.get("kind") == "docx_table_row":
+                # DOCX 表格：解析器发的是**行级** locator（带 cells 数组），没有
+                # 单元格坐标。此前本函数只认 cell/spreadsheet_cell，于是含表格的
+                # DOCX 一律被判 no_cell_locators —— 「我的 DOCX 里明明有表」。
+                # 这里把行投影成与 CSV/XLSX 同形的单元格 locator，让下游的表头、
+                # 行列数、数值统计逻辑不必为 DOCX 开分支。
+                # 不改解析器的行级形状：citation 复核按 table:N:row:M 回指，
+                # 改成单元格级会打断已固化 locator 的可解析性。
+                cells = locator.get("cells")
+                if not isinstance(cells, list) or not cells:
+                    continue
+                try:
+                    table_index = int(locator.get("table") or 0)
+                    row_index = int(locator.get("row") or 0)
+                except (TypeError, ValueError):
+                    continue
+                if table_index <= 0 or row_index <= 0:
+                    continue
+                # 每张表独立成"工作表"，避免多表被合并成一张而算出错误的行列数。
+                sheet_name = f"docx_table_{table_index}"
+                for column_index, cell_text in enumerate(cells, start=1):
+                    text = str(cell_text or "").strip()
+                    if not text:
+                        continue
+                    sheets.setdefault(sheet_name, []).append({
+                        # 合成 A1 引用只服务于画像分组，不对外冒充可引用 locator：
+                        # 保留原始 locator 串，以免被误当作可回指的证据坐标。
+                        "cell": f"{_column_letters(column_index)}{row_index}",
+                        "text": text,
+                        "kind": "docx_table_cell",
+                        "locator": str(locator.get("locator") or ""),
+                        "projected_from": "docx_table_row",
+                    })
                 continue
             if locator.get("kind") not in {"cell", "spreadsheet_cell"}:
                 continue

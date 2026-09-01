@@ -623,3 +623,130 @@ def test_suite_retest_waits_for_fresh_assessments() -> None:
     assert finalized["retest_result"]["closed_finding_ids"]
     parent = service.get_review({"workspace_id": workspace, "review_id": parent_id})["review"]
     assert parent["pending_retest_operation_ids"] == []
+
+
+def test_partial_remediation_releases_parent_and_keeps_unfixed_findings_open() -> None:
+    """部分整改是常态路径：它必须解开父审查的挂起，同时不误关未修项。
+
+    此前的缺陷是子审查 `overall_verdict != pass` 就永不清挂起，父审查不可逃逸，
+    且错误码谎称"引擎尚未形成 findings"。修复后逐条独立裁决。
+
+    与 `test_suite_retest_waits_for_fresh_assessments` 的差别：那条只覆盖**全部
+    整改**（子审查 pass）；本条覆盖**部分整改**（子审查 fail）。
+    `remaining_finding_ids` 在此前整个 tests/ 里零引用。
+    """
+
+    workspace = "seven-domain-partial-retest"
+    roles = _five_files(workspace)
+    package = _prepare_package(workspace, roles)
+    parent_id = _start_suite(workspace, package, suffix="-parent")
+
+    # 两条 finding 分属两个维度：article_quality 不修，data_quality 修掉。
+    for dimension, message, check_id in (
+        ("article_quality", "存在论证跳跃", "ARTICLE.LANGUAGE.LOGIC"),
+        ("data_quality", "关键数据缺少对账", "DATA.ANOMALY.RECONCILIATION"),
+    ):
+        failed = _submit_dimension(
+            workspace,
+            parent_id,
+            package["review_package_id"],
+            dimension,
+            status="failed",
+            suffix="-parent",
+            findings=[{
+                "check_id": check_id,
+                "severity": "P1",
+                "message": message,
+                "target_location": {"section": "市场分析"},
+                "missing_evidence_reason": "缺少中间依据",
+                "remediation": "补齐依据",
+            }],
+        )
+        assert failed["status"] == "ok", failed
+    for dimension in DIMENSIONS:
+        if dimension in {"article_quality", "data_quality"}:
+            continue
+        assert _submit_dimension(
+            workspace, parent_id, package["review_package_id"], dimension, suffix="-parent",
+        )["status"] == "ok"
+
+    revised_document = Document()
+    revised_document.add_heading("项目可行性研究报告（部分整改版）", level=1)
+    revised_document.add_paragraph(
+        "本项目位于湖北省。市场、需求、建设方案、投资融资、财务评价、风险及结论已列示；"
+        "数据对账已补齐，论证链仍待完善。"
+    )
+    revised_buffer = io.BytesIO()
+    revised_document.save(revised_buffer)
+    revised_roles = dict(roles)
+    revised_roles["report"] = _import(
+        workspace,
+        "项目可行性研究报告部分整改版.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        revised_buffer.getvalue(),
+    )
+    revised_package = _prepare_package(workspace, revised_roles, suffix="-revised")
+    result = service.retest({
+        "workspace_id": workspace,
+        "idempotency_key": "suite-partial-retest",
+        "review_id": parent_id,
+        "target": {"target_type": "review_package", "target_id": revised_package["review_package_id"]},
+        "mode": "standard",
+        "remediation_evidence": [{
+            "source_id": revised_roles["report"],
+            "locator": "paragraph:1",
+            "content_hash": "sha256:" + "c" * 64,
+        }],
+    })
+    assert result["status"] == "accepted", result
+    child_id = result["retest_review_id"]
+    parent = service.get_review({"workspace_id": workspace, "review_id": parent_id})["review"]
+    assert parent["pending_retest_operation_ids"], "复测受理后父审查应处于挂起"
+
+    # 子审查：data_quality 通过，article_quality 仍失败 → 子审查整体 fail。
+    for dimension in DIMENSIONS:
+        if dimension == "article_quality":
+            assert _submit_dimension(
+                workspace,
+                child_id,
+                revised_package["review_package_id"],
+                dimension,
+                status="failed",
+                suffix="-child",
+                findings=[{
+                    "check_id": "ARTICLE.LANGUAGE.LOGIC",
+                    "severity": "P1",
+                    "message": "论证跳跃仍未修复",
+                    "target_location": {"section": "市场分析"},
+                    "missing_evidence_reason": "缺少中间依据",
+                    "remediation": "补齐论证链",
+                }],
+            )["status"] == "ok"
+            continue
+        assert _submit_dimension(
+            workspace, child_id, revised_package["review_package_id"], dimension, suffix="-child",
+        )["status"] == "ok"
+    for dimension in DIMENSIONS:
+        service.confirm_dimension({
+            "workspace_id": workspace,
+            "idempotency_key": f"confirm-partial-{dimension}",
+            "review_id": child_id,
+            "dimension": dimension,
+            "role_declaration": "复核人",
+            "review_statement": "已按各域判据复核",
+            "limitations_accepted": [],
+        })
+    finalized = service.finalize({
+        "workspace_id": workspace,
+        "idempotency_key": "finalize-partial-child",
+        "review_id": child_id,
+    })
+
+    # 关键三条：子审查 fail、挂起仍被清空、逐条裁决正确。
+    assert finalized["overall_verdict"] == "fail", finalized
+    retest_result = finalized["retest_result"]
+    assert retest_result["status"] == "completed", retest_result
+    assert retest_result["closed_finding_ids"], "已整改项应被关闭"
+    assert retest_result["remaining_finding_ids"], "未整改项必须留在 remaining，不得被误关"
+    parent = service.get_review({"workspace_id": workspace, "review_id": parent_id})["review"]
+    assert parent["pending_retest_operation_ids"] == [], "部分整改不得锁死父审查"
