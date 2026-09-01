@@ -1,7 +1,9 @@
 # 绿科 MCP + Skills 能力现状与流程说明
 
-> 审查日期：2026-08-29｜审查基线：分支 `fix/delivery-honesty-and-skill-coverage` 的当前未提交工作树。
+> 审查日期：2026-09-01｜审查基线：分支 `fix/delivery-honesty-and-skill-coverage`
+> 提交 `621fe80`（工作树 clean，全仓回归 654 passed / 0 failed）。
 > 本轮结论只按实际执行结果更新；代码存在或静态检查通过不单独计为已实现能力。
+> 开发纪律见 §9（按本项目实际反复出现的缺陷形态归纳，每条都有实测 case）。
 >
 > 事实来源：仓库源码、`tests/fixtures/baseline/`、实跑 pytest 与运行时自省、G1/G2/G3 验收报告。
 > 本文的口径以**实测**为准。公开面为 **14 进程 / 180 工具**（七域审查新增 7 个工具；零材料 8→10：
@@ -54,8 +56,8 @@ MCP 负责**已经被服务端编码并实际执行**的可复算、可追溯和
 | 研究 | `lvke-deep-research` | 18 | `drp_*` / `drcp_*` | Agent 主导的 DR 计划、混合来源、checkpoint、引用审计 |
 | 规划 | `lvke-project-planning` | 17 | `pctx_*` + 7 类规划对象 | 项目上下文、市场/规模/收入/成本/定员/方案/政策 |
 | 财务 | `lvke-finance-model` | 18 | `fsp_*` / `run_*` | FinanceSpec v3、确定性财务模型、BoE、蒙特卡洛 |
-| 财务 | `lvke-finance-tables` | 8 | `ftp_*` | 只消费 run_id 的十三表渲染与导出 |
-| 财务 | `lvke-asset-acquisition` | 12 | `acqrun_*` | 酒店月度 / 光伏年度收购模型、专用十三表 |
+| 财务 | `lvke-finance-tables` | 8 | `ftp_*` | 只消费 run_id 的交付表渲染与导出（**14 张**：附表1-10 + 附表11 财务计划现金流量表） |
+| 财务 | `lvke-asset-acquisition` | 12 | `acqrun_*` | 酒店月度 / 光伏年度收购模型、专用交付表（15 张，与通用财务域不同套） |
 | 交付 | `lvke-report-generation` | 13 | `rprep_*` / `rrv_*` | 报告准备、提案改稿、校验、DOCX |
 | 交付 | `lvke-deliverable-review` | 22 | `rvprep_*` / `review_*` / `rvpkg_*` / `rvassess_*` / `rvdos_*` | 七域套件审查、findings 处置、两阶段复测、导出、国标适用性 |
 | 交付 | `lvke-feasibility-delivery` | 10 | `fdr_*` | 12 阶段编排、stale 传播、checkpoint、发布 |
@@ -230,7 +232,8 @@ delivery_create_from_sentence  ← 抽行业/地区/规模/工期；同时选定
 ```
 
 产物是 `estimate_preview`。实跑样例（`lvke产出/test-explicit-precedence/`）：
-11 个受控假设登记、总投资 119,894.60 万元、IRR 6.00、13 张表 CSV + XLSX、技术预估 DOCX。
+11 个受控假设登记、总投资 119,894.60 万元、IRR 6.00、交付表 CSV + XLSX、技术预估 DOCX。
+（该样例产出时交付集为 13 张；现为 14 张，见 §交付表数量语义。）
 
 **`feasibility_validation_id` 预览阶段恒空（已确认设计，非漏项）。** 零材料预览链
 不创建 `fdr_*`——可研交付运行由晋升后的 `project_context_create` →
@@ -304,7 +307,7 @@ promotion 完成 `Report → Review → Retest → Export → Release`，但拟�
 
 | 能力 | 实证 |
 |---|---|
-| 从结构化资料或一句话产出**估算预览**十三表 + 技术稿 | `lvke产出/` 下 3 套 14 CSV + XLSX + DOCX 实物；DOCX 输入解析限制见 §6.2 |
+| 从结构化资料或一句话产出**估算预览**交付表 + 技术稿 | `lvke产出/` 下实物；CSV 份数=交付表数+1（血缘表），现为 15；DOCX 输入解析限制见 §6.2 |
 | 确定性财务计算，零 LLM 参与算术 | IRR/XIRR 自研 Newton + 二分回退；不依赖 numpy_financial |
 | 十三表只从同一 run 渲染，16 条勾稽等式校验 | `_finance_model/checks.py`；不过则 `consistency_ok=False` |
 | 不可变对象、幂等与正式 lineage | 内容寻址 ID、`expected_basis_hash`、stale 传播；SIM-A 从 FormalPromotion 到 Release 在各正式边界重验，见 §6.1 |
@@ -569,3 +572,111 @@ FinanceRun → FinanceTablesPackage → Research/Planning → Report → Review 
 Release`，并且未晋升、无签名、篡改、混合和跨工作区对象失败关闭。它证明本地服务端正式
 谱系和业务 Release 闭环，不证明拟定模板是真实客户原件，不替代专业签审、外部数据可用性、
 DOCX 逐页视觉验收或仓库构建发布预检。
+
+---
+
+## 9. 开发规范
+
+按本项目实际反复出现的缺陷形态归纳，全部有实测case。改代码前读这一节比读架构省时间。
+
+### 9.1 最高频缺陷：同一语义两处实现，只改一侧
+
+已累计 6 例，是本产品单测最抓不到的形态：
+
+| 语义 | 两处实现 | 漂移后果 |
+|---|---|---|
+| 标签与数字配对看分句边界 | 审查域 `normalize.py` / 分析域 `numeric_gates.py` | 只修一侧，另一侧活体调用才暴露 |
+| 指标正文识别 vs run 取值路径 | `_METRIC_PATTERNS` / `_PATH_PATTERNS` | 只补正文表 →「不识别」变成「识别后报无法复现」 |
+| citation 来源合法集合 | `agent_lifecycle` submit 有 `.update(plan_source_ids)` / confirm 没有 | DR 死局：submit 过了 confirm 永不过，且无恢复路径 |
+| 文本编码检测 | 同文件 CSV 分支三级检测 / 文本分支裸 `decode(utf-8, replace)` | 非 UTF-8 中文标签全毁而**数字全存活** |
+| spec_hash 算在盖章前/后 | `spec_prepare.py` 先算后盖 / `spec_cases.py` 先盖后算 | 候选 spec_id 100% 死锁 |
+| 财务计划表行键 | `statements.financial_plan_rows`（死代码）/ `annual._build_financial_plan`（真生产者） | 按死代码写列 → 5 列恒为 `None` |
+
+**可机械扫描的红旗**：
+- 某常量/集合只在一侧被 `.update()` 或消费（缺陷当时 `plan_source_ids` 6 处引用
+  **全在 submit 侧**，confirm 侧零命中；修复后两侧对称）
+- 同一文件内同类输入的不同分支，降级/检测能力不对等（CSV 有 `csv_encoding_invalid`、文本分支零码）
+- 两个模块对同一对象做同一变换但顺序相反
+
+**纪律**：改任何「配对/双门/双路径」语义前，先 `grep` 全仓有无第二份实现，两侧一起改。
+
+### 9.2 绿灯的正确解读
+
+- **测试总数不变的全绿不算修复证据**。实测：25 个 `src/` 改动（含两处行为反转）
+  跑出与改动前**完全相同**的 629 passed —— 说明零新测试，绿灯只排除回归。
+  判断"修好没有"先比对**测试总数**而非通过率。
+- **报告是快照，工作区是现状**。读任何验收/交接文档前先 `git status --porcelain`；
+  文档声称的修复若只存在于工作区，复验必须先提交 + clean checkout + 重启。
+- 改运行时语义而测试总数没涨 = 该修复无回归保护，必须补测试或明确标注为仅活体验证。
+
+### 9.3 修 fail-closed 的两个方向都要验
+
+阻断类修复的真风险是**误杀正常交付**，不是"没拦住"。所以每次都要跑两条：
+
+1. 该拦的仍被拦（篡改、伪造 hash、未绑定来源）
+2. **正常链仍能通过**（这条最容易漏）
+
+已踩过的具体坑：修死锁可能换个位置又锁死 —— 新加前置条件必须按 profile/分支枚举
+全部合法状态（`quick` 与 `standard`/`deep` 的合法态集不同）。
+
+### 9.4 错误码必须能指向真因
+
+粗粒度错误码让排查方向系统性跑偏，已两例：
+
+- `formal_finance_run_content_hash_mismatch` 把「这个 run 不是 sim_a_formal 正式对象
+  （压根没有 content_hash）」报成篡改告警 → 已拆出 `formal_finance_run_not_promoted`
+- 标识符校验降级成 `internal_error`；41/52 次报的是通用 `object_id` 而非真实字段
+
+**纪律**：一码多因就拆码；错误消息要说**替代路径**（如"改用 review_mode=external"），
+并实测该路径真的可行。不要靠解析异常文案定位字段。
+
+### 9.5 声明 ≠ 实现
+
+契约里声明一个能力，但没有对应实现，会变成永远无法满足的伪要求：
+
+- 在 `required_formula_families` 声明族名却不往 XLSX 写公式 → coverage=0 → 卡死正式链
+- 在 `reconciliation_rules` 编造无人执行的规则名
+
+**纪律**：只声明确有实现的判据；声明后立刻实测 coverage/命中率不为 0。
+
+### 9.6 内容寻址对象：改 hash 是破坏性变更
+
+`object_id = {prefix}_{sha256_json(payload)[:24]}`。任何改变 hash 输入的"内部重构"
+都会穿透到对象身份、复用判据、幂等键三处，且**症状离根因很远**（报的是 id 不相等）。
+
+动 hash 前先 grep 三类消费方：`storage.put` 的 id 派生、拿 hash 做复用/幂等比对的
+`== data["..._hash"]`、跨对象 lineage 的 `compare_digest`。对已固化的历史对象要问
+"旧记录是不是另一种形态"，新算法必须对旧形态保持身份不变，否则分路径处理。
+
+### 9.7 加/删财务交付表要穿四层门禁
+
+每层只有上一层过了才暴露，按顺序验（跑 `validate_reference_contract()` 与
+`validate_reference_sources()` 自查比跑测试快）：
+
+1. `_run_service/base.py` 三个注册表（必填列/依赖/勾稽规则）+ `period_semantics` 归类
+2. `validate_reference_contract` 的四项底稿对齐
+3. `validate_reference_sources` 的 analysis_manifest 跨表引用边比对 —— **最隐蔽**，
+   症状是逐表 `grade=reference`、`coverage=1.0` 却仍报 `structure_incomplete`
+4. `required_formula_families` 要求 sheet 内真公式（见 §9.5）
+
+**无参考底稿的表**：不要编造 artifact 路径与哈希（那会让"未比对过"伪装成"已比对通过"），
+用 `reference_sheet=""` + `reference_provenance=engine_defined_no_reference_sheet`，
+校验器对这类表**换一组更严的要求**而非跳过检查。
+
+**三个计数分清**：`engine_delivery_count`（交付表，会变）、
+`reference_source_sheet_count`=15、`review_workbook_sheet_count`=16（描述甲方底稿与
+审查工作簿，**不随交付集增长**）。下游还有 6 处曾写死字面量，一律改引用常量或
+服务端自报字段。
+
+### 9.8 提交前门禁
+
+`make verify` = test + skills + plugin。三条注意：
+
+- 测试必须在 conda 环境 `lvke-mcp` 内跑，base 环境的 pytest import 不到 `src`
+- `build_codex_plugin.py` 会刷新 `skill_inventory.json` 的 `generated_at`；
+  只有时间戳变化时 checkout 回去，不提交无意义 churn
+- `build_metadata.json` 是 gitignore 的（设计如此）。它必须在**所有提交完成后**
+  生成，且生成后需重启服务才生效 —— 顺序错了会报 `stale_build_commit`
+
+Skill 覆盖需两条**相反**的不变量同时成立：正向查"文档提到的工具存不存在"，
+反向查"存在的工具有没有人教"。反向只扫 `skills/` 源树，否则插件副本会顶上。
