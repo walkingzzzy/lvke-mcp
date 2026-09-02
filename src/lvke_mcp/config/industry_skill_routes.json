@@ -17,11 +17,13 @@
         "hotel_lease"
       ],
       "project_types": [
-        "asset_acquisition"
+        "asset_acquisition",
+        "acquisition"
       ],
       "transaction_structures": [
         "asset_acquisition",
         "equity_acquisition",
+        "asset_transfer",
         "operation_lease"
       ],
       "primary_skill": "lvke-feasibility-study",
