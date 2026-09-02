@@ -31,6 +31,10 @@ from lvke_mcp.runtime.formal_promotion import (
     FormalLineageError,
     validate_formal_promotion,
 )
+from lvke_mcp.adapters.quality_diagnostic_repository import (
+    build_uncertainty,
+    record_quality_diagnostic,
+)
 
 from .envelope import _missing
 from .ingest import _documents_from_task
@@ -562,6 +566,47 @@ def build_evidence_pack(
             for doc in selected
         ],
     )
+    status_value = "partial" if conflicts or missing_fields else "ok"
+    partial_reasons = [
+        *[f"limitation:{item}" for item in limits],
+        *[f"conflict:{item.get('field') or item.get('metric') or 'unknown'}" for item in conflicts],
+        *[f"missing_field:{item.get('field') or 'unknown'}" for item in missing_fields],
+    ]
+    # Keep quality facts on the immutable EvidencePack itself.  The top-level
+    # response and a separately persisted QualityDiagnostic are projected from
+    # these exact values, so partial evidence can never look like a clean pass.
+    quality_issues = sorted(set(partial_reasons))
+    uncertainties: list[dict[str, Any]] = []
+    for item in conflicts:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or item.get("metric") or "unknown")
+        competing = item.get("values") or item.get("competing_values") or []
+        uncertainties.append(build_uncertainty(
+            "conflict",
+            field,
+            competing_values=competing,
+            source_refs=selected_ids,
+            confidence="unknown",
+            affected_outputs=("EvidencePack", "FinanceSpec", "FinanceRun", "FinanceTables", "Report"),
+            severity="material",
+            message=str(item.get("reason") or "来源之间存在未决口径冲突"),
+            required_action="人工确认冲突双方后创建新 revision，不覆盖当前 EvidencePack",
+        ))
+    for item in missing_fields:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field") or "unknown")
+        uncertainties.append(build_uncertainty(
+            "unverified",
+            field,
+            source_refs=selected_ids,
+            confidence="unknown",
+            affected_outputs=("FinanceSpec", "FinanceRun", "FinanceTables", "Report"),
+            severity="moderate",
+            message="未找到带 locator 的候选事实",
+            required_action="补充该字段的原始资料并完成人工复核",
+        ))
     payload = {
         "analysis_task_id": task_id,
         "evidence_track": evidence_track,
@@ -586,8 +631,9 @@ def build_evidence_pack(
         "conflicts": conflicts,
         "limitations": limits,
         "finance_boundary": "证据包不等于已确认 FinanceSpec；source_reconstructed 只表示基于现有项目资料重建，必须保留限制且不能认证项目事实；technical_fixture 仅验证技术链；controlled_assumption 只允许 estimate_preview。",
+        "quality_issues": quality_issues,
+        "uncertainties": uncertainties,
     }
-    status_value = "partial" if conflicts or missing_fields else "ok"
     record = EVIDENCE_STORE.put(
         workspace_id,
         payload,
@@ -599,11 +645,28 @@ def build_evidence_pack(
     warnings = [*limits]
     if missing_fields:
         warnings.append("期望字段存在证据缺口，evidence pack 记为 partial")
-    partial_reasons = [
-        *[f"limitation:{item}" for item in limits],
-        *[f"conflict:{item.get('field') or item.get('metric') or 'unknown'}" for item in conflicts],
-        *[f"missing_field:{item.get('field') or 'unknown'}" for item in missing_fields],
-    ]
+    diagnostic_ids: list[str] = []
+    diagnostic_uris: list[str] = []
+    if quality_issues:
+        try:
+            diagnostic = record_quality_diagnostic(
+                workspace_id,
+                target_type="evidence_pack",
+                target_id=record["object_id"],
+                rule_code="evidence_pack_incomplete",
+                uncertainties=uncertainties,
+                affected_outputs=("FinanceSpec", "FinanceRun", "FinanceTables", "Report"),
+                calculation_status="continued_with_conflict",
+                recommended_actions=("补充缺失字段并人工确认冲突后创建新 EvidencePack revision",),
+                basis_hash=record["basis_hash"],
+                input_snapshot_refs=[str(doc.get("source_id") or "") for doc in selected],
+            )
+            diagnostic_ids = [str(diagnostic["object_id"])]
+            diagnostic_uris = [str(diagnostic["resource_uri"])]
+        except (OSError, ValueError):
+            # The EvidencePack remains immutable and explicitly partial even if
+            # diagnostic persistence itself is unavailable.
+            quality_issues.append("quality_diagnostic_persistence_failed")
     return {
         "success": status_value == "ok",
         "business_success": status_value == "ok",
@@ -612,6 +675,8 @@ def build_evidence_pack(
         "status": status_value,
         "data_completeness": "complete" if status_value == "ok" else "partial",
         "partial_reasons": partial_reasons,
+        "quality_issues": sorted(set(quality_issues)),
+        "uncertainties": uncertainties,
         "evidence_pack_id": record["object_id"],
         "basis_hash": record["basis_hash"],
         "source_count": len(selected),
@@ -634,6 +699,8 @@ def build_evidence_pack(
             sha256_json(normalized_fixture_manifest) if normalized_fixture_manifest else None
         ),
         "resource_uris": [record["resource_uri"]],
+        "quality_diagnostic_ids": diagnostic_ids,
+        "quality_diagnostic_uris": diagnostic_uris,
         "warnings": warnings,
         "blockers": [],
         "next_actions": ["auto_accepted_estimate_fields 可直接喂 estimate_preview 匡算；正式交付仍走十三表人工节点"],

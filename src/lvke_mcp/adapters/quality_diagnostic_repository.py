@@ -28,6 +28,7 @@ CALCULATION_STATUSES = frozenset({"continued_with_conflict", "unavailable"})
 DIAGNOSTIC_STATUSES = frozenset({"open", "acknowledged", "resolved"})
 
 _TARGET_TYPES = frozenset({
+    "evidence_pack",
     "finance_run",
     "acquisition_run",
     "finance_tables",
@@ -37,6 +38,7 @@ _TARGET_TYPES = frozenset({
 #: ``target_type`` 到“可绑定上游对象类型”的归类面。同字段名 target_id 在
 #: 不同 target_type 下命名空间不同，固化前须显式声名，禁止跨域串读。
 _TARGET_KIND_LABEL = {
+    "evidence_pack": "EvidencePack",
     "finance_run": "FinanceRun",
     "acquisition_run": "AcquisitionRun",
     "finance_tables": "FinanceTablesPackage",
