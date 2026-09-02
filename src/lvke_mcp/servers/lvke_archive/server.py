@@ -48,9 +48,12 @@ def resolve_data_dir() -> Path:
         )
 
     # 仓库默认输出目录
-    repo_default = (
-        Path(__file__).resolve().parents[2] / "data" / "archive_index"
-    )
+    # ``server.py`` lives at ``<repo>/src/lvke_mcp/servers/lvke_archive``;
+    # the build script writes the repository-level ``data/archive_index``.
+    # The former parents[2] pointed at ``src/lvke_mcp/data`` and silently made
+    # a freshly built repository index undiscoverable when no env override was
+    # present.
+    repo_default = Path(__file__).resolve().parents[4] / "data" / "archive_index"
     if (repo_default / "metadata.sqlite").exists():
         return repo_default
 
