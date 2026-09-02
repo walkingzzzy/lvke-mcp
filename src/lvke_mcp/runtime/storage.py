@@ -52,6 +52,7 @@ def paginate_resource_entries(
 
     ordered = sorted(entries, key=lambda entry: str(entry.get("uri") or ""))
     snapshot_hash = sha256_json([str(entry.get("uri") or "") for entry in ordered])
+    total = len(ordered)
     last_uri = ""
     if cursor:
         try:
@@ -83,6 +84,11 @@ def paginate_resource_entries(
         next_cursor = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
     return {
         "resources": page,
+        # ``resources`` is the MCP protocol-facing name retained for backward
+        # compatibility; ``items``/``total`` provide the common collection
+        # envelope consumed by cross-service clients.
+        "items": page,
+        "total": total,
         "next_cursor": next_cursor,
         "has_more": has_more,
         "snapshot_hash": snapshot_hash,

@@ -12,6 +12,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from lvke_mcp.domains.finance import tables_service
 from lvke_mcp.domains.finance.industry_scenario_factory import build_industry_scenarios
@@ -156,6 +157,25 @@ class CsvTechnicalPreviewScopeTest(unittest.TestCase):
             with self.subTest(file=path.name):
                 first_line = path.read_text(encoding="utf-8-sig").splitlines()[0]
                 self.assertIn("【正式候选·含限制】", first_line)
+
+    def test_failed_table_does_not_publish_partial_directory(self) -> None:
+        """中途缺表时不得留下可读取的部分 CSV 目录。"""
+        from lvke_mcp.domains.finance._tables_service import export as export_module
+
+        original = export_module._scalar_csv_rows
+        calls = {"count": 0}
+
+        def fail_on_second(table: object) -> tuple[list[str], list[list[object]]]:
+            calls["count"] += 1
+            if calls["count"] == 2:
+                return [], []
+            return original(table)
+
+        with patch.object(export_module, "_scalar_csv_rows", side_effect=fail_on_second):
+            exported = self._export("technical")
+        self.assertEqual(exported.get("code"), "tables_validation_failed")
+        package_dir = Path(tables_service._export_root(self.workspace, "csv")) / self.package_id
+        self.assertFalse(package_dir.exists(), package_dir)
 
 
 if __name__ == "__main__":

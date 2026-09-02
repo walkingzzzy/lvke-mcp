@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -412,7 +414,6 @@ def export_csv(
         workspace_id,
         "csv",
     ) / require_safe_id(package_id, "package_id")
-    directory.mkdir(parents=True, exist_ok=True)
     csv_uris: list[str] = []
     csv_hashes: dict[str, str] = {}
     csv_manifest: list[dict[str, Any]] = []
@@ -424,57 +425,93 @@ def export_csv(
             validate_finance_tables_package(workspace_id, record or {})
         except FormalLineageError as exc:
             return _failure(exc.code, exc.message)
+    # Atomic publication: validate all scalar inputs before touching the final
+    # directory, then build every CSV and lineage file in a sibling temporary
+    # directory.  A failed table or write therefore leaves no partial readable
+    # deliverable under the package URI.
+    prepared: list[tuple[str, list[str], list[list[Any]]]] = []
     for key in _delivery_keys():
         headers, rows = _scalar_csv_rows(tables.get(key))
         if not headers or not rows:
             return _failure("tables_validation_failed", f"表 {key} 无可导出的标量表头或数据行")
-        target = directory / f"{key}.csv"
-        with target.open("w", encoding="utf-8-sig", newline="") as handle:
-            writer = csv.writer(handle, lineterminator="\r\n")
-            if technical_preview or csv_header_mark:
-                writer.writerow([csv_header_mark])
-            writer.writerow(headers)
-            writer.writerows(rows)
-        csv_uris.append(
-            PACKAGE_STORE.uri(
-                workspace_id,
-                package_id,
-            ) + f"/csv/{key}"
-        )
-        csv_hashes[key] = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
-        source_contract = package_manifest_by_key.get(key, {})
-        csv_manifest.append({
-            "table_code": key,
-            "table_id": key,
-            "delivery_no": source_contract.get("delivery_no"),
-            "title": source_contract.get("title"),
-            "order": source_contract.get("order"),
-            "table_contract_hash": source_contract.get("contract_hash"),
-            "run_id": run_id,
-            "package_id": package_id,
-            "content_hash": csv_hashes[key],
-            "model_version": str(run.get("model_version") or ""),
-            **canonical_lineage,
-            "row_count": len(rows),
-            "column_count": len(headers),
-            "resource_uri": csv_uris[-1],
-        })
+        prepared.append((key, headers, rows))
+
+    csv_root = directory.parent
+    csv_root.mkdir(parents=True, exist_ok=True)
+    temporary_dir: Path | None = None
+    reuse_existing = False
+    if directory.is_dir():
+        # Deterministic package exports are idempotent.  Reuse a complete
+        # existing directory; never overwrite it with a partially built retry.
+        expected = {f"{key}.csv" for key, _headers, _rows in prepared} | {"00_数据血缘.csv"}
+        if not expected.issubset({item.name for item in directory.iterdir()}):
+            return _failure("csv_export_incomplete_existing", "检测到不完整的既有 CSV 导出目录，拒绝覆盖")
+        reuse_existing = True
+    else:
+        temporary_dir = Path(tempfile.mkdtemp(prefix=f".{directory.name}.", dir=csv_root))
+
+    build_dir = directory if temporary_dir is None else temporary_dir
+    try:
+        for key, headers, rows in prepared:
+            target = build_dir / f"{key}.csv"
+            if not reuse_existing:
+                with target.open("w", encoding="utf-8-sig", newline="") as handle:
+                    writer = csv.writer(handle, lineterminator="\r\n")
+                    if technical_preview or csv_header_mark:
+                        writer.writerow([csv_header_mark])
+                    writer.writerow(headers)
+                    writer.writerows(rows)
+            csv_uris.append(
+                PACKAGE_STORE.uri(workspace_id, package_id) + f"/csv/{key}"
+            )
+            csv_hashes[key] = "sha256:" + hashlib.sha256(target.read_bytes()).hexdigest()
+            source_contract = package_manifest_by_key.get(key, {})
+            csv_manifest.append({
+                "table_code": key,
+                "table_id": key,
+                "delivery_no": source_contract.get("delivery_no"),
+                "title": source_contract.get("title"),
+                "order": source_contract.get("order"),
+                "table_contract_hash": source_contract.get("contract_hash"),
+                "run_id": run_id,
+                "package_id": package_id,
+                "content_hash": csv_hashes[key],
+                "model_version": str(run.get("model_version") or ""),
+                **canonical_lineage,
+                "row_count": len(rows),
+                "column_count": len(headers),
+                "resource_uri": csv_uris[-1],
+            })
+        lineage_path = build_dir / "00_数据血缘.csv"
+        lineage_headers = [
+            "表格标识", "运行编号", "表包编号", "内容哈希", "模型版本",
+            "行数", "列数", "资源标识",
+        ]
+        if not reuse_existing:
+            with lineage_path.open("w", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.writer(handle, lineterminator="\r\n")
+                if technical_preview or csv_header_mark:
+                    writer.writerow([csv_header_mark])
+                writer.writerow(lineage_headers)
+                for item in csv_manifest:
+                    writer.writerow([
+                        item["table_id"], item["run_id"], item["package_id"],
+                        item["content_hash"], item["model_version"], item["row_count"],
+                        item["column_count"], item["resource_uri"],
+                    ])
+        if temporary_dir is not None:
+            os.replace(temporary_dir, directory)
+            temporary_dir = None
+    except Exception:
+        if temporary_dir is not None:
+            import shutil
+            shutil.rmtree(temporary_dir, ignore_errors=True)
+        return _failure("csv_export_failed", "CSV 导出失败，未发布部分工件")
     lineage_path = directory / "00_数据血缘.csv"
     lineage_headers = [
         "表格标识", "运行编号", "表包编号", "内容哈希", "模型版本",
         "行数", "列数", "资源标识",
     ]
-    with lineage_path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.writer(handle, lineterminator="\r\n")
-        if technical_preview or csv_header_mark:
-            writer.writerow([csv_header_mark])
-        writer.writerow(lineage_headers)
-        for item in csv_manifest:
-            writer.writerow([
-                item["table_id"], item["run_id"], item["package_id"],
-                item["content_hash"], item["model_version"], item["row_count"],
-                item["column_count"], item["resource_uri"],
-            ])
     lineage_uri = PACKAGE_STORE.uri(
         workspace_id,
         package_id,
