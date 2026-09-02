@@ -25,6 +25,11 @@ DOMAINS = (
     "report-generation",
     "zero-material-delivery",
     "asset-acquisition",
+    # QualityDiagnostic is a cross-domain governed resource.  It is exposed
+    # under its own URI authority so consumers can read the immutable
+    # diagnostic object returned by any producer (EvidencePack, FinanceRun,
+    # tables or report revision).
+    "quality-diagnostics",
 )
 
 _URI_DOMAIN_ALIASES = {
@@ -136,6 +141,46 @@ def list_resources(
             cursor=cursor,
             limit=limit,
         )
+    if domain == "quality-diagnostics":
+        from lvke_mcp.adapters.quality_diagnostic_repository import (
+            QUALITY_DIAGNOSTIC_STORE,
+        )
+        from lvke_mcp.runtime.storage import paginate_resource_entries
+
+        rows = []
+        for record in QUALITY_DIAGNOSTIC_STORE.list(workspace_id):
+            payload = record.get("payload") or {}
+            object_type = "QualityDiagnostic"
+            if resource_type and resource_type not in {object_type, "quality_diagnostic"}:
+                continue
+            rows.append({
+                "uri": record.get("resource_uri"),
+                "name": f"{object_type} {record.get('object_id')}",
+                "mime_type": "application/json",
+                "resource_type": object_type,
+                "object_type": object_type,
+                "content_hash": record.get("content_hash"),
+                "basis_hash": record.get("basis_hash"),
+                "target_type": payload.get("target_type"),
+                "target_id": payload.get("target_id"),
+            })
+        page = paginate_resource_entries(rows, cursor=cursor, limit=limit)
+        return {
+            "success": True,
+            "business_success": True,
+            "system_success": True,
+            "transport_success": True,
+            "status": "ok",
+            "resources": page["resources"],
+            "items": page["items"],
+            "total": page["total"],
+            "next_cursor": page["next_cursor"],
+            "has_more": page["has_more"],
+            "resource_uris": [item["uri"] for item in page["items"] if item.get("uri")],
+            "warnings": [],
+            "blockers": [],
+            "next_actions": [],
+        }
     service = _module("lvke_mcp.servers.lvke_zero_material_delivery.service")
     return service.list_resources({
         "workspace_id": workspace_id,
@@ -162,6 +207,31 @@ def read_resource(workspace_id: str, uri: str) -> dict[str, Any]:
     domain = domain_from_uri(uri)
     if domain not in DOMAINS:
         return _blocked("resource_domain_invalid", "无法从 URI 识别 Resource 领域")
+    if domain == "quality-diagnostics":
+        # QualityDiagnostic records are persisted in a shared immutable store,
+        # not in the feasibility-delivery RESOURCE_STORES collection.  Route
+        # them explicitly here so the URI emitted by producers is actually
+        # readable through the cross-service resolver.
+        from lvke_mcp.adapters.quality_diagnostic_repository import (
+            QUALITY_DIAGNOSTIC_STORE,
+        )
+
+        record = QUALITY_DIAGNOSTIC_STORE.resolve_uri(uri)
+        if record is None or str(record.get("workspace_id") or "") != str(workspace_id):
+            return _blocked("resource_not_found", "QualityDiagnostic 不存在或不属于当前工作区")
+        return {
+            "success": True,
+            "business_success": True,
+            "system_success": True,
+            "transport_success": True,
+            "status": "ok",
+            "object_type": "QualityDiagnostic",
+            "resource": record,
+            "resource_uris": [uri],
+            "warnings": [],
+            "blockers": [],
+            "next_actions": [],
+        }
     if domain == "source-files":
         service = _module("lvke_mcp.servers.lvke_source_files.service")
         return service.read_resource(workspace_id, uri)
