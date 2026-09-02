@@ -871,7 +871,10 @@ def execute(
             "finance_tables_package_id": package_id,
             "csv_manifest_id": str(csv_export.get("csv_manifest_id") or ""),
             "report_preparation_id": str(report_preparation.get("report_preparation_id") or ""),
-            "quality_diagnostic_ids": ",".join(quality_diagnostic_ids),
+            **{
+                f"quality_diagnostic_id_{index}": diagnostic_id
+                for index, diagnostic_id in enumerate(quality_diagnostic_ids, start=1)
+            },
         },
         "resource_uris": sorted(
             {
