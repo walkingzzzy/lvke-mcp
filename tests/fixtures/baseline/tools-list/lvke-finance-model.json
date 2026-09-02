@@ -97,6 +97,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -357,6 +398,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -501,6 +583,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -687,6 +810,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -836,6 +1000,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -976,6 +1181,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -1174,6 +1420,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -1320,6 +1607,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -1486,6 +1814,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -1655,6 +2024,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -1992,6 +2402,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -2131,6 +2582,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -2402,6 +2894,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -2558,6 +3091,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -2698,6 +3272,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",
@@ -2873,6 +3488,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -3025,6 +3681,47 @@
           },
           "default": []
         },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
+        },
         "trace_id": {
           "type": "string",
           "minLength": 1
@@ -3174,6 +3871,47 @@
             "type": "string"
           },
           "default": []
+        },
+        "operation_status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "工具是否执行完成；failed 仅限系统异常"
+        },
+        "diagnostic_available": {
+          "type": "boolean",
+          "description": "是否产生了可供分析的结果"
+        },
+        "quality_status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "unclassified"
+          ],
+          "description": "数据质量结论"
+        },
+        "quality_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "diagnostic_only": {
+          "type": "boolean",
+          "description": "当前产物只能用于技术或内部验收"
+        },
+        "human_confirmation_required": {
+          "type": "boolean",
+          "description": "需要人工确认"
+        },
+        "formal_report_allowed": {
+          "type": "boolean",
+          "description": "AI 结果不能直接成为正式研报"
         },
         "trace_id": {
           "type": "string",

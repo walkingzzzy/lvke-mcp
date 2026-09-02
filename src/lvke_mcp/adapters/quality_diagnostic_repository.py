@@ -195,6 +195,7 @@ def record_quality_diagnostic(
     if problems:
         raise ValueError("; ".join(problems))
 
+    recommended_action_items = [str(item) for item in recommended_actions if str(item)]
     body = {
         "object_type": "QualityDiagnostic",
         "workspace_id": workspace_id,
@@ -208,7 +209,7 @@ def record_quality_diagnostic(
         }),
         "affected_outputs": sorted({str(item) for item in affected_outputs if str(item)}),
         "calculation_status": calculation_status,
-        "recommended_actions": [str(item) for item in recommended_actions if str(item)],
+        "recommended_actions": recommended_action_items,
         "human_confirmation_required": bool(human_confirmation_required),
         "created_at": utc_now(),
     }
@@ -226,6 +227,20 @@ def record_quality_diagnostic(
         "calculation_status": calculation_status,
     })
     object_id = f"qd_{identity.removeprefix('sha256:')[:24]}"
+    # ``open`` diagnostics are content-addressed and idempotent.  A lifecycle
+    # transition must never rewrite that immutable object: create a linked
+    # follow-up record with a distinct identity instead.
+    if status != "open":
+        prior_id = object_id
+        transition_identity = sha256_json({
+            "prior_diagnostic_id": prior_id,
+            "status": status,
+            "resolution": uncertainty_items,
+            "recommended_actions": recommended_action_items,
+        })
+        object_id = f"qd_{transition_identity.removeprefix('sha256:')[:24]}"
+        body["supersedes_diagnostic_id"] = prior_id
+        body["diagnostic_relation"] = "lifecycle_update"
     payload = {**body, "diagnostic_id": object_id, "status": status}
     return QUALITY_DIAGNOSTIC_STORE.put(
         workspace_id,

@@ -45,15 +45,25 @@ _NEXT_ACTIONS_OUTPUT = {
         **_OUTPUT["properties"],
         "next_actions": {
             "type": "array",
+            # Identifier-guard rejections are generated before dispatch and
+            # use the shared human-readable string action. Normal successful
+            # responses expose executable descriptors. Accept both shapes so
+            # malformed IDs remain a business block instead of degrading to
+            # invalid_tool_output.
             "items": {
-                "type": "object",
-                "properties": {
-                    "tool": {"type": "string", "minLength": 1},
-                    "arguments": {"type": "object", "additionalProperties": True},
-                    "reason": {"type": "string", "minLength": 1},
-                },
-                "required": ["tool", "arguments", "reason"],
-                "additionalProperties": False,
+                "oneOf": [
+                    {"type": "string"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "tool": {"type": "string", "minLength": 1},
+                            "arguments": {"type": "object", "additionalProperties": True},
+                            "reason": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["tool", "arguments", "reason"],
+                        "additionalProperties": False,
+                    },
+                ],
             },
         },
     },

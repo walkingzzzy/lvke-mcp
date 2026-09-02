@@ -15,6 +15,10 @@ from lvke_mcp.domains.finance.model_manifest import (
     manifest_from_dict,
 )
 from lvke_mcp.domains.finance.policy_registry import select_policy_profile
+from lvke_mcp.domains.finance._table_render.contract import (
+    DELIVERY_TABLE_KEYS,
+    DELIVERY_TABLE_META,
+)
 
 
 MODEL_VERSION = "finance_model.v2.4"
@@ -23,39 +27,6 @@ MODEL_VERSION = "finance_model.v2.4"
 TEMPLATE_VERSION = "finance_tables.v3"
 
 
-# 正式交付编号（附表6-1/6-2/6-3不是简单的第7/8/9张表）。
-DELIVERY_TABLE_META: tuple[tuple[str, str, str], ...] = (
-    ("investment", "附表1", "固定资产投资估算表"),
-    ("interest-during-construction", "附表2", "建设期贷款利息表"),
-    ("working-capital", "附表3", "流动资金估算表"),
-    ("funding", "附表4", "投资使用计划与资金筹措表"),
-    ("income-statement", "附表5", "营业收入、税金及附加和增值税估算表"),
-    ("total-cost", "附表6", "总成本费用估算表"),
-    ("wage", "附表6-1", "工资及附加估算表"),
-    ("depreciation", "附表6-2", "固定资产折旧费估算表"),
-    ("amortization", "附表6-3", "无形资产及其他资产摊销估算表"),
-    ("profit-distribution", "附表7", "利润与利润分配表"),
-    ("debt-service", "附表8", "还款付息测算表"),
-    ("cashflow", "附表9", "项目投资现金流量表"),
-    ("capital-cashflow", "附表10", "项目资本金流量表"),
-    # 附表11 财务计划现金流量表。2023 大纲 financial_sustainability 要求此表，
-    # 附表9/10 只覆盖项目投资与资本金两个口径，给不出「各期期末现金、累计盈余、
-    # 是否存在资金缺口」——即原 known_gap 所述"只能部分覆盖"。
-    #
-    # 编号取 11 而非内部代号 C03：权威参考工作簿《投资类项目经济计算表.xlsx》
-    # 没有这张表（实测「财务计划」/「附表11」零命中），无外部编号可继承；
-    # 附表10 是现有最大号（旧 13 张表只排到 10，因 6-1/6-2/6-3 是附表6 子表），
-    # 11 是自然续号。交付件里出现"控制表 C03"会让审查方无从对应大纲条款。
-    #
-    # 它的参考结构已在 docs/reference_table_schema.json 冻结，并以
-    # reference_provenance=engine_defined_no_reference_sheet 显式声明"无底稿"，
-    # 因此可达 reference 级、不会卡住正式交付门禁 all_tables_reference_grade。
-    ("financial-plan", "附表11", "财务计划现金流量表"),
-)
-
-
-# 唯一交付成员和顺序由 DELIVERY_TABLE_META 派生；参考来源 sheet 不得进入此集合。
-DELIVERY_TABLE_KEYS: tuple[str, ...] = tuple(item[0] for item in DELIVERY_TABLE_META)
 DELIVERY_TABLE_SCHEMA_VERSION = "finance_delivery_tables.v1"
 ENGINE_DELIVERY_COUNT = len(DELIVERY_TABLE_KEYS)
 REFERENCE_SOURCE_SHEET_COUNT = 15

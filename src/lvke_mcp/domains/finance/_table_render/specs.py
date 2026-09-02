@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from lvke_mcp.domains.finance._run_service.base import (
+from .contract import (
     DELIVERY_TABLE_KEYS,
     DELIVERY_TABLE_META,
 )
