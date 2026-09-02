@@ -439,10 +439,16 @@ def _rail_transit(rev: dict[str, Any], op_years: int) -> dict[str, Any]:
 
 
 def _flat(rev: dict[str, Any], op_years: int) -> dict[str, Any]:
-    r = _f(rev.get("annual_revenue_wan"))
-    return {"revenue_by_year": [r] * op_years, "var_cost_by_year": [0.0] * op_years,
+    # ramp 必须与 _product_sales/_tourism/_gov_payment/_rail_transit 同样被消费：
+    # 曾漏接，导致调用方传的爬坡曲线被静默丢弃、爬坡期收入按达产年全额计入
+    # （schema 放行、值原样留在 revenue_spec 里，无任何 warning）。
+    ramp = _ramp(rev.get("ramp") or [], op_years)
+    full = _f(rev.get("annual_revenue_wan"))
+    revenue_by_year = [round(full * factor, 2) for factor in ramp]
+    ramped = any(abs(factor - 1.0) > 1e-9 for factor in ramp)
+    return {"revenue_by_year": revenue_by_year, "var_cost_by_year": [0.0] * op_years,
             "model": "flat",
-            "note": "单点法（向后兼容现状）"}
+            "note": ("单点法×达产率曲线" if ramped else "单点法（ramp 为空即全程达产）")}
 
 
 def _scheduled(rev: dict[str, Any], op_years: int, model: str) -> dict[str, Any]:

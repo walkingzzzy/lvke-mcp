@@ -98,12 +98,16 @@ def _register_labor(
             {
                 "labor_plan_id": _STRING,
                 "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "idempotency_key": _KEY,
             },
             ["labor_plan_id", "confirmation_reason", "idempotency_key"],
         ),
         lambda a: lifecycle.confirm_labor_plan(
-            a["workspace_id"], a["labor_plan_id"], a["confirmation_reason"], idempotency_key=a["idempotency_key"]
+            a["workspace_id"],
+            a["labor_plan_id"],
+            a.get("confirmation_reason") or a.get("selection_reason") or "",
+            idempotency_key=a["idempotency_key"],
         ),
         _OUTPUT,
         write,
@@ -146,13 +150,14 @@ def _register_policy_option(
                     "type": "array", "minItems": 1, "uniqueItems": True, "items": _STRING
                 },
                 "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "idempotency_key": _KEY,
             },
             ["policy_basis_id", "selected_candidate_ids", "selection_reason", "idempotency_key"],
         ),
         lambda a: lifecycle.confirm_policy_basis(
             a["workspace_id"], a["policy_basis_id"], a["selected_candidate_ids"],
-            a["selection_reason"],
+            a.get("selection_reason") or a.get("confirmation_reason") or "",
             idempotency_key=a["idempotency_key"]
         ),
         _OUTPUT,
@@ -248,6 +253,7 @@ def _register_policy_option(
                 "option_comparison_id": _STRING,
                 "selected_option_id": _STRING,
                 "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "rejected_option_ids": {
                     "type": "array", "minItems": 1, "maxItems": 19,
                     "uniqueItems": True, "items": _STRING
@@ -261,7 +267,8 @@ def _register_policy_option(
         ),
         lambda a: service.confirm_option_selection(
             a["workspace_id"], a["option_comparison_id"], a["selected_option_id"],
-            a["selection_reason"], a["rejected_option_ids"],
+            a.get("selection_reason") or a.get("confirmation_reason") or "",
+            a["rejected_option_ids"],
             idempotency_key=a["idempotency_key"]
         ),
         _OUTPUT,

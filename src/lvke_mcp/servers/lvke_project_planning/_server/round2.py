@@ -111,12 +111,17 @@ def _public_discriminated_payload_schema(
                     f"{property_name}"
                 ),
             )
-        branch["then"]["properties"]["payload"] = {
+        projected = {
             "type": "object",
             "additionalProperties": False,
             "properties": projected_properties,
             "required": list(payload.get("required", [])),
         }
+        if payload.get("anyOf"):
+            projected["anyOf"] = copy.deepcopy(payload["anyOf"])
+        if payload.get("oneOf"):
+            projected["oneOf"] = copy.deepcopy(payload["oneOf"])
+        branch["then"]["properties"]["payload"] = projected
     return public
 
 

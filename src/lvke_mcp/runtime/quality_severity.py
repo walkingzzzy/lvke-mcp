@@ -56,6 +56,16 @@ BLOCKING_CODES: frozenset[str] = frozenset({
     "review_process_acceptance_target_missing",
     "review_process_acceptance_review_id_missing",
     "review_technical_verdict_missing",
+    # 过程验收可以缺阶段进度，但不能缺财务/报告/审查对象本身：
+    # 否则 feasibility_release(process_acceptance) 会把
+    # finance_run_object_required / report_revision_required /
+    # review_run_required 降成"发布质量提示"，run.status 仍叫 released，
+    # 调用方无法区分"过程验收留痕"与"正式交付完成"。
+    "finance_spec_object_required",
+    "finance_run_object_required",
+    "finance_tables_package_required",
+    "report_revision_required",
+    "review_run_required",
 })
 
 #: 刻意不列为阻断项的码，连同原因——避免以后有人"顺手补全"又把闸门弄回去。
@@ -192,3 +202,88 @@ def split_quality_codes(codes: Iterable[object]) -> tuple[list[str], list[str]]:
         if is_blocking(text):
             blocking.add(text)
     return sorted(blocking), sorted(quality)
+
+
+#: quality_status 的等级。fail > unclassified > warn > pass：
+#: 一旦出现 material_conflict，即使还有未知码也不得显示为"通过"；
+#: 未知码也不得显示为 pass（会漏报），只能停在 unclassified。
+_QUALITY_RANK = {
+    "pass": 0,
+    "warn": 1,
+    "unclassified": 2,
+    "fail": 3,
+}
+
+
+def classify_quality(code: object) -> dict[str, bool | str]:
+    """Classify one diagnostic code into the diagnostic-only envelope model.
+
+    技术验收阶段的统一判定入口：不再用 `is_blocking()` 决定"整条链停不停"，
+    而是把每个问题码归入四档 `quality_status` 并告诉调用方是否需要
+    (a) 生成诊断对象、是否 (b) 构成数值可信度冲突。任何业务质量码都不触发
+    下游计算停止；是否可用于正式研报由 `formal_report_allowed` 表达，
+    与 `success` / `ready` 完全解耦。
+
+    - ``fail``：影响数值可信度的口径/勾稽冲突（material conflict），必须
+      固化 QualityDiagnostic 并保留冲突双方。
+    - ``warn``：结果可用但置信度有限（证据待补、阶段未完成、可行性较差）。
+    - ``unclassified``：未登记的规则码。按方案"不会因新规则未登记而停止
+      技术诊断"，自动标记人工确认，不得显示为质量通过。
+    - ``pass``：无问题（调用方在无问题时直接给 pass，本函数只分类问题码）。
+    """
+
+    text = str(code or "").strip()
+    if not text:
+        return {
+            "quality_status": "unclassified",
+            "diagnostic_required": True,
+            "material_conflict": False,
+            "formal_report_allowed": False,
+        }
+    if text in NON_BLOCKING_BY_DESIGN:
+        return {
+            "quality_status": "warn",
+            "diagnostic_required": True,
+            "material_conflict": False,
+            "formal_report_allowed": False,
+        }
+    # 显式命中的阻断码优先于结构后缀判定（与 is_blocking 同序）。
+    if text in BLOCKING_CODES or text.startswith(BLOCKING_PREFIXES):
+        return {
+            "quality_status": "fail",
+            "diagnostic_required": True,
+            "material_conflict": True,
+            "formal_report_allowed": False,
+        }
+    # 结构完整性码（阶段未完成、对象缺失等）：置信度不足而非口径冲突。
+    if text.startswith(NON_BLOCKING_INFIXES) or text.endswith(NON_BLOCKING_SUFFIXES):
+        return {
+            "quality_status": "warn",
+            "diagnostic_required": True,
+            "material_conflict": False,
+            "formal_report_allowed": False,
+        }
+    return {
+        "quality_status": "unclassified",
+        "diagnostic_required": True,
+        "material_conflict": False,
+        "formal_report_allowed": False,
+    }
+
+
+def aggregate_quality_status(codes: Iterable[object]) -> str:
+    """Return the worst ``quality_status`` across a set of diagnostic codes.
+
+    等级：fail > unclassified > warn > pass。未知码会把整体停在
+    ``unclassified``，避免"混着未知码却显示质量通过"。
+    """
+
+    worst = "pass"
+    for item in codes:
+        text = str(item or "").strip()
+        if not text:
+            continue
+        status = str(classify_quality(text)["quality_status"] or "unclassified")
+        if _QUALITY_RANK.get(status, 0) > _QUALITY_RANK.get(worst, 0):
+            worst = status
+    return worst

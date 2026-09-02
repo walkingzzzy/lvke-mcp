@@ -42,7 +42,10 @@ from lvke_mcp.runtime.input_guards import (
     find_rejected_identifier,
     identifier_rejection_payload,
 )
-from lvke_mcp.runtime.outcomes import normalize_operation_outcome
+from lvke_mcp.runtime.outcomes import (
+    apply_diagnostic_envelope,
+    normalize_operation_outcome,
+)
 
 
 def _audit_hash(value: Any) -> str:
@@ -102,6 +105,30 @@ def _schema_validation_message(exc: ValidationError) -> str:
     )
 
 
+def _attach_branch_accepted_keys(error: ValidationError) -> None:
+    """Copy the winning oneOf branch's properties onto a child error.
+
+    jsonschema 子错误的 ``schema`` 常常只是一条 ``required`` / ``type``
+    约束，不含 ``properties``。``_schema_keys_hint`` 因此拿不到 Accepted
+    keys。把最近一层带 properties 的祖先 schema 挂到 error 上，消息层
+    就能列出该分支合法键。
+    """
+
+    current: Any = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        candidate = getattr(current, "schema", None)
+        if isinstance(candidate, dict) and isinstance(candidate.get("properties"), dict):
+            if error.schema is not candidate:
+                try:
+                    error.schema = candidate
+                except Exception:  # noqa: BLE001
+                    setattr(error, "_lvke_accepted_schema", candidate)
+            return
+        current = getattr(current, "parent", None)
+
+
 def _schema_keys_hint(exc: ValidationError, schema: dict[str, Any]) -> str:
     """List the accepted keys when an object failed validation.
 
@@ -110,6 +137,9 @@ def _schema_keys_hint(exc: ValidationError, schema: dict[str, Any]) -> str:
     """
 
     candidates: list[dict[str, Any]] = []
+    attached = getattr(exc, "_lvke_accepted_schema", None)
+    if isinstance(attached, dict) and isinstance(attached.get("properties"), dict):
+        candidates.append(attached)
     if isinstance(schema, dict) and isinstance(schema.get("properties"), dict):
         candidates.append(schema)
     # additionalProperties 违规时 exc.schema 可能是 True/False 布尔，真正带
@@ -610,7 +640,12 @@ class OfficialStdioServer:
             deepest = sorted(candidates or [], key=_specificity)
             if deepest:
                 # 子错误自带完整 absolute_path，调用方按该路径直接定位字段。
-                raise deepest[0]
+                # 嵌套 oneOf 胜出分支的 properties 必须带进消息：否则
+                # additionalProperties 路径能看到 Accepted keys，分支失配
+                # （缺 annual_revenue_wan）却只回显整个载荷。
+                winner = deepest[0]
+                _attach_branch_accepted_keys(winner)
+                raise winner
         raise best
 
     def _call_tool(
@@ -818,6 +853,7 @@ class OfficialStdioServer:
 
     def _attach_runtime_metadata(self, result: dict[str, Any]) -> dict[str, Any]:
         payload = normalize_operation_outcome(result, server_name=self.server_name)
+        payload = apply_diagnostic_envelope(payload)
         for field in ("resource_uris", "warnings", "blockers", "next_actions"):
             if payload.get(field) is None:
                 payload[field] = []

@@ -122,13 +122,17 @@ def create_revenue_driver_set(
                 field_errors={f"/revenue_spec/{field}": {"code": "required"} for field in missing},
             )
         quality_issues = list((selection or {}).get("quality_issues") or [])
-        if model == "flat" and mode == "review_candidate":
+        if model == "flat":
+            # flat 是单点法：没有证据绑定就等于把一个数直接写进 FinanceSpec。
+            # 预览路径也必须留下 quality_issue，不能 quality_issues=[] 还
+            # status=confirmed。审查候选缺绑定则阻断，不得落地 confirmed。
             binding = flat_evidence_binding or {}
+            review_mode = mode == "review_candidate"
             if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
                 quality_issues.append({
                     "code": "flat_revenue_formal_evidence_required",
                     "path": "/flat_evidence_binding",
-                    "blocking": False,
+                    "blocking": review_mode,
                 })
             if str(binding.get("evidence_track") or "") == "source_reconstructed":
                 required_reconstruction = (
@@ -141,8 +145,20 @@ def create_revenue_driver_set(
                     quality_issues.append({
                         "code": "flat_revenue_reconstruction_binding_incomplete",
                         "path": "/flat_evidence_binding",
-                        "blocking": False,
+                        "blocking": review_mode,
                     })
+        blocking_quality = [
+            item for item in quality_issues if item.get("blocking")
+        ]
+        if blocking_quality:
+            return _envelope(
+                success=False,
+                status="blocked",
+                code=str(blocking_quality[0].get("code") or "flat_revenue_formal_evidence_required"),
+                message="flat 收入审查候选缺少可解析的证据绑定，不得确认",
+                blockers=[str(item.get("code") or "") for item in blocking_quality],
+                quality_issues=quality_issues,
+            )
         from lvke_mcp.domains.finance.revenue_models import expand
 
         expanded = expand({"revenue": normalized_spec}, op_years)
@@ -520,12 +536,20 @@ def create_cost_driver_set(
                 "path": "/operating_cost_items",
                 "blocking": False,
             })
-        project_total_parts = [
-            amounts[field] for field in ("construction_wan", "interest_wan", "working_capital_wan")
-        ]
+        # 总投资 = 建设投资 + 建设期利息 + 流动资金。建设投资缺省时用五项
+        # 构成合成，禁止静默取 other_wan 等单列当合计（活体曾返回 4200）。
+        construction_total = amounts["construction_wan"]
+        if construction_total is None or construction_total < 0:
+            construction_total = construction_components
         project_total = (
-            sum(project_total_parts, Decimal("0"))
-            if all(value is not None and value >= 0 for value in project_total_parts)
+            construction_total + amounts["interest_wan"] + amounts["working_capital_wan"]
+            if (
+                construction_total is not None
+                and amounts["interest_wan"] is not None
+                and amounts["interest_wan"] >= 0
+                and amounts["working_capital_wan"] is not None
+                and amounts["working_capital_wan"] >= 0
+            )
             else None
         )
         ledger = [

@@ -18,6 +18,7 @@ from lvke_mcp.adapters.report_repository import (
     REVISION_STORE,
 )
 from lvke_mcp.domains.asset_acquisition.tables import get_package_record
+from lvke_mcp.domains.reports._doc_service.outline import report_chapter_titles
 from lvke_mcp.adapters.data_analysis_repository import EVIDENCE_STORE
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_STORE
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_STORE
@@ -108,7 +109,21 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     binding_kind = finance_binding["kind"]
     run_id = finance_binding["run_id"]
     tables_id = finance_binding["package_id"]
-    outline, sections, outline_errors = _normalize_outline(args.get("outline") or [])
+    # 未传 outline 时回落到**正典大纲**的真实章节，而不是伪造一个
+    # section_id="all"：那个假章节让 report_list_sections / review_score_section
+    # 拿不到可评分的 section（报 section_not_found），并连带阻断知识治理
+    # （knowledge_submit_candidate 必须绑真实 RubricAssessment）。
+    # 走同一个 _normalize_outline，不另造一套 descriptor 生成逻辑。
+    _requested_outline = list(args.get("outline") or [])
+    _outline_defaulted = not _requested_outline
+    if _outline_defaulted:
+        # 显式传了 report_type 就按它；没传按 DEFAULT_REPORT_TYPE(gov10)。
+        # 这里刻意**不**走 resolve_report_type 的 legacy_b9 回退——那条回退是给
+        # 历史工作区兼容用的（9 章旧结构），新建 preparation 用它会与结构校验
+        # 期望的 2023 通用大纲十章不一致。
+        _meta_report_type = str((args.get("project_metadata") or {}).get("report_type") or "").strip()
+        _requested_outline = report_chapter_titles(_meta_report_type)
+    outline, sections, outline_errors = _normalize_outline(_requested_outline)
     blockers: list[str] = [*binding_errors, *outline_errors]
     warnings: list[str] = []
     formal_blockers: list[str] = []
@@ -352,8 +367,10 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
     # readiness is fail-closed: any upstream blocker, qualification issue, or
     # unverified project facts must prevent a formal candidate from being
     # advertised as ready.
-    draft_ready = not blockers
-    formal_ready = not quality_issues
+    # 当前阶段只做内部诊断：只要 preparation 能被固化，质量问题不阻止
+    # 创建内部草稿；正式资格由人工线下确认，MCP 恒不授予。
+    draft_ready = True
+    formal_ready = False
     status = "partial" if warnings or quality_issues else "ok"
     record = PREPARATION_STORE.put(
         workspace_id,
@@ -365,6 +382,13 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "quality_issues": quality_issues,
             "draft_ready": draft_ready,
             "formal_ready": formal_ready,
+            "artifact_kind": "internal_diagnostic_draft",
+            "confirmation_status": "pending_external",
+            "diagnostic_only": True,
+            "human_confirmation_required": True,
+            "formal_report_allowed": False,
+            "uncertainty_summary": [],
+            "quality_diagnostic_ids": [],
         },
         producer="lvke-report-generation.report_prepare",
         status=status,
@@ -383,7 +407,8 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "formal_ready": formal_ready,
         "report_preparation_id": record["object_id"],
         "basis_hash": record["basis_hash"],
-        "generatable_sections": sections or [{"section_id": "all", "title": "all", "order": 1, "parent_section_id": None, "depth": 1}],
+        "generatable_sections": sections,
+        "outline_source": "default_standard_outline" if _outline_defaulted else "caller_outline",
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
         "blockers": blockers,
@@ -392,10 +417,14 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
         "finance_table_contract": table_contract_snapshot,
         "viability_status": viability_status,
         "viability_issues": viability_issues,
-        "next_actions": [
-            "可直接调用 report_start；质量问题必须在正文披露"
-            if draft_ready else "先修复阻断项后再调用 report_start",
-        ],
+        "artifact_kind": "internal_diagnostic_draft",
+        "confirmation_status": "pending_external",
+        "diagnostic_only": True,
+        "human_confirmation_required": True,
+        "formal_report_allowed": False,
+        "uncertainty_summary": [],
+        "quality_diagnostic_ids": [],
+        "next_actions": ["可调用 report_start 生成内部诊断草稿；质量问题必须在正文披露"],
     }
 
 
@@ -445,6 +474,13 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         "task_status": "agent_drafting",
         "requested_chapters": list(args.get("chapters") or []),
         "document_snapshot": document,
+        "artifact_kind": "internal_diagnostic_draft",
+        "confirmation_status": "pending_external",
+        "diagnostic_only": True,
+        "human_confirmation_required": True,
+        "formal_report_allowed": False,
+        "uncertainty_summary": list(prep_payload.get("uncertainty_summary") or []),
+        "quality_diagnostic_ids": list(prep_payload.get("quality_diagnostic_ids") or []),
     }
     revision = REVISION_STORE.put(
         workspace_id,
@@ -462,6 +498,11 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         "resource_uris": [revision["resource_uri"]],
         "warnings": ["MCP 不调用内置 LLM；正文由当前 Agent 基于上游依据起草"],
         "blockers": [],
+        # 技术验收阶段：报告修订固定为内部诊断草稿（§6/§9-8~14）
+        "artifact_kind": "internal_diagnostic_draft",
+        "confirmation_status": "pending_external",
+        "uncertainty_summary": [],
+        "quality_diagnostic_ids": [],
         "next_actions": ["调用 report_propose → report_diff → report_apply；完成后用 report_status 固化新修订"],
     }
 

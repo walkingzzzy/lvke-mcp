@@ -258,7 +258,7 @@ class StdioServer:
             result = dict(result)
             result.setdefault("task_status", raw_status)
             result["status"] = "accepted"
-        elif raw_status in {"applied", "released", "completed", "done", "cancelled"}:
+        elif raw_status in {"applied", "released", "process_accepted", "completed", "done", "cancelled"}:
             result = dict(result)
             result.setdefault("domain_status", raw_status)
             result["status"] = "ok"

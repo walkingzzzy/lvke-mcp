@@ -69,9 +69,10 @@ class FeasibilityReleaseScopeSemanticsTest(unittest.TestCase):
             "delivery_run_id": started["delivery_run_id"],
             "scope": "technical",
         })
-        # 结构缺口不阻断，但绝不能被隐藏：quality_passed 必须为 False。
+        # 所有缺口都只用于技术诊断，不阻止返回结果。
         self.assertFalse(result["validation"]["quality_passed"], result)
         self.assertEqual("partial", result["status"])
+        self.assertTrue(result["success"], result)
         for code in (
             "project_pending",
             "research_output_refs_missing",
@@ -79,7 +80,6 @@ class FeasibilityReleaseScopeSemanticsTest(unittest.TestCase):
         ):
             with self.subTest(code=code):
                 self.assertIn(code, result["quality_issues"])
-        # 结构缺口不得出现在 blockers（那是口径非法专用）。
         self.assertEqual([], result["blockers"], result["blockers"])
 
     def test_technical_scope_relaxes_only_formal_qualification(self) -> None:
@@ -124,6 +124,9 @@ class FeasibilityReleaseScopeSemanticsTest(unittest.TestCase):
         self.assertEqual(mocked.call_args.args[1], "technical")
         self.assertEqual(released["validation_scope"], "technical")
         self.assertEqual(released["release_scope"], "process_acceptance")
+        self.assertEqual(released["status"], "process_accepted")
+        self.assertEqual(released["delivery_run"]["status"], "process_accepted")
+        self.assertEqual(released["release_grade"], "process_acceptance")
         self.assertIn("formal_evidence_not_established", released["warnings"])
 
     def test_project_delivery_release_uses_formal_validation(self) -> None:

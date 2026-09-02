@@ -93,6 +93,71 @@ def envelope_properties(
         "content_hash": {"type": ["string", "null"]},
         "lineage": {"type": "object", "additionalProperties": True},
         "coordination": coordination_schema(),
+        # 技术验收阶段统一诊断信封（§1 - §8）
+        "operation_status": {
+            "type": "string",
+            "enum": ["completed", "failed"],
+            "description": "工具是否执行完成；failed 仅限系统异常",
+        },
+        "diagnostic_available": {
+            "type": "boolean",
+            "description": "是否产生了可供分析的结果",
+        },
+        "quality_status": {
+            "type": "string",
+            "enum": ["pass", "warn", "fail", "unclassified"],
+            "description": "数据质量结论",
+        },
+        "uncertainties": {
+            "type": "array",
+            "default": [],
+            "items": {
+                "type": "object",
+                "additionalProperties": True,
+                "required": ["type", "field"],
+                "properties": {
+                    "uncertainty_id": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["fact", "assumption", "unverified", "conflict"],
+                    },
+                    "field": {"type": "string"},
+                    "value": {},
+                    "competing_values": {"type": "array"},
+                    "source_refs": {"type": "array", "items": {"type": "string"}},
+                    "confidence": {
+                        "type": "string",
+                        "enum": ["confirmed", "provisional", "unknown"],
+                    },
+                    "impact": {
+                        "type": "object",
+                        "additionalProperties": True,
+                        "properties": {
+                            "affected_outputs": {"type": "array", "items": {"type": "string"}},
+                            "severity": {
+                                "type": "string",
+                                "enum": ["material", "moderate", "minor"],
+                            },
+                        },
+                    },
+                    "message": {"type": "string"},
+                    "required_action": {"type": "string"},
+                },
+            },
+        },
+        "quality_issues": {"type": "array", "items": {"type": "string"}, "default": []},
+        "diagnostic_only": {
+            "type": "boolean",
+            "description": "当前产物只能用于技术或内部验收",
+        },
+        "human_confirmation_required": {
+            "type": "boolean",
+            "description": "需要人工确认",
+        },
+        "formal_report_allowed": {
+            "type": "boolean",
+            "description": "AI 结果不能直接成为正式研报",
+        },
     }
 
 
@@ -176,6 +241,13 @@ _LIGHTWEIGHT_OUTPUT_FIELDS: tuple[str, ...] = (
     "warnings",
     "blockers",
     "next_actions",
+    "operation_status",
+    "diagnostic_available",
+    "quality_status",
+    "quality_issues",
+    "diagnostic_only",
+    "human_confirmation_required",
+    "formal_report_allowed",
     "trace_id",
     "input_hash",
     "basis_hash",

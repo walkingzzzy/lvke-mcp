@@ -209,14 +209,14 @@ class FeasibilityDeliveryTest(unittest.TestCase):
             "delivery_run_id": started["delivery_run_id"],
             "scope": "formal",
         })
-        self.assertTrue(validated["success"], validated)
-        self.assertEqual(validated["status"], "partial")
+        self.assertFalse(validated["success"], validated)
+        self.assertEqual(validated["status"], "blocked")
         self.assertFalse(validated["validation"]["quality_passed"])
-        self.assertEqual(validated["blockers"], [])
+        self.assertTrue(validated["blockers"])
         self.assertTrue(validated["quality_issues"])
 
-        # 过程验收允许"带限制放行"：阶段链未走完属置信度不足，可产出把全部
-        # 缺口写进 release_limitations 的记录。
+        # 技术验收阶段只负责产出诊断；阶段/对象缺口全部保留为质量问题，
+        # 不阻止固化一份带限制的内部验收记录。
         released = service.release({
             "workspace_id": self.workspace,
             "delivery_run_id": started["delivery_run_id"],
@@ -225,17 +225,15 @@ class FeasibilityDeliveryTest(unittest.TestCase):
             "idempotency_key": "release-low-quality-record",
         })
         self.assertTrue(released["success"], released)
-        self.assertTrue(released["completed"], released)
         self.assertEqual(released["status"], "partial")
-        self.assertFalse(released["quality_valid"])
-        self.assertEqual(released["blockers"], [])
-        self.assertTrue(released["quality_issues"])
-        self.assertTrue(released["release_id"].startswith("fdrp_"))
-        self.assertEqual(
-            released["release"]["release_limitations"],
-            released["quality_issues"],
-        )
-        self.assertEqual(released["delivery_run"]["status"], "released")
+        self.assertEqual(released["release_grade"], "process_acceptance")
+        for code in (
+            "finance_run_object_required",
+            "report_revision_required",
+            "review_run_required",
+        ):
+            self.assertIn(code, released["quality_issues"], released["quality_issues"])
+        self.assertEqual(released["delivery_run"]["status"], "process_accepted")
 
     def test_project_delivery_release_refuses_a_low_quality_chain(self) -> None:
         """正式项目交付不接受"带限制放行"：这是与过程验收的分界线。

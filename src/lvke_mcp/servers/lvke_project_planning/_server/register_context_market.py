@@ -156,6 +156,7 @@ def _register_market(
                 "market_case_id": _STRING,
                 "selected_candidate_id": _STRING,
                 "selection_reason": {**_STRING, "maxLength": 10000},
+                "confirmation_reason": {**_STRING, "maxLength": 10000},
                 "rejected_candidate_ids": {
                     "type": "array",
                     "uniqueItems": True,
@@ -181,7 +182,7 @@ def _register_market(
             a["workspace_id"],
             a["market_case_id"],
             a["selected_candidate_id"],
-            a["selection_reason"],
+            a.get("selection_reason") or a.get("confirmation_reason") or "",
             a["rejected_candidate_ids"],
             idempotency_key=a["idempotency_key"],
             supersedes_market_case_id=a.get("supersedes_market_case_id", ""),
@@ -253,6 +254,7 @@ def _register_revenue(
                     "type": "array", "uniqueItems": True, "items": _STRING
                 },
                 "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "idempotency_key": _KEY,
             },
             [
@@ -262,7 +264,8 @@ def _register_revenue(
         ),
         lambda a: lifecycle.confirm_revenue_drivers(
             a["workspace_id"], a["revenue_driver_set_id"], a["selected_candidate_id"],
-            a["rejected_candidate_ids"], a["selection_reason"],
+            a["rejected_candidate_ids"],
+            a.get("selection_reason") or a.get("confirmation_reason") or "",
             idempotency_key=a["idempotency_key"]
         ),
         _OUTPUT,

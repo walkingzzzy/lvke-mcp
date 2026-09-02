@@ -263,6 +263,18 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             build_period_months=data.get("build_period_months") or normalized_inputs.get("build_period_months"),
             industry=str(data.get("industry") or normalized_inputs.get("industry") or ""),
         )
+        # fallback 壳在不同 input_revision 下本体相同，若不把输入身份盖进
+        # spec，两次 prepare 的 spec_hash 会撞车（活体 sha256:e0936280…）。
+        # 已确认 / 已盖章的 spec 本身已含业务字段，不再二次写入。
+        bound_spec = data.get("spec") if isinstance(data.get("spec"), dict) else None
+        if bound_spec is not None and str(bound_spec.get("confirmation_status") or "") not in {
+            "confirmed",
+            "formal_ready",
+        }:
+            bound_spec = dict(bound_spec)
+            bound_spec["input_binding_hash"] = data["input_hash"]
+            data["spec"] = bound_spec
+            data["spec_hash"] = run_service.compute_spec_hash(bound_spec)
         effective_invest_type = str(
             data.get("invest_type") or normalized_inputs.get("invest_type") or ""
         )
@@ -754,7 +766,13 @@ def _canonical_candidate_inputs(
         revenue_model = (
             str(revenue_group.get("model") or "") if isinstance(revenue_group, dict) else ""
         )
-        promoted_groups = ("cost", "tax", "revenue") if revenue_model == "flat" else ("cost", "tax")
+        # financing 与 cost/tax 同样是业务分组：不提升则 capital_own_wan /
+        # loan_wan 被静默丢弃，模型按缺省比例拆分，附表4 与调用方输入脱节。
+        promoted_groups = (
+            ("cost", "tax", "financing", "revenue")
+            if revenue_model == "flat"
+            else ("cost", "tax", "financing")
+        )
         for group in promoted_groups:
             group_values = supplied_spec.get(group)
             if not isinstance(group_values, dict):

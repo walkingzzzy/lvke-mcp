@@ -251,8 +251,8 @@ class ReportAndFinanceRegressionTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertTrue(result["technical_ready"])
-        self.assertTrue(result["formal_release_eligible"])
-        self.assertTrue(result["readiness"]["publishable"])
+        self.assertFalse(result["formal_release_eligible"])
+        self.assertFalse(result["readiness"]["publishable"])
         self.assertEqual(result["blockers"], [])
         self.assertEqual(result["finance_binding"]["validation_level"], "preview")
         self.assertIn("preview", result["warnings"])

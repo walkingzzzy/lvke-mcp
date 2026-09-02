@@ -107,7 +107,11 @@ class McpCompressionTopologyTest(unittest.TestCase):
         self.assertEqual(len(SERVER_SPECS), 14)
         self.assertEqual(total_tools, 180)
         # 轻量 outputSchema 为正式候选契约要求；预算随 envelope 字段上调。
-        self.assertLess(total_chars, 450_000)
+        # 2026-09-02 诊断信封新增 7 个标量字段（operation_status /
+        # diagnostic_available / quality_status / quality_issues /
+        # diagnostic_only / human_confirmation_required /
+        # formal_report_allowed），实测 536k；上限抬到 600k 保留余量。
+        self.assertLess(total_chars, 600_000)
 
     def test_compact_schema_keeps_top_level_and_full_internal_validation(self) -> None:
         from lvke_mcp.servers.lvke_finance_model import server as finance_server

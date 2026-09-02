@@ -154,28 +154,41 @@ def validate_revenue_drivers(
             }],
         )
     blockers: list[str] = []
+    quality_codes: list[str] = []
     for item in candidates:
-        if item.get("mode", "estimate_preview") == "review_candidate" and (
-            (item.get("revenue_spec") or {}).get("model") == "flat"
+        model = (item.get("revenue_spec") or {}).get("model")
+        if model != "flat":
+            continue
+        binding = item.get("flat_evidence_binding") or {}
+        review_mode = item.get("mode", "estimate_preview") == "review_candidate"
+        if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
+            code = "flat_revenue_formal_evidence_required"
+            quality_codes.append(code)
+            if review_mode:
+                blockers.append(code)
+        if str(binding.get("evidence_track") or "") == "source_reconstructed" and any(
+            field not in binding or binding.get(field) in (None, "")
+            for field in ("reconstruction_id", "source_uri", "source_kind", "method", "limitations")
         ):
-            binding = item.get("flat_evidence_binding") or {}
-            if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
-                blockers.append("flat_revenue_formal_evidence_required")
-            if str(binding.get("evidence_track") or "") == "source_reconstructed" and any(
-                field not in binding or binding.get(field) in (None, "")
-                for field in ("reconstruction_id", "source_uri", "source_kind", "method", "limitations")
-            ):
-                blockers.append("flat_revenue_reconstruction_binding_incomplete")
-    if blockers:
-        unique = sorted(set(blockers))
+            code = "flat_revenue_reconstruction_binding_incomplete"
+            quality_codes.append(code)
+            if review_mode:
+                blockers.append(code)
+    if quality_codes:
+        unique = sorted(set(quality_codes))
+        unique_blockers = sorted(set(blockers))
         return service._envelope(
-            success=True,
-            status="partial",
+            success=not unique_blockers,
+            status="blocked" if unique_blockers else "partial",
             code="revenue_driver_validation_failed",
-            blockers=[],
-            warnings=["收入驱动证据或重建绑定不完整；候选仍可确认和进入下游。"],
+            blockers=unique_blockers,
+            warnings=[
+                "收入驱动证据或重建绑定不完整；审查候选不得确认。"
+                if unique_blockers
+                else "收入驱动证据或重建绑定不完整；预览候选可确认但必须披露限制。"
+            ],
             quality_issues=[
-                {"code": item, "blocking": False}
+                {"code": item, "blocking": item in unique_blockers}
                 for item in unique
             ],
             valid=False,

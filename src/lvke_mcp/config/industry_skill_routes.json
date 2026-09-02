@@ -153,6 +153,32 @@
       ]
     },
     {
+      "route_id": "agriculture",
+      "priority": 70,
+      "industry_prefixes": [
+        "agriculture",
+        "agri",
+        "agri_tech",
+        "agri-tech",
+        "farming",
+        "农业"
+      ],
+      "asset_types": [],
+      "project_types": [],
+      "transaction_structures": [],
+      "primary_skill": "lvke-feasibility-study",
+      "auxiliary_skills": [
+        "lvke-project-planning"
+      ],
+      "industry_references": [
+        {
+          "capability": "农业与智慧农业产业园口径",
+          "carrier_skill": "lvke-project-planning",
+          "reference_path": "references/preserved/agri-tech/SKILL.md"
+        }
+      ]
+    },
+    {
       "route_id": "urban-rail-transit",
       "priority": 85,
       "industry_prefixes": [

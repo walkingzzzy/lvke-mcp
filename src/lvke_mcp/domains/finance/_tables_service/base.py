@@ -5,6 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from lvke_mcp.domains.finance import tables_application
+from lvke_mcp.runtime.quality_severity import (
+    aggregate_quality_status,
+    classify_quality,
+)
 
 
 _load_run = tables_application.get_run
@@ -95,6 +99,15 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
     payload = record.get("payload") or {}
     quality_issues = [str(item) for item in validation.get("blockers") or []]
     effective_status = "partial" if quality_issues or status == "partial" else "ok"
+    material_conflict = any(
+        classify_quality(code).get("material_conflict") is True
+        for code in quality_issues
+    )
+    diagnostic_ids = [
+        str(item)
+        for item in (validation.get("diagnostic_ids") or [])
+        if str(item)
+    ]
     return {
         "success": True,
         "transport_success": True,
@@ -125,7 +138,28 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         ],
         "blockers": [],
         "quality_issues": quality_issues,
-        "next_actions": ["表包已生成；可直接绑定到报告，质量问题作为提示保留"],
+        # 技术验收阶段统一诊断信封（§1-§5）：success/business_success 不再
+        # 隐含“数据质量通过”或“可直接绑定正式报告”。
+        "operation_status": "completed",
+        "diagnostic_available": True,
+        "quality_status": aggregate_quality_status(quality_issues),
+        "uncertainties": list(validation.get("uncertainties") or []),
+        "diagnostic_only": True,
+        "human_confirmation_required": True,
+        "formal_report_allowed": False,
+        "bindable_to_report": not material_conflict,
+        "diagnostic_ids": diagnostic_ids,
+        "next_actions": (
+            [
+                "已生成技术诊断表包；包含未解决的数据质量冲突，"
+                "不得直接绑定正式报告，需人工确认后重新生成。"
+            ]
+            if material_conflict
+            else [
+                "已生成表包；本阶段仅限技术验收/内部审查，"
+                "正式交付需人工线下确认。"
+            ]
+        ),
     }
 
 

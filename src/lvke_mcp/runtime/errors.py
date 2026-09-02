@@ -66,6 +66,14 @@ def sanitized_error_payload(
         "basis_hash": None,
         "lineage": {},
         "content_hash": None,
+        "operation_status": "failed",
+        "diagnostic_available": False,
+        "quality_status": "unclassified",
+        "uncertainties": [],
+        "quality_issues": [],
+        "diagnostic_only": True,
+        "human_confirmation_required": True,
+        "formal_report_allowed": False,
     }
     payload["coordination"] = build_coordination(payload, server_name=server_name)
     return payload

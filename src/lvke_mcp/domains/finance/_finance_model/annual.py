@@ -977,9 +977,25 @@ def _build_financial_plan(r: dict[str, Any], annual: dict[str, Any],
                 if t < build - 1
                 else round(total_financing - sum(row["finance_in"] for row in rows), 2)
             )
-            equity_in = finance_in
-            loan_in = 0.0
-            subsidy_in = 0.0
+            # 回退分支也必须按真实资金结构拆分，不能把全部筹资塞进 capital_own：
+            # 曾如此，导致附表11 印「资本金 = 筹资总额、贷款提款 = 0」，与附表4
+            # 的资本金/贷款逐年摊分直接矛盾（同一 run 两张交付表口径冲突），
+            # 且当时无任何勾稽比对二者。这里与附表4 同源用 fund 的资本金:贷款:补助
+            # 结构按比例摊到各建设期年。
+            _fund_src = r.get("funding") or {}
+            _fund_capital = round(float(_fund_src.get("capital") or 0.0), 2)
+            _fund_loan = round(float(_fund_src.get("loan") or 0.0), 2)
+            _fund_subsidy = round(float(_fund_src.get("subsidy") or 0.0), 2)
+            _fund_total = round(_fund_capital + _fund_loan + _fund_subsidy, 2)
+            if _fund_total > 0:
+                equity_in = round(finance_in * _fund_capital / _fund_total, 2)
+                loan_in = round(finance_in * _fund_loan / _fund_total, 2)
+                # 末位吸收摊分余额，保证 三项合计 == finance_in（不留舍入漂移）
+                subsidy_in = round(finance_in - equity_in - loan_in, 2)
+            else:
+                equity_in = finance_in
+                loan_in = 0.0
+                subsidy_in = 0.0
         net = round(finance_in - invest_out, 2)
         cum = round(cum + net, 2)
         rows.append({

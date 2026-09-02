@@ -15,6 +15,7 @@ from lvke_mcp.domains.reports.read_model import (
     supplied_document_snapshot,
 )
 from lvke_mcp.runtime.formal_promotion import FormalLineageError, SIM_A_FORMAL
+from lvke_mcp.adapters.quality_diagnostic_repository import diagnostics_for_target
 
 # ── 九章实质内容契约 ──────────────────────────────────────────────────
 # 各章有效中文字符下限（标题/目录/引用列表/表格单元格不计入）
@@ -290,7 +291,14 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         warnings.append("起草任务未完成；当前修订不能视为生成成功")
 
     quality_issues = sorted(set(blockers))
-    formal_ok = not quality_issues
+    # 当前阶段只生成内部诊断草稿；formal_release_eligible 保留为兼容字段，
+    # 但不得由技术校验结果将其提升为 True。
+    formal_ok = False
+    quality_diagnostic_ids = [
+        str(item.get("object_id") or "")
+        for item in diagnostics_for_target(workspace_id, record["object_id"])
+        if str(item.get("object_id") or "")
+    ]
     warnings.extend(f"质量提示：{item}" for item in quality_issues)
     readiness = _synchronize_readiness(
         readiness,
@@ -308,6 +316,11 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "quality_valid": not quality_issues,
         "technical_ready": True,
         "formal_release_eligible": formal_ok,
+        # 技术验收阶段：任何报告校验结果都是内部诊断草稿（§6）。
+        "artifact_kind": "internal_diagnostic_draft",
+        "confirmation_status": "pending_external",
+        "uncertainty_summary": list(readiness.get("uncertainties") or []) if isinstance(readiness, dict) else [],
+        "quality_diagnostic_ids": quality_diagnostic_ids,
         "report_revision_id": record["object_id"],
         "native_revision_id": native,
         "run_id": run_id,
@@ -325,9 +338,14 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "blockers": quality_issues,
         "quality_issues": quality_issues,
         "next_actions": (
-            ["校验发现阻断项，修复后再导出正式件"]
+            [
+                "校验发现阻断项，修复后重新校验；当前修订仅限内部诊断草稿，"
+                "正式交付需人工线下确认"
+            ]
             if quality_issues
-            else ["校验已完成；可导出正式件"]
+            else [
+                "校验已完成；可生成内部诊断草稿，正式交付需人工线下确认"
+            ]
         ),
     }
 

@@ -82,6 +82,7 @@ def _register_build_scale(
                 "selected_candidate_id": _STRING,
                 "rejected_candidate_ids": {"type": "array", "uniqueItems": True, "items": _STRING},
                 "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "idempotency_key": _KEY,
             },
             [
@@ -91,7 +92,8 @@ def _register_build_scale(
         ),
         lambda a: lifecycle.confirm_build_scale(
             a["workspace_id"], a["build_scale_case_id"], a["selected_candidate_id"],
-            a["rejected_candidate_ids"], a["selection_reason"],
+            a["rejected_candidate_ids"],
+            a.get("selection_reason") or a.get("confirmation_reason") or "",
             idempotency_key=a["idempotency_key"]
         ),
         _OUTPUT,
@@ -321,12 +323,16 @@ def _register_cost(
             {
                 "cost_driver_set_id": _STRING,
                 "confirmation_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
+                "selection_reason": {**_STRING, "minLength": 10, "maxLength": 10000},
                 "idempotency_key": _KEY,
             },
             ["cost_driver_set_id", "confirmation_reason", "idempotency_key"],
         ),
         lambda a: lifecycle.confirm_cost_drivers(
-            a["workspace_id"], a["cost_driver_set_id"], a["confirmation_reason"], idempotency_key=a["idempotency_key"]
+            a["workspace_id"],
+            a["cost_driver_set_id"],
+            a.get("confirmation_reason") or a.get("selection_reason") or "",
+            idempotency_key=a["idempotency_key"],
         ),
         _OUTPUT,
         write,

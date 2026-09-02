@@ -5,7 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE
+from lvke_mcp.adapters.quality_diagnostic_repository import (
+    build_uncertainty,
+    conflict_values_from_text,
+    record_quality_diagnostic,
+)
 from lvke_mcp.domains.finance import tables_application
+from lvke_mcp.runtime.quality_severity import classify_quality
 from lvke_mcp.runtime.formal_promotion import (
     FormalLineageError,
     SIM_A_FORMAL,
@@ -93,6 +99,50 @@ def render(
         validated_data,
     )
     quality_issues = [str(item) for item in validation.get("blockers") or []]
+    # 对 material conflict（影响数值可信度的冲突）固化为 QualityDiagnostic。
+    # 表包仍生成（F-15 的降级设计），但包上必须能反查诊断对象。
+    diagnostic_ids: list[str] = []
+    if run_id and quality_issues:
+        affected_outputs = [
+            "total_investment", "funding", "cashflow", "income_statement",
+            "total_cost", "all_tables",
+        ]
+        for item in quality_issues:
+            if classify_quality(item).get("material_conflict") is not True:
+                continue
+            try:
+                recorded = record_quality_diagnostic(
+                    workspace_id,
+                    # package_id 尚未生成且表包由该 run 派生；诊断归属
+                    # 绑定真实 FinanceRun，避免用 run_id 冒充 FinanceTablesPackage。
+                    target_type="finance_run",
+                    target_id=run_id,
+                    rule_code=item,
+                    uncertainties=[build_uncertainty(
+                        "conflict", field=item,
+                        competing_values=conflict_values_from_text(item),
+                        message=item,
+                        severity="material",
+                        affected_outputs=affected_outputs,
+                    )],
+                    affected_outputs=affected_outputs,
+                    calculation_status="continued_with_conflict",
+                    basis_hash=str(source_run.get("spec_hash") or ""),
+                    input_snapshot_refs=[
+                        run_id,
+                        str(source_run.get("spec_id") or ""),
+                        str(source_run.get("input_hash") or ""),
+                    ],
+                )
+                diagnostic_ids.append(str(recorded["object_id"]))
+            except Exception:  # noqa: BLE001
+                validation.setdefault("quality_issues", []).append(
+                    "quality_diagnostic_persistence_failed"
+                )
+                validation.setdefault("warnings", []).append(
+                    "QualityDiagnostic 未能固化；当前表包仅用于诊断"
+                )
+    validation["diagnostic_ids"] = diagnostic_ids
     payload = {
         "run_id": run_id,
         # 十三表/CSV/XLSX 都从这个 package 派生，必须能自证绑定的是哪一个

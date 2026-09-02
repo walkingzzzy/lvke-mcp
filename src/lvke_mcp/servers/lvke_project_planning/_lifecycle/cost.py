@@ -90,10 +90,20 @@ def _calculated_cost_items(items: list[dict[str, Any]]) -> tuple[list[dict[str, 
         if amount < 0:
             errors.append(f"/operating_cost_items/{index}/annual_amount_wan")
             continue
+        computed_from_quantity = item.get("annual_amount_wan") is None
+        prior_method = str((item.get("calculation_trace") or {}).get("method") or "")
+        if prior_method == "quantity_consumption_price" or computed_from_quantity:
+            method = "quantity_consumption_price"
+        else:
+            method = "explicit_amount"
         row["annual_amount_wan"] = float(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        prior_trace = dict(item.get("calculation_trace") or {})
         row["calculation_trace"] = {
-            "method": "explicit_amount" if item.get("annual_amount_wan") is not None else "quantity_consumption_price",
-            "formula": "quantity * unit_consumption * unit_price_yuan * conversion_to_wan * (1 + loss_rate)",
+            **prior_trace,
+            "method": method,
+            "formula": prior_trace.get("formula") or (
+                "quantity * unit_consumption * unit_price_yuan * conversion_to_wan * (1 + loss_rate)"
+            ),
             "annual_quantity_semantics": "cost_calculation_quantity",
             "design_capacity_semantics": "engineering_capacity_only_not_used_in_amount",
         }

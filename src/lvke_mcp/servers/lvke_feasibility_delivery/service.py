@@ -38,6 +38,9 @@ from lvke_mcp.adapters.data_acquisition_repository import RESOURCE_STORES as ACQ
 from lvke_mcp.adapters.research_repository import PACKAGE_STORE as RESEARCH_PACKAGE_STORE
 from lvke_mcp.adapters.finance_model_repository import SPEC_STORE, BASIS_OF_ESTIMATE_STORE
 from lvke_mcp.adapters.finance_tables_repository import PACKAGE_STORE as TABLE_PACKAGE_STORE
+from lvke_mcp.adapters.quality_diagnostic_repository import (
+    build_uncertainty,
+)
 from lvke_mcp.adapters.report_repository import PREPARATION_STORE as REPORT_PREPARATION_STORE, REVISION_STORE as REPORT_REVISION_STORE
 from lvke_mcp.servers.lvke_feasibility_delivery.contracts import (
     DELIVERY_MODES,
@@ -235,7 +238,9 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         return _blocked("delivery_mode_invalid", "delivery_mode 必须是 estimate_preview、review_candidate 或 formal_release")
     project_context_id = str(args.get("project_context_id") or "")
     requested_evidence_policy = str(args.get("evidence_policy") or "formal_evidence")
-    release_scope = str(args.get("release_scope") or "project_delivery")
+    # 技术验收阶段默认只走 process_acceptance（§7/§9-18）：
+    # project_delivery / formal_release 不加入当前主流程，调用方必须显式声明。
+    release_scope = str(args.get("release_scope") or "process_acceptance")
     if requested_evidence_policy not in EVIDENCE_POLICIES:
         return _blocked("evidence_policy_invalid", "evidence_policy 不受支持")
     if release_scope not in RELEASE_SCOPES:
@@ -1601,11 +1606,19 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
     # 后者才是 quality_issues。此前这里把两类一律降级、blockers 恒为 []，
     # 于是"受控假设走正式发布"这种非法口径也报 success=True。
     blocking_codes, quality_issues = split_quality_codes(blockers)
+    # 技术验收阶段诊断信封（§7）：把发现固化为结构化不确定性，并聚合上游
+    # FinanceRun / 表包 / 报告修订已固化的 QualityDiagnostic，供人工复核。
+    uncertainties = _build_run_uncertainties(blocking_codes, quality_issues, scope)
+    diagnostic_ids = _aggregate_upstream_diagnostics(workspace_id, run)
+    technical_diagnostic = scope == "technical"
     return _envelope(
-        not blocking_codes,
-        "blocked" if blocking_codes else ("ok" if passed else "partial"),
+        technical_diagnostic or not blocking_codes,
+        "partial" if technical_diagnostic and (blocking_codes or quality_issues)
+        else ("blocked" if blocking_codes else ("ok" if passed else "partial")),
         message=(
-            "交付校验发现口径阻断项，必须修复后才能继续"
+            "技术验收已完成；发现数据质量问题，结果仅供诊断"
+            if technical_diagnostic and (blocking_codes or quality_issues)
+            else "交付校验发现口径阻断项，必须修复后才能继续"
             if blocking_codes
             else "交付校验已完成；质量问题不阻止后续发布"
         ),
@@ -1616,13 +1629,18 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
             "validation_complete": passed,
             "blockers": blocking_codes,
             "quality_issues": quality_issues,
+            "uncertainties": uncertainties,
+            "diagnostic_ids": diagnostic_ids,
             "warnings": warnings,
         },
-        blockers=blocking_codes,
+        blockers=[] if technical_diagnostic else blocking_codes,
         quality_issues=quality_issues,
+        uncertainties=uncertainties,
+        quality_diagnostic_ids=diagnostic_ids,
         warnings=[
             *warnings,
-            *(f"阻断项：{item}" for item in blocking_codes),
+            *(f"质量问题：{item}" for item in blocking_codes if technical_diagnostic),
+            *(f"阻断项：{item}" for item in blocking_codes if not technical_diagnostic),
             *(
                 f"质量提示：{item}"
                 for item in quality_issues
@@ -1630,13 +1648,77 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
             ),
         ],
         delivery_run_id=record["object_id"],
-        release_scope=str(run.get("release_scope") or "project_delivery"),
+        release_scope=str(run.get("release_scope") or "process_acceptance"),
         evidence_policy=str(run.get("evidence_policy") or "formal_evidence"),
         project_fact_certified=bool(run.get("project_fact_certified")),
         unresolved_inputs=list(run.get("unresolved_inputs") or []),
         release_limitations=list(run.get("release_limitations") or []),
         resource_uris=[record["resource_uri"]],
     )
+
+
+def _build_run_uncertainties(
+    blocking_codes: list[str],
+    quality_issues: list[str],
+    scope: str,
+) -> list[dict[str, Any]]:
+    """Turn validation findings into structured uncertainties (§3/§7).
+
+    口径/勾稽冲突 → ``conflict``；阶段缺口等置信度不足 → ``unverified``。
+    ``material`` 影响项必须在清单里，供报告草稿的人工确认章节引用。
+    """
+
+    from lvke_mcp.runtime.quality_severity import classify_quality
+
+    uncertainties: list[dict[str, Any]] = []
+    for code in [*blocking_codes, *quality_issues]:
+        text = str(code or "").strip()
+        if not text:
+            continue
+        classified = classify_quality(text)
+        uncertainty_type = (
+            "conflict" if classified.get("material_conflict") is True else "unverified"
+        )
+        uncertainty = build_uncertainty(
+            uncertainty_type,
+            field=text.split(":", 1)[0],
+            message=text,
+            severity="material" if classified.get("material_conflict") is True else "moderate",
+            confidence="unknown",
+            affected_outputs=["delivery_run"],
+            required_action=(
+                "修复口径冲突或由人工线下确认采用值"
+                if classified.get("material_conflict") is True
+                else "补齐证据或阶段对象后由人工线下确认"
+            ),
+        )
+        uncertainties.append(uncertainty)
+    return uncertainties
+
+
+def _aggregate_upstream_diagnostics(
+    workspace_id: str,
+    run: dict[str, Any],
+) -> list[str]:
+    """Collect QualityDiagnostic ids already persisted on upstream chain objects."""
+
+    from lvke_mcp.adapters.quality_diagnostic_repository import diagnostics_for_target
+
+    candidates: set[str] = set()
+    stages = run.get("stages") or {}
+    for stage_name in ("finance_run", "finance_tables", "report", "review"):
+        for ref in ((stages.get(stage_name) or {}).get("output_refs") or []):
+            target = str(ref or "").strip()
+            if not target or "/" in target:
+                target = target.rsplit("/", 1)[-1]
+            if not target:
+                continue
+            try:
+                for item in diagnostics_for_target(workspace_id, target):
+                    candidates.add(str(item["object_id"]))
+            except Exception:  # noqa: BLE001
+                continue
+    return sorted(candidates)
 
 
 @_guard_identifiers
@@ -1688,21 +1770,9 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             warnings=warnings,
             next_actions=["补齐 EVD-2 证据、正式财务校验和审查复测后重试"],
         )
-    if validation_scope == "technical" and blocking_codes:
-        # 过程验收允许"带限制放行"，但那只针对置信度不足；口径非法
-        # （重建来源缺记录、受控假设、规模不一致）不能靠标注放过——
-        # 那会让一个非法基准拿到 release 对象并对外流转。
-        return _blocked(
-            "technical_validation_required",
-            "过程验收仍存在口径阻断项，不能发布",
-            delivery_run_id=delivery_run_id,
-            release_scope=requested_scope,
-            validation_scope=validation_scope,
-            quality_issues=quality_issues,
-            blockers=blocking_codes,
-            warnings=warnings,
-            next_actions=["修复 blockers 中的口径阻断项后重试过程验收发布"],
-        )
+    # 技术验收阶段不因业务质量问题停止：即便存在 material conflict，
+    # 仍固化一份带限制的内部诊断记录。正式资格判断属于后续人工流程，
+    # 由 formal_report_allowed=false / release_limitations 明确表达。
     warnings = [
         *warnings,
         *(f"发布质量提示：{item}" for item in quality_issues),

@@ -211,7 +211,7 @@ def test_incomplete_cost_and_empty_labor_are_confirmed() -> None:
         assert confirmed["quality_issues"]
 
 
-def test_flat_revenue_missing_evidence_is_confirmed() -> None:
+def test_flat_revenue_missing_evidence_is_blocked_for_review_candidate() -> None:
     workspace_id = "planning-gateless-" + uuid.uuid4().hex
     context_id, market_id, _ = _basis(workspace_id)
     candidate_id = _put(
@@ -242,11 +242,53 @@ def test_flat_revenue_missing_evidence_is_confirmed() -> None:
         idempotency_key="confirm-flat-revenue",
     )
 
+    assert checked["success"] is False
+    assert checked["valid"] is False
+    assert "flat_revenue_formal_evidence_required" in checked["blockers"]
+    assert confirmed["success"] is False
+    assert confirmed["status"] == "blocked"
+    assert "flat_revenue_formal_evidence_required" in confirmed["blockers"]
+
+
+def test_flat_revenue_preview_without_evidence_is_partial_not_clean() -> None:
+    """预览路径仍可确认，但不得带着空 quality_issues 假装无限制。"""
+
+    workspace_id = "planning-flat-preview-" + uuid.uuid4().hex
+    context_id, market_id, _ = _basis(workspace_id)
+    candidate_id = _put(
+        planning.REVENUE_DRIVER_STORE,
+        workspace_id,
+        {
+            "object_type": "RevenueDriverSet",
+            "project_context_id": context_id,
+            "market_case_id": market_id,
+            "candidates": [{
+                "candidate_id": "flat-preview",
+                "revenue_spec": {"model": "flat", "annual_revenue_wan": 1.0},
+                "op_years": 5,
+                "mode": "estimate_preview",
+                "flat_evidence_binding": None,
+            }],
+            "status": "candidate",
+        },
+    )
+    checked = validate_revenue_drivers(workspace_id, candidate_id)
+    confirmed = confirm_revenue_drivers(
+        workspace_id,
+        candidate_id,
+        "flat-preview",
+        [],
+        "预览路径先固化收入候选",
+        idempotency_key="confirm-flat-preview",
+    )
     assert checked["success"] is True
     assert checked["valid"] is False
     assert checked["blockers"] == []
     assert confirmed["success"] is True
     assert confirmed["status"] == "partial"
-    assert confirmed["blockers"] == []
-    assert confirmed["revenue_driver_set_id"]
-    assert confirmed["quality_issues"]
+    codes = {
+        item.get("code") if isinstance(item, dict) else item
+        for item in (confirmed.get("quality_issues") or [])
+    }
+    assert "flat_revenue_formal_evidence_required" in codes
+    assert confirmed.get("release_limitations")

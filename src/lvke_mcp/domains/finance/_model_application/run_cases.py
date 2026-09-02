@@ -8,6 +8,11 @@ import json
 import time
 
 from lvke_mcp.adapters.finance_model_repository import BASIS_OF_ESTIMATE_STORE, IDEMPOTENCY_STORE, SPEC_STORE
+from lvke_mcp.adapters.quality_diagnostic_repository import (
+    build_uncertainty,
+    conflict_values_from_text,
+    record_quality_diagnostic,
+)
 from lvke_mcp.runtime.formal_promotion import (
     FormalLineageError,
     SIM_A_FORMAL,
@@ -451,16 +456,63 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         viability_status = str(data.get("viability_status") or "not_assessed")
         viability_issues = list(data.get("viability_issues") or [])
         quality_issues = [str(item) for item in data.get("quality_issues") or []]
+        # 技术验收阶段统一计算态；unavailable 的完整语义需要引擎结果，
+        # 三个分支各自覆盖其值。
+        calculation_status = "unavailable"
         if data.get("available") and run_id:
             blockers = [
                 str(item.get("rule") or item.get("code") or "finance_consistency_failed")
                 for item in data.get("blocking_issues") or []
             ]
             # A persisted run with an integrity blocker remains readable for
-            # technical diagnosis, but must not advertise business success.
-            # ``blocked`` keeps the preview available while making the release
-            # gate explicit in the outer envelope.
-            status = "blocked" if blockers else ("partial" if quality_issues else "ok")
+            # technical diagnosis.  Per §5 the envelope now uses ``partial``
+            # (not ``blocked``) so the result is framed as "completed with
+            # quality findings" rather than "stopped by a blocker".  Callers
+            # read ``formal_report_allowed`` / ``quality_status`` to decide
+            # whether downstream use is appropriate.
+            status = "partial" if blockers else ("partial" if quality_issues else "ok")
+            calculation_status = "continued_with_conflict" if blockers else "computed"
+            # 对 material conflict 固化为 QualityDiagnostic，可用于后续
+            # 表和报告引用的诊断链。
+            if blockers and run_id:
+                affected_outputs = [
+                    "total_investment", "investment_breakdown", "funding",
+                    "cashflow", "income_statement", "all_tables",
+                ]
+                for item in data.get("blocking_issues") or []:
+                    rule = str(item.get("rule") or "finance_consistency_failed")
+                    detail = str(item.get("detail") or "")
+                    uncertainty = build_uncertainty(
+                        "conflict", field=rule,
+                        value=detail,
+                        competing_values=conflict_values_from_text(detail),
+                        message=detail,
+                        severity="material",
+                        affected_outputs=affected_outputs,
+                    )
+                    try:
+                        record_quality_diagnostic(
+                            workspace_id,
+                            target_type="finance_run",
+                            target_id=run_id,
+                            rule_code=rule,
+                            uncertainties=[uncertainty],
+                            affected_outputs=affected_outputs,
+                            calculation_status="continued_with_conflict",
+                            basis_hash=data.get("basis_hash") or data.get("spec_hash") or "",
+                            input_snapshot_refs=[
+                                str(data.get("spec_id") or ""),
+                                str(data.get("input_hash") or ""),
+                            ],
+                        )
+                    except Exception:  # noqa: BLE001
+                        # 诊断落库失败不能静默；计算结果仍可供技术排查，
+                        # 但必须明确提示诊断链不完整。
+                        if "quality_diagnostic_persistence_failed" not in quality_issues:
+                            quality_issues.append("quality_diagnostic_persistence_failed")
+                            data.setdefault("quality_issues", []).append(
+                                "quality_diagnostic_persistence_failed"
+                            )
             if blockers:
                 next_actions = [
                     "先修复财务勾稽阻断项，再继续后续正式流程",
@@ -476,9 +528,11 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         elif missing:
             status = "partial"
             blockers = []
+            calculation_status = "computed" if data.get("available") else "unavailable"
             next_actions = ["当前结果已保留诊断；补充输入可提高估算置信度"]
         else:
             status = "blocked"
+            calculation_status = "unavailable"
             blockers = _blocking_rules(data) or [str(data.get("reason") or "run_not_available")]
             next_actions = (
                 ["检查财务审计存储后重试；计算结果未成功持久化"]
@@ -498,6 +552,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             field_errors=list(data.get("field_errors") or []),
             viability_status=viability_status,
             viability_issues=viability_issues,
+            calculation_status=calculation_status,
             replayed=False,
             reused=False,
             idempotency_expires_at=expires_at,

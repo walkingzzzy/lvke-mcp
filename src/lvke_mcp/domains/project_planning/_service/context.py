@@ -23,6 +23,8 @@ from lvke_mcp.adapters.project_planning_repository import (
     PROJECT_CONTEXT_STORE,
 )
 
+from lvke_mcp.domains.finance.industry_aliases import INDUSTRY_ALIASES
+
 from .base import (
     _applicability_view,
     _blocked,
@@ -96,7 +98,18 @@ def resolve_industry_skill(
     except (OSError, json.JSONDecodeError):
         return _blocked("industry_skill_manifest_unavailable", "行业 Skill 路由清单不可用")
     context = dict(record.get("payload") or {})
-    industry = str(context.get("industry_code") or "").strip().lower()
+    industry_raw = str(context.get("industry_code") or "").strip()
+    industry = industry_raw.lower()
+    # industry_params.yaml 用中文键（农业），路由清单用英文前缀（agriculture）。
+    # 两边都合法，解析时必须同时认别名，否则同一 ProjectContext 会出现
+    # 「参数接受、Skill 路由拒绝」。
+    industry_tokens = {industry, industry_raw}
+    for eng, zh in INDUSTRY_ALIASES.items():
+        if industry == eng.lower() or industry_raw == zh or industry == zh.lower():
+            industry_tokens.add(eng.lower())
+            industry_tokens.add(zh)
+            industry_tokens.add(zh.lower())
+    industry_tokens = {token for token in industry_tokens if token}
     asset_type = str(context.get("asset_type") or "").strip().lower()
     project_type = str(context.get("project_type") or "").strip().lower()
     transaction = str(context.get("transaction_structure") or "").strip().lower()
@@ -109,7 +122,8 @@ def resolve_industry_skill(
         projects = [str(item).lower() for item in route.get("project_types") or []]
         transactions = [str(item).lower() for item in route.get("transaction_structures") or []]
         domain_match = any(
-            industry == prefix or industry.startswith(prefix + ".") or industry.startswith(prefix + "-")
+            token == prefix or token.startswith(prefix + ".") or token.startswith(prefix + "-")
+            for token in industry_tokens
             for prefix in prefixes
         ) or bool(asset_type and asset_type in assets)
         if not domain_match:
