@@ -1777,8 +1777,13 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         )
         payload = json.loads(json.dumps(record.get("payload") or {}))
         payload["parent_run_id"] = delivery_run_id
-        payload["status"] = "released"
+        # 过程验收与正式交付不得共用 status=released：只读
+        # delivery_run.status 的调用方无法区分两条路径。
+        payload["status"] = (
+            "process_accepted" if requested_scope == "process_acceptance" else "released"
+        )
         payload["current_stage"] = "released"
+        payload["release_grade"] = requested_scope
         payload["release_scope"] = requested_scope
         payload.setdefault("stages", empty_stages())["released"] = {
             "status": "completed",
@@ -1799,13 +1804,18 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         )
         return _envelope(
             True,
-            "released" if passed else "partial",
+            (
+                "released" if passed and requested_scope == "project_delivery"
+                else "process_accepted" if passed
+                else "partial"
+            ),
             completed=True,
             release=_view(release_record, "release_id"),
             release_id=release_record["object_id"],
             delivery_run=_view(released_run),
             delivery_run_id=released_run["object_id"],
             release_scope=requested_scope,
+            release_grade=requested_scope,
             validation_scope=validation_scope,
             quality_valid=passed,
             quality_issues=quality_issues,

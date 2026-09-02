@@ -79,4 +79,4 @@ source_external_corpus_resolve 返回未登记项目、缺少 marker、路径越
 
 run_manifest.json 至少记录 generated_at、commit、build_commits、services、tools、workspace_id、object_ids、traces、artifacts、coverage。artifacts 每项记录相对路径、MIME、SHA-256、字节数、run_id/package_id 和 lineage。coverage 只允许 PASS、EXPECTED_REJECTION、UPSTREAM_FAILURE、SKIPPED。
 
-实物门禁：XLSX 恰好 13 张正式附表且无控制页；13 个 CSV 为 UTF-8 BOM；DOCX 可打开、中文可见、包含“技术估算版，非正式发布”；三类产物的财务数字、hash 与 lineage 必须同源。
+实物门禁：XLSX 恰好 14 张正式附表（附表1-10 + 附表11）且无控制页；15 个 CSV（14 表 + 数据血缘）为 UTF-8 BOM；DOCX 可打开、中文可见、包含“技术估算版，非正式发布”；三类产物的财务数字、hash 与 lineage 必须同源。

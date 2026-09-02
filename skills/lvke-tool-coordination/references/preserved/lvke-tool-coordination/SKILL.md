@@ -31,7 +31,7 @@ description: >
 4. 用户未明确要求时，不运行 pytest；不得让开发回归阻塞真实 MCP 主链。
 5. 代码必须先冻结再请求重启。重启后若继续修改 MCP 代码，本轮结果立即失效，修复后重新冻结并创建全新 workspace/run/package/revision/review。
 6. 未真实调用的工具不得标记 PASS。只使用 `PASS`、`EXPECTED_REJECTION`、`UPSTREAM_FAILURE`、`SKIPPED`，并记录输入、耗时、状态、trace 和 lineage。
-7. 验收必须实际导出并核验恰好 13 张正式附表的 XLSX、13 个 CSV 和中文可见的 DOCX；测试通过数量不是交付证据。
+7. 验收必须实际导出并核验恰好 **14** 张正式附表的 XLSX、**15** 个 CSV（14 表 + 数据血缘）和中文可见的 DOCX；张数以实时 `engine_delivery_count` 为准，「十三表」只是业务惯称；测试通过数量不是交付证据。
 8. 本产品没有登录、身份、tenant、角色、RBAC、权限管理或安全签审；不得在验收中增加这些步骤。
 
 14 个服务必须共享同一个构建身份：`build_commit`、`build_time` 和完整
@@ -346,9 +346,9 @@ finance_prepare_spec(workspace_id, input_revision, evidence_pack_ids, mode)
 
 1. `finance_get_run` 的 `consistency_ok=true`，投资、成本、工资、税费和现金流均无 blocker。
 2. `tables_render` 只消费该 `run_id`，随后 `tables_validate` 整包通过。
-3. `tables_list_tables` 返回恰好 13 张正式交付表；指标、计算、校验、血缘和审计页不计入十三表。
-4. 13 个静态别名与 `tables_get_table` 的内容 hash、`run_id`、`package_id` 和 lineage 一致，单表读取不得触发重算。
-5. XLSX、13 个 CSV 与 Resource 可读；单表局部验证不得授予 `formal_delivery_ready`。
+3. `tables_list_tables` 返回恰好 **14** 张正式交付表（附表1-10 + 附表11 财务计划现金流量表）；指标、计算、校验、血缘和审计页不计入交付表。
+4. 14 个交付表静态别名与 `tables_get_table` 的内容 hash、`run_id`、`package_id` 和 lineage 一致，单表读取不得触发重算。
+5. XLSX、15 个 CSV（14 表 + 数据血缘）与 Resource 可读；单表局部验证不得授予 `formal_delivery_ready`。
 
 ---
 
@@ -491,13 +491,13 @@ feasibility_release(delivery_run_id, ...)    # 创建技术交付记录，不代
   MCP 失败时依据 next_actions 补料或重试，不得从对话旁路调用本地引擎。
   
   生成:
-    - 13张正式交付表；质量、公式、血缘和审计元数据独立返回，不进入交付工作簿
+    - 14张正式交付表；质量、公式、血缘和审计元数据独立返回，不进入交付工作簿
     - IRR: 9.87%
     - NPV: 6245万元
     - 回收期: 10.2年
 
 阶段6: 企业级验证
-  门禁1: ✅ 13张正式交付表齐全
+  门禁1: ✅ 14张正式交付表齐全
   门禁2: ⚠️ 简化参数（未提供 InvestmentBreakdown）
   门禁3: ✅ 25年现金流
   门禁4: ✅ IRR/NPV已计算

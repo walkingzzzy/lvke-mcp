@@ -41,7 +41,7 @@ Machine-readable mapping: `src/lvke_mcp/runtime/skill_tool_mapping.json` (`lvke-
 | `finance_prepare_spec` / `finance_confirm_spec` | lvke-finance-model | `workspace_id` | `missing_inputs` = EXPECTED_REJECTION |
 | `finance_run_model` | lvke-finance-model | `workspace_id`, confirmed spec | bind `run_id`, `input_hash`, `lineage` |
 | `finance_validate_post_generation` | lvke-finance-model | `run_id` | `partial` ≠ formal pass |
-| `tables_render` / `tables_export_xlsx` | lvke-finance-tables | same `run_id` | 13 tables must match run lineage |
+| `tables_render` / `tables_export_xlsx` | lvke-finance-tables | same `run_id` | all 14 delivery tables must match run lineage |
 | `tables_get_package` / `tables_validate_table` | lvke-finance-tables | `finance_tables_package_id` | single-table check never grants whole-package or formal qualification |
 | `finance_build_balance_sheet` | lvke-finance-model | `run_id` | derives from a cross-footed run; discloses the equity residual and reconciliation gap instead of plugging it |
 | `finance_run_monte_carlo` | lvke-finance-model | `run_id`, `distributions`, `seed` | seeded and deterministic; only IRR/NPV P5/P50/P95 and failure counts are persisted, samples stay in memory |

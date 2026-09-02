@@ -871,48 +871,93 @@ def verify_narrative_numbers(
     inv = view.get("investment") or {}
     # 兼容 snapshot / 审计重建键名
     fund = view.get("funding") or {}
+    # 数字组必须接受千分位与亿元：正式可研正文写「128,000.00 万元」「12.80 亿元」，
+    # 旧式 ([0-9]+(?:\.[0-9]+)?) + \s*万 两者都不匹配，于是造假数字**静默逃过**
+    # 本检查（活体实测：写 28,000.00 不进 matches，写 28000.00 才进）。
+    # 标签与数字之间允许 markdown 强调标记与空白：正文常写
+    # 「总投资 **35000.00 万元**」，`**` 夹在中间会让整条规则失配 —— 活体实测
+    # 这正是造假的总投资/IRR 逃过检查的真因（不是千分位、也不是段落粒度）。
+    _NUM = r"[*_`\s]*(-?[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?|-?[0-9]+(?:\.[0-9]+)?)"
+    _WAN = r"\s*(万|亿)"          # 单位随捕获组回传，由 _amount() 归一到万元
+    _PCT = r"\s*[%％]"
+    _YR = r"\s*年"
+    # 「财务内部收益率」必须排除「资本金(财务)内部收益率」——后者是独立指标
+    # (capital_irr)，否则同段两个 IRR 会被判成 project_irr 的两个冲突值。
+    _IRR_HEAD = (
+        r"(?<!资本金)(?<!资本金财务)(?<!资本金 )(?<!资本金　)"
+        r"(?:项目投资内部收益率|项目财务内部收益率|财务内部收益率|内部收益率|项目IRR|IRR)"
+    )
     mapping = [
-        ("total_investment", inv.get("total") or inv.get("total_investment"), r"(?:总投资|项目总投资)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("capital", fund.get("capital") or fund.get("equity_capital"), r"(?:项目资本金|自有资金|资本金)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("loan", fund.get("loan"), r"(?:银行贷款|贷款金额|贷款)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("revenue", ind.get("revenue") or ind.get("annual_revenue"), r"(?:年营业收入|营业收入)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("net_profit", ind.get("net_profit") or ind.get("annual_net_profit"), r"(?:年净利润|净利润)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("project_irr", ind.get("project_irr_pct") or ind.get("project_irr"), r"(?:内部收益率|IRR|财务内部收益率)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*%"),
-        ("npv", ind.get("npv_wan") or ind.get("npv"), r"(?:净现值|NPV)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*万"),
-        ("static_payback", ind.get("static_payback_years") or ind.get("static_payback"), r"(?:静态投资回收期|(?<!动态)投资回收期)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*年"),
-        ("dynamic_payback", ind.get("dynamic_payback_years") or ind.get("dynamic_payback"), r"(?:动态投资回收期)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*年"),
-        ("capital_irr", ind.get("capital_irr_pct") or ind.get("capital_irr"), r"(?:资本金内部收益率|资本金IRR)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*%"),
-        ("bep", ind.get("bep_pct") or ind.get("bep"), r"(?:盈亏平衡点|BEP)\s*[为:：]?\s*([0-9]+(?:\.[0-9]+)?)\s*%"),
+        ("total_investment", inv.get("total") or inv.get("total_investment"), rf"(?:总投资|项目总投资)\s*(?:约)?[为:：]?\s*{_NUM}{_WAN}"),
+        ("capital", fund.get("capital") or fund.get("equity_capital"), rf"(?:项目资本金|自有资金|资本金)\s*(?:（自筹）)?\s*[为:：]?\s*{_NUM}{_WAN}"),
+        ("loan", fund.get("loan"), rf"(?:银行贷款|贷款金额|贷款)\s*[为:：]?\s*{_NUM}{_WAN}"),
+        ("revenue", ind.get("revenue") or ind.get("annual_revenue"), rf"(?:达产年营业收入|年营业收入|营业收入)\s*[为:：]?\s*{_NUM}{_WAN}"),
+        ("net_profit", ind.get("net_profit") or ind.get("annual_net_profit"), rf"(?:年净利润|净利润)\s*[为:：]?\s*{_NUM}{_WAN}"),
+        ("project_irr", ind.get("project_irr_pct") or ind.get("project_irr"), rf"{_IRR_HEAD}\s*(?:（税后）|\(税后\))?\s*[为:：]?\s*{_NUM}{_PCT}"),
+        ("npv", ind.get("npv_wan") or ind.get("npv"), rf"(?:财务净现值|净现值|NPV)\s*(?:（[^）]*）)?\s*[为:：]?\s*{_NUM}{_WAN}"),
+        ("static_payback", ind.get("static_payback_years") or ind.get("static_payback"), rf"(?:静态投资回收期|(?<!动态)投资回收期)\s*[为:：]?\s*{_NUM}{_YR}"),
+        ("dynamic_payback", ind.get("dynamic_payback_years") or ind.get("dynamic_payback"), rf"(?:动态投资回收期)\s*[为:：]?\s*{_NUM}{_YR}"),
+        ("capital_irr", ind.get("capital_irr_pct") or ind.get("capital_irr"), rf"(?:资本金财务内部收益率|资本金内部收益率|资本金\s*IRR)\s*[为:：]?\s*{_NUM}{_PCT}"),
+        ("bep", ind.get("bep_pct") or ind.get("bep"), rf"(?:盈亏平衡点|BEP)\s*[为:：]?\s*{_NUM}{_PCT}"),
     ]
     matches: list[dict[str, Any]] = []
     mismatches: list[dict[str, Any]] = []
     unmapped: list[dict[str, Any]] = []
+    def _amount(raw: str, unit: str) -> float | None:
+        """把捕获到的数字串归一为万元（去千分位；亿元×10000）。"""
+        try:
+            value = float(str(raw).replace(",", ""))
+        except (TypeError, ValueError):
+            return None
+        return round(value * 10000.0, 6) if unit == "亿" else value
+
+    haystack = text or ""
     for code, exp, pattern in mapping:
+        # 必须 finditer 全文扫：曾用 re.search，一个指标全篇**只比第一处**，
+        # 于是同段/后文再次出现的造假数字完全不进比对集（活体实测：同段写
+        # 总投资+IRR+NPV 三个假数字，只报 NPV，另两个既不在 mismatches
+        # 也不在 unmapped，ok 仍可能为 true）。
+        occurrences: list[tuple[str, str]] = [
+            (m.group(1), (m.group(2) if m.lastindex and m.lastindex >= 2 else ""))
+            for m in re.finditer(pattern, haystack)
+        ]
+        if not occurrences:
+            continue
         if exp is None:
-            m = re.search(pattern, text or "")
-            if m:
-                unmapped.append({"element": code, "found": m.group(1), "reason": "run_missing_expected_value"})
+            for raw, unit in occurrences:
+                unmapped.append({
+                    "element": code,
+                    "found": raw,
+                    "reason": "run_missing_expected_value",
+                })
             continue
         try:
             exp_f = float(exp)
         except (TypeError, ValueError):
             continue
-        m = re.search(pattern, text or "")
-        if not m:
-            continue
-        try:
-            got = float(m.group(1))
-        except (TypeError, ValueError):
-            continue
-        # IRR 可能是 16.8 或 0.168；若 expected>1 且 got<=1，放大 got
-        if code == "project_irr":
-            if exp_f > 1 and got <= 1:
-                got *= 100
-            if exp_f <= 1 and got > 1:
-                exp_f *= 100
-        ok = abs(got - exp_f) <= max(tolerance, abs(exp_f) * 0.01)
-        item = {"element": code, "expected": exp_f, "found": got, "ok": ok}
-        (matches if ok else mismatches).append(item)
+        for raw, unit in occurrences:
+            got = _amount(raw, unit)
+            if got is None:
+                continue
+            expected = exp_f
+            # IRR 可能是 16.8 或 0.168；若 expected>1 且 got<=1，放大 got
+            if code in {"project_irr", "capital_irr"}:
+                if expected > 1 and got <= 1:
+                    got *= 100
+                if expected <= 1 and got > 1:
+                    expected *= 100
+            ok = abs(got - expected) <= max(tolerance, abs(expected) * 0.01)
+            item = {"element": code, "expected": expected, "found": got, "ok": ok}
+            # 同一指标全文多处出现且都正确时，只保留一条 match，避免刷屏；
+            # 不一致的每一处都必须单独列出，供逐处定位。
+            if ok:
+                if not any(
+                    existing["element"] == code and existing["found"] == got
+                    for existing in matches
+                ):
+                    matches.append(item)
+            else:
+                mismatches.append(item)
 
     return {
         "ok": not mismatches and not unmapped,

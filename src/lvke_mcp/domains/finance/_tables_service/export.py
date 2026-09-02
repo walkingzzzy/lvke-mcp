@@ -96,10 +96,10 @@ def _resolve_package(
 
 
 def _package_manifest_hash(record: dict[str, Any]) -> str:
-    """Hash the package's own thirteen-table manifest, not the model manifest.
+    """Hash the package's own 14-table delivery manifest, not the model manifest.
 
     ``run.manifest_hash`` 描述的是 ModelManifest（口径/政策版本），与「这份工件绑的
-    是哪 13 张表」无关，且在 estimate_preview 下常为 None。工件自述来源必须能核对
+    是哪 14 张表」无关，且在 estimate_preview 下常为 None。工件自述来源必须能核对
     表内容，所以取 package payload 里逐表 content_hash 的清单哈希。
     """
 
@@ -121,7 +121,7 @@ def _package_manifest_hash(record: dict[str, Any]) -> str:
 def _verify_package_tables(record: dict[str, Any]) -> dict[str, Any]:
     """Re-hash the stored tables and compare against the package's own manifest.
 
-    导出必须证明自己搬运的就是主包那 13 张表：逐表重算 content_hash 与
+    导出必须证明自己搬运的就是主包那 14 张表：逐表重算 content_hash 与
     table_manifest 比对，任一不一致或缺表即 fail-closed，不允许「导出时悄悄换了
     一份表」。
     """
@@ -283,7 +283,7 @@ def export_xlsx(
         "source_package_id": package_id,
         "source_run_id": run_id,
         "source_package_reused": bool(resolved["reused"]),
-        # manifest_hash 是「这 13 张表」的清单哈希，用于核对工件与主包同源；
+        # manifest_hash 是「这 14 张表」的清单哈希，用于核对工件与主包同源；
         # ModelManifest 的哈希另走 model_manifest_hash，两者语义不可混用。
         "manifest_hash": _package_manifest_hash(package_record),
         "model_manifest_hash": str(exported.get("manifest_hash") or ""),

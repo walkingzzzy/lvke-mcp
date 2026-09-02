@@ -82,11 +82,26 @@ def get_workspace_finance_run(
                 "table_bundle_hash": base.get("table_bundle_hash"),
             }
         if view == "checks":
+            consistency = audit_view.get("consistency") or []
+            blocking_issues = list(audit_view.get("blocking_issues") or [])
+            if not blocking_issues:
+                blocking_issues = [
+                    {
+                        "rule": str(item.get("rule") or item.get("code") or "finance_consistency_failed"),
+                        "detail": str(item.get("detail") or ""),
+                        "blocking": True,
+                    }
+                    for item in consistency
+                    if isinstance(item, dict)
+                    and not item.get("ok")
+                    and bool(item.get("blocking", True))
+                ]
             return {
                 "ok": True,
                 "run_id": rid,
                 "consistency_ok": base["consistency_ok"],
-                "consistency": audit_view.get("consistency") or [],
+                "consistency": consistency,
+                "blocking_issues": blocking_issues,
                 "issues": audit_view.get("issues") or [],
                 "checks": snapshot.get("checks") or [],
             }
@@ -123,11 +138,26 @@ def get_workspace_finance_run(
 
     # 无快照：仅返回审计摘要
     if view == "checks":
+        consistency = audit_view.get("consistency") or []
+        blocking_issues = list(audit_view.get("blocking_issues") or [])
+        if not blocking_issues:
+            blocking_issues = [
+                {
+                    "rule": str(item.get("rule") or item.get("code") or "finance_consistency_failed"),
+                    "detail": str(item.get("detail") or ""),
+                    "blocking": True,
+                }
+                for item in consistency
+                if isinstance(item, dict)
+                and not item.get("ok")
+                and bool(item.get("blocking", True))
+            ]
         return {
             "ok": True,
             "run_id": rid,
             "consistency_ok": base["consistency_ok"],
-            "consistency": audit_view.get("consistency") or [],
+            "consistency": consistency,
+            "blocking_issues": blocking_issues,
             "issues": audit_view.get("issues") or [],
         }
     # 从 results 重建粗指标

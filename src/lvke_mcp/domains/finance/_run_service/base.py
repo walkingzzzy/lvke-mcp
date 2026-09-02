@@ -44,7 +44,7 @@ DELIVERY_TABLE_META: tuple[tuple[str, str, str], ...] = (
     #
     # 编号取 11 而非内部代号 C03：权威参考工作簿《投资类项目经济计算表.xlsx》
     # 没有这张表（实测「财务计划」/「附表11」零命中），无外部编号可继承；
-    # 附表10 是现有最大号（13 张表只排到 10，因 6-1/6-2/6-3 是附表6 子表），
+    # 附表10 是现有最大号（旧 13 张表只排到 10，因 6-1/6-2/6-3 是附表6 子表），
     # 11 是自然续号。交付件里出现"控制表 C03"会让审查方无从对应大纲条款。
     #
     # 它的参考结构已在 docs/reference_table_schema.json 冻结，并以
@@ -336,6 +336,15 @@ def _table_manifest(fin: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
         item["table_code"]: item for item in delivery_table_contract()
     }
     contract_hash = delivery_table_contract_hash()
+    structured_tables: dict[str, Any] = {}
+    try:
+        from lvke_mcp.domains.finance.table_render import build_all_structured
+
+        built = build_all_structured(fin)
+        if isinstance(built, dict):
+            structured_tables = built
+    except Exception:  # noqa: BLE001
+        structured_tables = {}
     for key in DELIVERY_TABLE_KEYS:
         tbl = tables.get(key)
         if tbl is None:
@@ -343,7 +352,12 @@ def _table_manifest(fin: dict[str, Any], run_id: str) -> list[dict[str, Any]]:
         delivery_no, title = meta_by_key.get(key, ("", key))
         contract = contract_by_key.get(key, {})
         content = _stable_json(tbl)
-        if isinstance(tbl, list):
+        # 与 tables_render 对齐：优先用同一套 structured 投影的数据行数，
+        # 避免 markdown/list 长度与渲染行各算一次（活体附表1 曾 12 vs 13）。
+        structured_body = structured_tables.get(key) if isinstance(structured_tables, dict) else None
+        if isinstance(structured_body, dict) and isinstance(structured_body.get("rows"), list):
+            row_count = len(structured_body["rows"])
+        elif isinstance(tbl, list):
             row_count = len(tbl)
         elif isinstance(tbl, dict):
             row_count = len(tbl.get("rows") or [])

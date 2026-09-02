@@ -21,7 +21,7 @@ def build_timeline(
 
     ``mode=annual`` (default): periods are annual indices 0..n-1.
     ``mode=monthly``: engine-facing periods are months; callers still keep
-    the official 13 tables as annual aggregates via ``annual_periods``.
+    the official 14 delivery tables as annual aggregates via ``annual_periods``.
     """
     timeline_mode = "monthly" if str(mode or "annual").strip() == "monthly" else "annual"
     if build_years is None:

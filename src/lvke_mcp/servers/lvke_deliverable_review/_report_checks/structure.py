@@ -131,7 +131,12 @@ def _internal_consistency_findings(
     target_id: str,
     standard_basis: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    # 分组键必须含语境维度：只按 (metric, period, unit) 分桶时，敏感性三情景的
+    # NPV（−2996.48/−808.64/−300.64）与差异披露句里的「A 与 B 差 C」三个数会被
+    # 判成同口径冲突，产出与数字对错无关的假 P0。period 只认时间期间
+    # （_PERIOD_PATTERN），表达不了情景，故单列 variance_context。
+    # 这不是豁免：情景/披露各自成桶，桶内仍有多值冲突照旧报出。
+    grouped: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
     for claim in claims:
         metric = str(claim.get("metric") or "")
         if not metric:
@@ -139,9 +144,16 @@ def _internal_consistency_findings(
         period = str(claim.get("period") or "")
         if metric in {"room_count", "area"}:
             period = ""
-        grouped.setdefault((metric, period, str(claim.get("unit") or "")), []).append(claim)
+        grouped.setdefault(
+            (metric, period, str(claim.get("unit") or ""), str(claim.get("variance_context") or "")),
+            [],
+        ).append(claim)
     findings: list[dict[str, Any]] = []
-    for (metric, period, unit), rows in grouped.items():
+    for (metric, period, unit, variance_context), rows in grouped.items():
+        # 同一敏感性/披露行内部的多值是分析结构本身，不是口径冲突。跨行的同
+        # 语境冲突仍然报出（rows 来自不同 line 时照常判定）。
+        if variance_context and len({row["location"].get("line") for row in rows}) <= 1:
+            continue
         values = sorted({round(float(row["value"]), 8) for row in rows})
         if len(values) <= 1 or all(
             _within_tolerance(value, values[0], metric=metric)

@@ -156,6 +156,7 @@ def _view_from_record(record: dict[str, Any]) -> dict[str, Any]:
     view.setdefault("viability_status", "not_assessed")
     view.setdefault("viability_issues", [])
     view.setdefault("consistency", [])
+    view.setdefault("blocking_issues", [])
     view.setdefault("results", [])
     view.setdefault("assumptions", [])
     view.setdefault("report_mappings", [])
@@ -273,6 +274,20 @@ def record_run(
         if isinstance(c, dict)
     )
     consistency_ok = bool(consistency) and not blocking_fail
+    # Persist the same blocking projection exposed by the model result.  The
+    # checks view is consumed by report/readiness gates and must not silently
+    # turn a failed `blocking:true` reconciliation into an empty array.
+    blocking_issues = [
+        {
+            "rule": str(item.get("rule") or item.get("code") or "finance_consistency_failed"),
+            "detail": str(item.get("detail") or ""),
+            "blocking": True,
+        }
+        for item in consistency
+        if isinstance(item, dict)
+        and not item.get("ok")
+        and bool(item.get("blocking", True))
+    ]
 
     spec_obj = fin.get("spec")
     spec_json = (
@@ -332,6 +347,7 @@ def record_run(
         "finished_at": now,
         "consistency_ok": consistency_ok,
         "integrity_status": "passed" if consistency_ok else "failed",
+        "blocking_issues": blocking_issues,
         "viability_status": str(fin.get("viability_status") or "not_assessed"),
         "viability_issues": list(fin.get("viability_issues") or []),
         "consistency": consistency,

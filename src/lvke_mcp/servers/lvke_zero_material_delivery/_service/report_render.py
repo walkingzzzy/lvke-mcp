@@ -28,7 +28,7 @@ _PROSE_DEFAULTS: dict[str, str] = {
     ),
     "no_public_sources": "- 未形成可固化的公开来源快照；相关字段已回退为受控假设",
     "finance_tables_manifest": (
-        "已从同一 FinanceRun 确定性生成十三张主表、13 个 CSV 与 XLSX；"
+        "已从同一 FinanceRun 确定性生成14张交付主表、15 个 CSV（含数据血缘）与 XLSX；"
         "表格完整性由 manifest、文件 hash 与跨表一致性校验共同确定。"
     ),
     "no_blockers": "- 无技术链阻断项",

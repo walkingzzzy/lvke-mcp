@@ -697,7 +697,14 @@ def run_workspace_finance_model(
             *list(result.get("warnings") or []),
             *(f"财务勾稽提示：{item}" for item in consistency_issues),
         ]
-        result["blocking_issues"] = []
+        result["blocking_issues"] = [
+            {
+                "rule": str(item.get("rule") or item.get("code") or "finance_consistency_failed"),
+                "detail": str(item.get("detail") or ""),
+                "blocking": True,
+            }
+            for item in blocking_consistency
+        ]
     else:
         result["consistency_ok"] = True
 

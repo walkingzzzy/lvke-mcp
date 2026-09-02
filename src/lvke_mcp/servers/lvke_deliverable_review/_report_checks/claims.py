@@ -125,6 +125,36 @@ def _citation_scope(line: str, start: int) -> str:
     return "external"
 
 
+#: 情景/敏感性语境：同一指标在这类行里**本来就该**有多个值（收入 −20%/基准/+20%
+#: 各一个 NPV），按单一口径判冲突是把正确的分析判成矛盾。
+_SCENARIO_MARKERS: tuple[str, ...] = (
+    "敏感性", "敏感系数", "情景", "乐观", "悲观", "基准情景", "压力测试",
+    "下降", "上升", "上浮", "下浮", "变动", "波动",
+)
+
+#: 差异披露语境：正文主动说明"A 与 B 差 C"是**披露**而非自相矛盾。这类行天然
+#: 同时出现两三个同口径数字（分项净额 747.18 / 估算 1500.00 / 差额 752.82）。
+_VARIANCE_MARKERS: tuple[str, ...] = (
+    "差额", "相差", "差异", "偏差", "不一致", "未收敛", "口径存在",
+    "与估算", "尚需核对", "有待核实",
+)
+
+
+def _variance_context(line: str) -> str:
+    """标注整行语境：``scenario`` / ``variance`` / ``""``（普通论断）。
+
+    只做行级判定，与 ``_citation_scope`` 同样是"最近标记"式的确定性规则，不猜。
+    返回值进入一致性分组键，使这两类行与普通论断分桶，而**不是**豁免检查——
+    同一情景内部若仍有多值冲突，照旧报出。
+    """
+
+    if any(token in line for token in _VARIANCE_MARKERS):
+        return "variance"
+    if any(token in line for token in _SCENARIO_MARKERS):
+        return "scenario"
+    return ""
+
+
 def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     section = ""
@@ -217,6 +247,7 @@ def build_claim_graph(content: str, *, target_id: str) -> list[dict[str, Any]]:
                 "context": context,
                 "claim_type": claim_type,
                 "citation_scope": citation_scope,
+                "variance_context": _variance_context(line),
                 "metric": metric,
                 "value": value,
                 "unit": unit,

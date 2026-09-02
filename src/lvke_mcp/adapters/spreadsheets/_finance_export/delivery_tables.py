@@ -1001,7 +1001,7 @@ def _write_delivery_tables(wb, fin, Font, PatternFill, Alignment, Border, Side):
                 ws.cell(target_row, total_column, formula).number_format = '#,##0.00'
 
     # 按冻结 reference schema 生成跨表依赖复核块。真实工作簿有 15 张参考附表，
-    # 引擎交付合并为 13 张，因此先把 supporting sheet 映射到承载它的引擎表。
+    # 引擎交付集现为 14 张，因此先把 supporting sheet 映射到承载它的引擎表。
     from lvke_mcp.domains.finance.reference_schema import load_reference_table_schema
 
     reference_contract = load_reference_table_schema()

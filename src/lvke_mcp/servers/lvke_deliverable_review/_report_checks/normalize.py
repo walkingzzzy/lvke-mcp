@@ -131,8 +131,15 @@ def _semantic_near(text: str, start: int, end: int, unit: str) -> str:
             else:
                 distance = 0
                 direction = 0
-            candidates.append((distance, direction, order, name))
-    return min(candidates)[3] if candidates else ""
+            # 标签特异性必须排在表内序号**之前**：多条模式允许子串命中且互不
+            # 互斥，命中越长的标签越具体。此前排序键是 (距离, 方向, 表内序号)，
+            # 于是「资本金财务内部收益率」与它的子串「财务内部收益率」距离并列
+            # （match.end() 相同），靠表内序号裁决 → 更宽的 project_irr 恒胜，
+            # 同段两个 IRR 被并进 project_irr 一个桶报「同口径不一致」假 P0。
+            # 同理「工资及福利费合计」被后缀「福利费」抢走。
+            specificity = -(match.end() - match.start())
+            candidates.append((distance, direction, specificity, order, name))
+    return min(candidates)[4] if candidates else ""
 
 
 def _period_near(text: str, start: int, end: int) -> str:

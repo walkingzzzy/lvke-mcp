@@ -1,4 +1,4 @@
 interface:
   display_name: "Lvke Finance"
-  short_description: "Build deterministic finance models and 13 tables"
-  default_prompt: "Use $lvke-finance to model this project and produce 13 tables."
+  short_description: "Build deterministic finance models and 14 delivery tables"
+  default_prompt: "Use $lvke-finance to model this project and produce all 14 delivery tables."

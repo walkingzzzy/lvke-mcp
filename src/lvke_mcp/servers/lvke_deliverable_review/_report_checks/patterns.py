@@ -45,7 +45,13 @@ _COMPANY_PATTERN = re.compile(r"([\u4e00-\u9fffA-Za-z0-9（）()]{2,50}(?:有限
 
 
 _METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("project_irr", re.compile(r"项目(?:投资)?(?:财务)?内部收益率|财务内部收益率|项目\s*IRR|(?<![A-Za-z])IRR(?![A-Za-z])", re.I)),
+    # 裸「内部收益率」「税后/全部投资内部收益率」都是国标可研的常见写法，
+    # 此前一条都不认：IRR 数值因此既可能漏检（无 metric），也可能被同句的
+    # 「基准收益率」(discount_rate) 以后置回退姿态吃掉 → 一个缺口同时制造
+    # 漏检与假阳性。前缀 (?<!资本金) 保证不抢 capital_irr 的值。
+    ("project_irr", re.compile(
+        r"(?<!资本金)(?:项目|全部|所得税前|所得税后|税前|税后)?(?:投资)?(?:财务)?内部收益率"
+        r"|项目\s*IRR|(?<![A-Za-z])IRR(?![A-Za-z])", re.I)),
     ("capital_irr", re.compile(r"资本金(?:财务)?内部收益率|资本金\s*IRR", re.I)),
     ("npv", re.compile(r"财务净现值|净现值|(?<![A-Za-z])NPV(?![A-Za-z])", re.I)),
     ("dscr", re.compile(r"偿债备付率|\bDSCR\b", re.I)),
@@ -86,7 +92,10 @@ _METRIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("average_wage", re.compile(r"人均年工资|人均工资", re.I)),
     # 成本明细里常直接写"工资 1,050.00 万元"、"福利 315.00 万元"。
     ("salary_cost", re.compile(r"工资约|工资额|基本工资|工资", re.I)),
-    ("welfare_cost", re.compile(r"福利约|福利费|福利额|福利", re.I)),
+    # 「福利费」是「工资及福利费」的后缀，天然比 wage_cost 的「工资及福利」
+    # 离数字更近，会抢走工资福利合计的数值（同 engineering_cost 靠
+    # (?<![建筑土安装]) 解同类问题）。反向后顾让合计归 wage_cost。
+    ("welfare_cost", re.compile(r"(?<!工资及)(?<!工资)(?:福利约|福利费|福利额|福利)", re.I)),
     ("maintenance_cost", re.compile(r"设备维护|维修费|维护费|修理与维护|修理费|修理", re.I)),
     ("raw_material_cost", re.compile(r"主要原材料|原材料|原料", re.I)),
     ("utility_cost", re.compile(r"水电能源|能源费|水电费", re.I)),

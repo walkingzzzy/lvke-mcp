@@ -48,6 +48,7 @@ RUN_STATUSES: tuple[str, ...] = (
     "completed",
     "stale",
     "released",
+    "process_accepted",
 )
 
 

@@ -114,8 +114,12 @@ MCP 负责事实固化、计算、版本、表格、校验和门禁。Codex 负�
 - FinanceRun 必须有非空 `run_id`、hash 和 lineage。
 - `consistency_ok=false` 时业务成功必须为 false，且不得生成可用 package。
 - 十三表只消费同一个 run，不得在表服务中重算。
-- 最终 XLSX 必须恰好有 13 张正式附表。
-- 必须实际读取 13 个 CSV 的 Resource 并核验 run/package/hash/lineage。
+- 最终 XLSX 必须恰好有 **14** 张正式附表：附表1-附表10（附表6-1/6-2/6-3 是附表6
+  子表，故编号只排到附表10）+ 附表11 财务计划现金流量表。以实时
+  `engine_delivery_count` / `tables_list_tables` 为准，不要沿用「13 张」旧常量
+  ——「十三表」是业务惯称，不是张数判据。
+- 必须实际读取 **15** 个 CSV 的 Resource（14 张交付表 + `00_数据血缘.csv`）
+  并核验 run/package/hash/lineage 与 UTF-8 BOM。
 - 报告正文必须经过 `propose → diff → apply`。
 - 每个重大数字必须绑定同一 FinanceRun 或合格证据对象。
 - DOCX 必须实际检查内嵌 CJK 字体关系、可解混淆字体数据、PostScript 名称、
@@ -145,7 +149,7 @@ technical fixture 和 controlled assumption 永远不能升级为 formal evidenc
 
 1. 实时启用工具全部有真实调用记录或不可伪造的跳过原因。
 2. 项目主链完成到 combined review，或明确定位本地阻断点。
-3. XLSX、13 个 CSV 和 DOCX 已实际导出并核验。
+3. XLSX（14 张附表）、15 个 CSV 和 DOCX 已实际导出并核验。
 4. 本地问题、上游限制、真实资料缺口和人工门禁分栏统计。
 5. 输出目录和全部对象 lineage 可追溯。
 

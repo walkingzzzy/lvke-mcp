@@ -85,6 +85,32 @@ def run_checks(
             }
         )
 
+    # 附表4（资金筹措）↔ 附表11（财务计划）建设期融资口径。
+    # 这两张交付表对同一口径各自成文，此前无任何一条勾稽比对它们：曾出现
+    # 附表4 资本金 11200/贷款 16800，而附表11 资本金 26200/贷款 0，两表
+    # 同时"自洽"、单表校验均 valid=true、整包 22 条勾稽全部沉默。
+    _fund = result.get("funding") or {}
+    _build_rows = [row for row in (fp or []) if str(row.get("phase") or "") == "建设期"]
+    if _build_rows and _fund:
+        plan_equity = round(sum(float(row.get("capital_own") or 0.0) for row in _build_rows), 2)
+        plan_loan = round(sum(float(row.get("loan_draw") or 0.0) for row in _build_rows), 2)
+        fund_equity = round(float(_fund.get("capital") or 0.0), 2)
+        fund_loan = round(float(_fund.get("loan") or 0.0), 2)
+        equity_ok = abs(plan_equity - fund_equity) <= 0.05
+        loan_ok = abs(plan_loan - fund_loan) <= 0.05
+        checks.append(
+            {
+                "rule": "附表11建设期融资结构=附表4资金筹措",
+                "category": "integrity",
+                "ok": equity_ok and loan_ok,
+                "detail": (
+                    f"资本金 附表11={plan_equity:,.2f} vs 附表4={fund_equity:,.2f}；"
+                    f"贷款 附表11={plan_loan:,.2f} vs 附表4={fund_loan:,.2f} 万元"
+                ),
+                "blocking": True,
+            }
+        )
+
     # Non-operating balance
     nob = result.get("non_operating_balance") or {}
     if nob:
@@ -127,6 +153,7 @@ def release_blockers(checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "附表7利润表总成本=附表6总成本(含息)",
             "附表9组成合计=净现金流",
             "投资口径无歧义",
+            "附表11建设期融资结构=附表4资金筹措",
         }:
             blockers.append(c)
     return blockers

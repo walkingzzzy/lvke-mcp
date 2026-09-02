@@ -152,6 +152,29 @@ def _capture_basis(
             _strict_finance_gate(workspace_id, expected_run_id=run_id)
         ),
     }
+    # Capture narrative verification in the immutable basis used by both draft
+    # and formal artifacts. Previously validation computed this separately,
+    # while draft export only saw the publish gate, so detected mismatches were
+    # omitted from blocker_summary and the DOCX cover page.
+    try:
+        from lvke_mcp.domains.finance import gate as finance_gate
+
+        finance["narrative"] = _without_volatile_timestamps(
+            finance_gate.verify_narrative_numbers(
+                workspace_id,
+                content,
+                run_id=run_id,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001 - basis remains fail-closed
+        finance["narrative"] = {
+            "ok": False,
+            "run_id": run_id or None,
+            "matches": [],
+            "mismatches": [],
+            "unmapped": [],
+            "error": type(exc).__name__,
+        }
     meta_doc_kind = str(meta.get("doc_kind") or "")
     material = {
         "schema_version": BASIS_SCHEMA_VERSION,
@@ -316,6 +339,30 @@ def _draft_basis_blockers(
             "code": "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
             "message": "预览运行不得生成正式报告工件",
             "details": {"mode": run_snapshot.get("mode"), "delivery_mode": run_snapshot.get("delivery_mode")},
+        })
+    narrative = (
+        finance_gate.get("finance_narrative")
+        or finance.get("narrative")
+        or {}
+    )
+    if isinstance(narrative, dict) and (
+        narrative.get("mismatches")
+        or narrative.get("unmapped")
+        or narrative.get("error")
+    ):
+        mismatches = list(narrative.get("mismatches") or [])
+        unmapped = list(narrative.get("unmapped") or [])
+        blockers.append({
+            "code": "finance_narrative_mismatch",
+            "message": str(
+                narrative.get("message") or "正文数字与财务运行不一致"
+            ),
+            "details": {
+                "mismatch_count": len(mismatches),
+                "mismatches": mismatches[:20],
+                "unmapped_count": len(unmapped),
+                "unmapped": unmapped[:20],
+            },
         })
     for raw in finance_gate.get("blockers") or []:
         if isinstance(raw, dict):

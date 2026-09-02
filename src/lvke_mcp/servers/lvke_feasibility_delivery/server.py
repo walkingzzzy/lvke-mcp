@@ -30,9 +30,33 @@ _OUTPUT = {
         "resource_uris": {"type": "array", "items": {"type": "string"}},
         "warnings": {"type": "array", "items": {"type": "string"}},
         "blockers": {"type": "array", "items": {"type": "string"}},
-        "next_actions": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": True}]}},
+        "next_actions": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["success", "status", "resource_uris", "warnings", "blockers", "next_actions"],
+}
+
+# ``feasibility_next_actions`` intentionally returns executable descriptors
+# (tool + arguments + reason), while the other delivery tools return human
+# readable action strings. Keep that distinction explicit in the published
+# output schema instead of relying on a shared permissive union.
+_NEXT_ACTIONS_OUTPUT = {
+    **_OUTPUT,
+    "properties": {
+        **_OUTPUT["properties"],
+        "next_actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "tool": {"type": "string", "minLength": 1},
+                    "arguments": {"type": "object", "additionalProperties": True},
+                    "reason": {"type": "string", "minLength": 1},
+                },
+                "required": ["tool", "arguments", "reason"],
+                "additionalProperties": False,
+            },
+        },
+    },
 }
 
 
@@ -86,7 +110,7 @@ def build_server() -> OfficialStdioServer:
         "feasibility_next_actions",
         "根据当前阶段和 blocker 生成下一步工具调用。",
         {"type": "object", "additionalProperties": False, "properties": {"workspace_id": _WS, "delivery_run_id": _ID}, "required": ["workspace_id", "delivery_run_id"]},
-        service.next_actions, _OUTPUT, read,
+        service.next_actions, _NEXT_ACTIONS_OUTPUT, read,
     )
     server.register_tool(
         "feasibility_checkpoint",
@@ -181,6 +205,7 @@ __all__ = [
     "STAGE_STATUSES",
     "_ID",
     "_KEY",
+    "_NEXT_ACTIONS_OUTPUT",
     "_OUTPUT",
     "_URI",
     "_WS",
