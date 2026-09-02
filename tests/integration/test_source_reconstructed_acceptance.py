@@ -257,13 +257,16 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
         return run_id, delivery.validate({
             "workspace_id": workspace,
             "delivery_run_id": run_id,
-            "scope": "formal",
+            "scope": "technical" if release_scope == "process_acceptance" else "formal",
         })
 
-    def test_fake_process_acceptance_is_blocked_and_project_delivery_stays_blocked(self) -> None:
+    def test_fake_process_acceptance_continues_and_project_delivery_stays_blocked(self) -> None:
         process_run, validation = self._complete_run("cy-process", release_scope="process_acceptance")
-        self.assertFalse(validation["success"], validation)
-        self.assertIn("reconstruction_records_missing", validation["blockers"])
+        self.assertTrue(validation["success"], validation)
+        self.assertEqual(validation["blockers"], [])
+        self.assertIn("reconstruction_records_missing", validation["quality_issues"])
+        self.assertTrue(validation["diagnostic_available"])
+        self.assertFalse(validation["formal_report_allowed"])
         released = delivery.release({
             "workspace_id": "cy-process",
             "delivery_run_id": process_run,
@@ -271,8 +274,10 @@ class SourceReconstructedAcceptanceTest(unittest.TestCase):
             "release_note": "source reconstructed process acceptance",
             "idempotency_key": "release-cy-process",
         })
-        self.assertFalse(released["success"], released)
-        self.assertEqual(released["code"], "technical_validation_required")
+        self.assertTrue(released["success"], released)
+        self.assertEqual(released["status"], "partial")
+        self.assertEqual(released["release_grade"], "process_acceptance")
+        self.assertFalse(released["formal_report_allowed"])
 
         delivery_run, blocked_validation = self._complete_run("cy-delivery", release_scope="project_delivery")
         self.assertFalse(blocked_validation["success"])

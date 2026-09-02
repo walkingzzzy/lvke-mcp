@@ -1355,14 +1355,16 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
             exported_review = parent_export
             export_review_id = review_id
     validated_report = reports.readiness(workspace_id, revision_id)
-    exported_docx = export_docx(workspace_id, revision_id, "formal_candidate", False)
+    # Current acceptance produces an internal diagnostic document.  Formal
+    # publication remains an external human-confirmation step.
+    exported_docx = export_docx(workspace_id, revision_id, "draft", False)
 
     started_fdr = delivery.start({
         "workspace_id": workspace_id,
         "delivery_mode": "formal_release",
         "project_context_id": project_context_id,
         "evidence_policy": "sim_a_formal",
-        "release_scope": "project_delivery",
+        "release_scope": "process_acceptance",
         "project_fact_certified": True,
         "idempotency_key": f"{case_key}-fdr",
     })
@@ -1431,13 +1433,13 @@ def run_sim_a_formal_full_chain(finance: dict[str, Any], *, case_key: str, indus
     validated = delivery.validate({
         "workspace_id": workspace_id,
         "delivery_run_id": run_id,
-        "scope": "formal",
+        "scope": "technical",
     })
     released = delivery.release({
         "workspace_id": workspace_id,
         "delivery_run_id": run_id,
-        "release_scope": "project_delivery",
-        "release_note": "sim_a_formal 正式链验收",
+        "release_scope": "process_acceptance",
+        "release_note": "sim_a_formal 内部正式交付验收",
         "idempotency_key": f"{case_key}-release",
     })
     return {

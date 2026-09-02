@@ -24,7 +24,7 @@ from lvke_mcp.runtime.formal_promotion import (
     validate_object_formal_lineage,
     validate_research_package,
 )
-from lvke_mcp.runtime.quality_severity import split_quality_codes
+from lvke_mcp.runtime.quality_severity import aggregate_quality_status, split_quality_codes
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -72,6 +72,11 @@ def _envelope(
     resource_uris: list[str] | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
+    explicit_quality = extra.get("quality_issues") if isinstance(extra, dict) else None
+    quality_codes = [
+        *(str(item) for item in blockers or [] if str(item)),
+        *(str(item) for item in explicit_quality or [] if str(item)),
+    ]
     result: dict[str, Any] = {
         "success": success,
         "business_success": success,
@@ -82,6 +87,14 @@ def _envelope(
         "warnings": warnings or [],
         "blockers": blockers or [],
         "next_actions": next_actions or [],
+        "operation_status": "completed",
+        "diagnostic_available": True,
+        "quality_status": aggregate_quality_status(quality_codes) if quality_codes else "pass",
+        "uncertainties": [],
+        "quality_issues": [],
+        "diagnostic_only": True,
+        "human_confirmation_required": True,
+        "formal_report_allowed": False,
         **extra,
     }
     if code:
@@ -1820,7 +1833,13 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
                 *quality_issues,
             ])),
             "quality_issues": quality_issues,
+            "uncertainties": _build_run_uncertainties(blocking_codes, quality_issues, validation_scope),
             "quality_valid": passed,
+            "diagnostic_only": True,
+            "human_confirmation_required": True,
+            "formal_report_allowed": False,
+            "artifact_kind": "internal_diagnostic_delivery",
+            "confirmation_status": "pending_external",
             "reconstruction_records": list(run.get("reconstruction_records") or []),
             "stage_bindings": dict(run.get("stage_bindings") or {}),
             "lineage_hash": sha256_json({
@@ -1889,6 +1908,12 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             validation_scope=validation_scope,
             quality_valid=passed,
             quality_issues=quality_issues,
+            uncertainties=release_payload["uncertainties"],
+            diagnostic_only=True,
+            human_confirmation_required=True,
+            formal_report_allowed=False,
+            artifact_kind="internal_diagnostic_delivery",
+            confirmation_status="pending_external",
             blockers=[],
             warnings=warnings,
             resource_uris=[release_record["resource_uri"], released_run["resource_uri"]],

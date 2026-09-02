@@ -96,6 +96,19 @@ def _describe(module_name: str, module: object) -> dict:
             symbols[name] = {"kind": "error", "error": f"{type(exc).__name__}: {exc}"}
             continue
 
+        # The snapshot protects the project's public API, not the incidental
+        # signatures of imported third-party objects.  Those signatures change
+        # with dependency/Python updates (e.g. filelock, HTMLParser, BM25)
+        # and previously caused false gate failures.  Keep project facades and
+        # re-exports whose implementation lives under lvke_mcp only.
+        value_module = getattr(value, "__module__", None)
+        if value_module and not str(value_module).startswith(f"{PACKAGE}.") and value_module != PACKAGE:
+            continue
+        if inspect.ismodule(value):
+            value_name = getattr(value, "__name__", "")
+            if value_name and not str(value_name).startswith(f"{PACKAGE}.") and value_name != PACKAGE:
+                continue
+
         kind = type(value).__name__
         if inspect.ismodule(value):
             # 只记录「这里可以拿到一个模块」，不递归展开，避免快照爆炸。
