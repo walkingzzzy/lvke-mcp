@@ -419,7 +419,13 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             *list(data.get("warnings") or []),
             *(f"质量提示：{item}" for item in preflight_quality_issues),
         ]
-        data["blocking_issues"] = [] if data.get("available") else list(data.get("blocking_issues") or [])
+        # Preserve reconciliation blockers from the engine/run layer. Clearing
+        # them on every available result made consistency_ok=false appear safe
+        # to callers and caused F-9 in live acceptance.
+        data["blocking_issues"] = [
+            item for item in (data.get("blocking_issues") or [])
+            if isinstance(item, dict)
+        ]
         run_id = str(data.get("run_id") or "") or None
         if data.get("available") and not run_id:
             data = dict(data)
@@ -446,15 +452,27 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
         viability_issues = list(data.get("viability_issues") or [])
         quality_issues = [str(item) for item in data.get("quality_issues") or []]
         if data.get("available") and run_id:
-            status = "partial" if quality_issues else "ok"
-            blockers = []
-            if viability_issues:
+            blockers = [
+                str(item.get("rule") or item.get("code") or "finance_consistency_failed")
+                for item in data.get("blocking_issues") or []
+            ]
+            # A persisted run with an integrity blocker remains readable for
+            # technical diagnosis, but must not advertise business success.
+            # ``blocked`` keeps the preview available while making the release
+            # gate explicit in the outer envelope.
+            status = "blocked" if blockers else ("partial" if quality_issues else "ok")
+            if blockers:
                 next_actions = [
-                    "项目经济性结论为负面，但财务运行及十三表生成不受阻断",
-                    "用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表",
+                    "先修复财务勾稽阻断项，再继续后续正式流程",
+                    "如需技术排查，可生成受限预览；不得将当前 run 视为正式候选",
+                ]
+            elif viability_issues:
+                next_actions = [
+                    "项目经济性结论为负面；先核对财务勾稽与风险项",
+                    "当前运行仅可作受限技术预览，修复可行性问题后再用于正式链",
                 ]
             else:
-                next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 13 表"]
+                next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 14 张交付表"]
         elif missing:
             status = "partial"
             blockers = []
@@ -542,16 +560,28 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
         if uri:
             data["resource_uri"] = uri
         no_run = data.get("available") is False and not run_id
+        read_blockers = ["尚无财务模型运行记录"] if no_run else []
         consistency_failed = bool(
             data.get("available") and data.get("consistency_ok") is False
         )
-        read_status = "blocked" if no_run else ("partial" if consistency_failed else "ok")
-        read_blockers = ["尚无财务模型运行记录"] if no_run else []
         quality_issues = [str(item) for item in data.get("quality_issues") or []]
         if consistency_failed and "finance_consistency_failed" not in quality_issues:
             quality_issues.append("finance_consistency_failed")
         data["quality_issues"] = quality_issues
-        data["blocking_issues"] = [] if not no_run else list(data.get("blocking_issues") or [])
+        blocking_issues = [
+            item for item in (data.get("blocking_issues") or [])
+            if isinstance(item, dict)
+        ]
+        data["blocking_issues"] = blocking_issues
+        read_blockers.extend(
+            str(item.get("rule") or item.get("code") or "finance_consistency_failed")
+            for item in blocking_issues
+        )
+        read_status = (
+            "blocked"
+            if no_run or blocking_issues
+            else ("partial" if consistency_failed else "ok")
+        )
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_get_run",
@@ -561,7 +591,13 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
             next_actions=(
                 ["先调用 finance_run_model 生成 run"]
                 if no_run
-                else (["勾稽问题已作为质量诊断保留，不影响后续生成"] if consistency_failed else [])
+                else (
+                    [
+                        "先修复财务勾稽阻断项；当前 run 仅可作受限技术预览",
+                        "修复后重新运行并重新校验，再继续正式表格/报告流程",
+                    ]
+                    if consistency_failed else []
+                )
             ),
             run_id=run_id,
             view=view,

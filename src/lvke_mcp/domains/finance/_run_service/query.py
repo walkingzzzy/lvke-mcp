@@ -65,6 +65,10 @@ def get_workspace_finance_run(
         "idempotency_key": audit_view.get("idempotency_key"),
         "table_bundle_hash": audit_view.get("table_bundle_hash"),
         "consistency_ok": bool(audit_view.get("consistency_ok")),
+        # Keep persisted integrity blockers visible in every metadata-bearing
+        # read view.  The application boundary uses this projection to mark a
+        # failed run as restricted, instead of treating summary reads as safe.
+        "blocking_issues": list(audit_view.get("blocking_issues") or []),
         "available": True,
     }
 
