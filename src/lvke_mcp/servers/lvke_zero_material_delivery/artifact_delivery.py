@@ -12,6 +12,7 @@ from lvke_mcp.adapters.zero_material_repository import (
     artifact_root as _artifact_root,
     resolve_report_file,
 )
+from lvke_mcp.adapters.quality_diagnostic_repository import build_uncertainty
 
 
 def _format_number(value: Any, suffix: str = "") -> str:
@@ -266,6 +267,20 @@ def build_delivery_artifacts(
         "public_research": public_research,
         "validation_complete": False,
         "input_evidence_complete": False,
+        "quality_issues": list(quality_issues),
+        "uncertainties": [
+            build_uncertainty(
+                "unverified",
+                field=str(item).split(":", 1)[0],
+                message=str(item),
+                confidence="unknown",
+                affected_outputs=["delivery_run", "report", "finance_tables"],
+                severity="moderate",
+                required_action="补齐真实资料或人工确认后重新计算",
+            )
+            for item in quality_issues
+        ],
+        "quality_diagnostic_ids": list(domain.get("quality_diagnostic_ids") or []),
     }
     report_record = stores["report"].put(
         workspace_id,
@@ -389,6 +404,9 @@ def build_delivery_artifacts(
         "public_research": public_research,
         "validation_complete": False,
         "input_evidence_complete": False,
+        "quality_issues": list(quality_issues),
+        "uncertainties": list(report_payload.get("uncertainties") or []),
+        "quality_diagnostic_ids": list(domain.get("quality_diagnostic_ids") or []),
     }
     manifest_record = stores["manifest"].put(
         workspace_id,
