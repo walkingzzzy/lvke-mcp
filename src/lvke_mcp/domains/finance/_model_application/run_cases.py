@@ -525,9 +525,18 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 ]
             else:
                 next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 14 张交付表"]
+            # 技术验收不把数据质量发现当作操作 blocker；保留规则码在
+            # quality_issues / blocking_issues 中，由统一诊断信封聚合质量状态。
+            quality_issues = sorted(set([*quality_issues, *blockers]))
+            data["quality_issues"] = sorted(set([
+                *list(data.get("quality_issues") or []),
+                *blockers,
+            ]))
+            output_blockers: list[str] = []
         elif missing:
             status = "partial"
             blockers = []
+            output_blockers = []
             calculation_status = "computed" if data.get("available") else "unavailable"
             next_actions = ["当前结果已保留诊断；补充输入可提高估算置信度"]
         else:
@@ -544,7 +553,8 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             source=f"{SERVER_NAME}.finance_run_model",
             status=status,
             resource_uris=[uri] if uri else [],
-            blockers=blockers,
+            blockers=output_blockers if data.get("available") and run_id else blockers,
+            quality_issues=quality_issues,
             next_actions=next_actions,
             run_id=run_id,
             spec_id=spec_id or None,

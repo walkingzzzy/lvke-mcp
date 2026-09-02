@@ -53,11 +53,14 @@ def test_available_run_with_missing_turnover_and_consistency_issue_is_partial(
     assert result["status"] == "partial"
     assert result["run_id"] == "run_nonblocking_projection"
     assert result["blockers"] == []
-    assert result["data"]["blocking_issues"] == []
+    assert result["data"]["blocking_issues"] == [
+        {"rule": "finance_consistency_failed", "detail": "测试勾稽差异"},
+    ]
     quality = result["data"]["quality_issues"]
     assert "missing_input:wc_turnover.receivable" in quality
     assert "missing_input:wc_turnover.inventory" in quality
     assert "engine_quality_issue" in quality
+    assert "finance_consistency_failed" in quality
 
 
 def test_legacy_run_entry_delegates_to_governed_application() -> None:
