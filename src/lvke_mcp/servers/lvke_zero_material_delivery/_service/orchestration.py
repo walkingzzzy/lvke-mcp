@@ -15,6 +15,10 @@ from typing import Any
 
 from lvke_mcp.runtime.quality_severity import split_quality_codes
 from lvke_mcp.runtime.storage import sha256_json
+from lvke_mcp.adapters.quality_diagnostic_repository import (
+    build_uncertainty,
+    record_quality_diagnostic,
+)
 
 from .assumptions import _field_values
 from .finance_align import _scenario_inputs
@@ -65,6 +69,66 @@ def _outline_for(intent: dict[str, Any], route: dict[str, Any]) -> list[str]:
     except ReportProfileError:
         return []
     return chapter_titles(resolved["profile"])
+
+
+def _persist_quality_diagnostics(
+    workspace_id: str,
+    *,
+    quality_issues: list[str],
+    finance_run_id: str,
+    finance_tables_package_id: str,
+    input_snapshot_refs: list[str],
+) -> tuple[list[str], list[str]]:
+    """Persist material zero-material limitations and return IDs/URIs.
+
+    Zero-material runs previously carried limitations only as strings on the
+    delivery run.  Persisting the same limitations as immutable
+    ``QualityDiagnostic`` objects makes the manifest auditable without turning
+    controlled assumptions into formal evidence.
+    """
+
+    issues = sorted({str(item).strip() for item in quality_issues if str(item).strip()})
+    if not issues:
+        return [], []
+    uncertainties = [
+        build_uncertainty(
+            "unverified",
+            field=item.split(":", 1)[0],
+            message=item,
+            confidence="unknown",
+            affected_outputs=["delivery_run", "report", "finance_tables"],
+            severity="moderate",
+            required_action="补齐真实资料或人工确认后重新计算",
+        )
+        for item in issues
+    ]
+    ids: list[str] = []
+    uris: list[str] = []
+    for target_type, target_id in (
+        ("finance_run", finance_run_id),
+        ("finance_tables", finance_tables_package_id),
+    ):
+        if not target_id:
+            continue
+        record = record_quality_diagnostic(
+            workspace_id,
+            target_type=target_type,
+            target_id=target_id,
+            rule_code="zero_material_quality_limitations",
+            uncertainties=uncertainties,
+            affected_outputs=["delivery_run", "report", "finance_tables"],
+            calculation_status="continued_with_conflict",
+            recommended_actions=["补齐真实资料或人工确认后重新计算"],
+            input_snapshot_refs=input_snapshot_refs,
+        )
+        payload = dict(record.get("payload") or {})
+        diagnostic_id = str(payload.get("diagnostic_id") or record.get("object_id") or "")
+        resource_uri = str(record.get("resource_uri") or "")
+        if diagnostic_id:
+            ids.append(diagnostic_id)
+        if resource_uri:
+            uris.append(resource_uri)
+    return sorted(set(ids)), sorted(set(uris))
 
 # 光伏资产收购关键词：用于路由解析器识别项目类型
 _ACQUISITION_KEYWORDS = frozenset({
@@ -758,6 +822,16 @@ def execute(
         *export_blockers,
     ])
     blocking_codes, quality_issues = split_quality_codes(quality_issues)
+    quality_diagnostic_ids, quality_diagnostic_uris = _persist_quality_diagnostics(
+        workspace_id,
+        quality_issues=sorted({*blocking_codes, *quality_issues}),
+        finance_run_id=finance_run_id,
+        finance_tables_package_id=package_id,
+        input_snapshot_refs=[
+            *list(finance_run.get("resource_uris") or []),
+            *list(rendered.get("resource_uris") or []),
+        ],
+    )
     return {
         "status": "blocked" if blocking_codes else ("partial" if quality_issues else "ok"),
         "stage": "tables_ready" if not export_blockers else "finance_ready",
@@ -780,6 +854,7 @@ def execute(
         "report_preparation": report_preparation,
         "blockers": blocking_codes,
         "quality_issues": quality_issues,
+        "quality_diagnostic_ids": quality_diagnostic_ids,
         "warnings": [
             "研究、规划与财务由 MCP 状态机编排，不依赖自由文本编排。",
             "受控假设已显式记录；补充项目事实后可提高交付置信度。",
@@ -796,6 +871,7 @@ def execute(
             "finance_tables_package_id": package_id,
             "csv_manifest_id": str(csv_export.get("csv_manifest_id") or ""),
             "report_preparation_id": str(report_preparation.get("report_preparation_id") or ""),
+            "quality_diagnostic_ids": ",".join(quality_diagnostic_ids),
         },
         "resource_uris": sorted(
             {
@@ -808,6 +884,7 @@ def execute(
                 *list(csv_export.get("resource_uris") or []),
                 *list(xlsx_export.get("resource_uris") or []),
                 *list(report_preparation.get("resource_uris") or []),
+                *quality_diagnostic_uris,
             }
             - {""}
         ),
