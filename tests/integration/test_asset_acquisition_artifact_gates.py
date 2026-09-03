@@ -98,6 +98,8 @@ class AcquisitionArtifactGateTest(unittest.TestCase):
         self.assertFalse(result["schema_valid"])
         self.assertEqual(result["status"], "partial")
         self.assertEqual(result["blockers"], [])
+        self.assertTrue(result["quality_issues"])
+        self.assertTrue(all(isinstance(item, str) for item in result["quality_issues"]))
         self.assertIn(
             "/transaction/model_start_date",
             {item.get("path") for item in result["field_errors"]},

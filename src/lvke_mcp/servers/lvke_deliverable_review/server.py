@@ -758,6 +758,40 @@ def build_server() -> OfficialStdioServer:
         ],
         "description": "按 disposition 判别的完整处置契约",
     }
+    # 根级 oneOf 没有顶层 properties，Cursor 只能看到空对象。
+    # 公开投影扁平列出可发现字段；完整分支校验仍走 disposition_schema。
+    disposition_public_schema = _write_schema(
+        {
+            **common_disposition,
+            "disposition": {
+                "type": "string",
+                "enum": [
+                    "confirm", "confirmed", "remediate", "remediation_in_progress",
+                    "reject", "rejected", "false_positive", "false_positive_appeal",
+                    "appeal_waiver", "compliance_waiver", "waiver_requested",
+                    "approve_waiver", "waived", "resolve", "resolved",
+                ],
+            },
+            "false_positive_reason": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "closure_basis": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "before_value": json_value,
+            "after_value": json_value,
+            "waiver_scope": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "waiver_impact": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "waiver_compensating_controls": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "waiver_responsible_party": {"type": "string", "minLength": 1, "maxLength": 500},
+            "waiver_expires_at": {"type": "string", "format": "date-time"},
+            "waiver_invalidation_conditions": {
+                "type": "array",
+                "items": _STRING,
+                "minItems": 1,
+                "maxItems": 50,
+                "uniqueItems": True,
+            },
+            "remediation_evidence": _EVIDENCE_LIST,
+        },
+        ["review_id", "finding_id", "disposition", "note"],
+    )
     server.register_tool(
         "review_disposition_finding",
         "提交 finding 确认、整改、误报申诉、限期豁免申请或基于复测的关闭处置。",
@@ -765,6 +799,7 @@ def build_server() -> OfficialStdioServer:
         service.disposition_finding,
         _output_schema(),
         write,
+        public_input_schema=disposition_public_schema,
     )
     server.register_tool(
         "review_retest",

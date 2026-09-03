@@ -149,5 +149,52 @@ class SuccessPathContractStillEnforcedTest(unittest.TestCase):
                 )
 
 
+class AcquisitionValidateSpecEnvelopeTest(unittest.TestCase):
+    """缺项光伏 spec 必须返回业务 envelope，不得被 outputSchema 改写成系统故障。"""
+
+    def setUp(self) -> None:
+        self.tempdir = tempfile.TemporaryDirectory(prefix="lvke-acq-validate-")
+        self.previous = os.environ.get("LVKE_MCP_DATA_DIR")
+        os.environ["LVKE_MCP_DATA_DIR"] = self.tempdir.name
+
+    def tearDown(self) -> None:
+        if self.previous is None:
+            os.environ.pop("LVKE_MCP_DATA_DIR", None)
+        else:
+            os.environ["LVKE_MCP_DATA_DIR"] = self.previous
+        self.tempdir.cleanup()
+
+    def test_incomplete_solar_spec_keeps_partial_envelope(self) -> None:
+        server = import_module("lvke_mcp.servers.lvke_asset_acquisition.server").build_server()
+        spec = server._tools["acquisition_validate_spec"]  # noqa: SLF001
+        result = asyncio.run(
+            server._call_tool_async(  # noqa: SLF001
+                "acquisition_validate_spec",
+                {
+                    "spec": {
+                        "version": "finance_spec.v3",
+                        "asset_type": "solar_power",
+                        "transaction": {"calculation_granularity": "annual"},
+                    }
+                },
+                True,
+            )
+        )
+        structured = getattr(result, "structured_content", None)
+        self.assertIsNotNone(
+            structured,
+            f"缺项校验被改写成了传输层错误："
+            f"{json.loads(result.content[0].text).get('code')}",
+        )
+        self.assertNotEqual("lvke-asset-acquisition.invalid_tool_output", structured.get("code"))
+        self.assertEqual("partial", structured.get("status"))
+        self.assertTrue(structured.get("system_success"))
+        self.assertTrue(structured.get("transport_success"))
+        self.assertTrue(structured.get("warnings"))
+        self.assertTrue(structured.get("field_errors"))
+        self.assertTrue(all(isinstance(item, str) for item in structured.get("quality_issues") or []))
+        jsonschema.validate(structured, spec.output_schema)
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

@@ -259,16 +259,13 @@ def validate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     field_errors = deduplicated_field_errors
     if field_errors and not acquisition_contract:
         blockers.append("acquisition_mode_invalid")
-    quality_issues = [
-        {"code": "SPEC_VALIDATION_ISSUE", "message": str(item)}
-        for item in dict.fromkeys(blockers)
-    ]
+    quality_issues = [str(item) for item in dict.fromkeys(blockers)]
     schema_valid = bool(
         valid and acquisition_contract and not route_conflicts and not opening_date_missing
         and not model_start_date_missing and not reconstruction_errors
     )
     return {
-        "success": True, "transport_success": True,
+        "success": True, "system_success": True, "transport_success": True,
         "business_success": True, "completed": True,
         "outcome": "ok" if schema_valid else "partial",
         "status": "ok" if schema_valid else "partial",

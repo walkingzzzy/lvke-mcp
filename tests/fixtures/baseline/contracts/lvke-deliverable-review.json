@@ -3476,77 +3476,255 @@
     "name": "review_disposition_finding",
     "description": "提交 finding 确认、整改、误报申诉、限期豁免申请或基于复测的关闭处置。",
     "inputSchema": {
-      "type": "object",
-      "x-lvke-schema-uri": "lvke://schemas/review-finding-disposition",
-      "oneOf": [
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "workspace_id": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
-            },
-            "idempotency_key": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 160
-            },
-            "review_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "finding_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "note": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 4000
-            },
-            "retest_review_id": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            },
-            "disposition": {
-              "type": "string",
-              "enum": [
-                "confirm",
-                "confirmed",
-                "remediate",
-                "remediation_in_progress"
-              ]
-            }
-          },
-          "required": [
-            "workspace_id",
-            "idempotency_key",
-            "review_id",
-            "finding_id",
-            "disposition",
-            "note"
+      "properties": {
+        "workspace_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+        },
+        "idempotency_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "finding_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "retest_review_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "confirm",
+            "confirmed",
+            "remediate",
+            "remediation_in_progress",
+            "reject",
+            "rejected",
+            "false_positive",
+            "false_positive_appeal",
+            "appeal_waiver",
+            "compliance_waiver",
+            "waiver_requested",
+            "approve_waiver",
+            "waived",
+            "resolve",
+            "resolved"
           ]
         },
-        {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/review-finding-disposition",
-          "x-lvke-schema-pointer": "#/oneOf/1"
+        "false_positive_reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
         },
-        {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/review-finding-disposition",
-          "x-lvke-schema-pointer": "#/oneOf/2"
+        "closure_basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
         },
-        {
-          "type": "object",
-          "x-lvke-schema-uri": "lvke://schemas/review-finding-disposition",
-          "x-lvke-schema-pointer": "#/oneOf/3"
+        "before_value": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ],
+          "description": "整改前后的可 JSON 序列化业务值"
+        },
+        "after_value": {
+          "type": [
+            "object",
+            "array",
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ],
+          "description": "整改前后的可 JSON 序列化业务值"
+        },
+        "waiver_scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "waiver_impact": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "waiver_compensating_controls": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "waiver_responsible_party": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "waiver_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "waiver_invalidation_conditions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true
+        },
+        "remediation_evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "file_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "source_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "maxLength": 4096
+              },
+              "locator": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "page": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              },
+              "paragraph": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              },
+              "table": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "cell": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "range": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "row": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              },
+              "column": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  }
+                ]
+              },
+              "fetched_at": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "content_hash": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[0-9a-fA-F]{64}$"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "source_id",
+              "locator",
+              "content_hash"
+            ],
+            "description": "受控整改证据。兼容字段仍可读取，但公共调用固定使用 source_id、locator、content_hash。"
+          },
+          "minItems": 1,
+          "maxItems": 200
         }
-      ]
+      },
+      "required": [
+        "workspace_id",
+        "idempotency_key",
+        "review_id",
+        "finding_id",
+        "disposition",
+        "note"
+      ],
+      "type": "object",
+      "additionalProperties": false,
+      "x-lvke-schema-uri": "lvke://schemas/lvke-deliverable-review/review_disposition_finding/input"
     },
     "outputSchema": {
       "properties": {

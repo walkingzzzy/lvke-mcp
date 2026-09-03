@@ -178,6 +178,11 @@ class McpCompressionTopologyTest(unittest.TestCase):
                 "review_prepare",
                 ("properties", "target", "properties", "components"),
             ),
+            (
+                "lvke_mcp.servers.lvke_deliverable_review.server",
+                "review_disposition_finding",
+                ("properties", "disposition"),
+            ),
         )
         for module_name, tool_name, path in cases:
             with self.subTest(tool=tool_name):
