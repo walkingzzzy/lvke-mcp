@@ -87,6 +87,28 @@ class NarrativeNumberExtractionTest(unittest.TestCase):
         self.assertTrue(result["ok"], result["mismatches"])
         self.assertEqual(result["matches"][0]["found"], 28000.0)
 
+    def test_dynamic_payback_claim_when_engine_has_no_value(self) -> None:
+        """引擎 dynamic_payback_years=None 时，正文「动态回收期 4.2」必须进 mismatch。"""
+
+        view = {
+            **_VIEW,
+            "indicators": {**_VIEW["indicators"], "dynamic_payback_years": None},
+        }
+        with mk.patch.object(run_service, "get_workspace_finance_run", return_value=view):
+            result = gate.verify_narrative_numbers(
+                "ws",
+                "本项目动态回收期 4.2 年，动态投资回收期 4.20 年。",
+                run_id="run_x",
+            )
+        self.assertFalse(result["ok"], result)
+        payback = [
+            item for item in result["mismatches"]
+            if item["element"] == "dynamic_payback"
+        ]
+        self.assertTrue(payback, result)
+        found = {item["found"] for item in payback}
+        self.assertIn(4.2, found)
+
     def test_capital_irr_not_absorbed_by_project_irr(self) -> None:
         """两个 IRR 同句时必须分别映射，否则一真一假会互相掩盖。"""
         result = _verify(

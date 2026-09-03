@@ -896,7 +896,7 @@ def verify_narrative_numbers(
         ("project_irr", ind.get("project_irr_pct") or ind.get("project_irr"), rf"{_IRR_HEAD}\s*(?:（税后）|\(税后\))?\s*[为:：]?\s*{_NUM}{_PCT}"),
         ("npv", ind.get("npv_wan") or ind.get("npv"), rf"(?:财务净现值|净现值|NPV)\s*(?:（[^）]*）)?\s*[为:：]?\s*{_NUM}{_WAN}"),
         ("static_payback", ind.get("static_payback_years") or ind.get("static_payback"), rf"(?:静态投资回收期|(?<!动态)投资回收期)\s*[为:：]?\s*{_NUM}{_YR}"),
-        ("dynamic_payback", ind.get("dynamic_payback_years") or ind.get("dynamic_payback"), rf"(?:动态投资回收期)\s*[为:：]?\s*{_NUM}{_YR}"),
+        ("dynamic_payback", ind.get("dynamic_payback_years") or ind.get("dynamic_payback"), rf"(?:动态(?:投资)?回收期)\s*[为:：]?\s*{_NUM}(?:{_YR})?"),
         ("capital_irr", ind.get("capital_irr_pct") or ind.get("capital_irr"), rf"(?:资本金财务内部收益率|资本金内部收益率|资本金\s*IRR)\s*[为:：]?\s*{_NUM}{_PCT}"),
         ("bep", ind.get("bep_pct") or ind.get("bep"), rf"(?:盈亏平衡点|BEP)\s*[为:：]?\s*{_NUM}{_PCT}"),
     ]
@@ -924,10 +924,20 @@ def verify_narrative_numbers(
         if not occurrences:
             continue
         if exp is None:
+            # 引擎无真值时，正文仍写出的数字是假 claim，必须进 mismatches。
+            # 只进 unmapped 时，调用方若只读 mismatches 会漏掉「动态回收期 4.2」。
             for raw, unit in occurrences:
-                unmapped.append({
+                got = _amount(raw, unit) if unit in {"万", "亿"} else None
+                if got is None:
+                    try:
+                        got = float(str(raw).replace(",", ""))
+                    except (TypeError, ValueError):
+                        got = raw
+                mismatches.append({
                     "element": code,
-                    "found": raw,
+                    "expected": None,
+                    "found": got,
+                    "ok": False,
                     "reason": "run_missing_expected_value",
                 })
             continue

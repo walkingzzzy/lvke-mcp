@@ -105,7 +105,9 @@ class FeasibilityDeliveryTest(unittest.TestCase):
         })
         self.assertTrue(result["success"], result)
         self.assertTrue(result["next_actions"])
-        action = result["next_actions"][0]
+        self.assertTrue(all(isinstance(item, str) for item in result["next_actions"]), result)
+        self.assertTrue(result["actions"])
+        action = result["actions"][0]
         self.assertIn("tool", action)
         self.assertIn("arguments", action)
         self.assertIn("reason", action)

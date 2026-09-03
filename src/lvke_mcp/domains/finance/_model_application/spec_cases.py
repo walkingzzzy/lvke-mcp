@@ -43,6 +43,46 @@ from .base import (
 )
 
 
+def _workspace_planning_parent_ids(workspace_id: str) -> list[str]:
+    """Newest confirmed planning objects that FinanceSpec should parent to."""
+
+    try:
+        from lvke_mcp.adapters.project_planning_repository import (
+            BUILD_SCALE_STORE,
+            COST_DRIVER_STORE,
+            LABOR_PLAN_STORE,
+            OPTION_COMPARISON_STORE,
+            REVENUE_DRIVER_STORE,
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    ids: list[str] = []
+    for store in (
+        REVENUE_DRIVER_STORE,
+        COST_DRIVER_STORE,
+        LABOR_PLAN_STORE,
+        BUILD_SCALE_STORE,
+        OPTION_COMPARISON_STORE,
+    ):
+        try:
+            records = list(store.list(workspace_id) or [])
+        except Exception:  # noqa: BLE001
+            continue
+        confirmed = [
+            record for record in records
+            if str((record.get("payload") or {}).get("status") or record.get("status") or "")
+            == "confirmed"
+        ]
+        pick = confirmed or records
+        if not pick:
+            continue
+        pick.sort(key=lambda item: str(item.get("created_at") or ""))
+        object_id = str(pick[-1].get("object_id") or "")
+        if object_id:
+            ids.append(object_id)
+    return ids
+
+
 def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
     workspace_id = _workspace_id(args)
     if not workspace_id:
@@ -393,7 +433,11 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 *_str_list(args.get("release_limitations")),
                 *_str_list(fact_pack_payload.get("release_limitations")),
             ]))
-            parent_object_ids = [*evidence_ids, *([fact_pack_id] if fact_pack_id else [])]
+            parent_object_ids = list(dict.fromkeys([
+                *evidence_ids,
+                *([fact_pack_id] if fact_pack_id else []),
+                *_workspace_planning_parent_ids(workspace_id),
+            ]))
             if can_reuse_confirmed:
                 spec_record = reused_record
                 reused_payload = reused_record.get("payload") or {}
@@ -635,6 +679,8 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
                 spec_id,
                 *_str_list(payload.get("evidence_pack_ids")),
                 *([str(payload.get("fact_pack_id"))] if payload.get("fact_pack_id") else []),
+                *_str_list(payload.get("parent_object_ids")),
+                *_workspace_planning_parent_ids(workspace_id),
             ])),
         },
         producer=f"{SERVER_NAME}.finance_confirm_spec",
@@ -643,6 +689,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
             spec_id,
             *_str_list(payload.get("evidence_pack_ids")),
             *([str(payload.get("fact_pack_id"))] if payload.get("fact_pack_id") else []),
+            *_workspace_planning_parent_ids(workspace_id),
         ],
         basis={
             "parent_spec_id": spec_id,
@@ -849,6 +896,7 @@ __all__ = [
     "_str_list",
     "_unique_strings",
     "_workspace_id",
+    "_workspace_planning_parent_ids",
     "canonicalize_finance_inputs",
     "confirm_spec",
     "coverage_snapshot",

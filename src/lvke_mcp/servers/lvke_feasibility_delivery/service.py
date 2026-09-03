@@ -728,13 +728,27 @@ def next_actions(args: dict[str, Any]) -> dict[str, Any]:
             },
             "reason": "工作区已有对象可绑回当前 FDR 阶段",
         })
+    # Envelope ``next_actions`` stays a string array so tools/list lightweight
+    # schema and MCP output validation both accept the payload. Executable
+    # descriptors remain on ``actions``.
     return _envelope(
         True,
         str(run.get("status") or "in_progress"),
         delivery_run_id=record["object_id"],
         current_stage=stage_name,
-        next_actions=next_items,
-        actions=[{"tool": item["tool"], "stage": stage_name, "reason": item["reason"]} for item in next_items],
+        next_actions=[
+            f"{item['tool']}: {item['reason']}" if item.get("reason") else str(item["tool"])
+            for item in next_items
+        ],
+        actions=[
+            {
+                "tool": item["tool"],
+                "stage": stage_name,
+                "reason": item["reason"],
+                "arguments": dict(item.get("arguments") or {}),
+            }
+            for item in next_items
+        ],
         missing_inputs=sorted(set(missing_inputs)),
         resource_uris=[record["resource_uri"]],
     )
@@ -1169,6 +1183,19 @@ def _stage_objects(run: dict[str, Any], workspace_id: str, stage: str) -> tuple[
     return resolved, errors
 
 
+def _delivery_lineage_ids(run: dict[str, Any]) -> set[str]:
+    """All object ids already bound into this delivery run."""
+
+    ids = {str(run.get("project_context_id") or "")}
+    for stage in (run.get("stages") or {}).values():
+        if not isinstance(stage, dict):
+            continue
+        for role in ("input_refs", "output_refs"):
+            ids.update(str(item) for item in (stage.get(role) or []) if str(item))
+    ids.discard("")
+    return ids
+
+
 def _declared_parent_ids(payload: dict[str, Any]) -> set[str]:
     parents = {str(item) for item in (payload.get("parent_object_ids") or []) if str(item)}
     upstream = payload.get("upstream") if isinstance(payload.get("upstream"), dict) else {}
@@ -1184,6 +1211,8 @@ def _declared_parent_ids(payload: dict[str, Any]) -> set[str]:
                 "project_context_id", "evidence_pack_id", "evidence_pack_ids",
                 "research_package_ids", "run_id", "finance_run_id",
                 "finance_tables_package_id", "spec_id", "basis_of_estimate_id",
+                "market_case_id", "option_comparison_id", "build_scale_case_id",
+                "revenue_driver_set_id", "cost_driver_set_id", "labor_plan_id",
             }:
                 values = value if isinstance(value, list) else [value]
                 parents.update(str(item) for item in values if str(item))
@@ -1291,9 +1320,15 @@ def _object_chain_validation(
                 continue
             declared_parents = _declared_parent_ids(obj.get("payload") or {})
             declared_parents.discard(str(obj.get("object_id") or ""))
-            if current_inputs and not declared_parents.intersection(current_inputs):
-                if declared_parents:
-                    blockers.append(f"{name}_object_parent_binding_mismatch:{obj.get('object_id')}")
+            # Immediate previous-stage outputs are not the only valid parents.
+            # Scale/revenue objects parent to ProjectContext + MarketCase, which
+            # sit earlier in the FDR chain. Accept any delivery-lineage id.
+            lineage_ids = _delivery_lineage_ids(run)
+            if current_inputs and declared_parents and not (
+                declared_parents.intersection(current_inputs)
+                or declared_parents.intersection(lineage_ids)
+            ):
+                blockers.append(f"{name}_object_parent_binding_mismatch:{obj.get('object_id')}")
 
     if validation_scope == "formal":
         expected_policy = str(run.get("evidence_policy") or "formal_evidence")
@@ -2026,6 +2061,7 @@ __all__ = [
     "_blocked",
     "_canonical_delivery_run_lineage",
     "_declared_parent_ids",
+    "_delivery_lineage_ids",
     "_discover_stage_output_ids",
     "_envelope",
     "_formal_object_validation",

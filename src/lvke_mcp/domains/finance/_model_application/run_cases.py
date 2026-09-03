@@ -465,12 +465,12 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 for item in data.get("blocking_issues") or []
             ]
             # A persisted run with an integrity blocker remains readable for
-            # technical diagnosis.  Per §5 the envelope now uses ``partial``
-            # (not ``blocked``) so the result is framed as "completed with
-            # quality findings" rather than "stopped by a blocker".  Callers
-            # read ``formal_report_allowed`` / ``quality_status`` to decide
-            # whether downstream use is appropriate.
-            status = "partial" if blockers else ("partial" if quality_issues else "ok")
+            # technical diagnosis, but the envelope must match
+            # ``finance_get_run(view=checks)``: status=blocked,
+            # business_success=false, top-level blockers non-empty.  Using
+            # ``partial`` + empty blockers made callers that only read
+            # ``business_success`` treat a failed reconciliation as success.
+            status = "blocked" if blockers else ("partial" if quality_issues else "ok")
             calculation_status = "continued_with_conflict" if blockers else "computed"
             # 对 material conflict 固化为 QualityDiagnostic，可用于后续
             # 表和报告引用的诊断链。
@@ -525,14 +525,15 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 ]
             else:
                 next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 14 张交付表"]
-            # 技术验收不把数据质量发现当作操作 blocker；保留规则码在
-            # quality_issues / blocking_issues 中，由统一诊断信封聚合质量状态。
+            # 勾稽阻断必须同时出现在顶层 blockers 与 data.blocking_issues，
+            # 与 finance_get_run(view=checks) 对齐。质量提示单独留在
+            # quality_issues，不顶替勾稽失败。
             quality_issues = sorted(set([*quality_issues, *blockers]))
             data["quality_issues"] = sorted(set([
                 *list(data.get("quality_issues") or []),
                 *blockers,
             ]))
-            output_blockers: list[str] = []
+            output_blockers = list(blockers)
         elif missing:
             status = "partial"
             blockers = []

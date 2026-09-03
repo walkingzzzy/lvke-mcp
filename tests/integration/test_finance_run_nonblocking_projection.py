@@ -26,7 +26,7 @@ def _degraded_run() -> dict:
     }
 
 
-def test_available_run_with_missing_turnover_and_consistency_issue_is_partial(
+def test_available_run_with_missing_turnover_and_consistency_issue_is_blocked(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(
@@ -49,10 +49,11 @@ def test_available_run_with_missing_turnover_and_consistency_issue_is_partial(
         },
     })
 
-    assert result["success"] is True, result
-    assert result["status"] == "partial"
+    assert result["success"] is False, result
+    assert result["business_success"] is False, result
+    assert result["status"] == "blocked"
     assert result["run_id"] == "run_nonblocking_projection"
-    assert result["blockers"] == []
+    assert result["blockers"] == ["finance_consistency_failed"]
     assert result["data"]["blocking_issues"] == [
         {"rule": "finance_consistency_failed", "detail": "测试勾稽差异"},
     ]

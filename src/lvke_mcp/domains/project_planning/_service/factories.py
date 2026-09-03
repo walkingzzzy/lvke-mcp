@@ -9,6 +9,7 @@ from lvke_mcp.adapters.project_planning_repository import (
     BUILD_SCALE_STORE,
     COST_DRIVER_STORE,
     LABOR_PLAN_STORE,
+    OPTION_COMPARISON_STORE,
     PROJECT_CONTEXT_STORE,
     REVENUE_DRIVER_STORE,
 )
@@ -29,6 +30,27 @@ from .base import (
     _planning_view,
 )
 from .market import _confirmed_market_basis
+
+
+def _latest_confirmed_id(store: Any, workspace_id: str, project_context_id: str) -> str:
+    """Newest confirmed object in this workspace that shares ProjectContext."""
+
+    matched: list[dict[str, Any]] = []
+    try:
+        records = store.list(workspace_id)
+    except Exception:  # noqa: BLE001
+        return ""
+    for record in records:
+        payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+        if str(payload.get("project_context_id") or "") != project_context_id:
+            continue
+        if str(payload.get("status") or record.get("status") or "") != "confirmed":
+            continue
+        matched.append(record)
+    if not matched:
+        return ""
+    matched.sort(key=lambda item: str(item.get("created_at") or ""))
+    return str(matched[-1].get("object_id") or "")
 
 
 def create_revenue_driver_set(
@@ -208,6 +230,9 @@ def create_revenue_driver_set(
                 project_context_id,
                 market_case_id,
                 *([parent_candidate_id] if parent_candidate_id else []),
+                *([scale_id] if (scale_id := _latest_confirmed_id(
+                    BUILD_SCALE_STORE, workspace_id, project_context_id
+                )) else []),
             ],
             "next_actions": ["将 finance_spec_ledger 交给 finance_prepare_spec，不在 planning 层重算收入"],
         }
@@ -385,6 +410,9 @@ def create_build_scale_case(
                 project_context_id,
                 market_case_id,
                 *([parent_candidate_id] if parent_candidate_id else []),
+                *([option_id] if (option_id := _latest_confirmed_id(
+                    OPTION_COMPARISON_STORE, workspace_id, project_context_id
+                )) else []),
             ],
             "planning_conversion_ledger": [
                 {"target_pointer": "/build_scale/target_capacity", "value": target_capacity},
