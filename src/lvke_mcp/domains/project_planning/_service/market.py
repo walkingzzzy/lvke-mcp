@@ -347,21 +347,12 @@ def prepare_market_case(
             evidence_payload,
             normalized_candidates,
         )
-        if binding_errors:
-            return _envelope(
-                success=False,
-                status="blocked",
-                code="evidence_track_mismatch",
-                message="市场测算证据绑定与 EvidencePack 不一致",
-                blockers=sorted({str(item["code"]) for item in binding_errors}),
-                field_errors={item["path"]: item for item in binding_errors},
-                next_actions=["使用 EvidencePack 中相同 source、hash、locator 和 track 重建候选"],
-            )
+        binding_quality_issues = sorted({str(item["code"]) for item in binding_errors})
         context_payload = context.get("payload") or {}
         try:
             formal_lineage = _planning_formal_lineage(workspace_id, context, evidence)
         except FormalLineageError as exc:
-            return _blocked(exc.code, exc.message)
+            formal_lineage = {"lineage_warning": exc.code}
         evidence_policy = declared_evidence_policy(
             evidence_payload,
             default=resolved_track,
@@ -394,6 +385,8 @@ def prepare_market_case(
             "selection": None,
             "warnings": [],
             "blockers": [],
+            "quality_issues": binding_quality_issues,
+            "field_errors": {item["path"]: item for item in binding_errors},
         }
         record = MARKET_CASE_STORE.put(
             workspace_id,
@@ -425,6 +418,9 @@ def prepare_market_case(
             },
             basis_hash=record["basis_hash"],
             idempotent_replay=False,
+            quality_issues=binding_quality_issues,
+            warnings=[f"质量提示：{item}" for item in binding_quality_issues],
+            field_errors={item["path"]: item for item in binding_errors},
         )
 
     return _idempotent_mutation(
@@ -551,15 +547,8 @@ def confirm_market_case(
         if candidate_record is None:
             return _blocked("market_case_not_found", "候选 MarketSizingCase 不存在")
         payload = candidate_record.get("payload") or {}
-        if payload.get("status") != "candidate":
-            return _blocked("market_case_not_candidate", "只能确认 candidate 状态市场案例")
         errors = _validate_market_payload(payload)
-        if errors:
-            return _blocked(
-                "market_case_invalid",
-                "市场案例校验未通过，不能确认",
-                next_actions=["调用 planning_validate(object_kind=\"market_case\") 查看 field_errors"],
-            )
+        validation_quality_issues = sorted({str(item.get("code") or "market_case_invalid") for item in errors})
         by_id = {
             str(item.get("candidate_id") or ""): item
             for item in payload.get("candidates") or []
@@ -569,10 +558,7 @@ def confirm_market_case(
             return _blocked("market_candidate_not_found", "选定市场候选不存在")
         expected_rejected = set(by_id) - {selected_candidate_id}
         if set(rejected_candidate_ids) != expected_rejected:
-            return _blocked(
-                "market_rejected_candidates_incomplete",
-                "必须显式列出全部未采用候选，避免隐式合并",
-            )
+            validation_quality_issues.append("market_rejected_candidates_incomplete")
         parent_ids = [market_case_id]
         stale: list[dict[str, Any]] = []
         revision_number = 2
@@ -603,6 +589,8 @@ def confirm_market_case(
                 "rejected_candidate_ids": sorted(rejected_candidate_ids),
                 "aggregation": "none",
             },
+            "quality_issues": sorted(set(validation_quality_issues)),
+            "field_errors": {item["path"]: item for item in errors},
             "supersedes_market_case_id": supersedes_market_case_id or None,
             "next_actions": ["使用已确认 MarketSizingCase 创建建设规模和收入驱动对象"],
         }
@@ -635,6 +623,9 @@ def confirm_market_case(
                 "evidence_pack_id": payload.get("evidence_pack_id"),
             },
             idempotent_replay=False,
+            quality_issues=sorted(set(validation_quality_issues)),
+            warnings=[f"质量提示：{item}" for item in sorted(set(validation_quality_issues))],
+            field_errors={item["path"]: item for item in errors},
         )
 
     return _idempotent_mutation(
@@ -681,9 +672,9 @@ def _confirmed_market_basis(
         return None, None, _blocked("project_context_not_found", "ProjectContext 不存在")
     market = MARKET_CASE_STORE.get(workspace_id, market_case_id)
     market_payload = (market or {}).get("payload") or {}
-    if market is None or market_payload.get("status") != "confirmed":
+    if market is None:
         return context, None, _blocked(
-            "confirmed_market_case_required", "必须绑定当前作用域内已确认的 MarketSizingCase"
+            "market_case_not_found", "MarketSizingCase 不存在或不属于当前作用域"
         )
     if market_payload.get("project_context_id") != project_context_id:
         return context, market, _blocked(

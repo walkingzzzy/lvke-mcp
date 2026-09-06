@@ -163,7 +163,8 @@ def get_industry_constraints(
                     "返回的是字段模板与校验规则，不含任何参数取值；"
                     "模板本身不构成正式证据，须由工可批复或线网规划证据逐项填充",
                 ],
-                blockers=["industry_specific_constraints_required"],
+                blockers=[],
+                quality_issues=["industry_specific_constraints_required"],
                 next_actions=[
                     "按 field_template 逐项提供线路长度、车站数、敷设比例、车辆段、"
                     "设计速度、编组与行车间隔，并附工可批复或线网规划 locator",
@@ -193,10 +194,11 @@ def get_industry_constraints(
                 "不在本表用地口径内，需以工可批复或线网规划证据显式提供",
             ]
         return service._envelope(
-            success=False,
+            success=True,
             status="missing_inputs",
             code="industry_constraints_not_available",
-            blockers=["industry_specific_constraints_required"],
+            blockers=[],
+            quality_issues=["industry_specific_constraints_required"],
             next_actions=next_actions,
             project_context_id=project_context_id,
             industry_code=project.get("industry_code"),

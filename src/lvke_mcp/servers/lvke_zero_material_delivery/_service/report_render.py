@@ -57,6 +57,118 @@ _SKIP_HISTORY_NOTICE = (
     "以下字段曾被用户显式跳过、其后已补充回答；保留本记录以便审计追溯确认过程的变更。"
 )
 
+#: 段落级拟定标注前缀。**不做成 profile 可配项**：论证段落由行业模板套写而成，
+#: 不是项目证据；读者必须能在每一段就地判断这段话的性质，而不是翻回首页横幅去推断。
+#: 与 disclosure 横幅是两个层级——横幅声明整份报告的等级，本标注声明单段的来源。
+_NARRATIVE_MARK = "**〔拟定论证〕**"
+
+#: 槽位名 → 正文中文表述。裸槽位名（`project_irr`）出现在正文里既不可读、
+#: 也让读者误以为是系统内部字段泄漏，因此渲染前统一换成中文标签。
+#: 未登记的槽位保留原名，便于发现新增槽位漏登记。
+_SLOT_LABELS: dict[str, str] = {
+    "project_name": "项目名称",
+    "region": "项目所在地",
+    "industry_label": "所属行业",
+    "project_nature": "项目性质",
+    "material_state": "甲方材料状态",
+    "evidence_policy": "证据等级",
+    "assurance_level": "交付保证等级",
+    "project_irr": "项目投资内部收益率",
+    "project_npv": "项目投资净现值",
+    "capital_irr": "资本金内部收益率",
+    "payback_years": "投资回收期",
+    "blockers": "技术链阻断项",
+    "public_research_status": "公开资料检索状态",
+    "public_research_sources": "公开来源快照",
+    # 带单位的标签：这些槽位的值来自假设字段的裸数值（`setdefault` 透传），
+    # 单位不随值一起进槽位。正文里"装机容量：20.0"没有单位无法判读，因此把
+    # 单位写进标签——它是显示层的事，不改变槽位值本身。
+    "installed_capacity_mw": "装机容量（MW）",
+    "annual_generation_mwh": "年发电量（MWh）",
+    "utilization_hours": "年利用小时数（小时）",
+    "tariff_yuan_per_kwh": "上网电价（元/kWh）",
+    "annual_revenue_wan": "年营业收入",
+    "revenue_model": "收入模式",
+    "total_investment_wan": "项目总投资",
+    "investment_structure": "投资构成",
+    "cost_structure": "运营成本构成",
+    "loan_ratio": "贷款比例",
+    "loan_rate": "贷款利率",
+    "build_period_months": "建设期",
+    "operating_period_years": "运营期",
+    "labor_rule": "定员测算口径",
+    "regional_adjustment": "区域调整因素",
+    "sensitivity_variables": "敏感性因素",
+    "industry_applicability": "行业适用范围",
+    "consistency_ok": "财务勾稽状态",
+    "skipped_fields": "用户跳过字段",
+    "release_limitations": "交付限制项",
+    "validation_condition": "验证条件",
+    "finance_tables_manifest": "财务附表交付说明",
+    "finance_lineage": "财务模型血缘",
+    "assumption_table": "受控假设登记表",
+    "assumption_replacement_conditions": "假设替换条件",
+}
+
+
+#: 枚举值 → 正文中文表述。这些值是上游对象的**受控枚举**（非自由文本），直接
+#: 印进正文会让读者看到 `client_materials_absent` 这类内部标识。只译已知枚举，
+#: 未登记的值原样保留：正文里出现英文标识即提示该枚举尚未登记，比静默改写安全。
+_VALUE_LABELS: dict[str, str] = {
+    "client_materials_absent": "甲方原始材料缺失",
+    "client_materials_partial": "甲方原始材料部分提供",
+    "client_materials_complete": "甲方原始材料齐备",
+    "controlled_assumption": "受控假设",
+    "technical_fixture": "技术夹具",
+    "source_reconstructed": "来源重建",
+    "sim_a_formal": "拟定模板晋升",
+    "real": "真实证据",
+    "estimate_preview": "技术预估版",
+    "process_acceptance": "过程验收版",
+    "formal_candidate": "正式候选版",
+    "fallback_assumptions": "已回退为受控假设",
+    "resolved": "已解析",
+    "product_sales_or_gov_payment": "产品销售或政府付费",
+}
+
+
+def _slot_label(name: str) -> str:
+    """Map a slot key to its Chinese label, keeping unknown keys visible."""
+
+    return _SLOT_LABELS.get(name, name)
+
+
+def _value_label(value: str) -> str:
+    """Map a controlled enum value to its Chinese wording, else keep as-is."""
+
+    return _VALUE_LABELS.get(value, value)
+
+
+def _render_narrative(template: Any, slots: dict[str, Any], missing: str) -> str:
+    """Fill one narrative template with resolved slot values.
+
+    模板只允许引用**已解析**的槽位：占位符对应的槽位缺值时整段跳过，不用兜底
+    数字凑话。这与模块开头"不编造"那条约束同源——一段论证如果它引用的数据其实
+    没有，那这段论证就不该出现在正文里。
+    """
+
+    if not isinstance(template, str) or not template.strip():
+        return ""
+    text = template
+    for name in _referenced_slots(template):
+        value = slots.get(name)
+        rendered = value if isinstance(value, str) else _text(value, missing)
+        if not str(rendered).strip() or rendered == missing:
+            return ""
+        text = text.replace("{" + name + "}", _value_label(str(rendered)))
+    return text.strip()
+
+
+def _referenced_slots(template: str) -> list[str]:
+    import re
+
+    return re.findall(r"\{([A-Za-z_][A-Za-z0-9_]*)\}", template)
+
 #: 财务血缘片段的兜底。配置的 ``fragments.finance_lineage`` 优先。
 _FINANCE_LINEAGE_DEFAULT: tuple[dict[str, str], ...] = (
     {"label": "FinanceRun", "field": "run_id"},
@@ -367,13 +479,22 @@ def render_report_markdown(
                 text = value if isinstance(value, str) else _text(value, missing)
                 if not str(text).strip() or text == missing:
                     unresolved.append(name)
-                    lines.extend([f"- {name}：{missing}", ""])
+                    lines.extend([f"- {_slot_label(name)}：{missing}", ""])
                     rendered_any = True
                     continue
                 if "\n" in str(text):
                     lines.extend([str(text), ""])
                 else:
-                    lines.extend([f"- {name}：{text}", ""])
+                    lines.extend([f"- {_slot_label(name)}：{_value_label(str(text))}", ""])
+                rendered_any = True
+            # 论证段落排在数据清单之后：先给读者可核对的数据点，再给基于这些数据点
+            # 的论证。每段独立标注拟定属性——本节数据是上游真实解析结果，论证文字
+            # 是行业模板套写，两者性质不同，不能靠版面顺序让读者自己去分辨。
+            for narrative in sub.get("narrative") or []:
+                filled = _render_narrative(narrative, slots, missing)
+                if not filled:
+                    continue
+                lines.extend([f"{_NARRATIVE_MARK}{filled}", ""])
                 rendered_any = True
             if not rendered_any:
                 lines.extend([_prose(profile, "empty_section"), ""])

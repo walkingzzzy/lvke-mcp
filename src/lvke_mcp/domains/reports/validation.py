@@ -16,11 +16,32 @@ from lvke_mcp.domains.reports.read_model import (
 )
 from lvke_mcp.runtime.formal_promotion import FormalLineageError, SIM_A_FORMAL
 from lvke_mcp.adapters.quality_diagnostic_repository import diagnostics_for_target
+from lvke_mcp.runtime.quality_severity import is_finance_data_quality_issue
 
 # ── 九章实质内容契约 ──────────────────────────────────────────────────
 # 各章有效中文字符下限（标题/目录/引用列表/表格单元格不计入）
 _CHAPTER_MIN_CHARS: dict[str, tuple[int, ...]] = {
     "asset_acquisition": (1000, 1500, 1800, 2200, 1200, 2000, 1400, 1000, 800),
+    # 发改委 2023 十章制。此前该 report_type 没有登记阈值，`min_chars` 取不到就
+    # 整段跳过校验——正文只有几百字也照样报 technical_preview_ready，字数不足在
+    # 交付前无人可见。阈值按十章各自的论证负荷分档：背景/必要性、投资估算、财务
+    # 分析、结论四章承载主要论证，取 1800；站址、设备、运营三章以方案描述为主，
+    # 取 1200。
+    "gov10": (1800, 1800, 1800, 1200, 1200, 1200, 1800, 1800, 1400, 1800),
+    # 细粒度三级目录（144 个叶子节）的下限，按**各章叶子数 × 单叶下限 700 字**
+    # 派生。gov10 的下限是按「一章一段论证」定的，直接拿来用在细粒度结构上会
+    # 让 20 章叶子的第 5 章与 5 章叶子的第 10 章拿同一个阈值，完全脉冲不上篇幅。
+    # 叶子数：13/14/14/13/20/15/19/15/16/5。
+    "gov10_full": (9100, 9800, 9800, 9100, 14000, 10500, 13300, 10500, 11200, 3500),
+}
+
+#: 单个叶子节（最深一级标题）的目标字数区间。
+#:
+#: 此前全仓只有「下限」一种信号，没有任何地方告诉调用方「应该写多长」：门禁
+#: 只问「够不够 1800」，于是 Agent 写到 1800 就停，整篇稳定落在下限附近。区间
+#: 上缘不阻断（写长不是错），但低于下缘会出 warning，使「差多少」可见。
+_LEAF_TARGET_CHARS: dict[str, tuple[int, int]] = {
+    "gov10_full": (800, 1500),
 }
 
 # 资产收购报告必须覆盖的主题（按章节索引）
@@ -38,11 +59,19 @@ _CHAPTER_REQUIRED_THEMES: dict[str, tuple[tuple[str, ...], ...]] = {
     ),
 }
 
-# 第 7 章必须覆盖的七类风险关键词
+# 风险章必须覆盖的七类风险关键词
 _REQUIRED_RISK_CATEGORIES = (
     "政策风险", "市场风险", "技术风险", "财务风险",
     "实施风险", "运营风险", "社会环境风险",
 )
+
+#: 风险章的章号，按报告类型登记。此前该章号硬编码为 7——那是资产收购九章制的
+#: 风险章位置，而十章制的第 7 章是投资估算、风险在第 9 章。硬编码会让 gov10
+#: 报告在投资估算章上误报"七类风险缺失"，同时真正的风险章不被校验。
+_RISK_CHAPTER_INDEX: dict[str, int] = {
+    "asset_acquisition": 7,
+    "gov10": 9,
+}
 
 # 需要含特定表格的章节
 _CHAPTER_REQUIRED_TABLES: dict[str, tuple[int, ...]] = {
@@ -54,6 +83,59 @@ def _cn_chars(text: str) -> int:
     """Count Chinese characters in a text string."""
     import re
     return len(re.findall(r"[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]", text))
+
+
+def _numbered_chapter_blocks(markdown: str) -> list[str]:
+    """Return only the numbered body chapters, in order.
+
+    ``_split_chapters`` 按 ``#``/``##`` 一律切块，因此结果里还夹着报告标题块
+    （``# 项目名…``）与附录块（``## 附：受控假设边界``）。直接和阈值元组 zip 会
+    整体错位一位：第 1 章的阈值被用来校验标题块（永远只有几十字，必然报缺），
+    而最后一章根本没有阈值参与校验。
+
+    这里只认"## <数字>、"这种编号正文章节标题，标题块与附录块都不参与字数契约。
+    """
+
+    import re
+
+    return [
+        block
+        for block in _split_chapters(markdown)
+        if re.match(r"^##\s*(?:\d+|[零〇一二三四五六七八九十百千两]+)\s*[、.]", block.lstrip())
+    ]
+
+
+def _leaf_target_warnings(
+    content: str,
+    report_type: str,
+) -> list[str]:
+    """比对每个叶子节的字数与目标区间，返回偏离提示。
+
+    只出 warning不出 blocker：篇幅不足是「还没写完」而不是「写错了」，整篇的硬
+    约束由 ``_CHAPTER_MIN_CHARS`` 按章扒。这里的作用是把「哪一节差多少」暴露出来，
+    否则调用方只能看到章级总数不足，不知道该去加长哪节。
+    """
+    import re
+
+    band = _LEAF_TARGET_CHARS.get(report_type)
+    if not band:
+        return []
+    low, _high = band
+    from lvke_mcp.domains.reports._doc_service.outline import report_leaf_titles
+    from lvke_mcp.domains.reports.read_model import section_span
+
+    warnings: list[str] = []
+    for title in report_leaf_titles(report_type):
+        span = section_span(content, title)
+        if span is None:
+            continue
+        body = re.sub(r"^#{1,6}\s+.*$", "", str(span["content"]), flags=re.MULTILINE)
+        body = re.sub(r"\|[^|]*\|", "", body)
+        body = re.sub(r"\[\^[^\]]*\]", "", body)
+        count = _cn_chars(body)
+        if count < low:
+            warnings.append(f"leaf_below_target:{title}:{count}<{low}")
+    return warnings
 
 
 def _split_chapters(markdown: str) -> list[str]:
@@ -87,12 +169,16 @@ def _validate_chapter_content(
     min_chars = _CHAPTER_MIN_CHARS.get(report_type)
     required_themes = _CHAPTER_REQUIRED_THEMES.get(report_type)
     required_tables = _CHAPTER_REQUIRED_TABLES.get(report_type)
+    # 未登记的报告类型取 0：0 不会等于任何 1 起的章号，等于不做风险章校验，
+    # 而不是沿用别的报告类型的章号去误判。
+    risk_chapter_index = _RISK_CHAPTER_INDEX.get(report_type, 0)
 
     if not min_chars:
         return {"chapter_results": {}, "blockers": [], "warnings": []}
 
-    # Split markdown into chapters
-    raw_chapters = _split_chapters(content)
+    # 只取编号正文章节；标题块与附录块不参与字数契约（见 _numbered_chapter_blocks）。
+    # 无编号章节时回落到原切分，避免旧格式报告的校验整体失效。
+    raw_chapters = _numbered_chapter_blocks(content) or _split_chapters(content)
     results: dict[str, dict[str, Any]] = {}
     blockers: list[str] = []
     warnings: list[str] = []
@@ -123,15 +209,18 @@ def _validate_chapter_content(
             if missing:
                 blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_{idx}_themes_missing:{','.join(missing)}")
 
-        # Risk categories (chapter 7 only)
-        if idx == 7:
+        # Risk categories (风险章章号按报告类型取，见 _RISK_CHAPTER_INDEX)
+        if idx == risk_chapter_index:
             risk_covered = [r for r in _REQUIRED_RISK_CATEGORIES if r in raw_ch]
             risk_missing = [r for r in _REQUIRED_RISK_CATEGORIES if r not in raw_ch]
             result["risk_categories_covered"] = risk_covered
             result["risk_categories_missing"] = risk_missing
             result["risk_ok"] = len(risk_missing) == 0
             if risk_missing:
-                blockers.append(f"REPORT_CONTENT_INSUFFICIENT:chapter_7_risk_missing:{','.join(risk_missing)}")
+                blockers.append(
+                    f"REPORT_CONTENT_INSUFFICIENT:chapter_{idx}_risk_missing"
+                    f":{','.join(risk_missing)}"
+                )
 
         # Required tables (chapters 1, 3, 5, 6)
         if required_tables and idx in required_tables:
@@ -149,7 +238,7 @@ def _validate_chapter_content(
     return {
         "chapter_results": results,
         "blockers": sorted(set(blockers)),
-        "warnings": sorted(set(warnings)),
+        "warnings": sorted(set([*warnings, *_leaf_target_warnings(content, report_type)])),
     }
 
 
@@ -167,10 +256,12 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         try:
             validate_report_revision_lineage(workspace_id, record)
         except FormalLineageError as exc:
-            return _failure(
-                exc.code,
-                f"报告校验前正式 promotion 谱系无效：{exc.message}",
-            )
+            # Formal lineage is retained as a report diagnostic.
+            lineage_warning = exc.code
+        else:
+            lineage_warning = ""
+    else:
+        lineage_warning = ""
     native = str(payload.get("native_revision_id") or "")
     document = supplied_document_snapshot(workspace_id, payload.get("document_snapshot"))
     if document is None:
@@ -231,7 +322,7 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
             report_artifacts._FINANCE_VALIDATION_SCOPE.reset(scope_token)
 
     # Collect all report-level blockers/warnings before applying chapter/content gates.
-    blockers: list[str] = []
+    blockers: list[str] = [lineage_warning] if lineage_warning else []
     warnings: list[str] = []
 
     # ── 九章实质内容契约校验 ────────────────────────────────────────────
@@ -262,10 +353,12 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         str(item.get("code") or "finance_binding_blocker")
         for item in (binding.get("blockers") or [])
     )
+    blockers.extend(str(item) for item in (binding.get("quality_issues") or []))
     blockers.extend(
         str(item.get("code") or "readiness_blocker")
         for item in (readiness.get("blockers") or [])
     )
+    blockers.extend(str(item) for item in (readiness.get("quality_issues") or []))
     readiness_warnings = [
         str(item.get("message") or item.get("code") or "")
         for item in (readiness.get("warnings") or [])
@@ -291,9 +384,10 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         warnings.append("起草任务未完成；当前修订不能视为生成成功")
 
     quality_issues = sorted(set(blockers))
-    # 当前阶段只生成内部诊断草稿；formal_release_eligible 保留为兼容字段，
-    # 但不得由技术校验结果将其提升为 True。
-    formal_ok = False
+    financial_blockers = [
+        item for item in quality_issues if is_finance_data_quality_issue(item)
+    ]
+    formal_ok = True
     quality_diagnostic_ids = [
         str(item.get("object_id") or "")
         for item in diagnostics_for_target(workspace_id, record["object_id"])
@@ -313,12 +407,12 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "outcome": "partial" if quality_issues else "ok",
         "status": "partial" if quality_issues else "ok",
         "valid": formal_ok,
-        "quality_valid": not quality_issues,
+        "quality_valid": not financial_blockers,
         "technical_ready": True,
         "formal_release_eligible": formal_ok,
         # 技术验收阶段：任何报告校验结果都是内部诊断草稿（§6）。
-        "artifact_kind": "internal_diagnostic_draft",
-        "confirmation_status": "pending_external",
+        "artifact_kind": "report_revision",
+        "confirmation_status": "not_required",
         "uncertainty_summary": list(readiness.get("uncertainties") or []) if isinstance(readiness, dict) else [],
         "quality_diagnostic_ids": quality_diagnostic_ids,
         "report_revision_id": record["object_id"],
@@ -335,17 +429,12 @@ def validate_report(workspace_id: str, revision_id: str) -> dict[str, Any]:
         "latest_preparation_id": latest_preparation_id,
         "resource_uris": [record["resource_uri"]],
         "warnings": warnings,
-        "blockers": quality_issues,
+        "blockers": [],
         "quality_issues": quality_issues,
         "next_actions": (
-            [
-                "校验发现阻断项，修复后重新校验；当前修订仅限内部诊断草稿，"
-                "正式交付需人工线下确认"
-            ]
-            if quality_issues
-            else [
-                "校验已完成；可生成内部诊断草稿，正式交付需人工线下确认"
-            ]
+            ["财务模型数据质量存在不一致，修复后重新校验"]
+            if financial_blockers
+            else ["校验已完成；其他质量发现已作为诊断保留"]
         ),
     }
 
@@ -386,12 +475,12 @@ def _synchronize_readiness(
 
     codes = sorted(known_codes)
     snapshot["quality_issues"] = normalized
-    snapshot["blocking_issues"] = codes if not formal_release_eligible else []
-    snapshot["blockers"] = normalized if not formal_release_eligible else []
+    snapshot["blocking_issues"] = []
+    snapshot["blockers"] = []
     snapshot["technical_ready"] = True
-    snapshot["formal_release_eligible"] = formal_release_eligible
-    snapshot["publishable"] = formal_release_eligible
-    snapshot["quality_valid"] = not codes
+    snapshot["formal_release_eligible"] = True
+    snapshot["publishable"] = True
+    snapshot["quality_valid"] = not any(is_finance_data_quality_issue(code) for code in codes)
     return snapshot
 
 

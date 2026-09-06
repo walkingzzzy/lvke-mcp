@@ -158,6 +158,36 @@ _PROVINCE_RE = re.compile(r"[一-鿿]{2,4}(?:省|自治区|特别行政区)|北�
 _CITY_RE = re.compile(r"[一-鿿]{2,4}(?:市|自治州|地区|盟)")
 _DISTRICT_RE = re.compile(r"[一-鿿]{2,4}(?:区|县|自治县|旗)")
 
+#: 省级行政区简称白名单。上面三条正则都要求带行政后缀，因此"湖北随州"这类
+#: **省市简称连写**（中文里最自然的写法）一个也匹配不到，region 落空，进而
+#: 让每一章的地区槽位与依赖它的论证段落全部缺失。
+#:
+#: 用白名单而非正则放宽后缀要求：省级行政区是 34 个成员的封闭集合，逐词精确
+#: 匹配不会像 `[一-鿿]{2,4}` 那样命中普通词，"宁缺勿错"的原则得以保持。
+_PROVINCE_SHORT_NAMES = (
+    "黑龙江", "内蒙古", "新疆", "西藏", "宁夏", "广西", "香港", "澳门", "台湾",
+    "河北", "山西", "辽宁", "吉林", "江苏", "浙江", "安徽", "福建", "江西",
+    "山东", "河南", "湖北", "湖南", "广东", "海南", "四川", "贵州", "云南",
+    "陕西", "甘肃", "青海", "北京", "上海", "天津", "重庆",
+)
+#: 长名优先，避免"黑龙江"被"江"类短名截断。
+_PROVINCE_SHORT_RE = re.compile(
+    "|".join(sorted(_PROVINCE_SHORT_NAMES, key=len, reverse=True))
+)
+#: 紧跟省级简称之后、**不可能是地市名**的通用词。没有这层排除，"湖北项目"会
+#: 把"项目"当成城市名拼出"湖北项目"——比留空更糟：留空会如实报缺口，错值会让
+#: 后续每一章都引用一个不存在的地区。
+_NON_CITY_WORDS = (
+    "项目", "工程", "地区", "区域", "全省", "省内", "当地", "本地",
+    "屋顶", "光伏", "风电", "储能", "电站", "园区", "基地", "建设",
+)
+#: 地市简称：紧跟省级简称之后的 2~3 个汉字，且必须停在非汉字边界（数字、
+#: 拉丁字母或已知的项目类词）。否则贪婪量词会把"随州屋顶"吃成"随州屋"。
+#: **只在省级简称已命中时才启用**，单独使用会把任意词当成城市名。
+_CITY_SHORT_RE = re.compile(
+    r"[一-鿿]{2,3}(?=[0-9A-Za-z]|项目|屋顶|光伏|风电|储能|电站|工程|建设|$)"
+)
+
 
 def _project_name(sentence: str, supplied: str = "") -> str:
     if supplied.strip():
@@ -200,9 +230,18 @@ def _region_from_sentence(sentence: str, supplied: str = "") -> str:
         cursor = match.end()
     # 只接受至少两级（如"武汉市江夏区"或"湖北省武汉市"）：单一个"区"或"市"
     # 极易命中普通词（"园区""上市"），宁缺勿错。
-    if len(parts) < 2:
+    if len(parts) >= 2:
+        return "".join(parts)
+    # 带后缀的逐级匹配没凑够两级，再试省市简称连写（"湖北随州"）。省级用封闭
+    # 白名单，市级只取紧随其后的 2~3 个汉字，两者都命中才采纳——单独命中一个
+    # 省级简称（"湖北项目"）仍按缺口处理，不拿省名硬当完整地区。
+    province = _PROVINCE_SHORT_RE.search(haystack)
+    if province is None:
         return ""
-    return "".join(parts)
+    city = _CITY_SHORT_RE.match(haystack, province.end())
+    if city is None or city.group(0) in _NON_CITY_WORDS:
+        return ""
+    return province.group(0) + city.group(0)
 
 
 def _new_run(
@@ -257,7 +296,10 @@ def _new_run(
         # 分级验收状态。缺省是"未开始"而不是空字典：读的人不该从缺字段推断状态。
         "acceptance": dict(acceptance or _empty_acceptance()),
         "release_limitations": sorted({str(item) for item in release_limitations or []}),
-        "blockers": list(blockers or []),
+        # A DeliveryRun records quality findings but never persists workflow
+        # blockers.  Stages and profiles are descriptive, not permissions.
+        "blockers": [],
+        "quality_issues": sorted({str(item) for item in blockers or [] if str(item)}),
         "validation_condition": "甲方原始材料缺失，结果按受控假设范围校验",
         "service_version": SERVICE_VERSION,
     }
@@ -265,7 +307,7 @@ def _new_run(
         workspace_id,
         payload,
         producer=f"{SERVICE_NAME}.delivery_run",
-        status="blocked" if blockers else ("cancelled" if stage == "cancelled" else "ok"),
+        status="cancelled" if stage == "cancelled" else "ok",
         source_ids=[item for item in (intent_id, assumption_package_id, previous_run_id) if item],
         basis=payload,
         object_id=object_id,

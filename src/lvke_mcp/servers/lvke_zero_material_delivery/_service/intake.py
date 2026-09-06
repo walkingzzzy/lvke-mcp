@@ -123,61 +123,22 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
             else []
         )
         gap_summary = summarize_gaps(field_gaps)
-        blockers = [] if route["resolved"] else [str(route["reason"])]
+        quality_issues = [] if route["resolved"] else [str(route["reason"])]
         if profile_error:
-            blockers.append(profile_error)
+            quality_issues.append(profile_error)
         run = _new_run(
             workspace_id,
             intent_id=intent["object_id"],
             stage="intent_resolved" if route["resolved"] and not profile_error else "received",
-            blockers=blockers,
+            blockers=[],
             status_reason=str(route.get("reason") or profile_error or ""),
             report_profile=profile_selection,
             missing_inputs=field_gaps,
         )
         run_view = _view(run, "delivery_run_id")
-        if profile_error and route["resolved"]:
-            return _envelope(
-                False,
-                "blocked",
-                code=profile_error,
-                message="未能唯一确定报告配置；不套用通用模板",
-                blockers=blockers,
-                next_actions=[
-                    "显式传入 report_profile_id 或 template_set_id",
-                    "或修订 config/report_profiles/manifest.v1.json 的适用条件",
-                ],
-                resource_uris=[intent["resource_uri"], run["resource_uri"]],
-                delivery_intent=intent_view,
-                delivery_run=run_view,
-                report_profile_detail=profile_detail,
-                validation_complete=False,
-                input_evidence_complete=False,
-            )
-        if not route["resolved"]:
-            return _envelope(
-                False,
-                "missing_inputs",
-                code=str(route["reason"]),
-                message="一句话无法唯一确定首期行业路线",
-                blockers=blockers,
-                next_actions=["明确选择一个 industry_code 后重新创建交付意图"],
-                resource_uris=[intent["resource_uri"], run["resource_uri"]],
-                delivery_intent=intent_view,
-                delivery_run=run_view,
-                missing_inputs=[
-                    {
-                        "field": "industry",
-                        "reason": route["reason"],
-                        "candidates": route["candidates"],
-                    }
-                ],
-                validation_complete=False,
-                input_evidence_complete=False,
-            )
         return _envelope(
             True,
-            "ok",
+            "partial" if quality_issues else "ok",
             warnings=[
                 "零材料结果固定为技术预估版，受当前输入快照与受控假设约束",
                 *(
@@ -204,6 +165,8 @@ def create_from_sentence(args: dict[str, Any]) -> dict[str, Any]:
             missing_inputs=field_gaps,
             gap_summary=gap_summary,
             release_limitations=gap_summary["release_limitations"],
+            quality_issues=quality_issues,
+            blockers=[],
             validation_complete=False,
             input_evidence_complete=False,
         )

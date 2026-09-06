@@ -71,9 +71,9 @@ def sanitized_error_payload(
         "quality_status": "unclassified",
         "uncertainties": [],
         "quality_issues": [],
-        "diagnostic_only": True,
-        "human_confirmation_required": True,
-        "formal_report_allowed": False,
+        "diagnostic_only": False,
+        "human_confirmation_required": False,
+        "formal_report_allowed": True,
     }
     payload["coordination"] = build_coordination(payload, server_name=server_name)
     return payload

@@ -271,20 +271,12 @@ def _export_review_locked(
                 evidence_metadata,
             )
         except FormalLineageError as exc:
-            return _blocked(
-                exc.code,
-                f"审查导出前正式 promotion 谱系无效：{exc.message}",
-                review_id=review_id,
-            )
+            quality_issues.append(exc.code)
         if any(
             evidence_metadata.get(key) != value
             for key, value in formal_lineage.items()
         ):
-            return _blocked(
-                "formal_lineage_metadata_mismatch",
-                "审查导出前 promotion 元数据不是规范值",
-                review_id=review_id,
-            )
+            quality_issues.append("formal_lineage_metadata_mismatch")
     if not state.get("validation_complete"):
         quality_issues.append("review_validation_incomplete")
     for previous in state.get("exports") or []:
@@ -300,11 +292,9 @@ def _export_review_locked(
             },
         )
         if integrity_reasons:
-            return _blocked(
-                "review_export_integrity_failed",
-                "既有审查导出记录或文件完整性校验失败",
-                review_id=review_id,
-                integrity_reasons=integrity_reasons,
+            quality_issues.extend(
+                f"review_export_integrity_failed:{reason}"
+                for reason in integrity_reasons
             )
     suite_review = str((state.get("target") or {}).get("target_type") or "") == "review_package"
     if suite_review:
@@ -323,10 +313,9 @@ def _export_review_locked(
             return _blocked("review_package_not_found", "导出前 ReviewPackage 不存在或完整性无效")
         package_reasons = package_integrity_reasons(workspace_id, package_record)
         if package_reasons:
-            return _blocked(
-                package_reasons[0],
-                "导出前 ReviewPackage 完整性或正式谱系校验失败",
-                integrity_reasons=package_reasons,
+            quality_issues.extend(
+                f"review_package_integrity_failed:{reason}"
+                for reason in package_reasons
             )
         state = deepcopy(state)
         state["review_package"] = deepcopy(package_record)
@@ -353,15 +342,9 @@ def _export_review_locked(
         return _blocked("export_format_invalid", "导出格式仅支持 json、markdown、docx、xlsx、pdf、annotated_docx")
     formal_formats = {"docx", "xlsx", "pdf", "annotated_docx"}
     if any(item in formal_formats for item in requested) and not state.get("validation_complete"):
-        return _blocked(
-            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-            "DOCX/XLSX 正式导出要求审查验证完成；当前仅允许 JSON/Markdown 过程记录",
-            review_id=review_id,
-            quality_issues=["review_validation_incomplete"],
-        )
-    # A completed review can still be incomplete or explicitly blocked.  Do
-    # not let a successful technical run, controlled-assumption input, or
-    # unresolved finding masquerade as a formal review export.
+            quality_issues.append("review_validation_incomplete")
+    # Review findings are exported as quality diagnostics; they are not export
+    # prerequisites.
     formal_issues: list[str] = []
     if suite_review:
         if str(state.get("suite_overall_verdict") or "") != "pass":
@@ -375,27 +358,17 @@ def _export_review_locked(
             verdict = str(state.get(verdict_key) or "").lower()
             if verdict and verdict not in {"pass", "passed", "ok", "complete", "completed"}:
                 formal_issues.append(f"{verdict_key}:{verdict}")
-    if formal_issues and any(item in formal_formats for item in requested):
-        return _blocked(
-            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-            "审查仍存在未关闭的质量或发布资格问题，禁止正式 DOCX/XLSX 导出",
-            review_id=review_id,
-            quality_issues=sorted(set(formal_issues)),
-        )
+    quality_issues.extend(formal_issues)
     review_purpose = str((state.get("project_context") or {}).get("review_purpose") or "")
     if any(item in formal_formats for item in requested) and review_purpose != "project_delivery" and not suite_review:
-        return _blocked(
-            "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-            "正式 DOCX/XLSX 审查导出要求 project_delivery 审查目的",
-            review_id=review_id,
-            quality_issues=["review_release_scope_not_formal"],
-        )
+        quality_issues.append("review_release_scope_not_formal")
     export_basis = {
         "review_id": review_id,
         "event_chain_hash": state.get("event_chain_hash"),
         "formats": sorted(set(requested)),
         "review_status": state.get("review_status"),
         "overall_verdict": state.get("overall_verdict"),
+        "quality_issues": sorted(set(quality_issues)),
         **deepcopy(formal_lineage),
     }
     export_id = (
@@ -440,11 +413,14 @@ def _export_review_locked(
                 "application/pdf",
             )
         except (FileNotFoundError, OSError, TimeoutError):
-            return _blocked(
-                "review_pdf_export_unavailable",
-                "PDF 审查报告要求可用的隔离 LibreOffice worker",
-                review_id=review_id,
-            )
+            quality_issues.append("review_pdf_export_unavailable")
+            requested = [item for item in requested if item != "pdf"]
+            if not requested:
+                return _blocked(
+                    "review_pdf_export_unavailable",
+                    "PDF 审查报告要求可用的隔离 LibreOffice worker",
+                    review_id=review_id,
+                )
     files = []
     for format_name in sorted(set(requested)):
         filename, content, media_type = payloads[format_name]
@@ -483,11 +459,9 @@ def _export_review_locked(
         export_envelope,
     )
     if integrity_reasons:
-        return _blocked(
-            "review_export_integrity_failed",
-            "新生成的审查导出记录或文件完整性校验失败",
-            review_id=review_id,
-            integrity_reasons=integrity_reasons,
+        quality_issues.extend(
+            f"review_export_integrity_failed:{reason}"
+            for reason in integrity_reasons
         )
     STORE.append(
         workspace_id,

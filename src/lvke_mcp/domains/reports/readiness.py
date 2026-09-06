@@ -117,7 +117,10 @@ def build_readiness(
     grounding = str(ev.get("grounding_state") or "ungrounded")
     placeholders = doc.count(svc.MISSING_MARKER)
     struct = svc.report_structure(rt)
-    total_ch = len(expected_chapters or struct["chapters"])
+    # 论证分的分母固定用**章数**，不用 expected_chapters 的长度。细粒度结构的
+    # outline 展开到三级后有 191 个 descriptor，拿它做分母会把证据覆盖率除到十分之一，
+    # 而证据字段本来就是按主题/章组织的，与目录深度无关。
+    total_ch = len(struct["chapters"])
 
     # 结构分
     try:

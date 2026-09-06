@@ -202,6 +202,7 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
     evidence_pack_ids = sorted({str(item) for item in args.get("evidence_pack_ids") or [] if str(item)})
     canonical_lineage: dict[str, Any] = {}
+    quality_issues: list[str] = []
     if policy == "sim_a_formal":
         try:
             canonical_lineage = _sim_a_fact_pack_lineage(
@@ -210,12 +211,7 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
                 evidence_pack_ids,
             )
         except FormalLineageError as exc:
-            return _err_env(
-                f"{SERVER_NAME}.{exc.code}",
-                exc.message,
-                status="blocked",
-                blockers=[exc.code],
-            )
+            quality_issues.append(exc.code)
     if policy == "source_reconstructed":
         errors = validate_reconstruction_records(candidate.get("reconstruction_records"))
         if errors:
@@ -223,7 +219,11 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
                 {"available": False, "field_errors": errors},
                 source=f"{SERVER_NAME}.finance_prepare_fact_pack",
                 status="missing_inputs",
-                blockers=sorted({str(row.get("code") or "reconstruction_invalid") for row in errors}),
+                blockers=[],
+                quality_issues=[
+                    *quality_issues,
+                    *sorted({str(row.get("code") or "reconstruction_invalid") for row in errors}),
+                ],
                 fact_pack_id=None,
                 confirmation_status="draft",
             )
@@ -263,6 +263,7 @@ def prepare_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             "reconstructed_source_ids": list(snapshot.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(snapshot.get("unresolved_inputs") or []),
             "release_limitations": list(snapshot.get("release_limitations") or []),
+            "quality_issues": quality_issues,
         },
         producer=f"{SERVER_NAME}.finance_prepare_fact_pack",
         status="draft",
@@ -311,6 +312,7 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
     policy = str(candidate.get("evidence_policy") or "formal_evidence")
     evidence_pack_ids = [str(item) for item in source_payload.get("evidence_pack_ids") or [] if str(item)]
     canonical_lineage: dict[str, Any] = {}
+    quality_issues: list[str] = []
     if policy == "sim_a_formal":
         try:
             validate_formal_record(workspace_id, source)
@@ -320,12 +322,7 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
                 evidence_pack_ids,
             )
         except FormalLineageError as exc:
-            return _err_env(
-                f"{SERVER_NAME}.{exc.code}",
-                exc.message,
-                status="blocked",
-                blockers=[exc.code],
-            )
+            quality_issues.append(exc.code)
     # 与 prepare 共用同一解析器构造，避免两阶段解析路径分叉。
     resolver = _build_evidence_resolver(candidate)
     from lvke_mcp.domains.finance.fact_pack import build_fact_pack_snapshot
@@ -337,19 +334,11 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
         evidence_resolver=resolver,
     )
     if confirmed.get("delivery_grade_ceiling") != "formal_candidate":
-        return _ok_env(
-            {
-                "available": False,
-                "depth_assessment": confirmed.get("depth_assessment") or {},
-                "binding_assessment": confirmed.get("binding_assessment") or {},
-                "missing": confirmed.get("missing") or [],
-            },
-            source=f"{SERVER_NAME}.finance_confirm_fact_pack",
-            status="missing_inputs",
-            blockers=list(confirmed.get("missing") or ["fact_pack_not_formal_candidate"]),
-            fact_pack_id=fact_pack_id,
-            confirmation_status="draft",
-            delivery_grade_ceiling=str(confirmed.get("delivery_grade_ceiling") or "summary"),
+        quality_issues.extend(
+            [
+                "fact_pack_not_formal_candidate",
+                *[str(item) for item in confirmed.get("missing") or []],
+            ]
         )
     record = FACT_PACK_STORE.put(
         workspace_id,
@@ -371,6 +360,7 @@ def confirm_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
             "reconstructed_source_ids": list(confirmed.get("reconstructed_source_ids") or []),
             "unresolved_inputs": list(confirmed.get("unresolved_inputs") or []),
             "release_limitations": list(confirmed.get("release_limitations") or []),
+            "quality_issues": quality_issues,
         },
         producer=f"{SERVER_NAME}.finance_confirm_fact_pack",
         status="confirmed",
@@ -399,7 +389,10 @@ def get_fact_pack(args: dict[str, Any]) -> dict[str, Any]:
 def _fact_pack_result(record: dict[str, Any], *, replayed: bool) -> dict[str, Any]:
     payload = record.get("payload") or {}
     pack = payload.get("fact_pack") or {}
-    status = "ok" if payload.get("confirmation_status") == "confirmed" else "partial"
+    quality_issues = [
+        str(item) for item in payload.get("quality_issues") or [] if str(item)
+    ]
+    status = "partial" if quality_issues or payload.get("confirmation_status") != "confirmed" else "ok"
     return _ok_env(
         {
             "fact_pack_id": record.get("object_id"),
@@ -411,8 +404,9 @@ def _fact_pack_result(record: dict[str, Any], *, replayed: bool) -> dict[str, An
         status=status,
         resource_uris=[str(record.get("resource_uri") or "")],
         warnings=[] if status == "ok" else ["Fact Pack 尚未确认"],
-        blockers=[] if status == "ok" else ["fact_pack_confirmation_required"],
-        next_actions=[] if status == "ok" else ["调用 finance_confirm_fact_pack"],
+        blockers=[],
+        quality_issues=quality_issues,
+        next_actions=[] if status == "ok" else ["质量提示已保留，可继续使用 Fact Pack"],
         fact_pack_id=record.get("object_id"),
         confirmation_status=str(payload.get("confirmation_status") or "draft"),
         delivery_grade_ceiling=str(pack.get("delivery_grade_ceiling") or "summary"),

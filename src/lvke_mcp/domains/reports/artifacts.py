@@ -82,10 +82,10 @@ from ._artifacts.directory import (  # noqa: F401
 )
 from ._artifacts.formal_gate import (  # noqa: F401
     _capture_basis,
-    _draft_basis_blockers,
+    _draft_basis_quality_issues,
     _marker_markdown,
     _readiness_blockers,
-    _strict_finance_gate,
+    _finance_quality_snapshot,
 )
 from ._artifacts.lifecycle import (  # noqa: F401
     _append_event,

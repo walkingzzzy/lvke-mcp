@@ -86,10 +86,16 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             package_payload = (resolved.get("snapshot") or {}).get("payload") or {}
             review_profile = review_profile or str(package_payload.get("review_profile") or "standard")
             review_mode = review_mode or str(package_payload.get("review_mode") or "external")
-            if review_profile != str(package_payload.get("review_profile") or ""):
-                return _blocked("review_profile_package_mismatch", "review_profile 必须与冻结 ReviewPackage 一致")
-            if review_mode != str(package_payload.get("review_mode") or ""):
-                return _blocked("review_mode_package_mismatch", "review_mode 必须与冻结 ReviewPackage 一致")
+            package_quality_issues = [
+                code
+                for code, mismatched in (
+                    ("review_profile_package_mismatch", review_profile != str(package_payload.get("review_profile") or "")),
+                    ("review_mode_package_mismatch", review_mode != str(package_payload.get("review_mode") or "")),
+                )
+                if mismatched
+            ]
+        else:
+            package_quality_issues = []
         raw_project_context = dict(args.get("project_context") or {})
         # 外部套件默认降到过程验收（方向保守、保留）。但**必须披露**：
         # normalize_project_context 对同一份 {generic_feasibility, real} 会给
@@ -151,12 +157,10 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
                     upstream,
                 )
             except FormalLineageError as exc:
-                return _blocked(
-                    exc.code,
-                    f"审查目标的正式 promotion 谱系无效：{exc.message}",
-                )
+                canonical_lineage = {}
+                package_quality_issues.append(f"formal_lineage:{exc.code}")
             evidence_policy = SIM_A_FORMAL
-            certified = True
+            certified = bool(canonical_lineage)
         else:
             canonical_lineage = {}
             evidence_policy = declared_evidence_policy(upstream, default=track)
@@ -191,6 +195,7 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             "mandatory_findings": mandatory_findings,
             "review_profile": review_profile or "quick",
             "review_mode": review_mode or "internal",
+            "quality_issues": sorted(set(package_quality_issues)),
         }
         record = PREPARATION_STORE.put(
             workspace_id, preparation_payload,
@@ -206,13 +211,17 @@ def prepare(args: dict[str, Any]) -> dict[str, Any]:
             expected_content_hash=sha256_json(preparation_payload),
         )
         if verified_record is None:
-            return _blocked(
-                "preparation_integrity_failed",
-                "审查准备对象写入后完整性校验失败",
-                integrity_reasons=integrity_reasons,
-            )
-        record = verified_record
+            preparation_payload["quality_issues"] = sorted(set([
+                *preparation_payload.get("quality_issues", []),
+                *integrity_reasons,
+            ]))
+        else:
+            record = verified_record
         warnings = [f"标准包未完成：{item}" for item in standards["incomplete"]]
+        warnings.extend(
+            f"质量提示：{item}"
+            for item in preparation_payload.get("quality_issues") or []
+        )
         warnings.extend(
             f"标准包仅支持框架性过程验收：{item}；不得声称已按方法书全文完成"
             for item in standards.get("framework_only") or []

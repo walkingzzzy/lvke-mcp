@@ -30,6 +30,16 @@ _RULES: tuple[tuple[str, str, str, Any], ...] = (
     ("design_speed_kmh", rf"(?:时速|设计速度|速度目标)?\s*{_NUMBER}\s*(?:km/h|公里/小时|千米/小时)", "km/h", _f),
     ("total_investment_wan", rf"{_NUMBER}\s*亿元", "万元", lambda v: float(v) * 10000.0),
     ("operating_period_years", rf"(?:运营期|运营)\s*{_NUMBER}\s*年", "年", lambda v: int(float(v))),
+    # 装机容量：能源类项目最常在句子里写明的规模参数（"20MW 屋顶分布式光伏"）。
+    # 此前 `_CANDIDATE` 白名单虽含 MW/kW，却没有对应抽取规则接住，于是"20MW"
+    # 只进 unmapped——句子明确给了装机规模，装机容量槽位仍报缺，第 3 章"装机规模
+    # 与发电量"整节因此空白。
+    #
+    # 三条规则按单位分列而非合成一条：GW/MW/kW 换算系数不同，合成后需在 convert
+    # 里二次解析单位文本，等于把单位判断从正则挪进函数，反而更易错。
+    ("installed_capacity_mw", rf"{_NUMBER}\s*(?:GW|gw|吉瓦)", "MW", lambda v: float(v) * 1000.0),
+    ("installed_capacity_mw", rf"{_NUMBER}\s*(?:MW|Mw|mw|兆瓦)", "MW", _f),
+    ("installed_capacity_mw", rf"{_NUMBER}\s*(?:kW|KW|kw|千瓦)(?!时)", "MW", lambda v: float(v) / 1000.0),
 )
 
 # 建设期区间：2028至2032年 → 60 个月（含首尾年）。

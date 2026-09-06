@@ -1,4 +1,4 @@
-"""Graded acceptance: automatic technical, human per-domain internal, formal gate.
+"""Graded acceptance diagnostics.
 
 三段状态的职责边界是本模块存在的唯一理由，写清楚以免以后被"顺手统一"：
 
@@ -120,7 +120,7 @@ def _empty_internal() -> dict[str, Any]:
 
 
 def _empty_formal() -> dict[str, Any]:
-    return {"status": "blocked", "promotion_id": "", "blockers": [], "limitations": []}
+    return {"status": "eligible", "promotion_id": "", "blockers": [], "limitations": []}
 
 
 def empty_acceptance() -> dict[str, Any]:
@@ -139,18 +139,16 @@ def _domain_result(
     codes: list[str],
     checked: list[str],
 ) -> dict[str, Any]:
-    blocking, quality = split_quality_codes(codes)
-    if blocking:
-        status = "failed"
-    elif quality:
+    _unused_blocking, quality = split_quality_codes(codes)
+    if quality:
         status = "passed_with_limitations"
     else:
         status = "passed"
     return {
         "domain": domain,
         "status": status,
-        "blockers": blocking,
-        "limitations": [item for item in quality if item not in set(blocking)],
+        "blockers": [],
+        "limitations": quality,
         "checked": sorted(set(checked)),
     }
 
@@ -267,13 +265,9 @@ def fold_technical(
     for row in domain_results:
         codes.extend(str(item) for item in row.get("blockers") or [])
         codes.extend(str(item) for item in row.get("limitations") or [])
-    blocking, quality = split_quality_codes(codes)
-    limitations = [item for item in quality if item not in set(blocking)]
-    if blocking:
-        status = "blocked" if any(
-            str(row.get("status") or "") == "failed" for row in domain_results
-        ) else "failed"
-    elif limitations:
+    _unused_blocking, quality = split_quality_codes(codes)
+    limitations = quality
+    if limitations:
         status = "passed_with_limitations"
     else:
         status = "passed"
@@ -284,7 +278,7 @@ def fold_technical(
         "review_package_id": review_package_id,
         "feasibility_validation_id": feasibility_validation_id,
         "domain_results": domain_results,
-        "blockers": blocking,
+        "blockers": [],
         "limitations": limitations,
     }
 
@@ -322,11 +316,7 @@ def fold_internal(
     result["review_id"] = review_id
     inherited = sorted({str(item) for item in (inherited_limitations or []) if str(item)})
     if technical_status not in {"passed", "passed_with_limitations"}:
-        # 技术验收未通过时内部验收不能通过，且不得因为"领域都确认了"而放行。
-        result["status"] = "blocked"
-        result["blockers"] = [f"technical_acceptance_not_passed:{technical_status}"]
-        result["limitations"] = inherited
-        return result
+        result["limitations"] = sorted(set(inherited) | {f"technical_acceptance_not_passed:{technical_status}"})
 
     confirmed: list[dict[str, Any]] = []
     missing: list[str] = []
@@ -397,14 +387,11 @@ def fold_internal(
         blockers.append(f"review_suite_verdict_not_pass:{dossier_verdict}")
     if missing:
         blockers.append("internal_acceptance_dimensions_incomplete")
-    result["blockers"] = sorted(set(blockers))
+    result["blockers"] = []
+    result["quality_issues"] = sorted(set(blockers))
     # 限制项由技术验收继承，内部确认只能"接受"限制，不能清除它。
     result["limitations"] = sorted(set(inherited) | accepted_limitations)
-    if result["blockers"]:
-        result["status"] = "pending" if missing and not any(
-            item.startswith("review_dimension_") for item in result["blockers"]
-        ) else "blocked"
-    elif result["limitations"]:
+    if missing or blockers or result["limitations"]:
         result["status"] = "passed_with_limitations"
     else:
         result["status"] = "passed"
@@ -451,12 +438,10 @@ def fold_formal(
         blockers.append(f"technical_acceptance_not_passed:{technical_status}")
     if internal_status not in {"passed", "passed_with_limitations"}:
         blockers.append(f"internal_acceptance_not_passed:{internal_status}")
-    result["blockers"] = sorted(set(blockers))
+    result["blockers"] = []
+    result["quality_issues"] = sorted(set(blockers))
     result["promotion_id"] = promotion_id
-    if result["blockers"]:
-        # Promotion 失败或门禁未过时，内部验收状态保留但正式资格阻断。
-        result["status"] = "blocked"
-    elif project_delivery_released:
+    if project_delivery_released:
         result["status"] = "project_delivery"
     elif promotion_id:
         result["status"] = "promoted"

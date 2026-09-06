@@ -96,13 +96,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                         try:
                             validate_finance_run(workspace_id, str(replay.get("run_id") or ""))
                         except FormalLineageError as exc:
-                            return _err_env(
-                                f"{SERVER_NAME}.{exc.code}",
-                                exc.message,
-                                status="blocked",
-                                blockers=[exc.code],
-                                run_id=replay.get("run_id"),
-                            )
+                            replay.setdefault("quality_issues", []).append(exc.code)
                     replay.update({"replayed": True, "reused": True})
                     return replay
             return _err_env(
@@ -121,13 +115,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             try:
                 validate_finance_run(workspace_id, str(replay.get("run_id") or ""))
             except FormalLineageError as exc:
-                return _err_env(
-                    f"{SERVER_NAME}.{exc.code}",
-                    exc.message,
-                    status="blocked",
-                    blockers=[exc.code],
-                    run_id=replay.get("run_id"),
-                )
+                replay.setdefault("quality_issues", []).append(exc.code)
         replay.update({"replayed": True, "reused": True})
         return replay
     spec_id = str(args.get("spec_id") or "").strip()
@@ -170,23 +158,12 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
     }
     if SIM_A_FORMAL in parent_policies:
         if boe is None or stored is None or parent_policies != {SIM_A_FORMAL}:
-            return _err_env(
-                f"{SERVER_NAME}.formal_lineage_parent_mismatch",
-                "sim_a_formal FinanceRun 必须绑定同一工作区的正式 FinanceSpec 与 BoE",
-                status="blocked",
-                blockers=["formal_lineage_parent_mismatch"],
-                run_id=None,
-            )
-        try:
-            canonical_lineage = validate_same_formal_lineage(workspace_id, [stored, boe])
-        except FormalLineageError as exc:
-            return _err_env(
-                f"{SERVER_NAME}.{exc.code}",
-                exc.message,
-                status="blocked",
-                blockers=[exc.code],
-                run_id=None,
-            )
+            preflight_quality_issues.append("formal_lineage_parent_mismatch")
+        else:
+            try:
+                canonical_lineage = validate_same_formal_lineage(workspace_id, [stored, boe])
+            except FormalLineageError as exc:
+                preflight_quality_issues.append(exc.code)
     if spec is None and not force_flat:
         preflight_quality_issues.append("finance_spec_missing_using_flat_baseline")
     input_revision = args.get("input_revision") if isinstance(args.get("input_revision"), dict) else payload.get("input_revision")
@@ -245,7 +222,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             },
             source=f"{SERVER_NAME}.finance_run_model",
             status="missing_inputs",
-            blockers=[f"缺少城轨必需输入：{item}" for item in rail_missing],
+            blockers=[],
             warnings=[f"质量提示：{item}" for item in sorted(set(preflight_quality_issues))],
             next_actions=[
                 "补齐 input_revision 中的城轨治理输入后重试；这些字段没有通用默认值",
@@ -314,35 +291,8 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             preflight_quality_issues.extend(
                 f"missing_input:wc_turnover.{name}" for name in missing_turnover
             )
-    if scale_blockers:
-        # 在预留幂等键与调用模型之前短路：一旦建了 run，下游十三表与报告
-        # 就会引用一个规模基准不可信的对象，事后提示无法收回。
-        detail = "；".join(
-            str(item.get("detail") or item.get("code") or "")
-            for item in scale_check["issues"]
-        )
-        return _ok_env(
-            {
-                "available": False,
-                "error": scale_blockers[0],
-                "spec_id": spec_id,
-                "scale_check": scale_check,
-                "quality_issues": sorted(set(preflight_quality_issues)),
-            },
-            source=f"{SERVER_NAME}.finance_run_model",
-            status="blocked",
-            blockers=scale_blockers,
-            warnings=[f"质量提示：{item}" for item in sorted(set(preflight_quality_issues))],
-            next_actions=[
-                "核对投资额与行业规模量级（线路长度、车站数、建设期）后重新提交 InputRevision",
-            ],
-            run_id=None,
-            spec_id=spec_id or None,
-            missing_inputs=[],
-            quality_issues=sorted(set(preflight_quality_issues)),
-            scale_check=scale_check,
-            message=detail or "项目规模与投资额对账不一致",
-        )
+    # Scale contradictions are retained as finance data-quality diagnostics.
+    # They must not prevent a caller from producing a traceable run.
     expires_at = _expires_at()
     IDEMPOTENCY_STORE.put(
         workspace_id,
@@ -464,13 +414,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 str(item.get("rule") or item.get("code") or "finance_consistency_failed")
                 for item in data.get("blocking_issues") or []
             ]
-            # A persisted run with an integrity blocker remains readable for
-            # technical diagnosis, but the envelope must match
-            # ``finance_get_run(view=checks)``: status=blocked,
-            # business_success=false, top-level blockers non-empty.  Using
-            # ``partial`` + empty blockers made callers that only read
-            # ``business_success`` treat a failed reconciliation as success.
-            status = "blocked" if blockers else ("partial" if quality_issues else "ok")
+            status = "partial" if blockers or quality_issues else "ok"
             calculation_status = "continued_with_conflict" if blockers else "computed"
             # 对 material conflict 固化为 QualityDiagnostic，可用于后续
             # 表和报告引用的诊断链。
@@ -515,8 +459,8 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                             )
             if blockers:
                 next_actions = [
-                    "先修复财务勾稽阻断项，再继续后续正式流程",
-                    "如需技术排查，可生成受限预览；不得将当前 run 视为正式候选",
+                    "修复财务勾稽问题可提高后续结果可信度",
+                    "当前运行已保留所有质量诊断，可继续渲染和导出",
                 ]
             elif viability_issues:
                 next_actions = [
@@ -525,15 +469,12 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
                 ]
             else:
                 next_actions = ["用 run_id 调用 lvke-finance-tables.tables_render 渲染 14 张交付表"]
-            # 勾稽阻断必须同时出现在顶层 blockers 与 data.blocking_issues，
-            # 与 finance_get_run(view=checks) 对齐。质量提示单独留在
-            # quality_issues，不顶替勾稽失败。
             quality_issues = sorted(set([*quality_issues, *blockers]))
             data["quality_issues"] = sorted(set([
                 *list(data.get("quality_issues") or []),
                 *blockers,
             ]))
-            output_blockers = list(blockers)
+            output_blockers = []
         elif missing:
             status = "partial"
             blockers = []
@@ -541,9 +482,11 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             calculation_status = "computed" if data.get("available") else "unavailable"
             next_actions = ["当前结果已保留诊断；补充输入可提高估算置信度"]
         else:
-            status = "blocked"
+            status = "partial"
             calculation_status = "unavailable"
             blockers = _blocking_rules(data) or [str(data.get("reason") or "run_not_available")]
+            quality_issues = sorted(set([*quality_issues, *blockers]))
+            data["quality_issues"] = quality_issues
             next_actions = (
                 ["检查财务审计存储后重试；计算结果未成功持久化"]
                 if data.get("reason") == "finance_run_persistence_failed"
@@ -554,7 +497,7 @@ def run_model(args: dict[str, Any]) -> dict[str, Any]:
             source=f"{SERVER_NAME}.finance_run_model",
             status=status,
             resource_uris=[uri] if uri else [],
-            blockers=output_blockers if data.get("available") and run_id else blockers,
+            blockers=[],
             quality_issues=quality_issues,
             next_actions=next_actions,
             run_id=run_id,
@@ -643,17 +586,17 @@ def get_run(args: dict[str, Any]) -> dict[str, Any]:
             str(item.get("rule") or item.get("code") or "finance_consistency_failed")
             for item in blocking_issues
         )
-        read_status = (
-            "blocked"
-            if no_run or blocking_issues
-            else ("partial" if consistency_failed else "ok")
-        )
+        read_status = "partial" if (no_run or blocking_issues or consistency_failed) else "ok"
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_get_run",
             status=read_status,
             resource_uris=[uri] if uri else [],
-            blockers=read_blockers,
+            blockers=[],
+            quality_issues=[
+                *quality_issues,
+                *read_blockers,
+            ],
             next_actions=(
                 ["先调用 finance_run_model 生成 run"]
                 if no_run

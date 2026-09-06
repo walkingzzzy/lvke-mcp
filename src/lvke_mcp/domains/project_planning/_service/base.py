@@ -250,7 +250,10 @@ def _planning_formal_lineage(
         for payload in payloads
     ):
         return {}
-    return validate_same_formal_lineage(workspace_id, parents)
+    try:
+        return validate_same_formal_lineage(workspace_id, parents)
+    except Exception as exc:  # noqa: BLE001
+        return {"lineage_warning": getattr(exc, "code", "formal_lineage_unavailable")}
 
 
 def _contains_object_id(value: Any, object_id: str) -> bool:

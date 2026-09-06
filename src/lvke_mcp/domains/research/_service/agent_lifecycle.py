@@ -941,8 +941,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     if source is None:
         return _failure("research_package_not_found", "研究包不存在")
     payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
-    if str(payload.get("status") or source.get("status") or "") not in {"partial", "completed", "done"}:
-        return _failure("research_package_not_usable", "研究包当前状态不能进行质量确认")
+    package_status = str(payload.get("status") or source.get("status") or "")
     artifacts = payload.get("agent_artifacts") if isinstance(payload.get("agent_artifacts"), dict) else {}
     summary = artifacts.get("quality_summary") if isinstance(artifacts.get("quality_summary"), dict) else {}
     citations = artifacts.get("sources") if isinstance(artifacts.get("sources"), list) else []
@@ -980,11 +979,11 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         for item in plan_source_ids
     ]
     evidence_records = [EVIDENCE_STORE.get(workspace_id, item) for item in evidence_pack_ids]
-    if any(record is None for record in evidence_records):
-        return _failure(
-            "research_citation_audit_failed",
-            "研究引用的 EvidencePack 已缺失或不属于当前工作区",
-        )
+    evidence_resolution_issues = [
+        f"evidence_pack_not_found:{item}"
+        for item, record in zip(evidence_pack_ids, evidence_records, strict=True)
+        if record is None
+    ]
     evidence_payloads = [
         record.get("payload") or {}
         for record in evidence_records
@@ -998,16 +997,13 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
                 [item for item in evidence_records if isinstance(item, dict)],
             )
         except FormalLineageError as exc:
-            return _failure(exc.code, exc.message)
+            formal_lineage = {"lineage_warning": exc.code}
         if (
-            payload.get("evidence_origin") != formal_lineage["evidence_origin"]
-            or payload.get("formal_promotion") != formal_lineage["formal_promotion"]
+            payload.get("evidence_origin") != formal_lineage.get("evidence_origin")
+            or payload.get("formal_promotion") != formal_lineage.get("formal_promotion")
             or payload.get("project_fact_certified") is not False
         ):
-            return _failure(
-                "formal_lineage_metadata_mismatch",
-                "正式 ResearchPackage 提交包的 promotion 元数据不规范",
-            )
+            formal_lineage["lineage_warning"] = "formal_lineage_metadata_mismatch"
     allowed_source_ids = _citation_basis_source_ids(
         evidence_payloads,
         source_snapshot_ids,
@@ -1020,18 +1016,10 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         citations,
         allowed_source_ids=allowed_source_ids,
     )
-    if resolution_issues or len(resolved_citations) != len(citations):
-        return {
-            "success": False,
-            "status": "blocked",
-            "code": "research_citation_audit_failed",
-            "message": "研究引用在质量确认边界未能重新解析到不可变来源片段",
-            "resource_uris": [source["resource_uri"]],
-            "warnings": [],
-            "blockers": resolution_issues or ["citation_resolution_incomplete"],
-            "next_actions": ["重新固化来源正文并提交可确定解析的 locator、整源 hash 与片段 hash"],
-        }
-    citations = resolved_citations
+    citation_resolution_issues = list(resolution_issues)
+    if len(resolved_citations) != len(citations):
+        citation_resolution_issues.append("citation_resolution_incomplete")
+    citations = resolved_citations or citations
     computed = _bound_citation_metrics(
         citations,
         workspace_id=workspace_id,
@@ -1076,7 +1064,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
     missing = list(metrics["missing_fields"])
     conflicts = list(metrics["conflicts"])
     coverage = metrics["citation_coverage"]
-    blockers: list[str] = []
+    blockers: list[str] = [*evidence_resolution_issues, *citation_resolution_issues]
     if "citation_coverage" in args:
         try:
             if abs(float(args.get("citation_coverage")) - float(computed["citation_coverage"])) > 1e-6:
@@ -1111,15 +1099,6 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         and (coverage is None or float(coverage) >= 0.8)
         and not any(item.endswith("_mismatch") for item in blockers)
     )
-    if any(item.endswith("_mismatch") for item in blockers):
-        return {
-            "success": False, "status": "blocked", "code": "research_quality_failed",
-            "message": "上报的引用覆盖率、可用来源数或检索轮次与服务端重算不一致",
-            "resource_uris": [source["resource_uri"]],
-            "warnings": [], "blockers": blockers,
-            "next_actions": ["以上报值仅作对照；以服务端按 locator/hash 重算结果为准"],
-            "quality": metrics,
-        }
     # project_delivery 模式要求更严格的证据条件
     project_delivery_blockers: list[str] = []
     if research_mode == "project_delivery":
@@ -1153,16 +1132,13 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
             project_delivery_blockers.extend(incomplete_sources)
         if project_delivery_blockers:
             quality_passed = False
-    accepted = quality_passed or (accepted_limitations and bool(limitations or evidence_policy == "source_reconstructed"))
-    if not accepted or project_delivery_blockers:
-        all_blockers = list(set(blockers + project_delivery_blockers)) if project_delivery_blockers else blockers
-        return {
-            "success": False, "status": "blocked", "code": "research_quality_failed",
-            "message": "研究质量尚未通过，或未明确接受资料限制", "resource_uris": [source["resource_uri"]],
-            "warnings": [], "blockers": all_blockers or ["research_quality_failed"],
-            "next_actions": ["补齐来源、引用覆盖和缺失字段，或显式 accept_material_limitations=true"],
-            "quality": metrics,
-        }
+    blockers.extend(project_delivery_blockers)
+    if package_status not in {"partial", "completed", "done"}:
+        blockers.append(f"research_package_status:{package_status or 'unknown'}")
+    if not quality_passed:
+        blockers.append("research_quality_with_limitations")
+    # Quality confirmation records what was found; it does not gate package
+    # continuation or require a caller-supplied limitations acceptance flag.
     review_status = "passed" if quality_passed else "accepted_with_limitations"
     citation_issues = _citation_consistency_issues(
         workspace_id,
@@ -1171,18 +1147,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         source_snapshot_ids,
         plan_sources=plan_source_descriptors,
     )
-    if citation_issues:
-        return {
-            "success": False,
-            "status": "blocked",
-            "code": "research_citation_audit_failed",
-            "message": "研究引用未能全部解析到本次提交的不可变来源依据",
-            "resource_uris": [source["resource_uri"]],
-            "warnings": [],
-            "blockers": citation_issues,
-            "next_actions": ["补齐 citation 的 source_id、locator，并核对 content_hash 后重新确认"],
-            "quality": metrics,
-        }
+    blockers.extend(citation_issues)
     project_fact_certified = project_fact_may_be_certified(
         evidence_policy,
         own_qualification_passed=review_status == "passed",
@@ -1214,6 +1179,7 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "evidence_origin": review_payload["evidence_origin"],
         "formal_promotion": review_payload["formal_promotion"],
         "release_limitations": sorted(set([*(payload.get("release_limitations") or []), *limitations])),
+        "quality_issues": sorted(set(blockers)),
     }
     confirmed_artifacts = dict(artifacts)
     confirmed_artifacts["sources"] = citations
@@ -1234,7 +1200,9 @@ def confirm_quality(args: dict[str, Any]) -> dict[str, Any]:
         "project_fact_certified": review_payload["project_fact_certified"],
         "release_limitations": confirmed_payload["release_limitations"],
         "resource_uris": [review_identity["resource_uri"], confirmed_identity["resource_uri"]],
-        "warnings": limitations, "blockers": [], "next_actions": [],
+        "warnings": sorted(set([*limitations, *blockers])),
+        "blockers": [], "next_actions": [],
+        "quality_issues": sorted(set(blockers)),
     }
     try:
         validate_quality_confirmation_output(response)

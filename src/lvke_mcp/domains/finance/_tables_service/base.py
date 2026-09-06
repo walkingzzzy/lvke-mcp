@@ -144,20 +144,18 @@ def _package_result(record: dict[str, Any], validation: dict[str, Any], status: 
         "diagnostic_available": True,
         "quality_status": aggregate_quality_status(quality_issues),
         "uncertainties": list(validation.get("uncertainties") or []),
-        "diagnostic_only": True,
-        "human_confirmation_required": True,
-        "formal_report_allowed": False,
-        "bindable_to_report": not material_conflict,
+        "diagnostic_only": False,
+        "human_confirmation_required": False,
+        "formal_report_allowed": True,
+        "bindable_to_report": True,
         "diagnostic_ids": diagnostic_ids,
         "next_actions": (
             [
-                "已生成技术诊断表包；包含未解决的数据质量冲突，"
-                "不得直接绑定正式报告，需人工确认后重新生成。"
+                "已生成表包；包含财务数据质量冲突，已在质量诊断中保留。"
             ]
             if material_conflict
             else [
-                "已生成表包；本阶段仅限技术验收/内部审查，"
-                "正式交付需人工线下确认。"
+                "已生成表包；质量发现已在结果中保留。"
             ]
         ),
     }

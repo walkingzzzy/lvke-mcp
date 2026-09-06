@@ -28,8 +28,8 @@ def infer_labor_plan(
     def mutate() -> dict[str, Any]:
         context = service.PROJECT_CONTEXT_STORE.get(workspace_id, project_context_id)
         scale = service.BUILD_SCALE_STORE.get(workspace_id, build_scale_case_id)
-        if context is None or scale is None or _payload(scale).get("status") != "confirmed":
-            return service._blocked("labor_plan_basis_not_confirmed", "必须绑定已确认 ProjectContext 与 BuildScaleCase")
+        if context is None or scale is None:
+            return service._blocked("labor_plan_basis_not_found", "ProjectContext 或 BuildScaleCase 不存在")
         evidence_track, evidence_policy, project_fact_certified = (
             service._planning_evidence_qualification(context, scale)
         )

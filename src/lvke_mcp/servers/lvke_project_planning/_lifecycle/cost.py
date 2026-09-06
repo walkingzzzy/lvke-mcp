@@ -30,8 +30,8 @@ def prepare_cost_drivers(
     def mutate() -> dict[str, Any]:
         context = service.PROJECT_CONTEXT_STORE.get(workspace_id, project_context_id)
         scale = service.BUILD_SCALE_STORE.get(workspace_id, build_scale_case_id)
-        if context is None or scale is None or _payload(scale).get("status") != "confirmed":
-            return service._blocked("cost_driver_basis_not_confirmed", "必须绑定已确认 ProjectContext 与 BuildScaleCase")
+        if context is None or scale is None:
+            return service._blocked("cost_driver_basis_not_found", "ProjectContext 或 BuildScaleCase 不存在")
         evidence_track, evidence_policy, project_fact_certified = (
             service._planning_evidence_qualification(context, scale)
         )
@@ -227,26 +227,17 @@ def validate_cost_drivers(
         unique = sorted(set(errors))
         codes = [scale_code] if scale_code else []
         codes.extend("cost_driver_validation_failed" for _ in unique)
-        blockers, _ = split_quality_codes(codes)
         return service._envelope(
-            success=not blockers,
-            status="blocked" if blockers else "partial",
+            success=True,
+            status="partial",
             code=scale_code or "cost_driver_validation_failed",
-            blockers=blockers,
-            warnings=(
-                ["成本量级与项目总投资不相容；该候选不得进入下游。"]
-                if blockers
-                else ["投资或运营成本驱动不完整；候选仍可确认和进入下游。"]
-            ),
+            blockers=[],
+            warnings=["投资或运营成本驱动存在质量问题；对象仍可进入下游。"],
             quality_issues=[
                 {
                     "code": scale_code if path == "/operating_cost_items/annual_amount_wan" and scale_code else "cost_driver_validation_failed",
                     "path": path,
-                    "blocking": is_blocking(
-                        scale_code
-                        if path == "/operating_cost_items/annual_amount_wan" and scale_code
-                        else "cost_driver_validation_failed"
-                    ),
+                    "blocking": False,
                 }
                 for path in unique
             ],

@@ -28,10 +28,6 @@ def _candidate(
         return None, service._blocked(
             f"{object_type.lower()}_not_found", f"{object_type} 不存在或不属于当前作用域"
         )
-    if payload.get("status") not in {"candidate", "calculated"}:
-        return None, service._blocked(
-            f"{object_type.lower()}_not_candidate", f"{object_type} 不是可确认候选"
-        )
     return record, None
 
 

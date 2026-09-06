@@ -522,13 +522,13 @@ def _execute_solar_acquisition_preview(
     # 不要在这里自己再判一遍严重性——那正是严重性判定退化成 [] 的成因。
     blocking_codes, acquisition_quality_issues = split_quality_codes(acquisition_quality_issues)
     return {
-        "status": "blocked" if blocking_codes else ("partial" if acquisition_quality_issues else "ok"),
+        "status": "partial" if acquisition_quality_issues else "ok",
         "route": route,
         "finance_kind": "asset_acquisition",
         "acceptance_level": "generated_with_warnings" if acquisition_quality_issues else "complete",
         "system_success": True,
-        "business_success": not blocking_codes,
-        "completed": not blocking_codes,
+        "business_success": True,
+        "completed": True,
         # 收购预览永远不是正式件:即使没有阻断项,证据轨仍是受控假设。
         "formal_ready": False, "research": research, "project_context": project_context,
         "finance_validation": checked,
@@ -538,7 +538,7 @@ def _execute_solar_acquisition_preview(
                                                        "package_id": package_id},
                                "research_package_ids": [],
                                "outline": _outline_for(intent, route)},
-        "blockers": blocking_codes,
+        "blockers": [],
         "quality_issues": acquisition_quality_issues,
         "warnings": [f"质量提示：{item}" for item in acquisition_quality_issues],
         "object_refs": {"research_task_id": str(research.get("task_id") or ""),
@@ -833,15 +833,15 @@ def execute(
         ],
     )
     return {
-        "status": "blocked" if blocking_codes else ("partial" if quality_issues else "ok"),
+        "status": "partial" if quality_issues else "ok",
         "stage": "tables_ready" if not export_blockers else "finance_ready",
         "route": route,
         "finance_kind": finance_kind,
         "acceptance_level": "generated_with_warnings" if quality_issues else "complete",
         "system_success": True,
-        "business_success": not blocking_codes,
-        "completed": not blocking_codes,
-        "formal_ready": not export_blockers and not blocking_codes,
+        "business_success": True,
+        "completed": True,
+        "formal_ready": not export_blockers,
         "research": research,
         "project_context": project_context,
         "finance_validation": validation,
@@ -852,14 +852,13 @@ def execute(
         "csv_export": csv_export,
         "xlsx_export": xlsx_export,
         "report_preparation": report_preparation,
-        "blockers": blocking_codes,
+        "blockers": [],
         "quality_issues": quality_issues,
         "quality_diagnostic_ids": quality_diagnostic_ids,
         "warnings": [
             "研究、规划与财务由 MCP 状态机编排，不依赖自由文本编排。",
             "受控假设已显式记录；补充项目事实后可提高交付置信度。",
-            *(f"阻断项：{item}" for item in blocking_codes),
-            *(f"质量提示：{item}" for item in quality_issues if item not in set(blocking_codes)),
+            *(f"质量提示：{item}" for item in quality_issues),
         ],
         "object_refs": {
             "research_task_id": str(research.get("task_id") or ""),

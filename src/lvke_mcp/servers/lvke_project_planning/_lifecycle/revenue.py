@@ -164,16 +164,14 @@ def validate_revenue_drivers(
         if not all(binding.get(field) for field in ("source_id", "content_hash", "locator")):
             code = "flat_revenue_formal_evidence_required"
             quality_codes.append(code)
-            if review_mode:
-                blockers.append(code)
         if str(binding.get("evidence_track") or "") == "source_reconstructed" and any(
             field not in binding or binding.get(field) in (None, "")
             for field in ("reconstruction_id", "source_uri", "source_kind", "method", "limitations")
         ):
             code = "flat_revenue_reconstruction_binding_incomplete"
             quality_codes.append(code)
-            if review_mode:
-                blockers.append(code)
+            # Evidence completeness is retained as a diagnostic for every
+            # mode; review_candidate is not a separate confirmation gate.
     if quality_codes:
         unique = sorted(set(quality_codes))
         unique_blockers = sorted(set(blockers))

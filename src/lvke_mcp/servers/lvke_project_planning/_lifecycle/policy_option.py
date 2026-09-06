@@ -132,15 +132,15 @@ def validate_policy_basis(
     candidates = [
         row for row in (payload.get("candidates") or []) if isinstance(row, dict)
     ]
-    blockers: list[str] = []
+    quality_issues: list[str] = []
     warnings: list[str] = []
     ids = [str(row.get("candidate_id") or "") for row in candidates]
     if not candidates:
-        blockers.append("policy_candidates_missing")
+        quality_issues.append("policy_candidates_missing")
     elif "" in ids or len(set(ids)) != len(ids):
-        blockers.append("policy_candidates_invalid")
+        quality_issues.append("policy_candidates_invalid")
     if any(row.get("classification") not in _POLICY_CLASSIFICATIONS for row in candidates):
-        blockers.append("policy_classification_invalid")
+        quality_issues.append("policy_classification_invalid")
     if any(
         not all(
             row.get(field)
@@ -148,38 +148,35 @@ def validate_policy_basis(
         )
         for row in candidates
     ):
-        blockers.append("policy_evidence_incomplete")
+        quality_issues.append("policy_evidence_incomplete")
     status_text = str(payload.get("status") or "candidate")
     selection = payload.get("selection")
     if status_text == "confirmed":
         if not isinstance(selection, dict):
-            blockers.append("policy_selection_missing")
+            quality_issues.append("policy_selection_missing")
         else:
             by_id = {str(row.get("candidate_id") or ""): row for row in candidates}
             selected = [
                 str(item) for item in (selection.get("selected_candidate_ids") or [])
             ]
             if not selected or not set(selected) <= set(by_id):
-                blockers.append("policy_selection_invalid")
+                quality_issues.append("policy_selection_invalid")
             elif any(
                 by_id[item].get("classification") not in _POLICY_SELECTABLE
                 for item in selected
             ):
-                blockers.append("policy_selection_ineligible")
+                quality_issues.append("policy_selection_ineligible")
             if len(str(selection.get("selection_reason") or "").strip()) < 10:
-                blockers.append("policy_selection_reason_insufficient")
+                quality_issues.append("policy_selection_reason_insufficient")
     else:
         # 未确认对象不是缺陷，但也不能被当成可引用的政策基础。
         warnings.append("policy_basis_not_confirmed")
     if any(row.get("classification") == "pending_verification" for row in candidates):
         warnings.append("policy_pending_verification_present")
-    if blockers:
-        return service._envelope(
-            success=False, status="blocked", code="policy_basis_invalid",
-            blockers=blockers, warnings=warnings, valid=False,
-        )
     return service._envelope(
-        success=True, status="ok", valid=True, warnings=warnings,
+        success=True, status="partial" if quality_issues else "ok",
+        valid=not quality_issues, warnings=warnings, blockers=[],
+        quality_issues=sorted(set(quality_issues)),
         policy_basis_status=status_text, candidate_count=len(candidates),
         content_hash=record["content_hash"],
     )
@@ -194,16 +191,17 @@ def validate_option_comparison(
     if record is None:
         return service._blocked("option_comparison_not_found", "方案比选对象不存在")
     payload = _payload(record)
-    blockers = []
+    quality_issues = []
     if not payload.get("options"):
-        blockers.append("options_missing")
+        quality_issues.append("options_missing")
     if not payload.get("criteria"):
-        blockers.append("criteria_missing")
+        quality_issues.append("criteria_missing")
     if not any(row.get("eligible") for row in payload.get("options") or []):
-        blockers.append("no_eligible_option")
-    if blockers:
-        return service._envelope(success=False, status="blocked", code="option_comparison_invalid", blockers=blockers, valid=False)
-    return service._envelope(success=True, status="ok", valid=True)
+        quality_issues.append("no_eligible_option")
+    return service._envelope(
+        success=True, status="partial" if quality_issues else "ok",
+        valid=not quality_issues, blockers=[], quality_issues=quality_issues,
+    )
 
 
 def score_option_comparison(

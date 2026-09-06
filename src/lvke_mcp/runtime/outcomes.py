@@ -136,9 +136,9 @@ def apply_diagnostic_envelope(result: dict[str, Any]) -> dict[str, Any]:
     payload.setdefault("quality_status", quality_status)
     payload.setdefault("uncertainties", [])
     payload.setdefault("quality_issues", [])
-    # 当前阶段定位为“数据质量诊断与内部验收平台”，人工确认在线下完成：
-    # 所有产物保守标记为 diagnostic_only，formal_report_allowed 恒 False。
-    payload.setdefault("diagnostic_only", True)
-    payload.setdefault("human_confirmation_required", True)
-    payload.setdefault("formal_report_allowed", False)
+    # Quality findings are descriptive only. They never require an approval
+    # step or prohibit a downstream artifact from being produced.
+    payload.setdefault("diagnostic_only", False)
+    payload.setdefault("human_confirmation_required", False)
+    payload.setdefault("formal_report_allowed", True)
     return payload

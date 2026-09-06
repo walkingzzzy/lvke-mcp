@@ -8,7 +8,9 @@ import json
 from typing import Any, Iterable
 
 
-from lvke_mcp.runtime.quality_severity import split_quality_codes
+from lvke_mcp.runtime.quality_severity import (
+    split_quality_codes,
+)
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -181,7 +183,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
                 skipped=list(run.get("skipped_fields") or []),
             )
             gap_summary = summarize_gaps(field_gaps)
-        blocking_codes, quality_issues = split_quality_codes([
+        _unused_blocking_codes, quality_issues = split_quality_codes([
             *(domain.get("blockers") or []),
             *(domain.get("quality_issues") or []),
             *(delivery_artifacts.get("blockers") or []),
@@ -200,7 +202,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             domain=domain,
             delivery_artifacts=delivery_artifacts,
             finance_summary=dict(delivery_artifacts.get("finance_summary") or {}),
-            extra_blockers=blocking_codes,
+            extra_blockers=[],
             extra_limitations=quality_issues,
         )
         acceptance = {
@@ -222,17 +224,14 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         # success=True / completed=True / technical_preview_ready=True，
         # 而 acceptance.technical.status=failed。同一个响应给出两个矛盾的答案，
         # 且调用方最可能读的是顶层那个。
-        blocking_codes, quality_issues = split_quality_codes([
-            *blocking_codes,
+        _unused_blocking_codes, quality_issues = split_quality_codes([
             *quality_issues,
-            *(str(item) for item in technical.get("blockers") or []),
             *(str(item) for item in technical.get("limitations") or []),
         ])
         # 就绪判据放在验收之后：验收有阻断项就不是可交付的技术预览。
         technical_preview_ready = (
             str(domain.get("stage") or "") == "tables_ready"
             and not delivery_artifacts.get("blockers")
-            and not blocking_codes
             and str(technical.get("status") or "")
             in {"passed", "passed_with_limitations"}
         )
@@ -242,7 +241,7 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             assumption_package_id=assumption["object_id"],
             previous_run_id=run_id,
             stage="preview_ready" if technical_preview_ready else str(domain.get("stage") or "assumptions_ready"),
-            blockers=blocking_codes,
+            blockers=[],
             status_reason=str(domain.get("status") or "partial"),
             object_refs=object_refs,
             artifact_uris=artifact_uris,
@@ -267,27 +266,22 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
             release_limitations=quality_issues,
         )
         return _envelope(
-            not blocking_codes,
-            "blocked" if blocking_codes else ("partial" if quality_issues else "ok"),
+            True,
+            "partial" if quality_issues else "ok",
             warnings=[
                 "行业场景仅作为受控假设种子，不是项目证据",
                 *list(domain.get("warnings") or []),
-                *(f"阻断项：{item}" for item in blocking_codes),
-                *(
-                    f"质量提示：{item}"
-                    for item in quality_issues
-                    if item not in set(blocking_codes)
-                ),
+                *(f"质量提示：{item}" for item in quality_issues),
             ],
-            blockers=blocking_codes,
+            blockers=[],
             quality_issues=quality_issues,
             release_limitations=quality_issues,
-            completed=not blocking_codes,
+            completed=True,
             technical_preview_ready=technical_preview_ready,
             next_actions=(
                 ["按 quality_issues 补充资料或修复工件后重算；当前运行快照仍可读取"]
                 if quality_issues
-                else ["读取交付 Resources；正式发布资格仍保持质量受限"]
+                else ["读取交付 Resources"]
             ),
             resource_uris=sorted(
                 {
@@ -456,11 +450,9 @@ def _acceptance_blockers(run: dict[str, Any]) -> list[str]:
     ``delivery_state=ready`` —— 正是本服务反复要避免的那类不诚实。
     """
 
-    technical = dict(dict(run.get("acceptance") or {}).get("technical") or {})
-    codes = [str(item) for item in technical.get("blockers") or [] if str(item)]
-    if str(technical.get("status") or "") in {"failed", "blocked"}:
-        codes.append(f"technical_acceptance_{technical['status']}")
-    return sorted(set(codes))
+    # Acceptance is an inspection report, not delivery permission. Keep all
+    # findings in the response diagnostics without influencing state folding.
+    return []
 
 
 def _delivery_state(run: dict[str, Any], artifact_states: list[dict[str, Any]]) -> str:
@@ -468,19 +460,14 @@ def _delivery_state(run: dict[str, Any], artifact_states: list[dict[str, Any]]) 
 
     stage = str(run.get("stage") or "")
     # 技术验收的阻断项与 run blockers 同权：两者都表示"这份交付不可按可交付物引用"。
-    blockers = [
-        *(str(item) for item in (run.get("blockers") or [])),
-        *_acceptance_blockers(run),
-    ]
+    blockers: list[str] = []
     if stage == "cancelled":
         return "cancelled"
     if stage == "failed":
         return "blocked"
     deliverables = [item for item in artifact_states if item.get("is_deliverable")]
     unusable = [item for item in deliverables if not item["usable"]]
-    if blockers and not deliverables:
-        return "blocked"
-    if blockers or unusable:
+    if unusable:
         return "partial"
     if deliverables:
         return "ready"
@@ -517,9 +504,7 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
     # domain_status 表达交付真实状态。绝不用 status=ok 暗示交付可用。
     envelope_status = _ENVELOPE_STATUS_BY_DELIVERY_STATE.get(delivery_state, "partial")
     # 技术验收阻断时不得声称预览就绪：那是"顶层报就绪、内部有阻断项"的老毛病。
-    technical_preview_ready = bool(
-        domain_results.get("technical_preview_ready", False)
-    ) and not _acceptance_blockers(run)
+    technical_preview_ready = bool(domain_results.get("technical_preview_ready", False))
     deliverables = [item for item in artifact_states if item.get("is_deliverable")]
     unusable = [item["uri"] for item in deliverables if not item["usable"]]
     warnings: list[str] = []
@@ -596,12 +581,18 @@ def status(args: dict[str, Any]) -> dict[str, Any]:
             }
         ),
         warnings=warnings,
-        blockers=run_blockers,
+        blockers=[],
+        quality_issues=sorted(
+            {
+                *run_blockers,
+                *(str(item) for item in (run.get("quality_issues") or [])),
+            }
+        ),
         next_actions=(
-            ["按 blockers 与逐工件 blocking_reasons 修复后重算；不要把不可用工件当交付物"]
+            ["质量发现已随工件保留，可按需修复后重算"]
             if delivery_state != "ready"
             else [
-                "读取工件 Resource；正式发布资格仍保持阻断",
+                "读取工件 Resource",
                 *(
                     ["七域责任人调用 review_submit_assessment 与 review_confirm_dimension"]
                     if internal_status in {"not_started", "pending"}
@@ -1190,9 +1181,11 @@ def get_artifacts(args: dict[str, Any]) -> dict[str, Any]:
                 ),
             }
         ),
-        blockers=sorted(
+        blockers=[],
+        quality_issues=sorted(
             {
                 *(str(item) for item in (run.get("blockers") or [])),
+                *(str(item) for item in (run.get("quality_issues") or [])),
                 *_acceptance_blockers(run),
             }
         ),

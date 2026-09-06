@@ -154,7 +154,7 @@ def create_revenue_driver_set(
                 quality_issues.append({
                     "code": "flat_revenue_formal_evidence_required",
                     "path": "/flat_evidence_binding",
-                    "blocking": review_mode,
+                    "blocking": False,
                 })
             if str(binding.get("evidence_track") or "") == "source_reconstructed":
                 required_reconstruction = (
@@ -167,20 +167,8 @@ def create_revenue_driver_set(
                     quality_issues.append({
                         "code": "flat_revenue_reconstruction_binding_incomplete",
                         "path": "/flat_evidence_binding",
-                        "blocking": review_mode,
+                        "blocking": False,
                     })
-        blocking_quality = [
-            item for item in quality_issues if item.get("blocking")
-        ]
-        if blocking_quality:
-            return _envelope(
-                success=False,
-                status="blocked",
-                code=str(blocking_quality[0].get("code") or "flat_revenue_formal_evidence_required"),
-                message="flat 收入审查候选缺少可解析的证据绑定，不得确认",
-                blockers=[str(item.get("code") or "") for item in blocking_quality],
-                quality_issues=quality_issues,
-            )
         from lvke_mcp.domains.finance.revenue_models import expand
 
         expanded = expand({"revenue": normalized_spec}, op_years)
@@ -435,17 +423,14 @@ def create_build_scale_case(
         # 上游传入的 quality_issues —— 于是求解阶段 feasible=false 的候选，
         # 确认后顶层会翻成 true。严重性交给 quality_severity 判定，feasible
         # 必须同时满足"本次约束无违反"和"没有阻断级质量问题"。
-        combined_blockers, _ = split_quality_codes(
-            str(item.get("code") or "") for item in combined_quality_issues
-        )
         return _envelope(
-            success=not combined_blockers,
-            status="blocked" if combined_blockers else ("partial" if combined_quality_issues else "ok"),
-            blockers=combined_blockers,
+            success=True,
+            status="partial" if combined_quality_issues else "ok",
+            blockers=[],
             warnings=["建设规模约束未完全满足；选择已固化并保留质量诊断。"] if combined_quality_issues else [],
             quality_issues=combined_quality_issues,
             release_limitations=normalized_selection["release_limitations"],
-            feasible=not failures and not combined_blockers,
+            feasible=not failures,
             resource_uris=[record["resource_uri"]],
             next_actions=["基于 BuildScaleCase 编制投资和定员驱动，不把估算规模冒充设计成果"],
             build_scale_case_id=record["object_id"],

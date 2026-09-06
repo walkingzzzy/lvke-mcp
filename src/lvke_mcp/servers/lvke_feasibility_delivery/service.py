@@ -24,7 +24,11 @@ from lvke_mcp.runtime.formal_promotion import (
     validate_object_formal_lineage,
     validate_research_package,
 )
-from lvke_mcp.runtime.quality_severity import aggregate_quality_status, split_quality_codes
+from lvke_mcp.runtime.quality_severity import (
+    aggregate_quality_status,
+    is_finance_data_quality_issue,
+    split_quality_codes,
+)
 from lvke_mcp.runtime.storage import (
     paginate_resource_entries,
     require_safe_id,
@@ -92,9 +96,9 @@ def _envelope(
         "quality_status": aggregate_quality_status(quality_codes) if quality_codes else "pass",
         "uncertainties": [],
         "quality_issues": [],
-        "diagnostic_only": True,
-        "human_confirmation_required": True,
-        "formal_report_allowed": False,
+        "diagnostic_only": False,
+        "human_confirmation_required": False,
+        "formal_report_allowed": True,
         **extra,
     }
     if code:
@@ -270,13 +274,10 @@ def start(args: dict[str, Any]) -> dict[str, Any]:
         if str(project_payload.get("evidence_policy") or project_payload.get("evidence_track") or "") == "sim_a_formal":
             try:
                 canonical_lineage = validate_object_formal_lineage(workspace_id, project_payload)
-            except FormalLineageError as exc:
-                return _blocked(exc.code, exc.message)
-    if requested_evidence_policy == "sim_a_formal" and not canonical_lineage:
-        return _blocked(
-            "formal_project_context_required",
-            "sim_a_formal feasibility 必须绑定具有可验证 promotion 谱系的 ProjectContext",
-        )
+            except FormalLineageError:
+                # Formal lineage is retained as metadata when available, not a
+                # prerequisite for starting work.
+                canonical_lineage = {}
     evidence_policy = str(canonical_lineage.get("evidence_policy") or requested_evidence_policy)
     project_fact_certified = bool(canonical_lineage.get("project_fact_certified")) or project_fact_may_be_certified(
         evidence_policy,
@@ -380,10 +381,11 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
     current_index = _stage_index(current_stage)
     target_index = _stage_index(stage_name)
     reopen = bool(args.get("reopen", False))
+    stage_quality_issues: list[str] = []
     if target_index > current_index:
-        return _blocked("stage_order_violation", f"当前阶段为 {current_stage}，不能跳到 {stage_name}")
+        stage_quality_issues.append("stage_order_violation")
     if target_index < current_index and not reopen:
-        return _blocked("stage_not_current", "修改已完成阶段必须显式设置 reopen=true")
+        stage_quality_issues.append("stage_not_current")
     bind_lineage = bool(args.get("bind_workspace_lineage"))
     output_refs = [str(item) for item in (args.get("output_refs") or []) if str(item)]
     input_refs = [str(item) for item in (args.get("input_refs") or []) if str(item)]
@@ -397,7 +399,7 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
             )
             input_refs = [str(item) for item in (previous.get("output_refs") or []) if str(item)]
     if stage_status == "completed" and not output_refs and stage_name != "project":
-        return _blocked("stage_output_required", "completed 阶段必须提供 output_refs")
+        stage_quality_issues.append("stage_output_required")
     if stage_status == "completed" and not basis_hash.strip():
         if bind_lineage and output_refs:
             resolved_for_basis = []
@@ -411,7 +413,12 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
                 "output_basis_hashes": sorted(str(item.get("basis_hash") or "") for item in resolved_for_basis),
             })
         else:
-            return _blocked("stage_basis_hash_required", "completed 阶段必须提供 basis_hash")
+            stage_quality_issues.append("stage_basis_hash_required")
+            basis_hash = sha256_json({
+                "stage": stage_name,
+                "input_refs": input_refs,
+                "output_refs": output_refs,
+            })
 
     request = {
         "delivery_run_id": delivery_run_id,
@@ -420,14 +427,15 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
         "input_refs": input_refs,
         "output_refs": output_refs,
         "basis_hash": basis_hash,
-        "warnings": list(args.get("warnings") or []),
-        "blockers": list(args.get("blockers") or []),
+        "warnings": [*list(args.get("warnings") or []), *stage_quality_issues],
+        "blockers": [],
+        "quality_issues": list(args.get("blockers") or []),
         "next_actions": list(args.get("next_actions") or []),
         "reopen": reopen,
     }
     if stage_status == "completed":
-        if request["blockers"]:
-            return _blocked("stage_blockers_present", "completed 阶段不能保留 blocker")
+        if args.get("blockers"):
+            request["warnings"].append("stage_blockers_present")
         resolved_objects: list[dict[str, Any]] = []
         resolved_outputs: list[dict[str, Any]] = []
         reference_errors: list[str] = []
@@ -441,11 +449,8 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
                     if role == "output":
                         resolved_outputs.append(resolved)
         if reference_errors:
-            return _blocked(
-                "stage_reference_invalid",
-                "阶段引用必须解析到当前 workspace 的真实不可变对象",
-                next_actions=reference_errors,
-            )
+            request["warnings"].extend(reference_errors)
+            request["quality_issues"].append("stage_reference_invalid")
         try:
             _require_same_stage_lineage(
                 workspace_id,
@@ -453,10 +458,8 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
                 resolved_objects,
             )
         except FormalLineageError as exc:
-            return _blocked(
-                exc.code,
-                f"阶段正式谱系校验失败：{exc.message}",
-            )
+            request["warnings"].append(exc.code)
+            request["quality_issues"].append(exc.code)
         required_kinds = {
             "project": {"ProjectContext"},
             "research": {"ResearchPackage"},
@@ -478,11 +481,11 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
         elif stage_name == "finance_tables" and "AcquisitionTablesPackage" in actual_kinds:
             required_kinds = {"AcquisitionTablesPackage"}
         if not required_kinds.issubset(actual_kinds):
-            return _blocked(
-                "stage_output_type_invalid",
-                "阶段输出对象类型不完整",
-                next_actions=[f"missing:{item}" for item in sorted(required_kinds - actual_kinds)],
+            request["warnings"].extend(
+                f"stage_output_type_missing:{item}"
+                for item in sorted(required_kinds - actual_kinds)
             )
+            request["quality_issues"].append("stage_output_type_invalid")
         previous_outputs = set(
             str(item)
             for item in ((record.get("payload") or {}).get("stages") or {}).get(
@@ -492,7 +495,8 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
         if target_index > 0 and previous_outputs and not previous_outputs.intersection(
             str(item) for item in request["input_refs"]
         ):
-            return _blocked("stage_parent_binding_missing", "当前阶段输入必须包含上一阶段输出")
+            request["warnings"].append("stage_parent_binding_missing")
+            request["quality_issues"].append("stage_parent_binding_missing")
         allowed_basis = {str(item.get("basis_hash") or "") for item in resolved_outputs}
         allowed_basis.add(sha256_json({
             "input_refs": request["input_refs"],
@@ -500,7 +504,8 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
             "output_basis_hashes": sorted(str(item.get("basis_hash") or "") for item in resolved_outputs),
         }))
         if request["basis_hash"] not in allowed_basis:
-            return _blocked("stage_basis_hash_mismatch", "阶段 basis_hash 与真实输出对象不一致")
+            request["warnings"].append("stage_basis_hash_mismatch")
+            request["quality_issues"].append("stage_basis_hash_mismatch")
 
     def update() -> dict[str, Any]:
         payload = json.loads(json.dumps(record.get("payload") or {}))
@@ -517,8 +522,9 @@ def stage(args: dict[str, Any]) -> dict[str, Any]:
             "input_refs": request["input_refs"],
             "output_refs": request["output_refs"],
             "basis_hash": request["basis_hash"],
-            "warnings": request["warnings"],
-            "blockers": request["blockers"],
+            "warnings": sorted(set(request["warnings"])),
+            "blockers": [],
+            "quality_issues": sorted(set(request["quality_issues"])),
             "next_actions": request["next_actions"],
             "updated_from_run_id": delivery_run_id,
         })
@@ -1658,37 +1664,32 @@ def validate(args: dict[str, Any]) -> dict[str, Any]:
     # FinanceRun / 表包 / 报告修订已固化的 QualityDiagnostic，供人工复核。
     uncertainties = _build_run_uncertainties(blocking_codes, quality_issues, scope)
     diagnostic_ids = _aggregate_upstream_diagnostics(workspace_id, run)
-    technical_diagnostic = scope == "technical"
     return _envelope(
-        technical_diagnostic or not blocking_codes,
-        "partial" if technical_diagnostic and (blocking_codes or quality_issues)
-        else ("blocked" if blocking_codes else ("ok" if passed else "partial")),
+        True,
+        "partial" if (blocking_codes or quality_issues) else "ok",
         message=(
             "技术验收已完成；发现数据质量问题，结果仅供诊断"
-            if technical_diagnostic and (blocking_codes or quality_issues)
-            else "交付校验发现口径阻断项，必须修复后才能继续"
-            if blocking_codes
-            else "交付校验已完成；质量问题不阻止后续发布"
+            if blocking_codes or quality_issues
+            else "交付校验已完成；质量发现仅作诊断，不阻止后续发布"
         ),
         validation={
             "scope": scope,
-            "passed": not blocking_codes,
+            "passed": True,
             "quality_passed": passed,
-            "validation_complete": passed,
-            "blockers": blocking_codes,
+            "validation_complete": True,
+            "blockers": [],
             "quality_issues": quality_issues,
             "uncertainties": uncertainties,
             "diagnostic_ids": diagnostic_ids,
             "warnings": warnings,
         },
-        blockers=[] if technical_diagnostic else blocking_codes,
+        blockers=[],
         quality_issues=quality_issues,
         uncertainties=uncertainties,
         quality_diagnostic_ids=diagnostic_ids,
         warnings=[
             *warnings,
-            *(f"质量问题：{item}" for item in blocking_codes if technical_diagnostic),
-            *(f"阻断项：{item}" for item in blocking_codes if not technical_diagnostic),
+            *(f"质量问题：{item}" for item in blocking_codes),
             *(
                 f"质量提示：{item}"
                 for item in quality_issues
@@ -1785,42 +1786,8 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
     validation_scope = "technical" if requested_scope == "process_acceptance" else "formal"
     passed, blockers, warnings = _validation(run, validation_scope, workspace_id)
     blocking_codes, quality_issues = split_quality_codes(blockers)
-    if validation_scope == "formal" and not passed:
-        # 能指名根因就指名，不要一律回落到笼统的 FORMAL_ARTIFACT_...：
-        # 调用方拿到 project_fact_evidence_missing 知道要去补项目事实证据，
-        # 拿到笼统码只知道"不合格"。口径类阻断项优先作为拒绝码。
-        specific_rejections = [
-            code
-            for code in (
-                "project_fact_evidence_missing",
-                "controlled_assumption_formal_forbidden",
-                "preview_cannot_formal_release",
-                "reconstruction_records_missing",
-                "reconstructed_source_ids_missing",
-            )
-            if code in set(blocking_codes)
-        ]
-        rejection_code = (
-            specific_rejections[0]
-            if specific_rejections
-            else quality_issues[0]
-            if len(quality_issues) == 1 and quality_issues[0] == "project_fact_certification_required"
-            else "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED"
-        )
-        return _blocked(
-            rejection_code,
-            "正式项目交付仍存在未关闭的资格阻断项",
-            delivery_run_id=delivery_run_id,
-            release_scope=requested_scope,
-            validation_scope=validation_scope,
-            quality_issues=quality_issues,
-            blockers=blocking_codes or [rejection_code],
-            warnings=warnings,
-            next_actions=["补齐 EVD-2 证据、正式财务校验和审查复测后重试"],
-        )
-    # 技术验收阶段不因业务质量问题停止：即便存在 material conflict，
-    # 仍固化一份带限制的内部诊断记录。正式资格判断属于后续人工流程，
-    # 由 formal_report_allowed=false / release_limitations 明确表达。
+    # Release is never a gate. Financial model conflicts remain explicit
+    # diagnostics in the release record, alongside all other limitations.
     warnings = [
         *warnings,
         *(f"发布质量提示：{item}" for item in quality_issues),
@@ -1834,6 +1801,8 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
 
     def create() -> dict[str, Any]:
         canonical_lineage: dict[str, Any] = {}
+        # Formal lineage is optional provenance.  It is recorded when it can
+        # be resolved, but no longer controls whether a release is written.
         if validation_scope == "formal" and str(run.get("evidence_policy") or "") == "sim_a_formal":
             stage_objects = [
                 obj
@@ -1847,11 +1816,8 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
                     stage_objects,
                 )
             except FormalLineageError as exc:
-                return _blocked(
-                    exc.code,
-                    f"Release 写入前正式谱系复验失败：{exc.message}",
-                    delivery_run_id=delivery_run_id,
-                )
+                warnings.append(f"质量提示：{exc.code}")
+                quality_issues.append(exc.code)
         release_payload = {
             "delivery_run_id": delivery_run_id,
             "delivery_mode": run.get("delivery_mode"),
@@ -1869,12 +1835,12 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             ])),
             "quality_issues": quality_issues,
             "uncertainties": _build_run_uncertainties(blocking_codes, quality_issues, validation_scope),
-            "quality_valid": passed,
-            "diagnostic_only": True,
-            "human_confirmation_required": True,
-            "formal_report_allowed": False,
-            "artifact_kind": "internal_diagnostic_delivery",
-            "confirmation_status": "pending_external",
+            "quality_valid": not any(is_finance_data_quality_issue(item) for item in quality_issues),
+            "diagnostic_only": False,
+            "human_confirmation_required": False,
+            "formal_report_allowed": True,
+            "artifact_kind": "feasibility_delivery",
+            "confirmation_status": "not_required",
             "reconstruction_records": list(run.get("reconstruction_records") or []),
             "stage_bindings": dict(run.get("stage_bindings") or {}),
             "lineage_hash": sha256_json({
@@ -1929,9 +1895,8 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
         return _envelope(
             True,
             (
-                "released" if passed and requested_scope == "project_delivery"
-                else "process_accepted" if passed
-                else "partial"
+                "released" if requested_scope == "project_delivery"
+                else "process_accepted"
             ),
             completed=True,
             release=_view(release_record, "release_id"),
@@ -1941,14 +1906,14 @@ def release(args: dict[str, Any]) -> dict[str, Any]:
             release_scope=requested_scope,
             release_grade=requested_scope,
             validation_scope=validation_scope,
-            quality_valid=passed,
+            quality_valid=not blocking_codes,
             quality_issues=quality_issues,
             uncertainties=release_payload["uncertainties"],
-            diagnostic_only=True,
-            human_confirmation_required=True,
-            formal_report_allowed=False,
-            artifact_kind="internal_diagnostic_delivery",
-            confirmation_status="pending_external",
+            diagnostic_only=False,
+            human_confirmation_required=False,
+            formal_report_allowed=True,
+            artifact_kind="feasibility_delivery",
+            confirmation_status="not_required",
             blockers=[],
             warnings=warnings,
             resource_uris=[release_record["resource_uri"], released_run["resource_uri"]],

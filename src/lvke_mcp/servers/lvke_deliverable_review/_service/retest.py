@@ -162,6 +162,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             else {}
         )
         parent_formal_lineage: dict[str, Any] = {}
+        parent_quality_issues: list[str] = []
         if (
             str((parent.get("project_context") or {}).get("evidence_track") or "")
             == SIM_A_FORMAL
@@ -173,20 +174,13 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     parent_evidence,
                 )
             except FormalLineageError as exc:
-                return _blocked(
-                    exc.code,
-                    f"复测前父审查的正式 promotion 谱系无效：{exc.message}",
-                    review_id=parent_review_id,
-                )
+                parent_quality_issues.append(f"formal_lineage:{exc.code}")
+                parent_formal_lineage = {}
             if any(
                 parent_evidence.get(key) != value
                 for key, value in parent_formal_lineage.items()
             ):
-                return _blocked(
-                    "formal_lineage_metadata_mismatch",
-                    "复测前父审查的 promotion 元数据不是规范值",
-                    review_id=parent_review_id,
-                )
+                parent_quality_issues.append("formal_lineage_metadata_mismatch")
         if intent:
             failed = next(
                 (
@@ -204,8 +198,6 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     review_id=parent_review_id,
                 )
         else:
-            if not parent.get("validation_complete"):
-                return _blocked("review_not_ready", "原校验尚未完成，不能复测")
             if parent.get("pending_retest_operation_ids"):
                 return _blocked(
                     "retest_already_in_progress",
@@ -214,8 +206,9 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                     pending_retest_operation_ids=parent["pending_retest_operation_ids"],
                 )
             evidence = args.get("remediation_evidence") or []
+            retest_quality_issues = list(parent_quality_issues)
             if not _evidence_is_precise(evidence):
-                return _blocked("retest_evidence_required", "复测必须提供带内容哈希和精确定位的整改证据")
+                retest_quality_issues.append("retest_evidence_required")
             target = args.get("target")
             if not isinstance(target, dict):
                 return _blocked("retest_target_required", "复测必须显式提供新目标版本")
@@ -230,12 +223,9 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
             if target_blockers or resolved is None:
                 return _blocked(target_blockers[0], "复测目标无法完整解析", blockers=target_blockers)
             if not _retest_target_scope_matches(parent, resolved):
-                return _blocked(
-                    "retest_target_scope_mismatch",
-                    "复测目标必须保持原目标类型、逻辑身份及报告业务域范围",
-                )
+                retest_quality_issues.append("retest_target_scope_mismatch")
             if resolved.get("target_sha256") == (parent.get("target") or {}).get("target_sha256"):
-                return _blocked("retest_target_not_newer", "复测对象内容必须新于原目标，不能复用相同哈希")
+                retest_quality_issues.append("retest_target_not_newer")
             old_components = [
                 str(row.get("rule_pack_id") or "")
                 for row in ((parent.get("rule_pack") or {}).get("components") or [])
@@ -284,6 +274,7 @@ def retest(args: dict[str, Any]) -> dict[str, Any]:
                 ),
                 "remediation_evidence": deepcopy(evidence),
                 "remediation_evidence_hash": sha256_json(evidence),
+                "quality_issues": sorted(set(retest_quality_issues)),
                 **deepcopy(parent_formal_lineage),
                 "operation_started_at": utc_now(),
             }

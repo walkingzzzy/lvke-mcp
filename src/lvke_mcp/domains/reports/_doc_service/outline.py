@@ -125,6 +125,308 @@ REPORT_STRUCTURES: dict[str, dict[str, Any]] = {
 }
 
 
+#: 发改委 2023 十章制的**细粒度**展开（三级目录）。
+#:
+#: ``gov10`` 只有 10 章 / 36 个三级小节，叶子节点太少：20 万字摊到 36 个叶子是
+#: 每节 5,500 字，远超发改委口径下一个三级小节的合理体量（800-1500 字），于是
+#: 长报告要么写不进去、要么堆成无结构的大段。本结构把同一套十章契约展开到
+#: 四级叶子（``##`` 章 / ``###`` 节 / ``####`` 叶），用**目录粒度**而不是单节
+#: 字数来承载篇幅：叶子数 × 单叶 800-1500 字 = 目标篇幅。
+#:
+#: 章标题与 ``gov10`` 逐字一致，因此 ``_CHAPTER_REQUIRED_THEMES`` /
+#: ``_RISK_CHAPTER_INDEX`` 等按章号登记的契约可以直接复用，结构校验（只比
+#: ``##`` 章标题）也不需要区分两者。
+#:
+#: 叶子标题必须**全局唯一**：``section_span`` / ``merge_single_chapter_proposal`` /
+#: ``validate_report_structure`` 三处都在重名时 fail-closed，因此不能出现两个
+#: 「小结」或两个「本章结论」。下面每个叶子名都带了领域限定词。
+GOV10_FULL_CHAPTERS: list[dict[str, Any]] = [
+    {
+        "title": "概述",
+        "subs": [
+            {"title": "项目概况", "subs": [
+                "项目名称与建设地点",
+                "项目建设主体与出资结构",
+                "项目建设规模与主要建设内容",
+                "项目总投资与资金来源概述",
+            ]},
+            {"title": "建设单位概况", "subs": [
+                "建设单位基本情况与股权结构",
+                "建设单位经营与财务状况",
+                "建设单位同类项目建设与运营业绩",
+            ]},
+            {"title": "编制依据和研究范围", "subs": [
+                "编制依据与遵循的技术标准",
+                "研究范围与未纳入研究的事项",
+                "编制过程与资料来源说明",
+            ]},
+            {"title": "主要结论和建议", "subs": [
+                "主要技术经济指标汇总",
+                "可行性总体结论",
+                "首要风险与前置条件提示",
+            ]},
+        ],
+    },
+    {
+        "title": "项目建设背景和必要性",
+        "subs": [
+            {"title": "规划政策符合性", "subs": [
+                "国家与行业专项规划符合性",
+                "省市级国民经济与社会发展规划符合性",
+                "国土空间规划与用途管制符合性",
+                "产业政策与准入目录符合性",
+                "审批核准备案路径与前置手续",
+            ]},
+            {"title": "项目建设背景", "subs": [
+                "宏观经济与区域发展背景",
+                "行业发展现状与趋势",
+                "区域同类设施供给现状与缺口",
+                "项目发起缘由与前期工作基础",
+            ]},
+            {"title": "项目建设的必要性", "subs": [
+                "落实国家战略与政策导向的必要性",
+                "满足区域需求与补齐供给缺口的必要性",
+                "完善设施体系与提升服务能力的必要性",
+                "带动产业与促进就业民生的必要性",
+                "不建设后果与方案比较结论",
+            ]},
+        ],
+    },
+    {
+        "title": "项目需求分析与产出方案",
+        "subs": [
+            {"title": "需求分析", "subs": [
+                "服务范围与目标群体界定",
+                "存量需求调查与数据来源",
+                "需求预测方法与参数选取",
+                "预测结果与分年度需求曲线",
+                "需求预测敏感情形与不确定性",
+            ]},
+            {"title": "项目建设内容、规模及产出方案", "subs": [
+                "建设规模确定原则与测算过程",
+                "工程内容构成与分项清单",
+                "产出指标与水平定位",
+                "预期成效与可计量结果",
+                "建设规模与需求预测的匹配校验",
+            ]},
+            {"title": "项目商业模式", "subs": [
+                "运营主体与职责边界",
+                "收入来源与定价机制",
+                "成本分担与补贴安排",
+                "现金流闭环与可持续性判断",
+            ]},
+        ],
+    },
+    {
+        "title": "项目选址与要素保障",
+        "subs": [
+            {"title": "项目选址", "subs": [
+                "选址原则与备选方案",
+                "备选址多方案比较与推荐意见",
+                "场址现状与土地权属",
+                "场址合规性与控规指标符合性",
+            ]},
+            {"title": "项目建设条件", "subs": [
+                "自然地理与气象水文条件",
+                "工程地质与抗震设设条件",
+                "交通运输与施工组织条件",
+                "市政配套与接入条件",
+            ]},
+            {"title": "要素保障分析", "subs": [
+                "用地与报批要素保障",
+                "能源与水资源要素保障",
+                "环容与排污指标要素保障",
+                "人力与技术要素保障",
+                "要素落实进展与待办事项",
+            ]},
+        ],
+    },
+    {
+        "title": "项目建设方案",
+        "subs": [
+            {"title": "技术方案", "subs": [
+                "技术路线比选与推荐方案",
+                "主要工艺与技术参数",
+                "技术标准与规范适用",
+                "技术方案风险与备用安排",
+            ]},
+            {"title": "设备方案", "subs": [
+                "主要设备选型与清单",
+                "设备技术参数与性能要求",
+                "设备采购渠道与国产化水平",
+                "设备安装调试与验收要求",
+            ]},
+            {"title": "工程方案", "subs": [
+                "总平面布置与竖向设计",
+                "建筑与结构工程方案",
+                "给排水与暖通工程方案",
+                "电气与智能化工程方案",
+                "室外配套与景观工程方案",
+                "主要工程量汇总",
+            ]},
+            {"title": "项目招标方案", "subs": [
+                "招标范围与标段划分",
+                "招标方式与组织形式",
+                "招标计划与关键节点",
+            ]},
+            {"title": "建设工期与实施进度", "subs": [
+                "建设工期测算与阶段划分",
+                "进度计划与里程碑安排",
+                "进度制约因素与赶工措施",
+            ]},
+        ],
+    },
+    {
+        "title": "项目运营方案",
+        "subs": [
+            {"title": "运营模式选择", "subs": [
+                "备选运营模式比较",
+                "推荐运营模式与理由",
+                "运营主体能力与资质要求",
+            ]},
+            {"title": "经营方案", "subs": [
+                "业务组织与服务流程",
+                "定价与收费方案",
+                "市场拓展与客户维护",
+                "运营成本构成与控本措施",
+            ]},
+            {"title": "安全保障方案", "subs": [
+                "安全生产责任体系",
+                "重大危险源辨识与监控",
+                "消防与应急疏散方案",
+                "职业健康与劳动保护",
+            ]},
+            {"title": "运营管理方案", "subs": [
+                "组织机构与岗位设置",
+                "人员配置与培训计划",
+                "设备维保与资产管理",
+                "信息化与数字化运营手段",
+            ]},
+        ],
+    },
+    {
+        "title": "项目投融资与财务方案",
+        "subs": [
+            {"title": "投资估算", "subs": [
+                "估算范围与编制依据",
+                "建筑工程费估算",
+                "设备及安装工程费估算",
+                "工程建设其他费用与预备费",
+                "铺底流动资金与建设期利息",
+                "总投资汇总与分年度使用计划",
+            ]},
+            {"title": "融资方案", "subs": [
+                "资本金构成与到位安排",
+                "债务资金渠道与借款条件",
+                "还本付息安排与资金成本",
+                "融资方案可行性与备选渠道",
+            ]},
+            {"title": "财务效益评价", "subs": [
+                "评价参数与基本假设",
+                "营业收入与税金测算",
+                "总成本费用测算",
+                "利潦与现金流量测算",
+                "盈利能力指标与判定",
+            ]},
+            {"title": "财务可持续性分析", "subs": [
+                "偿债能力指标分析",
+                "资金平衡与缺口弥补",
+                "政府投入与中长期财政承受能力",
+                "财务可持续性结论",
+            ]},
+        ],
+    },
+    {
+        "title": "项目影响效果分析",
+        "subs": [
+            {"title": "经济影响分析", "subs": [
+                "经济费用效益分析方法",
+                "直接与间接经济效益识别",
+                "区域经济带动效应",
+            ]},
+            {"title": "社会影响分析", "subs": [
+                "就业与民生改善效果",
+                "公共服务可及性与公平性",
+                "利益相关方诉求与社会接受度",
+            ]},
+            {"title": "生态环境影响分析", "subs": [
+                "主要环境影响因子识别",
+                "污染防治与生态保护措施",
+                "环境影响评价结论与审批要求",
+            ]},
+            {"title": "项目用能情况", "subs": [
+                "用能种类与数量测算",
+                "能效水平与对标分析",
+                "节能措施与碳排放测算",
+            ]},
+            {"title": "资源和能源利用效果分析", "subs": [
+                "土地与水资源利用效率",
+                "材料与固废资源化利用",
+                "资源利用综合评价结论",
+            ]},
+        ],
+    },
+    {
+        "title": "项目风险管控方案",
+        "subs": [
+            {"title": "主要风险识别与评价", "subs": [
+                "风险识别方法与评价标准",
+                "政策风险识别与评级",
+                "市场风险识别与评级",
+                "技术风险识别与评级",
+                "财务风险识别与评级",
+                "实施风险识别与评级",
+                "运营风险识别与评级",
+                "社会环境风险识别与评级",
+            ]},
+            {"title": "盈亏平衡分析", "subs": [
+                "盈亏平衡测算与临界点",
+                "产能利用率安全边际",
+            ]},
+            {"title": "敏感性分析", "subs": [
+                "单因素敏感性分析",
+                "多因素组合情景分析",
+                "敏感性结论与关键阈值",
+            ]},
+            {"title": "风险管控方案与应急预案", "subs": [
+                "风险分级响应与责任分工",
+                "分类风险应对措施清单",
+                "应急预案与演练安排",
+            ]},
+        ],
+    },
+    {
+        "title": "研究结论及建议",
+        "subs": [
+            {"title": "主要研究结论", "subs": [
+                "必要态与合规性结论",
+                "技术与工程方案结论",
+                "财务与风险结论",
+            ]},
+            {"title": "问题与建议", "subs": [
+                "待解决的主要问题",
+                "下一阶段工作建议",
+            ]},
+        ],
+    },
+]
+
+
+REPORT_STRUCTURES["gov10_full"] = {
+    "label": "政府投资项目（发改委2023十章 · 细粒度三级目录）",
+    "hint": (
+        "与 gov10 同一套十章契约，但展开到三级目录（章/节/叶）。"
+        "适用于需要完整篇幅的正式可研：靠目录粒度而不是单节堆字承载体量，"
+        "单个叶子节目标 800-1500 字。"
+    ),
+    # 声明本结构的 outline 默认展开到**全层级**。不开这个开关的结构（gov10 等）
+    # 仍只用章标题做默认 outline：把它们一并改成全层级会让结构校验从「必须有
+    # 10 个章」收紧为「必须有 46 个标题且逐个唯一、严格按序」，是不相关的行为收紧。
+    "full_outline": True,
+    "chapters": GOV10_FULL_CHAPTERS,
+}
+
+
 REPORT_STRUCTURES["asset_acquisition"] = {
     "label": "资产收购可行性研究报告（九章交付合同）",
     "hint": "适用于存量资产收购；九章均须具备不可变证据、研究和同一收购 run 的血缘。",
@@ -147,8 +449,71 @@ def report_structure(report_type: str = "") -> dict[str, Any]:
     return REPORT_STRUCTURES.get(report_type or "", REPORT_STRUCTURES[DEFAULT_REPORT_TYPE])
 
 
+def sub_title(sub: Any) -> str:
+    """取一个 ``subs`` 项的标题。
+
+    ``subs`` 历史上是 ``list[str]``；细粒度结构（``gov10_full``）需要再嵌一层，
+    于是允许 ``{"title": ..., "subs": [...]}``。两种形式共存，读取侧统一走这里。
+    """
+    if isinstance(sub, dict):
+        return str(sub.get("title") or "").strip()
+    return str(sub or "").strip()
+
+
+def sub_children(sub: Any) -> list[Any]:
+    """取一个 ``subs`` 项的下级节点；字符串形式无下级。"""
+    if isinstance(sub, dict):
+        return [item for item in (sub.get("subs") or []) if sub_title(item)]
+    return []
+
+
 def report_chapter_titles(report_type: str = "") -> list[str]:
     return [c["title"] for c in report_structure(report_type)["chapters"]]
+
+
+def report_outline_descriptors(report_type: str = "") -> list[dict[str, Any]]:
+    """把结构展平为 ``normalize_outline`` 可用的有序描述符（带 depth）。
+
+    ``report_prepare`` 未传 outline 时只回落到**章标题**，于是三级结构的节/叶
+    根本没有 descriptor，``report_propose_section`` 也就无法按小节落稿。这里把
+    章/节/叶全部展开，``depth`` 与 markdown 标题级别一致（2=``##``，3=``###``，
+    4=``####``），供 ``_merge_section_patch`` 在首次插入时用作标题级别。
+    """
+    descriptors: list[dict[str, Any]] = []
+    for chapter in report_structure(report_type)["chapters"]:
+        descriptors.append({"title": str(chapter["title"]), "depth": 2})
+        for sub in chapter.get("subs") or []:
+            title = sub_title(sub)
+            if not title:
+                continue
+            descriptors.append({"title": title, "depth": 3})
+            for leaf in sub_children(sub):
+                leaf_title = sub_title(leaf)
+                if leaf_title:
+                    descriptors.append({"title": leaf_title, "depth": 4})
+    return descriptors
+
+
+def report_leaf_titles(report_type: str = "") -> list[str]:
+    """返回最深一级（实际要写正文的）节点标题。"""
+    leaves: list[str] = []
+    for chapter in report_structure(report_type)["chapters"]:
+        subs = chapter.get("subs") or []
+        if not subs:
+            leaves.append(str(chapter["title"]))
+            continue
+        for sub in subs:
+            children = sub_children(sub)
+            if children:
+                leaves.extend(sub_title(item) for item in children if sub_title(item))
+            elif sub_title(sub):
+                leaves.append(sub_title(sub))
+    return leaves
+
+
+def structure_uses_full_outline(report_type: str = "") -> bool:
+    """该结构的默认 outline 是否展开到全层级。"""
+    return bool(report_structure(report_type).get("full_outline"))
 
 
 def resolve_report_type(meta: dict[str, Any]) -> str:

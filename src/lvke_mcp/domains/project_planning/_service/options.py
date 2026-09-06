@@ -365,17 +365,15 @@ def confirm_option_selection(
         selected = by_id.get(selected_option_id)
         if selected is None:
             return _blocked("option_not_found", "选定方案不存在")
+        quality_issues: list[str] = []
         if not selected.get("eligible"):
-            return _blocked("option_ineligible", "选定方案未通过强制约束")
+            quality_issues.append("option_ineligible")
         expected_rejected = set(by_id) - {selected_option_id}
         if set(rejected_option_ids) != expected_rejected:
-            return _blocked(
-                "option_rejected_list_incomplete",
-                "必须显式列出全部未选方案，禁止隐式合并",
-            )
+            quality_issues.append("option_rejected_list_incomplete")
         reason = str(selection_reason or "").strip()
         if len(reason) < 10:
-            return _blocked("option_selection_reason_insufficient", "方案选择理由至少 10 个字符")
+            quality_issues.append("option_selection_reason_insufficient")
         leader = payload.get("score_leader_option_id")
         selection = {
             "selected_option_id": selected_option_id,
@@ -390,6 +388,7 @@ def confirm_option_selection(
             "status": "confirmed",
             "selection_required": False,
             "selection": selection,
+            "quality_issues": sorted(set(quality_issues)),
             "parent_object_ids": [option_comparison_id, *list(payload.get("parent_object_ids") or [])],
             "next_actions": ["将已确认方案的数值边界传递到规模、成本或报告对象"],
         }
@@ -413,6 +412,8 @@ def confirm_option_selection(
             object_id=record["object_id"],
             option_comparison=_planning_view(record, "option_comparison_id"),
             selection=selection,
+            quality_issues=sorted(set(quality_issues)),
+            warnings=[f"质量提示：{item}" for item in sorted(set(quality_issues))],
             lineage={
                 "candidate_option_comparison_id": option_comparison_id,
                 "project_context_id": payload.get("project_context_id"),

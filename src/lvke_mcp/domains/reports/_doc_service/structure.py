@@ -10,26 +10,46 @@ from lvke_mcp.domains.reports.headings import canonical_heading_title
 from .outline import (
     report_chapter_titles,
     report_structure,
+    sub_children,
+    sub_title,
 )
 
 
 def default_report_markdown(title: str = "可行性研究报告", report_type: str = "") -> str:
-    """按结构类型生成大纲骨架（含三级小节 + 待补充占位）。"""
+    """按结构类型生成大纲骨架（含三级小节 + 待补充占位）。
+
+    ``subs`` 项可再嵌一层（见 ``outline.sub_children``），此时占位只放在**叶子**上：
+    中间节不写正文，否则 readiness 会数出一批永远不会被填写的占位。
+    """
     struct = report_structure(report_type)
     lines = [f"# {title}", ""]
     for idx, chapter in enumerate(struct["chapters"], start=1):
         lines.append(f"## {idx}. {chapter['title']}")
         lines.append("")
         subs = chapter.get("subs") or []
-        if subs:
-            for sidx, sub in enumerate(subs, start=1):
-                lines.append(f"### {idx}.{sidx} {sub}")
+        if not subs:
+            lines.append("（待补充）")
+            lines.append("")
+            continue
+        for sidx, sub in enumerate(subs, start=1):
+            heading = sub_title(sub)
+            if not heading:
+                continue
+            lines.append(f"### {idx}.{sidx} {heading}")
+            lines.append("")
+            children = sub_children(sub)
+            if not children:
+                lines.append("（待补充）")
+                lines.append("")
+                continue
+            for lidx, leaf in enumerate(children, start=1):
+                leaf_heading = sub_title(leaf)
+                if not leaf_heading:
+                    continue
+                lines.append(f"#### {idx}.{sidx}.{lidx} {leaf_heading}")
                 lines.append("")
                 lines.append("（待补充）")
                 lines.append("")
-        else:
-            lines.append("（待补充）")
-            lines.append("")
     return "\n".join(lines).rstrip() + "\n"
 
 

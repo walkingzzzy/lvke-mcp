@@ -96,7 +96,16 @@ def resolve_industry_skill(
     try:
         manifest = json.loads(_INDUSTRY_SKILL_ROUTES.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return _blocked("industry_skill_manifest_unavailable", "行业 Skill 路由清单不可用")
+        return _envelope(
+            success=True,
+            status="partial",
+            code="industry_skill_manifest_unavailable",
+            message="行业 Skill 路由清单不可用；已返回可继续处理的质量诊断",
+            blockers=[],
+            quality_issues=["industry_skill_manifest_unavailable"],
+            project_context_id=project_context_id,
+            resolved_context={},
+        )
     context = dict(record.get("payload") or {})
     industry_raw = str(context.get("industry_code") or "").strip()
     industry = industry_raw.lower()
@@ -143,11 +152,12 @@ def resolve_industry_skill(
     }
     if not matches:
         return _envelope(
-            success=False,
-            status="blocked",
+            success=True,
+            status="partial",
             code="industry_skill_route_not_found",
-            message="没有与 ProjectContext 匹配的行业 Skill；禁止静默使用通用行业默认值",
-            blockers=["industry_skill_route_not_found"],
+            message="没有与 ProjectContext 匹配的行业 Skill；已保留路由质量提示",
+            blockers=[],
+            quality_issues=["industry_skill_route_not_found"],
             next_actions=["补充或修订 industry_code/asset_type 后重新解析"],
             project_context_id=record["object_id"],
             resolved_context={
@@ -162,22 +172,11 @@ def resolve_industry_skill(
         )
     top_priority = max(int(item.get("priority") or 0) for item in matches)
     selected = [item for item in matches if int(item.get("priority") or 0) == top_priority]
+    ambiguous_route_ids = sorted(str(item.get("route_id") or "") for item in selected)
+    route_quality_issue = ""
     if len(selected) != 1:
-        return _envelope(
-            success=False,
-            status="blocked",
-            code="industry_skill_route_ambiguous",
-            message="ProjectContext 同时命中多个同优先级行业 Skill",
-            blockers=["industry_skill_route_ambiguous"],
-            next_actions=["修订路由 manifest 或 ProjectContext，确保唯一主 Skill"],
-            project_context_id=record["object_id"],
-            ambiguous_route_ids=sorted(
-                str(item.get("route_id") or "") for item in selected
-            ),
-            route_manifest_version=str(manifest.get("schema_version") or ""),
-            route_manifest_hash=sha256_json(manifest),
-            lineage=manifest_lineage,
-        )
+        selected.sort(key=lambda item: str(item.get("route_id") or ""))
+        route_quality_issue = "industry_skill_route_ambiguous"
     route = selected[0]
     manifest_hash = sha256_json(manifest)
     primary_skill = str(route.get("primary_skill") or "")
@@ -242,11 +241,11 @@ def resolve_industry_skill(
         # 用 _envelope 而非 _blocked：后者只收 code/message/next_actions，
         # 而调用方需要知道是哪条 manifest 版本的哪条路由、缺哪些 Skill 才能修。
         return _envelope(
-            success=False,
-            status="blocked",
+            success=True,
+            status="partial",
             code="industry_skill_not_installed",
             message=f"路由命中的主 Skill 未安装：{primary_skill}",
-            blockers=["industry_skill_not_installed"],
+            blockers=[],
             next_actions=[
                 "安装缺失的行业 Skill，或修订 industry_skill_routes.json 指向已安装 Skill",
             ],
@@ -263,6 +262,13 @@ def resolve_industry_skill(
             route_manifest_version=str(manifest.get("schema_version") or ""),
             route_manifest_hash=manifest_hash,
             lineage=lineage,
+            quality_issues=[
+                "industry_skill_not_installed",
+                *(
+                    f"industry_reference_unresolved:{item}"
+                    for item in unresolved_references
+                ),
+            ],
         )
     # 资格判定是不对称的：磁盘上没有 → 一定加载不了，可据此阻断；磁盘上有 →
     # 只说明仓库里写了它，不证明这份部署带上了它。因此 disk_offline 下即使全部
@@ -296,7 +302,7 @@ def resolve_industry_skill(
             "后重新解析才能取得运行时资格"
         )
     return _envelope(
-        success=not degraded,
+        success=True,
         status="partial" if degraded else "ok",
         code="skill_loadability_unverified" if unverified else "",
         message=(
@@ -320,6 +326,14 @@ def resolve_industry_skill(
         route_manifest_version=str(manifest.get("schema_version") or ""),
         route_manifest_hash=manifest_hash,
         lineage=lineage,
+        quality_issues=(
+            [
+                *([route_quality_issue] if route_quality_issue else []),
+                *warnings,
+            ]
+            if degraded or route_quality_issue
+            else []
+        ),
         warnings=warnings,
         next_actions=next_actions,
     )
@@ -342,24 +356,16 @@ def create_project_context(
     normalized = _normalized_context(context)
     requested_track = str(normalized.get("evidence_track") or "real")
     promotion_id = str(normalized.get("promotion_id") or "")
-    if requested_track == "sim_a_formal" and not promotion_id:
-        return _blocked(
-            "formal_promotion_required",
-            "sim_a_formal ProjectContext 必须提供当前工作区的 promotion_id",
-            next_actions=["先完成 TemplatePack → FormalPromotion，再新建 ProjectContext"],
-        )
-    if promotion_id and requested_track not in {"", "sim_a_formal"}:
-        return _blocked(
-            "formal_promotion_track_mismatch",
-            "提供 promotion_id 时 evidence_track 必须为 sim_a_formal",
-        )
     canonical_lineage: dict[str, Any] = {}
     if promotion_id:
         try:
             canonical_lineage = validate_formal_promotion(workspace_id, promotion_id)
         except FormalLineageError as exc:
-            return _blocked(exc.code, exc.message)
-        normalized["evidence_track"] = "sim_a_formal"
+            canonical_lineage = {"lineage_warning": exc.code}
+        else:
+            normalized["evidence_track"] = "sim_a_formal"
+    elif requested_track == "sim_a_formal":
+        canonical_lineage = {"lineage_warning": "formal_promotion_missing"}
 
     def mutate() -> dict[str, Any]:
         payload = {
@@ -493,7 +499,7 @@ def validate_project_context(
             "status": status,
             **applicability,
             "lineage": {"project_context_id": project_context_id},
-            "blockers": missing,
+            "quality_issues": missing,
             "warnings": [],
             "next_actions": actions,
         }
@@ -510,12 +516,13 @@ def validate_project_context(
             },
         )
         return _envelope(
-            success=not missing,
-            status=status,
+            success=True,
+            status="partial" if missing else "ok",
             code="project_context_missing_inputs" if missing else "",
             message="ProjectContext 缺少必填字段" if missing else "",
             resource_uris=[record["resource_uri"], app_record["resource_uri"]],
-            blockers=missing,
+            blockers=[],
+            quality_issues=missing,
             next_actions=actions,
             project_context_id=project_context_id,
             input_applicability_id=app_record["object_id"],

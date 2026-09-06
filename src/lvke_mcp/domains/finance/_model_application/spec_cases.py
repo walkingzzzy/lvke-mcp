@@ -91,6 +91,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
     fact_pack_record: dict[str, Any] | None = None
     fact_pack_payload: dict[str, Any] = {}
     fact_pack: dict[str, Any] = {}
+    preflight_quality_issues: list[str] = []
     if fact_pack_id:
         fact_pack_record = FACT_PACK_STORE.get(workspace_id, fact_pack_id)
         if fact_pack_record is None:
@@ -121,18 +122,11 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
         if not bool((fact_pack.get("depth_assessment") or {}).get("ok")):
             fact_pack_errors.append("finance_fact_pack 深度评估未通过")
         if fact_pack_errors:
-            return _ok_env(
-                {
-                    "available": False,
-                    "fact_pack_id": fact_pack_id,
-                    "fact_pack_errors": list(dict.fromkeys(fact_pack_errors)),
-                },
-                source=f"{SERVER_NAME}.finance_prepare_spec",
-                status="blocked",
-                blockers=["confirmed_formal_candidate_fact_pack_required"],
-                next_actions=["确认同工作区 Fact Pack 并达到 formal_candidate 后重试"],
-                fact_pack_id=fact_pack_id,
-                fact_pack_hash=fact_pack.get("fact_pack_hash"),
+            preflight_quality_issues.extend(
+                [
+                    "confirmed_formal_candidate_fact_pack_required",
+                    *[str(item) for item in fact_pack_errors],
+                ]
             )
     evidence_ids = _str_list(args.get("evidence_pack_ids"))
     evidence_records = []
@@ -155,24 +149,15 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
     if formal_parents:
         all_parents = [*evidence_records, *([fact_pack_record] if fact_pack_record else [])]
         if len(formal_parents) != len(all_parents):
-            return _err_env(
-                f"{SERVER_NAME}.formal_lineage_mixed_policy",
-                "FinanceSpec 不允许混合 SIM-A promotion 与其他证据父对象",
-                status="blocked",
-                blockers=["formal_lineage_mixed_policy"],
-            )
+            preflight_quality_issues.append("formal_lineage_mixed_policy")
         try:
-            canonical_lineage = validate_same_formal_lineage(
-                workspace_id,
-                all_parents,
-            )
+            if len(formal_parents) == len(all_parents):
+                canonical_lineage = validate_same_formal_lineage(
+                    workspace_id,
+                    all_parents,
+                )
         except FormalLineageError as exc:
-            return _err_env(
-                f"{SERVER_NAME}.{exc.code}",
-                exc.message,
-                status="blocked",
-                blockers=[exc.code],
-            )
+            preflight_quality_issues.append(exc.code)
     try:
         from lvke_mcp.domains.finance import run_service
 
@@ -185,14 +170,7 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
 
                 normalized_revenue, revenue_errors = normalize_tourism_revenue(revenue)
                 if revenue_errors:
-                    return _ok_env(
-                        {"available": False, "missing_inputs": []},
-                        source=f"{SERVER_NAME}.finance_prepare_spec",
-                        status="blocked",
-                        blockers=["revenue_component_conflict"],
-                        field_errors=revenue_errors,
-                        next_actions=["修正文旅收入组件与兼容别名冲突后重试"],
-                    )
+                    preflight_quality_issues.append("revenue_component_conflict")
                 supplied_spec["revenue"] = normalized_revenue
         data = run_service.prepare_workspace_finance_spec(
             workspace_id,
@@ -214,26 +192,9 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             data.get("input_revision") if isinstance(data.get("input_revision"), dict) else {},
         )
         if rejected:
-            return _ok_env(
-                {
-                    "available": False,
-                    "missing_inputs": [],
-                    "input_rejections": rejected,
-                    "input_adoption_ledger": adoption,
-                },
-                source=f"{SERVER_NAME}.finance_prepare_spec",
-                status="blocked",
-                blockers=["candidate_input_invalid"],
-                field_errors=[
-                    {
-                        "path": str(item.get("path") or f"/input_revision/{item.get('input') or 'unknown'}"),
-                        "code": str(item.get("reason") or "candidate_input_invalid"),
-                        "input": item.get("input"),
-                        **({"conflicts_with": item.get("conflicts_with")} if item.get("conflicts_with") else {}),
-                    }
-                    for item in rejected
-                ],
-                next_actions=["修正未知、冲突或非法的 input_revision 字段后重试"],
+            preflight_quality_issues.extend(
+                f"candidate_input_invalid:{item.get('input') or 'unknown'}"
+                for item in rejected
             )
         if fact_pack:
             normalized_inputs["finance_fact_pack"] = json.loads(
@@ -269,22 +230,16 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
                 ),
             )
             if not projection.get("applied"):
-                return _ok_env(
-                    {
-                        "available": False,
-                        "fact_pack_id": fact_pack_id,
-                        "fact_pack_errors": list(projection.get("issues") or []),
-                    },
-                    source=f"{SERVER_NAME}.finance_prepare_spec",
-                    status="blocked",
-                    blockers=["confirmed_fact_pack_projection_failed"],
-                    next_actions=["重建并重新确认同工作区 FinanceFactPack 后重试"],
-                    fact_pack_id=fact_pack_id,
-                    fact_pack_hash=fact_pack.get("fact_pack_hash"),
+                preflight_quality_issues.extend(
+                    [
+                        "confirmed_fact_pack_projection_failed",
+                        *[str(item) for item in projection.get("issues") or []],
+                    ]
                 )
-            normalized_inputs = projected_inputs
-            data["spec"] = projected_spec
-            data["spec_hash"] = run_service.compute_spec_hash(projected_spec)
+            else:
+                normalized_inputs = projected_inputs
+                data["spec"] = projected_spec
+                data["spec_hash"] = run_service.compute_spec_hash(projected_spec)
             data["fact_pack_projection"] = projection
         data["input_revision"] = normalized_inputs
         from lvke_mcp.domains.finance.working_capital import apply_operating_turnover_to_inputs
@@ -347,7 +302,10 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
             missing.append("finance_spec")
         data["available"] = spec is not None
         data["missing_inputs"] = list(missing)
-        data["quality_issues"] = [f"missing_input:{item}" for item in missing]
+        data["quality_issues"] = [
+            *preflight_quality_issues,
+            *[f"missing_input:{item}" for item in missing],
+        ]
         evidence_binding_hash = sha256_json(
             {
                 "evidence_pack_ids": evidence_ids,
@@ -520,14 +478,16 @@ def prepare_spec(args: dict[str, Any]) -> dict[str, Any]:
         return _ok_env(
             data,
             source=f"{SERVER_NAME}.finance_prepare_spec",
-            status="blocked" if spec_unavailable else ("partial" if missing else "ok"),
+            status="partial" if (spec_unavailable or missing or data.get("quality_issues")) else "ok",
             warnings=[
                 *_str_list(data.get("warnings")),
                 *(f"质量提示：缺少关键输入 {item}" for item in missing),
             ],
-            blockers=(
-                ["finance_spec_unavailable"] if spec_unavailable else []
-            ),
+            blockers=[],
+            quality_issues=[
+                *list(data.get("quality_issues") or []),
+                *( ["finance_spec_unavailable"] if spec_unavailable else []),
+            ],
             next_actions=(
                 [
                     "无可复用的 confirmed Spec（hash 非法或 lineage 断裂）；"
@@ -575,27 +535,22 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
         return _err_env(f"{SERVER_NAME}.spec_not_found", "未找到候选 FinanceSpec", status="blocked")
     payload = source.get("payload") if isinstance(source.get("payload"), dict) else {}
     canonical_lineage: dict[str, Any] = {}
+    quality_issues: list[str] = []
     if payload.get("evidence_policy") == "sim_a_formal":
         parent_records: list[dict[str, Any]] = []
         for evidence_id in _str_list(payload.get("evidence_pack_ids")):
             record = EVIDENCE_STORE.get(workspace_id, evidence_id)
             if record is None:
-                return _err_env(
-                    f"{SERVER_NAME}.evidence_pack_not_found",
-                    "确认 FinanceSpec 时正式 EvidencePack 不存在或跨工作区",
-                    status="blocked",
-                )
+                quality_issues.append("formal_evidence_pack_not_found")
+                continue
             parent_records.append(record)
         fact_pack_id = str(payload.get("fact_pack_id") or "")
         if fact_pack_id:
             fact_record = FACT_PACK_STORE.get(workspace_id, fact_pack_id)
             if fact_record is None:
-                return _err_env(
-                    f"{SERVER_NAME}.fact_pack_not_found",
-                    "确认 FinanceSpec 时正式 FactPack 不存在或跨工作区",
-                    status="blocked",
-                )
-            parent_records.append(fact_record)
+                quality_issues.append("formal_fact_pack_not_found")
+            else:
+                parent_records.append(fact_record)
         try:
             source_lineage = validate_formal_record(workspace_id, source)
             canonical_lineage = validate_same_formal_lineage(workspace_id, parent_records)
@@ -605,12 +560,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
                     "FinanceSpec 与其正式父对象 promotion 不一致",
                 )
         except FormalLineageError as exc:
-            return _err_env(
-                f"{SERVER_NAME}.{exc.code}",
-                exc.message,
-                status="blocked",
-                blockers=[exc.code],
-            )
+            quality_issues.append(exc.code)
     spec = payload.get("spec") if isinstance(payload.get("spec"), dict) else None
     if spec is None:
         return _err_env(f"{SERVER_NAME}.spec_invalid", "候选 FinanceSpec 快照无效", status="blocked")
@@ -631,6 +581,7 @@ def confirm_spec(args: dict[str, Any]) -> dict[str, Any]:
     confirmed = mark_spec_confirmed(spec)
     formal_ok, formal_errors = validate_for_formal(confirmed)
     quality_issues = [
+        *quality_issues,
         *(f"missing_input:{item}" for item in missing),
         *[str(item) for item in formal_errors],
     ]

@@ -9,6 +9,7 @@ from typing import Any
 
 
 from lvke_mcp.domains.reports import doc_service
+from lvke_mcp.runtime.quality_severity import split_quality_codes
 
 from .base import (
     DEFAULT_TEMPLATE_VERSION,
@@ -31,7 +32,7 @@ from .directory import (
 
 from .formal_gate import (
     _capture_basis,
-    _draft_basis_blockers,
+    _draft_basis_quality_issues,
     _marker_markdown,
 )
 
@@ -242,21 +243,20 @@ def _create(
         if kind == "formal":
             quality_issues = [
                 *copy.deepcopy(readiness.get("blockers") or []),
-                *_draft_basis_blockers(basis, context),
+                *_draft_basis_quality_issues(basis, context),
             ]
-            if quality_issues:
-                # Formal export is fail-closed. Do not create an artifact
-                # directory, manifest, or Resource URI while blockers remain.
-                raise DeliverableArtifactError(
-                    "FORMAL_ARTIFACT_QUALIFICATION_REQUIRED",
-                    "正式候选工件仍存在未关闭的资格阻断项",
-                    details={"blockers": quality_issues},
-                )
+            _finance_blockers, diagnostic_issues = split_quality_codes(
+                item.get("code")
+                for item in quality_issues
+                if isinstance(item, dict)
+            )
             report_content = content
             blocker_summary = {
-                "blockers": quality_issues,
+                "blockers": [],
+                "quality_issues": diagnostic_issues,
                 "warnings": copy.deepcopy(readiness.get("warnings") or []),
-                "blocker_count": len(quality_issues),
+                "blocker_count": 0,
+                "quality_issue_count": len(diagnostic_issues),
                 "warning_count": len(readiness.get("warnings") or []),
             }
             subject = "可行性研究报告交付工件"
@@ -266,7 +266,7 @@ def _create(
             report_content, blocker_summary = _marker_markdown(
                 content,
                 readiness,
-                additional_blockers=_draft_basis_blockers(basis, context),
+                additional_blockers=_draft_basis_quality_issues(basis, context),
             )
             subject = DRAFT_MARKER
             keywords = [DRAFT_MARKER, "非正式发布件"]

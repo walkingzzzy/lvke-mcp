@@ -42,9 +42,16 @@ def _finance_summary(
     )
     indicators = dict(run.get("indicators") or {})
     investment = dict(run.get("investment") or {})
+    annual = dict(run.get("annual") or {})
     total_investment_wan = _first_value(indicators, "total_investment_wan")
     if total_investment_wan is None:
         total_investment_wan = _first_value(investment, "total")
+    # 资本金 IRR 由 annual 段算出（`annual.capital_irr_pct`），但**没有**像
+    # project_irr_pct 那样被提升进 indicators。只读 indicators 会让这项指标恒为
+    # None，正文第 8 章的股东视角评价整节缺失——而模型其实算出了值。
+    capital_irr = _first_value(indicators, "capital_irr", "capital_irr_pct")
+    if capital_irr is None:
+        capital_irr = _first_value(annual, "capital_irr_pct", "capital_irr")
     return {
         "run_id": finance_run_id,
         "available": bool(run.get("available")),
@@ -60,7 +67,7 @@ def _finance_summary(
         ),
         "project_irr": _first_value(indicators, "project_irr", "project_irr_pct"),
         "project_npv": _first_value(indicators, "project_npv", "npv_wan"),
-        "capital_irr": _first_value(indicators, "capital_irr", "capital_irr_pct"),
+        "capital_irr": capital_irr,
         "payback_years": _first_value(
             indicators,
             "payback_years",

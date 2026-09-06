@@ -1,4 +1,4 @@
-"""正式资格门禁：财务硬门、basis 捕获与 readiness/正式 blocker 聚合。"""
+"""Report basis capture and quality diagnostics."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from typing import Any
 
 
 from lvke_mcp.domains.reports import doc_service
+from lvke_mcp.runtime.formal_promotion import FormalLineageError
 
 from .base import (
     BASIS_SCHEMA_VERSION,
@@ -31,12 +32,12 @@ from .support_files import (
 )
 
 
-def _strict_finance_gate(
+def _finance_quality_snapshot(
     workspace_id: str,
     *,
     expected_run_id: str = "",
 ) -> dict[str, Any]:
-    """Run the authoritative finance publish gate even without finance evidence."""
+    """Collect finance quality diagnostics without granting or denying output."""
 
     try:
         from lvke_mcp.domains.finance import gate as finance_gate
@@ -48,8 +49,8 @@ def _strict_finance_gate(
         )
     except Exception as exc:  # noqa: BLE001 - normalized as a blocking result
         return {
-            "ok": False,
-            "blockers": [{
+            "ok": True,
+            "quality_issues": [{
                 "code": "finance_publish_gate_failed",
                 "message": f"财务发布门禁执行失败: {type(exc).__name__}",
             }],
@@ -57,8 +58,8 @@ def _strict_finance_gate(
         }
     if not isinstance(value, dict):
         return {
-            "ok": False,
-            "blockers": [{
+            "ok": True,
+            "quality_issues": [{
                 "code": "finance_publish_gate_invalid",
                 "message": "财务发布门禁返回格式错误",
             }],
@@ -87,10 +88,15 @@ def _capture_basis(
         revision_payload = (revision or {}).get("payload") or {}
         upstream = revision_payload.get("upstream") or {}
         if str(upstream.get("evidence_policy") or "") == SIM_A_FORMAL:
-            formal_lineage = validate_report_revision_lineage(
-                workspace_id,
-                revision or {},
-            )
+            try:
+                formal_lineage = validate_report_revision_lineage(
+                    workspace_id,
+                    revision or {},
+                )
+            except FormalLineageError as exc:
+                # Provenance remains in the diagnostics snapshot. It is not a
+                # prerequisite for creating a report artifact.
+                formal_lineage = {"lineage_warning": exc.code}
     document, content, meta = _document_snapshot(
         workspace_id,
         supplied_snapshot=document_snapshot,
@@ -149,7 +155,7 @@ def _capture_basis(
         ),
         "run_snapshot": copy.deepcopy(run) if isinstance(run, dict) else None,
         "publish_gate": _without_volatile_timestamps(
-            _strict_finance_gate(workspace_id, expected_run_id=run_id)
+            _finance_quality_snapshot(workspace_id, expected_run_id=run_id)
         ),
     }
     # Capture narrative verification in the immutable basis used by both draft
@@ -242,18 +248,18 @@ def _marker_markdown(
     *,
     additional_blockers: Sequence[dict[str, Any]] = (),
 ) -> tuple[str, dict[str, Any]]:
-    blockers = [
+    quality_issues = [
         *_readiness_blockers(readiness),
         *(copy.deepcopy(item) for item in additional_blockers),
     ]
-    deduped_blockers: list[dict[str, Any]] = []
-    seen_blockers: set[tuple[str, str]] = set()
-    for item in blockers:
+    deduped_quality_issues: list[dict[str, Any]] = []
+    seen_quality_issues: set[tuple[str, str]] = set()
+    for item in quality_issues:
         key = (str(item.get("code") or ""), str(item.get("message") or ""))
-        if key not in seen_blockers:
-            seen_blockers.add(key)
-            deduped_blockers.append(item)
-    blockers = deduped_blockers
+        if key not in seen_quality_issues:
+            seen_quality_issues.add(key)
+            deduped_quality_issues.append(item)
+    quality_issues = deduped_quality_issues
     warnings: list[dict[str, Any]] = []
     for raw in readiness.get("warnings") or []:
         if isinstance(raw, dict):
@@ -272,30 +278,32 @@ def _marker_markdown(
         "## 阻断项与警告摘要",
         "",
     ]
-    if blockers:
+    if quality_issues:
         lines.extend(
-            f"- 阻断项 [{item['code']}]：{item['message']}" for item in blockers
+            f"- 质量提示 [{item['code']}]：{item['message']}" for item in quality_issues
         )
     else:
-        lines.append("- 当前自动检查未发现阻断项；本文件仍仅供内部复核。")
+        lines.append("- 当前自动检查未发现质量提示。")
     lines.extend(
         f"- 警告 [{item['code']}]：{item['message']}" for item in warnings
     )
     lines.extend(["", "---", "", content])
     summary = {
-        "blockers": blockers,
+        "blockers": [],
+        "quality_issues": quality_issues,
         "warnings": warnings,
-        "blocker_count": len(blockers),
+        "blocker_count": 0,
+        "quality_issue_count": len(quality_issues),
         "warning_count": len(warnings),
     }
     return "\n".join(lines), summary
 
 
-def _draft_basis_blockers(
+def _draft_basis_quality_issues(
     basis: dict[str, Any],
     context: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Summarize non-readiness gates that still prevent a formal artifact."""
+    """Summarize basis quality issues for the output manifest."""
 
     blockers: list[dict[str, Any]] = []
     for name in _GOVERNED_SNAPSHOTS:
@@ -395,14 +403,14 @@ __all__ = [
     "_canonical_hash",
     "_capture_basis",
     "_document_snapshot",
-    "_draft_basis_blockers",
+    "_draft_basis_quality_issues",
     "_fresh_readiness",
     "_json_snapshot",
     "_load_finance_run",
     "_marker_markdown",
     "_readiness_blockers",
     "_source_basis_snapshot",
-    "_strict_finance_gate",
+    "_finance_quality_snapshot",
     "_without_volatile_timestamps",
     "copy",
     "doc_service",

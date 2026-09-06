@@ -117,7 +117,11 @@ def build_server() -> OfficialStdioServer:
                 "finance_tables_package_id": {"type": "string"},
                 "outline": {
                     "type": "array",
-                    "maxItems": 100,
+                    # 细粒度三级目录（gov10_full：10 章 + 37 节 + 144 叶 = 191 个
+                    # descriptor）超过了原来的 100 上限。上限本身不被下游依赖（
+                    # normalize_outline / _resolve_target_sections 都与长度无关），
+                    # 但 100 会把整份细粒度大纲卡在 schema 层。
+                    "maxItems": 400,
                     "items": {
                         "oneOf": [
                             {"type": "string", "minLength": 1},
